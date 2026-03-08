@@ -4,13 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      # Rebuild frontend when source or DB changes
       - "src/**"
-      - "public/**"
       - "index.html"
       - "vite.config.ts"
       - "package.json"
-      - "data/sbs.db"
   workflow_dispatch:
 
 permissions:
@@ -18,7 +15,6 @@ permissions:
   pages: write
   id-token: write
 
-# Only one deployment at a time
 concurrency:
   group: "pages"
   cancel-in-progress: true
@@ -39,13 +35,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Copy DB into public for build
-        run: |
-          mkdir -p public/data
-          cp data/sbs.db public/data/sbs.db
-
       - name: Build
-        # .env.production is committed and loaded automatically by Vite
         run: npm run build
 
       - name: Upload Pages artifact
