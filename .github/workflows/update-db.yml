@@ -2,7 +2,7 @@ name: Update Database
 
 on:
   schedule:
-    - cron: "9,19,29,39,49,59 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch: # allow manual trigger from GitHub UI
 
 jobs:
