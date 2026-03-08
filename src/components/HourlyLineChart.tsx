@@ -84,7 +84,8 @@ const CustomTooltip = ({
             {col.map((p) => {
               const isToday = p.dataKey === todayDate;
               // Show MM-DD for past days to save space
-              const label = isToday ? "TODAY" : p.dataKey.slice(5);
+              const [y, m, d] = p.dataKey.split('-');
+              const label = isToday ? "TODAY" : `${d}.${m}.`;
               return (
                 <div key={p.dataKey} style={{
                   display: "flex",

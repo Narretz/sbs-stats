@@ -5,7 +5,6 @@ import {
 import type { DailyDataPoint } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
-
 interface Props {
   title: string;
   data: DailyDataPoint[];
@@ -13,7 +12,6 @@ interface Props {
   globalMedian: number;
   wfull: boolean;
 }
-
 function CustomDot(props: DotProps & { payload?: DailyDataPoint; accentColor: string; primaryColor: string; bgColor: string }) {
   const { cx, cy, payload, accentColor, primaryColor, bgColor } = props;
   if (cx == null || cy == null) return null;
@@ -21,12 +19,10 @@ function CustomDot(props: DotProps & { payload?: DailyDataPoint; accentColor: st
     return <circle cx={cx} cy={cy} r={5} fill={accentColor} stroke={bgColor} strokeWidth={2} />;
   return <circle cx={cx} cy={cy} r={2} fill={primaryColor} opacity={0.5} />;
 }
-
 export function DailyLineChart({ title, data, globalMax, globalMedian, wfull }: Props) {
   const { theme: t } = useTheme();
   const max = globalMax;
   const median = globalMedian;
-
   return (
     <div style={{
       background: t.surface,
@@ -57,6 +53,7 @@ export function DailyLineChart({ title, data, globalMax, globalMedian, wfull }: 
             contentStyle={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 6, fontFamily: FONTS.mono, fontSize: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
             labelStyle={{ color: t.textMuted, marginBottom: 4 }}
             itemStyle={{ color: t.primary }}
+            labelFormatter={(v: string) => { const [y, m, d] = v.split('-'); return `${d}.${m}.${y}`; }}
           />
           <ReferenceLine y={max} stroke={t.accent} strokeDasharray="4 4" strokeOpacity={0.6}
             label={{ value: "MAX", position: "insideTopRight", fontSize: 9, fill: t.accent, fontFamily: FONTS.mono }} />
