@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useDatabase } from "@/hooks/useDatabase";
+import { useDatabaseContext } from "@/context/useDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
@@ -10,20 +10,24 @@ import { FONTS } from "@/theme";
 const DAY_OPTIONS = [7, 14, 30, 60] as const;
 type DayOption = (typeof DAY_OPTIONS)[number];
 
-export function DailyPage() {
+interface DailyPageProps {
+  refreshKey?: number;
+}
+
+export function DailyPage({ refreshKey }: DailyPageProps) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryDaily, queryGlobalStats } = useDatabase();
+  const { loadState, error, queryDaily, queryGlobalStats } = useDatabaseContext();
   const [days, setDays] = useState<DayOption>(30);
   const [rows, setRows] = useState<DailyRow[]>([]);
   const [globalStats, setGlobalStats] = useState<GlobalStats>({} as GlobalStats);
 
   useEffect(() => {
     if (loadState === "ready") setGlobalStats(queryGlobalStats());
-  }, [loadState, queryGlobalStats]);
+  }, [loadState, queryGlobalStats, refreshKey]);
 
   useEffect(() => {
     if (loadState === "ready") setRows(queryDaily(days));
-  }, [loadState, days, queryDaily]);
+  }, [loadState, days, queryDaily, refreshKey]);
 
   const metrics = useMemo<Metric[]>(() => buildMetrics(), []);
 

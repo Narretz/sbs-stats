@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState } from "react";
-import { useDatabase } from "@/hooks/useDatabase";
+import { useDatabaseContext } from "@/context/useDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
@@ -7,14 +7,18 @@ import { buildMetrics } from "@/utils/metrics";
 import type { MonthlyDataPoint, MonthlyRow, StatKey, Metric } from "@/types";
 import { FONTS } from "@/theme";
 
-export function MonthlyPage() {
+interface MonthlyPageProps {
+  refreshKey?: number;
+}
+
+export function MonthlyPage({ refreshKey }: MonthlyPageProps) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryMonthly } = useDatabase();
+  const { loadState, error, queryMonthly } = useDatabaseContext();
   const [rows, setRows] = useState<MonthlyRow[]>([]);
 
   useEffect(() => {
     if (loadState === "ready") setRows(queryMonthly());
-  }, [loadState, queryMonthly]);
+  }, [loadState, queryMonthly, refreshKey]);
 
   const metrics = useMemo<Metric[]>(() => buildMetrics(), []);
 

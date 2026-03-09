@@ -41,7 +41,7 @@ async function loadDatabase(): Promise<Database> {
 
   const SQL = await initSqlJs({ wasmBinary });
 
-  const response = await fetch(DB_URL, { cache: "no-store" });
+  const response = await fetch(DB_URL + `?bust=${Date.now()}`, { cache: "no-store" });
   if (!response.ok) throw new Error(`Failed to fetch DB: ${response.status}`);
   const buffer = await response.arrayBuffer();
   return new SQL.Database(new Uint8Array(buffer));
@@ -90,17 +90,22 @@ function buildStatColumns(availableCols: string[]): string {
     .join(", ");
 }
 
+export const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 10 minutes
+
 export function useDatabase() {
   const [db, setDb] = useState<Database | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [refreshCount, setRefreshCount] = useState(0);
 
-  useEffect(() => {
+  const doLoad = useCallback(() => {
     setLoadState("loading");
     getOrCreateDbPromise()
       .then((database) => {
         setDb(database);
         setLoadState("ready");
+        setLastRefreshed(new Date());
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : String(err));
@@ -108,6 +113,30 @@ export function useDatabase() {
         dbPromise = null;
       });
   }, []);
+
+  // Initial load
+  useEffect(() => {
+    doLoad();
+  }, [doLoad]);
+
+  // Auto-refresh every REFRESH_INTERVAL_MS
+  useEffect(() => {
+    const interval = setInterval(() => {
+      dbPromise = null; // Force re-fetch from network
+      setDb(null);
+      setRefreshCount((c) => c + 1);
+      doLoad();
+    }, REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [doLoad]);
+
+  // Manual refresh
+  const refresh = useCallback(() => {
+    dbPromise = null;
+    setDb(null);
+    setRefreshCount((c) => c + 1);
+    doLoad();
+  }, [doLoad]);
 
   // ── Daily: one row per date (latest hour) ────────────────────────────────────
   const queryDaily = useCallback(
@@ -161,10 +190,12 @@ export function useDatabase() {
         ORDER BY date ASC, hour ASC
       `;
 
-      return queryRows<DailyRow>(db, sql).map((row) => ({
-        ...row,
-        is_today: (row.is_today as unknown) === 1,
-      }));
+      return queryRows<DailyRow>(db, sql).map((row) => {
+        return {
+          ...row,
+          is_today: (row.is_today as unknown) === 1,
+        }
+      });
     },
     [db]
   );
@@ -259,5 +290,9 @@ export function useDatabase() {
     });
   }, [db]);
 
-  return { loadState, error, queryDaily, queryHourly, queryMonthly, queryGlobalStats };
+  return {
+    loadState, error,
+    queryDaily, queryHourly, queryMonthly, queryGlobalStats,
+    refresh, lastRefreshed, refreshCount,
+  };
 }

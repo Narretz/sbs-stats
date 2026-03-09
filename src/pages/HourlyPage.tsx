@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useDatabase } from "@/hooks/useDatabase";
+import { useDatabaseContext } from "@/context/useDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { HourlyLineChart } from "@/components/HourlyLineChart";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
@@ -10,20 +10,24 @@ import { FONTS } from "@/theme";
 const DAY_OPTIONS = [7, 14, 30, 60] as const;
 type DayOption = (typeof DAY_OPTIONS)[number];
 
-export function HourlyPage() {
+interface HourlyPageProps {
+  refreshKey?: number;
+}
+
+export function HourlyPage({ refreshKey }: HourlyPageProps) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryHourly, queryGlobalStats } = useDatabase();
+  const { loadState, error, queryHourly, queryGlobalStats } = useDatabaseContext();
   const [days, setDays] = useState<DayOption>(60);
   const [rows, setRows] = useState<DailyRow[]>([]);
   const [globalStats, setGlobalStats] = useState<GlobalStats>({} as GlobalStats);
 
   useEffect(() => {
     if (loadState === "ready") setGlobalStats(queryGlobalStats());
-  }, [loadState, queryGlobalStats]);
+  }, [loadState, queryGlobalStats, refreshKey]);
 
   useEffect(() => {
     if (loadState === "ready") setRows(queryHourly(days));
-  }, [loadState, days, queryHourly]);
+  }, [loadState, days, queryHourly, refreshKey]);
 
   const metrics = useMemo<Metric[]>(() => buildMetrics(), []);
 
