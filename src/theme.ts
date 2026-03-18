@@ -21,6 +21,8 @@ export interface Theme {
   muted: string;
   headerBg: string;
   chartGrid: string;
+  bgImportant: string;
+  textImportant: string;
 }
 
 export const LIGHT: Theme = {
@@ -37,6 +39,8 @@ export const LIGHT: Theme = {
   muted:        "#70a65b",
   headerBg:     "rgba(244,245,247,0.92)",
   chartGrid:    "#e5e7eb",
+  bgImportant:  "#db2c18",
+  textImportant:  "#ffffff",
 };
 
 export const DARK: Theme = {
@@ -53,6 +57,8 @@ export const DARK: Theme = {
   muted:        "#4a6fa5",
   headerBg:     "rgba(8,12,20,0.85)",
   chartGrid:    "#1a2540",
+  bgImportant:  "#ff6b35",
+  textImportant:  "#ffffff",  
 };
 
 export const GLOBAL_CSS = (t: Theme) => `
