@@ -90,7 +90,7 @@ function buildStatColumns(availableCols: string[]): string {
     .join(", ");
 }
 
-export const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 10 minutes
+export const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
 export function useDatabase() {
   const [db, setDb] = useState<Database | null>(null);
