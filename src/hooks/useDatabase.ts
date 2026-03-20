@@ -187,6 +187,7 @@ export function useDatabase() {
           ${statCols}
         FROM daily_stats
         WHERE date >= date('${todayStr}', '-${days} days')
+          AND hour < 24
         ORDER BY date ASC, hour ASC
       `;
 
