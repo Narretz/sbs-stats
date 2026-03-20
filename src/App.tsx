@@ -131,7 +131,13 @@ function RefreshIndicator({
 
 function AppInner() {
   const { mode, theme: t, toggle } = useTheme();
-  const [page, setPage] = useState<Page>("hourly");
+  const validPages: Page[] = ["daily", "hourly", "monthly"];
+  const hashPage = window.location.hash.slice(1) as Page;
+  const [page, setPageState] = useState<Page>(validPages.includes(hashPage) ? hashPage : "hourly");
+  const setPage = (p: Page) => {
+    setPageState(p);
+    window.location.hash = p;
+  };
   const { loadState, refresh, lastRefreshed, refreshCount } = useDatabaseContext();
 
   const navBtn = (target: Page, label: string) => (

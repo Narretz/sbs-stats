@@ -45,7 +45,7 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
             Latest reported value per day · MAX/MED based on all data · {new Date().toDateString()}
             <br/>
-            <span style={{ color: t.textImportant, background: t.bgImportant, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4}}>The values are often adjusted hours or even a day later. This is not reflected in these graphs. The values are recorded exactly as they were at the time of collection.</span>
+            <span style={{ color: t.textImportant, background: t.bgImportant, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4}}>Since 2026-03-19, the daily values are the results of the "Previous day" endpoint if the current day has passed. Older daily values reflect the results of the latest request to the "Current day" endpoint. Results often adjusted hours or even a day later.</span>
           </p>
         </div>
         <div style={{ display: "flex", gap: 6 }}>

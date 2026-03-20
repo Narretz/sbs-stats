@@ -56,7 +56,7 @@ export function HourlyPage({ refreshKey }: HourlyPageProps) {
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
             Each line = one day · X-axis = hour · MAX/MED based on all data · {new Date().toDateString()}
                         <br/>
-            <span style={{ color: t.textImportant, background: t.bgImportant, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4}}>The values are often adjusted hours or even a day later. This is not reflected in these graphs. The values are recorded exactly as they were at the time of collection.</span>
+            <span style={{ color: t.textImportant, background: t.bgImportant, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4}}>The hourly values are recorded exactly as they were at the time of collection, and may be inaccurate because of delayed scheduling. They are also not updated after the current day is over (especially the daily totals are often updated late in the day, or in the next day)</span>
           </p>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
