@@ -285,13 +285,10 @@ def upsert_daily_correction(conn: sqlite3.Connection, data: dict) -> None:
         print(f"  ⏭️  daily_stats: {date} correction unchanged, skipping")
         return
 
-    # Determine the next hour value (24, 25, 26, ...)
-    row = conn.execute(
-        "SELECT MAX(hour) FROM daily_stats WHERE date = ? AND hour >= 24", (date,)
-    ).fetchone()
-    next_hour = 24 if row[0] is None else row[0] + 1
-
-    data["hour"] = next_hour
+    # Use 24 + current Kyiv hour, so the value encodes when the correction was fetched.
+    # E.g. fetched at Kyiv hour 19 → hour = 43. Same hour re-fetch upserts via ON CONFLICT.
+    kyiv_hour = datetime.now(KYIV_TZ).hour
+    data["hour"] = 24 + kyiv_hour
     data["targets"] = targets  # put it back for upsert_daily
     upsert_daily(conn, data)
 
