@@ -306,8 +306,9 @@ def upsert_daily(conn: sqlite3.Connection, data: dict) -> None:
     print(f"  [OK] daily_stats: {data['date']} hour {data['hour']} ({len(target_ids)} target types)")
 
 
-def upsert_daily_correction(conn: sqlite3.Connection, data: dict) -> None:
-    """Insert a correction row for a previous day, only if values differ from the last correction."""
+def upsert_daily_correction(conn: sqlite3.Connection, data: dict) -> bool:
+    """Insert a correction row for a previous day, only if values differ from the last correction.
+    Returns True if a row was written, False if skipped."""
     targets: dict[int, dict] = data.pop("targets", {})
     target_ids = list(targets.keys())
 
@@ -327,7 +328,7 @@ def upsert_daily_correction(conn: sqlite3.Connection, data: dict) -> None:
 
     if existing is not None and existing == new_vals:
         print(f"  [SKIP] daily_stats: {date} correction unchanged, skipping")
-        return
+        return False
 
     # Use 24 + current Kyiv hour, so the value encodes when the correction was fetched.
     # E.g. fetched at Kyiv hour 19 → hour = 43. Same hour re-fetch upserts via ON CONFLICT.
@@ -335,10 +336,12 @@ def upsert_daily_correction(conn: sqlite3.Connection, data: dict) -> None:
     data["hour"] = 24 + kyiv_hour
     data["targets"] = targets  # put it back for upsert_daily
     upsert_daily(conn, data)
+    return True
 
 
-def upsert_monthly(conn: sqlite3.Connection, data: dict) -> None:
-    """Insert a new monthly row only if stat values differ from the latest version."""
+def upsert_monthly(conn: sqlite3.Connection, data: dict) -> bool:
+    """Insert a new monthly row only if stat values differ from the latest version.
+    Returns True if a row was written, False if skipped."""
     now = datetime.now(timezone.utc).isoformat()
     targets: dict[int, dict] = data.pop("targets", {})
     target_ids = list(targets.keys())
@@ -363,7 +366,7 @@ def upsert_monthly(conn: sqlite3.Connection, data: dict) -> None:
         new_vals = _stat_values_for_comparison(data, targets, target_ids, all_stat_keys)
         if existing_vals == new_vals:
             print(f"  [SKIP] monthly_stats: {date} unchanged, skipping")
-            return
+            return False
 
     # Insert new version
     base_cols = [
@@ -391,6 +394,7 @@ def upsert_monthly(conn: sqlite3.Connection, data: dict) -> None:
     """, values)
     conn.commit()
     print(f"  [OK] monthly_stats: {date} new version ({len(target_ids)} target types)")
+    return True
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -431,8 +435,8 @@ def main() -> None:
         kyiv_now = datetime.now(KYIV_TZ)
         yesterday = (kyiv_now - timedelta(days=1)).strftime("%Y-%m-%d")
         parsed_prev["date"] = yesterday
-        upsert_daily_correction(conn, parsed_prev)
-        updated.append(f"prev-day {yesterday}")
+        if upsert_daily_correction(conn, parsed_prev):
+            updated.append(f"prev-day {yesterday}")
     except Exception as e:
         print(f"  [WARN] Skipping previous day: {e}")
 
@@ -467,8 +471,8 @@ def main() -> None:
         try:
             parsed_m = parse_api_response(fetch_json(url))
             parsed_m["date"] = f"{month}-01"
-            upsert_monthly(conn, parsed_m)
-            updated.append(f"monthly {month}")
+            if upsert_monthly(conn, parsed_m):
+                updated.append(f"monthly {month}")
         except Exception as e:
             print(f"  [WARN] Skipping {month}: {e}")
 
