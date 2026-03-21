@@ -395,6 +395,9 @@ def upsert_monthly(conn: sqlite3.Connection, data: dict) -> None:
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
+SUMMARY_PATH = os.environ.get("SUMMARY_PATH", "")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fetch and update SBS stats DB")
     parser.add_argument("--all-months", action="store_true",
@@ -410,6 +413,8 @@ def main() -> None:
     conn.row_factory = sqlite3.Row
     ensure_schema(conn)
 
+    updated: list[str] = []
+
     # ── Daily (today) ─────────────────────────────────────────────────────────
     print("Fetching daily data (today)...")
     parsed = parse_api_response(fetch_json(DAILY_URL))
@@ -417,6 +422,7 @@ def main() -> None:
     parsed["date"] = kyiv_dt.strftime("%Y-%m-%d")
     parsed["hour"] = kyiv_dt.hour
     upsert_daily(conn, parsed)
+    updated.append(f"daily {parsed['date']} h{parsed['hour']}")
 
     # ── Daily (previous day correction) ───────────────────────────────────────
     print("Fetching daily data (previous day)...")
@@ -426,6 +432,7 @@ def main() -> None:
         yesterday = (kyiv_now - timedelta(days=1)).strftime("%Y-%m-%d")
         parsed_prev["date"] = yesterday
         upsert_daily_correction(conn, parsed_prev)
+        updated.append(f"prev-day {yesterday}")
     except Exception as e:
         print(f"  [WARN] Skipping previous day: {e}")
 
@@ -461,11 +468,17 @@ def main() -> None:
             parsed_m = parse_api_response(fetch_json(url))
             parsed_m["date"] = f"{month}-01"
             upsert_monthly(conn, parsed_m)
+            updated.append(f"monthly {month}")
         except Exception as e:
             print(f"  [WARN] Skipping {month}: {e}")
 
     conn.close()
-    print("Done.")
+
+    summary = ", ".join(updated) if updated else "no changes"
+    print(f"Done. Updated: {summary}")
+    if SUMMARY_PATH:
+        with open(SUMMARY_PATH, "w") as f:
+            f.write(summary)
 
 
 if __name__ == "__main__":
