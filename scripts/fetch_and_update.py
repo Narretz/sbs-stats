@@ -6,6 +6,7 @@ Fetches latest battlefield data from sbs-group.army and writes it into data/sbs.
 Runs on a cron schedule via GitHub Actions (.github/workflows/update-db.yml).
 """
 
+import argparse
 import os
 import sqlite3
 import time
@@ -121,7 +122,7 @@ def _migrate_monthly_pk(conn: sqlite3.Connection) -> None:
     conn.execute(f"INSERT INTO monthly_stats ({col_list}) SELECT {col_list} FROM monthly_stats_old")
     conn.execute("DROP TABLE monthly_stats_old")
     conn.commit()
-    print("  ✅ monthly_stats migrated to PRIMARY KEY (date, data_collected_at)")
+    print("  [OK] monthly_stats migrated to PRIMARY KEY (date, data_collected_at)")
 
 
 def ensure_columns(conn: sqlite3.Connection, table: str, target_ids: list[int]) -> None:
@@ -152,13 +153,13 @@ def fetch_json(url: str, retries: int = 5, backoff: int = 5) -> dict:
             return response.json()
         except requests.exceptions.HTTPError as e:
             if "525" in str(e):
-                print(f"⚠️ {now} HTTP 525 (SSL Handshake Failed). Attempt {attempt}/{retries}...")
+                print(f"[WARN] {now} HTTP 525 (SSL Handshake Failed). Attempt {attempt}/{retries}...")
                 if attempt < retries:
                     time.sleep(backoff * attempt)
                     continue
             raise
         except requests.exceptions.RequestException as e:
-            print(f"⚠️ {now} Network error: {e}. Attempt {attempt}/{retries}...")
+            print(f"[WARN] {now} Network error: {e}. Attempt {attempt}/{retries}...")
             if attempt < retries:
                 time.sleep(backoff * attempt)
                 continue
@@ -302,7 +303,7 @@ def upsert_daily(conn: sqlite3.Connection, data: dict) -> None:
         ON CONFLICT(date, hour) DO UPDATE SET {updates}
     """, values)
     conn.commit()
-    print(f"  ✅ daily_stats: {data['date']} hour {data['hour']} ({len(target_ids)} target types)")
+    print(f"  [OK] daily_stats: {data['date']} hour {data['hour']} ({len(target_ids)} target types)")
 
 
 def upsert_daily_correction(conn: sqlite3.Connection, data: dict) -> None:
@@ -325,7 +326,7 @@ def upsert_daily_correction(conn: sqlite3.Connection, data: dict) -> None:
     new_vals = _stat_values_for_comparison(data, targets, target_ids, all_stat_keys)
 
     if existing is not None and existing == new_vals:
-        print(f"  ⏭️  daily_stats: {date} correction unchanged, skipping")
+        print(f"  [SKIP] daily_stats: {date} correction unchanged, skipping")
         return
 
     # Use 24 + current Kyiv hour, so the value encodes when the correction was fetched.
@@ -361,7 +362,7 @@ def upsert_monthly(conn: sqlite3.Connection, data: dict) -> None:
         existing_vals = tuple(existing_row[k] for k in all_stat_keys if k in existing_row.keys())
         new_vals = _stat_values_for_comparison(data, targets, target_ids, all_stat_keys)
         if existing_vals == new_vals:
-            print(f"  ⏭️  monthly_stats: {date} unchanged, skipping")
+            print(f"  [SKIP] monthly_stats: {date} unchanged, skipping")
             return
 
     # Insert new version
@@ -389,12 +390,17 @@ def upsert_monthly(conn: sqlite3.Connection, data: dict) -> None:
         VALUES ({placeholders})
     """, values)
     conn.commit()
-    print(f"  ✅ monthly_stats: {date} new version ({len(target_ids)} target types)")
+    print(f"  [OK] monthly_stats: {date} new version ({len(target_ids)} target types)")
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Fetch and update SBS stats DB")
+    parser.add_argument("--all-months", action="store_true",
+                        help="Fetch all months, ignoring the 10-day and 6-hour thresholds")
+    args = parser.parse_args()
+
     db_dir = os.path.dirname(DB_PATH)
     if db_dir:
         os.makedirs(db_dir, exist_ok=True)
@@ -421,33 +427,34 @@ def main() -> None:
         parsed_prev["date"] = yesterday
         upsert_daily_correction(conn, parsed_prev)
     except Exception as e:
-        print(f"  ⚠️ Skipping previous day: {e}")
+        print(f"  [WARN] Skipping previous day: {e}")
 
-    # ── Monthly (skip months ended >10 days ago, skip if updated <6 hours ago)
+    # ── Monthly ───────────────────────────────────────────────────────────────
     kyiv_now = datetime.now(KYIV_TZ)
     kyiv_today = kyiv_now.date()
     for month, url in MONTHLY_URLS.items():
-        y, m = map(int, month.split("-"))
-        if m == 12:
-            month_end = datetime(y + 1, 1, 1).date()
-        else:
-            month_end = datetime(y, m + 1, 1).date()
-        if (kyiv_today - month_end).days > 10:
-            continue
-
-        # Skip if last update was less than 6 hours ago
-        row = conn.execute(
-            "SELECT data_collected_at FROM monthly_stats WHERE date = ?",
-            (f"{month}-01",),
-        ).fetchone()
-        if row and row["data_collected_at"]:
-            last_collected = datetime.fromisoformat(
-                row["data_collected_at"].replace("Z", "+00:00")
-            )
-            hours_since = (kyiv_now - last_collected.astimezone(KYIV_TZ)).total_seconds() / 3600
-            if hours_since < 6:
-                print(f"  ⏭️  monthly_stats: {month} updated {hours_since:.1f}h ago, skipping")
+        if not args.all_months:
+            y, m = map(int, month.split("-"))
+            if m == 12:
+                month_end = datetime(y + 1, 1, 1).date()
+            else:
+                month_end = datetime(y, m + 1, 1).date()
+            if (kyiv_today - month_end).days > 10:
                 continue
+
+            # Skip if last update was less than 6 hours ago
+            row = conn.execute(
+                "SELECT data_collected_at FROM monthly_stats WHERE date = ? ORDER BY data_collected_at DESC LIMIT 1",
+                (f"{month}-01",),
+            ).fetchone()
+            if row and row["data_collected_at"]:
+                last_collected = datetime.fromisoformat(
+                    row["data_collected_at"].replace("Z", "+00:00")
+                )
+                hours_since = (kyiv_now - last_collected.astimezone(KYIV_TZ)).total_seconds() / 3600
+                if hours_since < 6:
+                    print(f"  [SKIP] monthly_stats: {month} updated {hours_since:.1f}h ago, skipping")
+                    continue
 
         print(f"Fetching monthly data for {month}...")
         try:
@@ -455,7 +462,7 @@ def main() -> None:
             parsed_m["date"] = f"{month}-01"
             upsert_monthly(conn, parsed_m)
         except Exception as e:
-            print(f"  ⚠️ Skipping {month}: {e}")
+            print(f"  [WARN] Skipping {month}: {e}")
 
     conn.close()
     print("Done.")
