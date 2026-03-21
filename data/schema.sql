@@ -12,7 +12,7 @@ CREATE TABLE daily_stats (
     hit_2       INTEGER,  destroyed_2       INTEGER,  -- APCs / IFVs / ACVs (ББМ, БМП, БТР)
     hit_3       INTEGER,  destroyed_3       INTEGER,  -- Cannons, Howitzers (Гармати, гаубиці)
     hit_4       INTEGER,  destroyed_4       INTEGER,  -- Self-propelled Artillery (САУ)
-    hit_5       INTEGER,  destroyed_5       INTEGER,  -- MLRS (РСЗВ)
+    hit_5       INTEGER,  destroyed_5       INTEGER,  -- MLRS (РСЗВ) — was "РСЗВ, ЗРК, ЗУ" before split into types 5/32/33 (split was 2026-03-20)
     hit_6       INTEGER,  destroyed_6       INTEGER,  -- Mortars (Міномети)
     hit_7       INTEGER,  destroyed_7       INTEGER,  -- Vehicles, special & engineering equipment (ЛАТ, ВАТ, спец. та інж. техніка)
     hit_8       INTEGER,  destroyed_8       INTEGER,  -- Radar & comms, trench (РЛС та ЗС окопні)
@@ -30,7 +30,7 @@ CREATE TABLE daily_stats (
     hit_20      INTEGER,  destroyed_20      INTEGER,  -- Warehouses (Склади)
     hit_21      INTEGER,  destroyed_21      INTEGER,  -- Shelters (Укриття)
     hit_22      INTEGER,  destroyed_22      INTEGER,  -- Dugouts (Бліндажі)
-    hit_23      INTEGER,  destroyed_23      INTEGER,  -- Drone launch points (Точки вильоту дронів)
+    hit_23      INTEGER,  destroyed_23      INTEGER,  -- Drone launch points (Точки вильоту дронів) — split: anti-drone hits moved to 35 (split was 2026-03-20)
     hit_24      INTEGER,  destroyed_24      INTEGER,  -- Enemy copters (Ворожі коптери)
     hit_25      INTEGER,  destroyed_25      INTEGER,  -- Enemy fixed-wing UAVs (Ворожі крила)
     hit_26      INTEGER,  destroyed_26      INTEGER,  -- Enemy guided missiles (Ворожі НРК)
@@ -39,10 +39,10 @@ CREATE TABLE daily_stats (
     hit_29      INTEGER,  destroyed_29      INTEGER,  -- Helicopter (Гелікоптер)
     hit_30      INTEGER,  destroyed_30      INTEGER,  -- Shaheds (Шахеди)
     hit_31      INTEGER,  destroyed_31      INTEGER,  -- Gerbers (Гербери)
-    hit_32      INTEGER,  destroyed_32      INTEGER,  -- SAMs / SAM systems (ЗРК, ЗГРК)
-    hit_33      INTEGER,  destroyed_33      INTEGER,  -- AA guns (ЗУ)
+    hit_32      INTEGER,  destroyed_32      INTEGER,  -- SAMs / SAM systems (ЗРК, ЗГРК) — split from old type 5
+    hit_33      INTEGER,  destroyed_33      INTEGER,  -- AA guns (ЗУ) — split from old type 5
     hit_34      INTEGER,  destroyed_34      INTEGER,  -- Air defense (ППО)
-    hit_35      INTEGER,  destroyed_35      INTEGER,  -- Anti-drone: UAV systems (ЗПМ: БпАК)
+    hit_35      INTEGER,  destroyed_35      INTEGER,  -- Anti-drone: UAV systems (ЗПМ: БпАК) — split from old type 23
     hit_36      INTEGER,  destroyed_36      INTEGER,  -- MLRS: Portable (РСЗВ: Портативний)
     hit_37      INTEGER,  destroyed_37      INTEGER,  -- UAV control stations (ПУ БпЛА)
     hit_38      INTEGER,  destroyed_38      INTEGER,  -- Ammo depot (ОТ Склад БК)
@@ -64,7 +64,7 @@ CREATE TABLE monthly_stats (
     hit_2       INTEGER,  destroyed_2       INTEGER,  -- ББМ, БМП, БТР (APCs / IFVs / ACVs)
     hit_3       INTEGER,  destroyed_3       INTEGER,  -- Гармати, гаубиці (Cannons, Howitzers)
     hit_4       INTEGER,  destroyed_4       INTEGER,  -- САУ (Self-propelled Artillery)
-    hit_5       INTEGER,  destroyed_5       INTEGER,  -- РСЗВ (MLRS)
+    hit_5       INTEGER,  destroyed_5       INTEGER,  -- РСЗВ (MLRS) — was "РСЗВ, ЗРК, ЗУ" before split into 5/32/33
     hit_6       INTEGER,  destroyed_6       INTEGER,  -- Міномети (Mortars)
     hit_7       INTEGER,  destroyed_7       INTEGER,  -- ЛАТ, ВАТ, спец. та інж. техніка (Vehicles, special & engineering equipment)
     hit_8       INTEGER,  destroyed_8       INTEGER,  -- РЛС та ЗС окопні (Radar & comms, trench)
@@ -82,7 +82,7 @@ CREATE TABLE monthly_stats (
     hit_20      INTEGER,  destroyed_20      INTEGER,  -- Склади (Warehouses)
     hit_21      INTEGER,  destroyed_21      INTEGER,  -- Укриття (Shelters)
     hit_22      INTEGER,  destroyed_22      INTEGER,  -- Бліндажі (Dugouts)
-    hit_23      INTEGER,  destroyed_23      INTEGER,  -- Точки вильоту дронів (Drone launch points)
+    hit_23      INTEGER,  destroyed_23      INTEGER,  -- Точки вильоту дронів (Drone launch points) — split: anti-drone hits moved to 35
     hit_24      INTEGER,  destroyed_24      INTEGER,  -- Ворожі коптери (Enemy copters)
     hit_25      INTEGER,  destroyed_25      INTEGER,  -- Ворожі крила (Enemy fixed-wing UAVs)
     hit_26      INTEGER,  destroyed_26      INTEGER,  -- Ворожі НРК (Enemy guided missiles)
@@ -91,10 +91,10 @@ CREATE TABLE monthly_stats (
     hit_29      INTEGER,  destroyed_29      INTEGER,  -- Гелікоптер (Helicopter)
     hit_30      INTEGER,  destroyed_30      INTEGER,  -- Шахеди (Shaheds)
     hit_31      INTEGER,  destroyed_31      INTEGER,  -- Гербери (Gerbers)
-    hit_32      INTEGER,  destroyed_32      INTEGER,  -- ЗРК, ЗГРК (SAMs / SAM systems)
-    hit_33      INTEGER,  destroyed_33      INTEGER,  -- ЗУ (AA guns)
+    hit_32      INTEGER,  destroyed_32      INTEGER,  -- ЗРК, ЗГРК (SAMs / SAM systems) — split from old type 5
+    hit_33      INTEGER,  destroyed_33      INTEGER,  -- ЗУ (AA guns) — split from old type 5
     hit_34      INTEGER,  destroyed_34      INTEGER,  -- ППО (Air defense)
-    hit_35      INTEGER,  destroyed_35      INTEGER,  -- ЗПМ: БпАК (Anti-drone: UAV systems)
+    hit_35      INTEGER,  destroyed_35      INTEGER,  -- ЗПМ: БпАК (Anti-drone: UAV systems) — split from old type 23
     hit_36      INTEGER,  destroyed_36      INTEGER,  -- РСЗВ: Портативний (MLRS: Portable)
     hit_37      INTEGER,  destroyed_37      INTEGER,  -- ПУ БпЛА (UAV control stations)
     hit_38      INTEGER,  destroyed_38      INTEGER,  -- ОТ Склад БК (Ammo depot)
