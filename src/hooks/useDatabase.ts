@@ -4,7 +4,9 @@ import type { DailyRow, MonthlyRow, StatKey, LoadState } from "@/types";
 import { TARGET_IDS } from "@/types";
 
 const DB_URL = import.meta.env.VITE_DB_URL ?? "/data/sbs.db";
-const SQL_WASM_URL = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.wasm";
+const SQL_JS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0";
+const SQL_WASM_URL = import.meta.env.DEV ? "/vendor/sql-wasm.wasm" : `${SQL_JS_CDN}/sql-wasm.wasm`;
+const SQL_JS_URL = import.meta.env.DEV ? "/vendor/sql-wasm.js" : `${SQL_JS_CDN}/sql-wasm.js`;
 
 // Returns today's date string (YYYY-MM-DD) in Kyiv local time
 function getKyivDateString(): string {
@@ -18,7 +20,7 @@ function loadSqlJsScript(): Promise<void> {
       return;
     }
     const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.js";
+    script.src = SQL_JS_URL;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("Failed to load sql.js script"));
     document.head.appendChild(script);

@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "setup-dev": "node scripts/setup-dev.cjs",
+    "postinstall": "node scripts/setup-dev.cjs",
     "dev": "vite --mode development",
     "build": "vite build --mode production",
     "build:clean": "tsc && vite build --mode production",
@@ -14,7 +16,8 @@
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "sql.js": "^1.14.1"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
@@ -23,11 +26,11 @@
     "@typescript-eslint/eslint-plugin": "^7.13.1",
     "@typescript-eslint/parser": "^7.13.1",
     "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^8.57.1",
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.4.7",
     "typescript": "^5.2.2",
-    "vite": "^5.3.1",
-    "eslint": "^8.57.1"
+    "vite": "^5.3.1"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "*"

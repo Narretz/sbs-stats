@@ -9,3 +9,4 @@ tmp/
 # .env.production IS committed (no secrets, just the public DB URL)
 
 public/data/
+public/vendor/
