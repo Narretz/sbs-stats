@@ -255,9 +255,14 @@ export function useDatabase() {
     const daysInMonth = new Date(y, m, 0).getDate();
 
     const sql = `
-      SELECT date, ${statCols}
-      FROM monthly_stats
-      ORDER BY date ASC
+      SELECT m.date, ${statCols}
+      FROM monthly_stats m
+      INNER JOIN (
+        SELECT date, MAX(data_collected_at) AS latest
+        FROM monthly_stats
+        GROUP BY date
+      ) latest ON m.date = latest.date AND m.data_collected_at = latest.latest
+      ORDER BY m.date ASC
     `;
 
     return queryRows<Record<string, unknown>>(db, sql).map((row) => {

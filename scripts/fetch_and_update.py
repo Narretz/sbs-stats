@@ -75,10 +75,53 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             total_targets_hit INTEGER,
             total_targets_destroyed INTEGER,
             total_personnel_casualties INTEGER,
-            PRIMARY KEY (date)
+            PRIMARY KEY (date, data_collected_at)
         )
     """)
     conn.commit()
+    # Migrate monthly_stats if it still has the old PRIMARY KEY (date) only
+    _migrate_monthly_pk(conn)
+
+
+def _migrate_monthly_pk(conn: sqlite3.Connection) -> None:
+    """Migrate monthly_stats from PRIMARY KEY (date) to PRIMARY KEY (date, data_collected_at)."""
+    # Check current primary key columns
+    cur = conn.execute("PRAGMA table_info(monthly_stats)")
+    pk_cols = [row[1] for row in cur.fetchall() if row[5] > 0]  # row[5] = pk index
+    if "data_collected_at" in pk_cols:
+        return  # Already migrated
+
+    print("  Migrating monthly_stats primary key...")
+    # Get all existing columns
+    cur = conn.execute("PRAGMA table_info(monthly_stats)")
+    columns = [row[1] for row in cur.fetchall()]
+    col_list = ", ".join(columns)
+
+    conn.execute(f"ALTER TABLE monthly_stats RENAME TO monthly_stats_old")
+    conn.execute(f"""
+        CREATE TABLE monthly_stats (
+            date DATE,
+            data_collected_at TEXT,
+            last_updated DATETIME,
+            personnel_killed INTEGER,
+            personnel_wounded INTEGER,
+            total_targets_hit INTEGER,
+            total_targets_destroyed INTEGER,
+            total_personnel_casualties INTEGER,
+            PRIMARY KEY (date, data_collected_at)
+        )
+    """)
+    # Re-add any dynamic target columns from the old table
+    cur = conn.execute("PRAGMA table_info(monthly_stats)")
+    new_cols = {row[1] for row in cur.fetchall()}
+    for col in columns:
+        if col not in new_cols:
+            conn.execute(f"ALTER TABLE monthly_stats ADD COLUMN {col} INTEGER")
+    # Copy data
+    conn.execute(f"INSERT INTO monthly_stats ({col_list}) SELECT {col_list} FROM monthly_stats_old")
+    conn.execute("DROP TABLE monthly_stats_old")
+    conn.commit()
+    print("  ✅ monthly_stats migrated to PRIMARY KEY (date, data_collected_at)")
 
 
 def ensure_columns(conn: sqlite3.Connection, table: str, target_ids: list[int]) -> None:
@@ -294,12 +337,34 @@ def upsert_daily_correction(conn: sqlite3.Connection, data: dict) -> None:
 
 
 def upsert_monthly(conn: sqlite3.Connection, data: dict) -> None:
+    """Insert a new monthly row only if stat values differ from the latest version."""
     now = datetime.now(timezone.utc).isoformat()
     targets: dict[int, dict] = data.pop("targets", {})
     target_ids = list(targets.keys())
 
     ensure_columns(conn, "monthly_stats", target_ids)
 
+    date = data["date"]
+
+    # Get all stat column names from the table for comparison
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(monthly_stats)")
+    all_db_cols = [row[1] for row in cur.fetchall()]
+    all_stat_keys = BASE_STAT_COLS + [c for c in all_db_cols if c.startswith(("hit_", "destroyed_"))]
+
+    # Compare with the latest existing row for this month
+    existing_row = conn.execute(
+        "SELECT * FROM monthly_stats WHERE date = ? ORDER BY data_collected_at DESC LIMIT 1",
+        (date,),
+    ).fetchone()
+    if existing_row is not None:
+        existing_vals = tuple(existing_row[k] for k in all_stat_keys if k in existing_row.keys())
+        new_vals = _stat_values_for_comparison(data, targets, target_ids, all_stat_keys)
+        if existing_vals == new_vals:
+            print(f"  ⏭️  monthly_stats: {date} unchanged, skipping")
+            return
+
+    # Insert new version
     base_cols = [
         "date", "data_collected_at", "last_updated",
         "personnel_killed", "personnel_wounded",
@@ -319,15 +384,12 @@ def upsert_monthly(conn: sqlite3.Connection, data: dict) -> None:
     )
 
     placeholders = ", ".join("?" * len(all_cols))
-    updates = ", ".join(f"{c} = excluded.{c}" for c in all_cols if c != "date")
-
     conn.execute(f"""
         INSERT INTO monthly_stats ({", ".join(all_cols)})
         VALUES ({placeholders})
-        ON CONFLICT(date) DO UPDATE SET {updates}
     """, values)
     conn.commit()
-    print(f"  ✅ monthly_stats: {data['date']} ({len(target_ids)} target types)")
+    print(f"  ✅ monthly_stats: {date} new version ({len(target_ids)} target types)")
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -361,17 +423,32 @@ def main() -> None:
     except Exception as e:
         print(f"  ⚠️ Skipping previous day: {e}")
 
-    # ── Monthly (skip months that ended more than 10 days ago) ───────────────
-    kyiv_today = datetime.now(KYIV_TZ).date()
+    # ── Monthly (skip months ended >10 days ago, skip if updated <6 hours ago)
+    kyiv_now = datetime.now(KYIV_TZ)
+    kyiv_today = kyiv_now.date()
     for month, url in MONTHLY_URLS.items():
         y, m = map(int, month.split("-"))
-        # First day of the next month
         if m == 12:
             month_end = datetime(y + 1, 1, 1).date()
         else:
             month_end = datetime(y, m + 1, 1).date()
         if (kyiv_today - month_end).days > 10:
             continue
+
+        # Skip if last update was less than 6 hours ago
+        row = conn.execute(
+            "SELECT data_collected_at FROM monthly_stats WHERE date = ?",
+            (f"{month}-01",),
+        ).fetchone()
+        if row and row["data_collected_at"]:
+            last_collected = datetime.fromisoformat(
+                row["data_collected_at"].replace("Z", "+00:00")
+            )
+            hours_since = (kyiv_now - last_collected.astimezone(KYIV_TZ)).total_seconds() / 3600
+            if hours_since < 6:
+                print(f"  ⏭️  monthly_stats: {month} updated {hours_since:.1f}h ago, skipping")
+                continue
+
         print(f"Fetching monthly data for {month}...")
         try:
             parsed_m = parse_api_response(fetch_json(url))
