@@ -132,11 +132,14 @@ function RefreshIndicator({
 function AppInner() {
   const { mode, theme: t, toggle } = useTheme();
   const validPages: Page[] = ["daily", "hourly", "monthly"];
-  const hashPage = window.location.hash.slice(1) as Page;
-  const [page, setPageState] = useState<Page>(validPages.includes(hashPage) ? hashPage : "hourly");
+  const initParams = new URLSearchParams(window.location.search);
+  const initPage = initParams.get("page") as Page;
+  const [page, setPageState] = useState<Page>(validPages.includes(initPage) ? initPage : "hourly");
   const setPage = (p: Page) => {
     setPageState(p);
-    window.location.hash = p;
+    const params = new URLSearchParams(window.location.search);
+    params.set("page", p);
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
   };
   const { loadState, refresh, lastRefreshed, refreshCount } = useDatabaseContext();
 

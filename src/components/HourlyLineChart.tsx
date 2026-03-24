@@ -7,12 +7,15 @@ import type { DailyDaySeries } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import type { Theme } from "@/theme";
 import { FONTS } from "@/theme";
+export type TooltipSortMode = "date" | "value";
+
 interface Props {
   title: string;
   data: DailyDaySeries[];
   globalMax: number;
   globalMedian: number;
   wfull: boolean;
+  tooltipSort?: TooltipSortMode;
 }
 function pivotData(series: DailyDaySeries[]): Record<string, number | null>[] {
   // X-axis runs 0–24. Hour 0 is always 0 (day start anchor).
@@ -36,10 +39,11 @@ function pivotData(series: DailyDaySeries[]): Record<string, number | null>[] {
 type TooltipEntry = { dataKey: string; value: number };
 
 const CustomTooltip = ({
-  active, payload, label, todayDate, t,
+  active, payload, label, todayDate, t, sortMode,
 }: TooltipProps<number, string> & {
   todayDate: string | undefined;
   t: Theme;
+  sortMode: TooltipSortMode;
 }) => {
   if (!active || !payload?.length) return null;
 
@@ -48,8 +52,9 @@ const CustomTooltip = ({
     .filter((p) => typeof p.dataKey === "string" && typeof p.value === "number")
     .map((p) => ({ dataKey: p.dataKey as string, value: p.value as number }));
 
-  // Today first, then rest sorted newest→oldest
+  // Sort by value (highest first) or by date (today first, then newest→oldest)
   const sorted = [...entries].sort((a, b) => {
+    if (sortMode === "value") return (b.value ?? 0) - (a.value ?? 0);
     if (a.dataKey === todayDate) return -1;
     if (b.dataKey === todayDate) return 1;
     return b.dataKey.localeCompare(a.dataKey);
@@ -117,7 +122,7 @@ if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
   s.textContent = `.hourly-card { position: relative; z-index: 1; } .hourly-card:hover { z-index: 100; }`;
   document.head.appendChild(s);
 }
-export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull }: Props) {
+export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, tooltipSort = "date" }: Props) {
   const { theme: t } = useTheme();
   const chartData = pivotData(data);
   const todaySeries = data.find((s) => s.is_today);
@@ -157,7 +162,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull }:
           />
           <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, globalMax)]} />
           <Tooltip
-            content={(props) => <CustomTooltip {...props} todayDate={todaySeries?.date} t={t} />}
+            content={(props) => <CustomTooltip {...props} todayDate={todaySeries?.date} t={t} sortMode={tooltipSort} />}
             allowEscapeViewBox={{ x: true, y: true }}
             wrapperStyle={{ zIndex: 9999, position: "absolute" }}
           />
