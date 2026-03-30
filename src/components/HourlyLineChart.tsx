@@ -16,6 +16,7 @@ interface Props {
   globalMedian: number;
   wfull: boolean;
   tooltipSort?: TooltipSortMode;
+  highlight?: boolean;
 }
 function pivotData(series: DailyDaySeries[]): Record<string, number | null>[] {
   // X-axis runs 0–24. Hour 0 is always 0 (day start anchor).
@@ -122,11 +123,11 @@ if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
   s.textContent = `.hourly-card { position: relative; z-index: 1; } .hourly-card:hover { z-index: 100; }`;
   document.head.appendChild(s);
 }
-export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, tooltipSort = "date" }: Props) {
+export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, tooltipSort = "date", highlight = false }: Props) {
   const { theme: t } = useTheme();
   const chartData = pivotData(data);
-  const todaySeries = data.find((s) => s.is_today);
-  const pastSeries = data.filter((s) => !s.is_today);
+  const todaySeries = highlight ? data[0] : data.find((s) => s.is_today);
+  const pastSeries = highlight ? [] : data.filter((s) => !s.is_today);
   const total = pastSeries.length;
   const getOpacity = (index: number) =>
     total <= 1 ? 0.18 : 0.07 + (index / (total - 1)) * 0.35;

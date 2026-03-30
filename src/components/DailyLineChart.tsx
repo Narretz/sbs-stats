@@ -2,15 +2,33 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ReferenceLine, ResponsiveContainer, type DotProps,
 } from "recharts";
+import { useMemo } from "react";
 import type { DailyDataPoint } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
+
+function linearRegression(data: DailyDataPoint[]): number[] {
+  const n = data.length;
+  if (n < 2) return data.map(d => d.value);
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+  for (let i = 0; i < n; i++) {
+    sumX += i;
+    sumY += data[i].value;
+    sumXY += i * data[i].value;
+    sumXX += i * i;
+  }
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / n;
+  return data.map((_, i) => Math.max(0, Math.round(slope * i + intercept)));
+}
+
 interface Props {
   title: string;
   data: DailyDataPoint[];
   globalMax: number;
   globalMedian: number;
   wfull: boolean;
+  highlight?: boolean;
 }
 function CustomDot(props: DotProps & { payload?: DailyDataPoint; accentColor: string; primaryColor: string; bgColor: string }) {
   const { cx, cy, payload, accentColor, primaryColor, bgColor } = props;
@@ -19,10 +37,14 @@ function CustomDot(props: DotProps & { payload?: DailyDataPoint; accentColor: st
     return <circle cx={cx} cy={cy} r={5} fill={accentColor} stroke={bgColor} strokeWidth={2} />;
   return <circle cx={cx} cy={cy} r={2} fill={primaryColor} opacity={0.5} />;
 }
-export function DailyLineChart({ title, data, globalMax, globalMedian, wfull }: Props) {
+export function DailyLineChart({ title, data, globalMax, globalMedian, wfull, highlight = false }: Props) {
   const { theme: t } = useTheme();
   const max = globalMax;
   const median = globalMedian;
+  const chartData = useMemo(() => {
+    const trend = linearRegression(data);
+    return data.map((d, i) => ({ ...d, trend: trend[i] }));
+  }, [data]);
   return (
     <div style={{
       background: t.surface,
@@ -41,7 +63,7 @@ export function DailyLineChart({ title, data, globalMax, globalMedian, wfull }: 
         <span style={{ color: t.muted }}>~ MED {median.toLocaleString()}</span>
       </div>
       <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+        <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
           <XAxis dataKey="date"
             tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
@@ -59,9 +81,12 @@ export function DailyLineChart({ title, data, globalMax, globalMedian, wfull }: 
             label={{ value: "MAX", position: "insideTopRight", fontSize: 9, fill: t.accent, fontFamily: FONTS.mono }} />
           <ReferenceLine y={median} stroke={t.muted} strokeDasharray="4 4" strokeOpacity={0.5}
             label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: t.muted, fontFamily: FONTS.mono }} />
-          <Line type="monotone" dataKey="value" name={title} stroke={t.primary} strokeWidth={2}
-            dot={(props) => <CustomDot {...props} accentColor={t.accent} primaryColor={t.primary} bgColor={t.surface} />}
-            activeDot={{ r: 5, fill: t.primary }}
+          <Line type="monotone" dataKey="value" name={title} stroke={highlight ? t.accent : t.primary} strokeWidth={2}
+            dot={({ key, ...props }) => <CustomDot key={key} {...props} accentColor={t.accent} primaryColor={highlight ? t.accent : t.primary} bgColor={t.surface} />}
+            activeDot={{ r: 5, fill: highlight ? t.accent : t.primary }}
+          />
+          <Line type="linear" dataKey="trend" name="Trend" stroke={t.muted} strokeWidth={1.5}
+            strokeDasharray="6 3" dot={false} activeDot={false}
           />
         </LineChart>
       </ResponsiveContainer>
