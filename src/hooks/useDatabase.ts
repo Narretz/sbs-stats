@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Database } from "sql.js";
 import type { DailyRow, MonthlyRow, StatKey, LoadState } from "@/types";
 import { TARGET_IDS } from "@/types";
@@ -99,6 +99,7 @@ export function useDatabase() {
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const lastRefreshedRef = useRef<Date | null>(null);
   const [refreshCount, setRefreshCount] = useState(0);
 
   const doLoad = useCallback(() => {
@@ -107,7 +108,9 @@ export function useDatabase() {
       .then((database) => {
         setDb(database);
         setLoadState("ready");
-        setLastRefreshed(new Date());
+        const now = new Date();
+        setLastRefreshed(now);
+        lastRefreshedRef.current = now;
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : String(err));
@@ -116,29 +119,40 @@ export function useDatabase() {
       });
   }, []);
 
-  // Initial load
-  useEffect(() => {
-    doLoad();
-  }, [doLoad]);
-
-  // Auto-refresh every REFRESH_INTERVAL_MS
-  useEffect(() => {
-    const interval = setInterval(() => {
-      dbPromise = null; // Force re-fetch from network
-      setDb(null);
-      setRefreshCount((c) => c + 1);
-      doLoad();
-    }, REFRESH_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [doLoad]);
-
-  // Manual refresh
-  const refresh = useCallback(() => {
+  const doRefresh = useCallback(() => {
     dbPromise = null;
     setDb(null);
     setRefreshCount((c) => c + 1);
     doLoad();
   }, [doLoad]);
+
+  // Initial load
+  useEffect(() => {
+    doLoad();
+  }, [doLoad]);
+
+  // Auto-refresh every REFRESH_INTERVAL_MS, but skip when page is hidden
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      doRefresh();
+    }, REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [doRefresh]);
+
+  // On visibility restore, refresh immediately if data is stale
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) return;
+      const age = lastRefreshedRef.current ? Date.now() - lastRefreshedRef.current.getTime() : Infinity;
+      if (age >= REFRESH_INTERVAL_MS) doRefresh();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [doRefresh]);
+
+  // Manual refresh
+  const refresh = useCallback(() => { doRefresh(); }, [doRefresh]);
 
   // ── Daily: one row per date (latest hour) ────────────────────────────────────
   const queryDaily = useCallback(
