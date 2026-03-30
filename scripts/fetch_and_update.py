@@ -63,6 +63,8 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             total_targets_hit INTEGER,
             total_targets_destroyed INTEGER,
             total_personnel_casualties INTEGER,
+            flights_strike INTEGER,
+            flights_recon INTEGER,
             PRIMARY KEY (date, hour)
         )
     """)
@@ -76,12 +78,16 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             total_targets_hit INTEGER,
             total_targets_destroyed INTEGER,
             total_personnel_casualties INTEGER,
+            flights_strike INTEGER,
+            flights_recon INTEGER,
             PRIMARY KEY (date, data_collected_at)
         )
     """)
     conn.commit()
     # Migrate monthly_stats if it still has the old PRIMARY KEY (date) only
     _migrate_monthly_pk(conn)
+    # Migrate existing tables that predate flights columns
+    _migrate_flight_columns(conn)
 
 
 def _migrate_monthly_pk(conn: sqlite3.Connection) -> None:
@@ -123,6 +129,18 @@ def _migrate_monthly_pk(conn: sqlite3.Connection) -> None:
     conn.execute("DROP TABLE monthly_stats_old")
     conn.commit()
     print("  [OK] monthly_stats migrated to PRIMARY KEY (date, data_collected_at)")
+
+
+def _migrate_flight_columns(conn: sqlite3.Connection) -> None:
+    """Add flights_strike / flights_recon columns to existing tables if missing."""
+    for table in ("daily_stats", "monthly_stats"):
+        cur = conn.execute(f"PRAGMA table_info({table})")
+        existing = {row[1] for row in cur.fetchall()}
+        for col in ("flights_strike", "flights_recon"):
+            if col not in existing:
+                print(f"  Adding column {table}.{col}")
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} INTEGER")
+    conn.commit()
 
 
 def ensure_columns(conn: sqlite3.Connection, table: str, target_ids: list[int]) -> None:
@@ -192,6 +210,7 @@ def parse_api_response(raw: dict) -> dict:
         raise ValueError("API response missing 'data' field")
 
     personnel = data.get("personnel", {})
+    flights = data.get("flights", {})
     targets = {
         t["targetClassId"]: {"hit": t.get("hit"), "destroyed": t.get("destroyed")}
         for t in data.get("targetsByType", [])
@@ -206,6 +225,8 @@ def parse_api_response(raw: dict) -> dict:
         "total_targets_hit": data.get("totalTargetsHit"),
         "total_targets_destroyed": data.get("totalTargetsDestroyed"),
         "total_personnel_casualties": data.get("totalPersonnelCasualties"),
+        "flights_strike": flights.get("strike"),
+        "flights_recon": flights.get("recon"),
         "targets": targets,
     }
 
@@ -222,6 +243,7 @@ BASE_STAT_COLS = [
     "personnel_killed", "personnel_wounded",
     "total_targets_hit", "total_targets_destroyed",
     "total_personnel_casualties",
+    "flights_strike", "flights_recon",
 ]
 
 
@@ -281,6 +303,7 @@ def upsert_daily(conn: sqlite3.Connection, data: dict) -> None:
         "personnel_killed", "personnel_wounded",
         "total_targets_hit", "total_targets_destroyed",
         "total_personnel_casualties",
+        "flights_strike", "flights_recon",
     ]
     target_cols = [f"hit_{tid}" for tid in target_ids] + [f"destroyed_{tid}" for tid in target_ids]
     all_cols = base_cols + target_cols
@@ -290,6 +313,7 @@ def upsert_daily(conn: sqlite3.Connection, data: dict) -> None:
         data.get("personnel_killed"), data.get("personnel_wounded"),
         data.get("total_targets_hit"), data.get("total_targets_destroyed"),
         data.get("total_personnel_casualties"),
+        data.get("flights_strike"), data.get("flights_recon"),
         *[targets[tid]["hit"] for tid in target_ids],
         *[targets[tid]["destroyed"] for tid in target_ids],
     )
@@ -374,6 +398,7 @@ def upsert_monthly(conn: sqlite3.Connection, data: dict) -> bool:
         "personnel_killed", "personnel_wounded",
         "total_targets_hit", "total_targets_destroyed",
         "total_personnel_casualties",
+        "flights_strike", "flights_recon",
     ]
     target_cols = [f"hit_{tid}" for tid in target_ids] + [f"destroyed_{tid}" for tid in target_ids]
     all_cols = base_cols + target_cols
@@ -383,6 +408,7 @@ def upsert_monthly(conn: sqlite3.Connection, data: dict) -> bool:
         data.get("personnel_killed"), data.get("personnel_wounded"),
         data.get("total_targets_hit"), data.get("total_targets_destroyed"),
         data.get("total_personnel_casualties"),
+        data.get("flights_strike"), data.get("flights_recon"),
         *[targets[tid]["hit"] for tid in target_ids],
         *[targets[tid]["destroyed"] for tid in target_ids],
     )

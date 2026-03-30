@@ -6,6 +6,8 @@ export function buildMetrics(): Metric[] {
     { key: "total_personnel_casualties", label: "Personnel Casualties", wfull: true },
     { key: "personnel_killed", label: "Personnel Killed" },
     { key: "personnel_wounded", label: "Personnel Wounded" },
+    { key: "flights_strike", label: "Strike Sorties" },
+    { key: "flights_recon", label: "Recon Sorties" },
     { key: "total_targets_hit", label: "Targets Hit" },
     { key: "total_targets_destroyed", label: "Targets Destroyed" },
   ];

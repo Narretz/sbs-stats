@@ -8,6 +8,8 @@ CREATE TABLE daily_stats (
     total_targets_hit          INTEGER,
     total_targets_destroyed    INTEGER,
     total_personnel_casualties INTEGER,
+    flights_strike             INTEGER,
+    flights_recon              INTEGER,
     hit_1       INTEGER,  destroyed_1       INTEGER,  -- Tanks (Танки)
     hit_2       INTEGER,  destroyed_2       INTEGER,  -- APCs / IFVs / ACVs (ББМ, БМП, БТР)
     hit_3       INTEGER,  destroyed_3       INTEGER,  -- Cannons, Howitzers (Гармати, гаубиці)
@@ -60,6 +62,8 @@ CREATE TABLE monthly_stats (
     total_targets_hit          INTEGER,
     total_targets_destroyed    INTEGER,
     total_personnel_casualties INTEGER,
+    flights_strike             INTEGER,
+    flights_recon              INTEGER,
     hit_1       INTEGER,  destroyed_1       INTEGER,  -- Танки (Tanks)
     hit_2       INTEGER,  destroyed_2       INTEGER,  -- ББМ, БМП, БТР (APCs / IFVs / ACVs)
     hit_3       INTEGER,  destroyed_3       INTEGER,  -- Гармати, гаубиці (Cannons, Howitzers)

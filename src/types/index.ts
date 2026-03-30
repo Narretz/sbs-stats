@@ -19,7 +19,9 @@ export type BaseStatKey =
   | "personnel_wounded"
   | "total_targets_hit"
   | "total_targets_destroyed"
-  | "total_personnel_casualties";
+  | "total_personnel_casualties"
+  | "flights_strike"
+  | "flights_recon";
 
 export type HitKey = `hit_${TargetId}`;
 export type DestroyedKey = `destroyed_${TargetId}`;
