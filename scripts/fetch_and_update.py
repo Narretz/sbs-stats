@@ -16,13 +16,16 @@ from datetime import datetime, timedelta, timezone
 
 DB_PATH = os.environ.get("DB_PATH", "data/sbs.db")
 KYIV_TZ = zoneinfo.ZoneInfo("Europe/Kyiv")
+SUBDIVISION_ID = "68b0c85589944c4bfb2a5edc"
 
 # ─── API endpoints ────────────────────────────────────────────────────────────
 
-DAILY_URL = "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/68fa98652f31834f2e051459"
-PREVIOUS_DAY_URL = "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/68b4852e792cdf918400daf1"
+BASE_PUBLIC_URL = "https://sbs-group.army/api/public"
+DAILY_URL = f"{BASE_PUBLIC_URL}/statistics/{SUBDIVISION_ID}/68fa98652f31834f2e051459"
+PREVIOUS_DAY_URL = f"{BASE_PUBLIC_URL}/statistics/{SUBDIVISION_ID}/68b4852e792cdf918400daf1"
+PERIODS_URL = f"{BASE_PUBLIC_URL}/periods"
 
-MONTHLY_URLS: dict[str, str] = {
+FALLBACK_MONTHLY_URLS: dict[str, str] = {
     "2025-06": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/68e4e5d484f8ca462d9a7c77",
     "2025-07": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/68e4e67684f8ca462d9a80db",
     "2025-08": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/68b47e50792cdf918400b06c",
@@ -33,6 +36,7 @@ MONTHLY_URLS: dict[str, str] = {
     "2026-01": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/69559d35869d2691543f313f",
     "2026-02": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/697e7bbb1ae0eb20ad9dbf56",
     "2026-03": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/69a365b5e9679075a2e69d57",
+    "2026-04": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/69cc3630d5f5789a478b2f7b",
 }
 
 REQUEST_HEADERS = {
@@ -184,6 +188,50 @@ def fetch_json(url: str, retries: int = 5, backoff: int = 5) -> dict:
             raise
 
     raise RuntimeError(f"Failed to fetch {url} after {retries} attempts")
+
+
+def _is_month_period(period: dict) -> bool:
+    """True when period represents exactly one full calendar month."""
+    start_s = period.get("startDate")
+    end_s = period.get("endDate")
+    if not start_s or not end_s:
+        return False
+    try:
+        start = datetime.fromisoformat(start_s.replace("Z", "+00:00"))
+        end = datetime.fromisoformat(end_s.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+
+    if start.day != 1:
+        return False
+    if start.year != end.year or start.month != end.month:
+        return False
+
+    if start.month == 12:
+        next_month_start = datetime(start.year + 1, 1, 1, tzinfo=start.tzinfo)
+    else:
+        next_month_start = datetime(start.year, start.month + 1, 1, tzinfo=start.tzinfo)
+    return end.day == (next_month_start - timedelta(days=1)).day
+
+
+def discover_monthly_urls() -> dict[str, str]:
+    """Build month->URL map from the live /periods endpoint."""
+    raw = fetch_json(PERIODS_URL)
+    periods = raw.get("data", {}).get("periods", [])
+    monthly: dict[str, str] = {}
+    for period in periods:
+        if period.get("subdivision", {}).get("_id") != SUBDIVISION_ID:
+            continue
+        if not _is_month_period(period):
+            continue
+        period_id = period.get("_id")
+        start_s = period.get("startDate")
+        if not period_id or not start_s:
+            continue
+        start = datetime.fromisoformat(start_s.replace("Z", "+00:00")).astimezone(KYIV_TZ)
+        month = start.strftime("%Y-%m")
+        monthly[month] = f"{BASE_PUBLIC_URL}/statistics/{SUBDIVISION_ID}/{period_id}"
+    return dict(sorted(monthly.items()))
 
 
 # ─── Parse API response → internal dict ──────────────────────────────────────
@@ -469,7 +517,19 @@ def main() -> None:
     # ── Monthly ───────────────────────────────────────────────────────────────
     kyiv_now = datetime.now(KYIV_TZ)
     kyiv_today = kyiv_now.date()
-    for month, url in MONTHLY_URLS.items():
+    try:
+        monthly_urls = discover_monthly_urls()
+        if monthly_urls:
+            print(f"Discovered {len(monthly_urls)} monthly periods from /periods")
+        else:
+            print("  [WARN] No monthly periods discovered; falling back to static map")
+            monthly_urls = FALLBACK_MONTHLY_URLS
+    except Exception as e:
+        print(f"  [WARN] Could not discover monthly periods: {e}")
+        print("  [WARN] Falling back to static monthly URL map")
+        monthly_urls = FALLBACK_MONTHLY_URLS
+
+    for month, url in monthly_urls.items():
         if not args.all_months:
             y, m = map(int, month.split("-"))
             if m == 12:
