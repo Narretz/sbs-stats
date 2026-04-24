@@ -22,6 +22,12 @@ function parseDate(raw: string | null): string {
   return raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
 }
 
+function shiftDate(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 function getUrlParams() {
   const p = new URLSearchParams(window.location.search);
   const d = Number(p.get("days"));
@@ -75,8 +81,11 @@ export function HourlyPage({ refreshKey }: HourlyPageProps) {
   }, [loadState, queryGlobalStats, refreshKey]);
 
   useEffect(() => {
-    if (loadState === "ready") { setRows(queryHourly(days)); setHasData(true); }
-  }, [loadState, days, queryHourly, refreshKey]);
+    if (loadState === "ready") {
+      setRows(queryHourly(days, selectedDate || undefined));
+      setHasData(true);
+    }
+  }, [loadState, days, selectedDate, queryHourly, refreshKey]);
 
   const todayDow = new Date(
     new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00"
@@ -84,14 +93,16 @@ export function HourlyPage({ refreshKey }: HourlyPageProps) {
 
   const metrics = useMemo<Metric[]>(() => buildMetrics(), []);
 
-  const minDate = rows[0]?.date ?? "";
-  const maxDate = rows[rows.length - 1]?.date ?? "";
+  const maxSelectableDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
 
   const filteredRows = useMemo(() => {
-    if (selectedDate) return rows.filter(row => row.date === selectedDate);
+    if (selectedDate) {
+      const startDate = shiftDate(selectedDate, -days);
+      return rows.filter(row => row.date >= startDate && row.date <= selectedDate);
+    }
     if (selectedWeekdays.length === 0) return rows;
     return rows.filter(row => selectedWeekdays.includes(new Date(row.date + "T12:00:00").getDay()));
-  }, [rows, selectedWeekdays, selectedDate]);
+  }, [rows, selectedWeekdays, selectedDate, days]);
 
   const chartStats = useMemo<GlobalStats>(() => {
     if (filteredRows.length === 0) return globalStats;
@@ -168,8 +179,7 @@ export function HourlyPage({ refreshKey }: HourlyPageProps) {
           <input
             type="date"
             value={selectedDate}
-            min={minDate}
-            max={maxDate}
+            max={maxSelectableDate}
             onChange={e => updateDate(e.target.value)}
             style={{
               background: selectedDate ? t.accent : t.bgAlt,
@@ -210,6 +220,7 @@ export function HourlyPage({ refreshKey }: HourlyPageProps) {
               wfull={m.wfull ?? false}
               tooltipSort={tooltipSort}
               highlight={!!selectedDate}
+              selectedDate={selectedDate}
             />
           ))}
         </ChartGrid>

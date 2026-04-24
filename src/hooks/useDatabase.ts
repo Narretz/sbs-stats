@@ -158,11 +158,12 @@ export function useDatabase() {
 
   // ── Daily: one row per date (latest hour) ────────────────────────────────────
   const queryDaily = useCallback(
-    (days: number): DailyRow[] => {
+    (days: number, endDate?: string): DailyRow[] => {
       if (!db) return [];
       const availableCols = getTableColumns(db, "daily_stats");
       const statCols = buildStatColumns(availableCols);
       const todayStr = getKyivDateString();
+      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
 
       const sql = `
         SELECT
@@ -171,7 +172,8 @@ export function useDatabase() {
           CASE WHEN date = '${todayStr}' THEN 1 ELSE 0 END AS is_today,
           ${statCols}
         FROM daily_stats
-        WHERE date >= date('${todayStr}', '-${days} days')
+        WHERE date >= date('${endDateSql}', '-${days} days')
+          AND date <= date('${endDateSql}')
         ORDER BY date ASC, hour DESC
       `;
 
@@ -191,11 +193,12 @@ export function useDatabase() {
 
   // ── Hourly: ALL rows (every hour × every date) ───────────────────────────────
   const queryHourly = useCallback(
-    (days: number): DailyRow[] => {
+    (days: number, endDate?: string): DailyRow[] => {
       if (!db) return [];
       const availableCols = getTableColumns(db, "daily_stats");
       const statCols = buildStatColumns(availableCols);
       const todayStr = getKyivDateString();
+      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
 
       const sql = `
         SELECT
@@ -204,7 +207,8 @@ export function useDatabase() {
           CASE WHEN date = '${todayStr}' THEN 1 ELSE 0 END AS is_today,
           ${statCols}
         FROM daily_stats
-        WHERE date >= date('${todayStr}', '-${days} days')
+        WHERE date >= date('${endDateSql}', '-${days} days')
+          AND date <= date('${endDateSql}')
           AND hour < 24
         ORDER BY date ASC, hour ASC
       `;

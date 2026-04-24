@@ -72,6 +72,7 @@ export function DailyLineChart({ title, data, globalMax, globalMedian, wfull, hi
           />
           <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, globalMax)]} />
           <Tooltip
+            allowEscapeViewBox={{ x: false, y: true }}
             contentStyle={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 6, fontFamily: FONTS.mono, fontSize: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
             labelStyle={{ color: t.textMuted, marginBottom: 4 }}
             itemStyle={{ color: t.primary }}

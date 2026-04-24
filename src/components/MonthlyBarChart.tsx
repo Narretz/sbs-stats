@@ -75,7 +75,10 @@ export function MonthlyBarChart({ title, data, wfull }: Props) {
             tickFormatter={(v: string) => v.slice(0, 7).replace("-", "/")}
           />
           <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
-          <Tooltip content={(props) => <MonthlyTooltip {...props} t={t} />} />
+          <Tooltip
+            content={(props) => <MonthlyTooltip {...props} t={t} />}
+            allowEscapeViewBox={{ x: false, y: true }}
+          />
           <Bar dataKey="value" stackId="a" name="Actual">
             {data.map((_, i) => (
               <Cell key={`val-${i}`} fill={i === lastIdx ? t.accent : t.primary} opacity={i === lastIdx ? 1 : 0.8} />

@@ -17,6 +17,7 @@ interface Props {
   wfull: boolean;
   tooltipSort?: TooltipSortMode;
   highlight?: boolean;
+  selectedDate?: string;
 }
 function pivotData(series: DailyDaySeries[]): Record<string, number | null>[] {
   // X-axis runs 0–24. Hour 0 is always 0 (day start anchor).
@@ -123,11 +124,13 @@ if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
   s.textContent = `.hourly-card { position: relative; z-index: 1; } .hourly-card:hover { z-index: 100; }`;
   document.head.appendChild(s);
 }
-export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, tooltipSort = "date", highlight = false }: Props) {
+export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, tooltipSort = "date", highlight = false, selectedDate }: Props) {
   const { theme: t } = useTheme();
   const chartData = pivotData(data);
-  const todaySeries = highlight ? data[0] : data.find((s) => s.is_today);
-  const pastSeries = highlight ? [] : data.filter((s) => !s.is_today);
+  const primarySeries = (highlight && data.length > 0)
+    ? (data.find((s) => s.date === selectedDate) ?? data[data.length - 1])
+    : data.find((s) => s.is_today);
+  const pastSeries = data.filter((s) => s.date !== primarySeries?.date);
   const total = pastSeries.length;
   const getOpacity = (index: number) =>
     total <= 1 ? 0.18 : 0.07 + (index / (total - 1)) * 0.35;
@@ -163,9 +166,9 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
           />
           <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, globalMax)]} />
           <Tooltip
-            content={(props) => <CustomTooltip {...props} todayDate={todaySeries?.date} t={t} sortMode={tooltipSort} />}
-            allowEscapeViewBox={{ x: true, y: true }}
-            wrapperStyle={{ zIndex: 9999, position: "absolute" }}
+            content={(props) => <CustomTooltip {...props} todayDate={primarySeries?.date} t={t} sortMode={tooltipSort} />}
+            allowEscapeViewBox={{ x: false, y: true }}
+            wrapperStyle={{ zIndex: 9999 }}
           />
           <ReferenceLine y={globalMax} stroke={t.accent} strokeDasharray="4 4" strokeOpacity={0.6}
             label={{ value: "MAX", position: "insideTopRight", fontSize: 9, fill: t.accent, fontFamily: FONTS.mono }} />
@@ -178,8 +181,8 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
               connectNulls isAnimationActive={false}
             />
           ))}
-          {todaySeries && (
-            <Line key={todaySeries.date} type="monotone" dataKey={todaySeries.date}
+          {primarySeries && (
+            <Line key={primarySeries.date} type="monotone" dataKey={primarySeries.date}
               stroke={t.accent} strokeWidth={3.5} strokeOpacity={1}
               dot={false} activeDot={{ r: 4, fill: t.accent }}
               connectNulls isAnimationActive={false}
