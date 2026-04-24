@@ -6,7 +6,7 @@ export const TARGET_LABELS: Record<TargetId, string> = {
   1: "Tanks",
   32: "SAM",
   2: "APCs / IFVs / ACVs",
-  5: "MLRS / SAMs / AA Guns",
+  5: "MLRS (+ SAM / AA Guns until 2026-03)",
   7: "Vehicles",
   18: "Motorcycles & Buggies",
   21: "Shelters",
