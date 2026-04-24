@@ -61,6 +61,13 @@ const CustomTooltip = ({
     if (b.dataKey === todayDate) return 1;
     return b.dataKey.localeCompare(a.dataKey);
   });
+  const hourMedian = sorted.length
+    ? [...sorted].map((e) => e.value).sort((a, b) => a - b)[Math.floor(sorted.length / 2)]
+    : 0;
+  const currentEntry = todayDate ? sorted.find((e) => e.dataKey === todayDate) : undefined;
+  const currentDeltaPct = currentEntry
+    ? (hourMedian !== 0 ? ((currentEntry.value - hourMedian) / hourMedian) * 100 : null)
+    : null;
   // Split into columns of max 10 rows each
   const ROWS_PER_COL = 10;
   const columns: typeof sorted[] = [];
@@ -74,15 +81,17 @@ const CustomTooltip = ({
       borderRadius: 6,
       padding: "8px 10px",
       fontFamily: FONTS.mono,
-      fontSize: 10,
+      fontSize: 11,
       boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
       pointerEvents: "none",
       position: "relative",
       zIndex: 9999,
     }}>
       {/* Hour header */}
-      <div style={{ color: t.textMuted, marginBottom: 5, fontSize: 10, fontWeight: 700, letterSpacing: "0.05em" }}>
+      <div style={{ color: t.textMuted, marginBottom: 5, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
         {label == null ? "" : label === 0 ? "00:00" : `${String(label - 1).padStart(2,"0")}:00–${String(label - 1).padStart(2,"0")}:59`}
+        {` · med ${hourMedian.toLocaleString()}`}
+        {` · cur ${currentDeltaPct == null ? "n/a" : `${currentDeltaPct >= 0 ? "+" : ""}${currentDeltaPct.toFixed(1)}%`} vs med`}
       </div>
       {/* Columns */}
       <div style={{ display: "flex", gap: 12 }}>
@@ -105,7 +114,7 @@ const CustomTooltip = ({
                 }}>
                   <span>{label}</span>
                   <span style={{ color: t.text, fontWeight: isToday ? 700 : 400 }}>
-                    {p.value?.toLocaleString() ?? "—"}
+                    {p.value.toLocaleString()}
                   </span>
                 </div>
               );
@@ -193,3 +202,4 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
     </div>
   );
 }
+
