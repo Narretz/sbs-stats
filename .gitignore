@@ -10,3 +10,6 @@ tmp/
 
 public/data/
 public/vendor/
+
+
+scripts/__pycache__
