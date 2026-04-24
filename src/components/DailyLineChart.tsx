@@ -7,19 +7,25 @@ import type { DailyDataPoint } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
 
-function linearRegression(data: DailyDataPoint[]): number[] {
-  const n = data.length;
+function linearRegression(data: DailyDataPoint[]): Array<number | null> {
+  const points = data
+    .map((d, i) => ({ x: i, y: d.value }))
+    .filter((p): p is { x: number; y: number } => typeof p.y === "number");
+  const n = points.length;
   if (n < 2) return data.map(d => d.value);
   let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
   for (let i = 0; i < n; i++) {
-    sumX += i;
-    sumY += data[i].value;
-    sumXY += i * data[i].value;
-    sumXX += i * i;
+    const p = points[i];
+    sumX += p.x;
+    sumY += p.y;
+    sumXY += p.x * p.y;
+    sumXX += p.x * p.x;
   }
   const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
   const intercept = (sumY - slope * sumX) / n;
-  return data.map((_, i) => Math.max(0, Math.round(slope * i + intercept)));
+  return data.map((d, i) =>
+    d.value == null ? null : Math.max(0, Math.round(slope * i + intercept))
+  );
 }
 
 interface Props {

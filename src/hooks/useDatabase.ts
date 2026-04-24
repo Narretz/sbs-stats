@@ -86,11 +86,14 @@ function buildStatColumns(availableCols: string[]): string {
     `destroyed_${id}` as StatKey,
   ]);
   return [...baseCols, ...dynamicCols]
-    .map((col) =>
-      availableCols.includes(col)
+    .map((col) => {
+      if (col === "flights_strike" || col === "flights_recon") {
+        return availableCols.includes(col) ? `${col} AS ${col}` : `NULL AS ${col}`;
+      }
+      return availableCols.includes(col)
         ? `COALESCE(${col}, 0) AS ${col}`
-        : `0 AS ${col}`
-    )
+        : `0 AS ${col}`;
+    })
     .join(", ");
 }
 

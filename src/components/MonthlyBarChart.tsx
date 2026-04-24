@@ -30,7 +30,7 @@ const MonthlyTooltip = ({
     }}>
       <div style={{ color: t.textMuted, marginBottom: 6 }}>{d.date}</div>
       <div style={{ color: t.primary }}>
-        Actual: <span style={{ color: t.text, fontWeight: 700 }}>{d.value?.toLocaleString()}</span>
+        Actual: <span style={{ color: t.text, fontWeight: 700 }}>{d.value == null ? "n/a" : d.value.toLocaleString()}</span>
       </div>
       {d.projected != null && (
         <>

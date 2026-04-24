@@ -103,14 +103,24 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
     if (filteredRows.length === 0) return globalStats;
     const result = {} as GlobalStats;
     for (const m of metrics) {
-      const vals = filteredRows.map(r => (r[m.key] as number) ?? 0).sort((a, b) => a - b);
-      result[m.key] = { max: Math.max(...vals), median: vals[Math.floor(vals.length / 2)] };
+      const vals = filteredRows
+        .map(r => r[m.key])
+        .filter((v): v is number => typeof v === "number")
+        .sort((a, b) => a - b);
+      result[m.key] = {
+        max: vals.length ? Math.max(...vals) : 0,
+        median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
+      };
     }
     return result;
   }, [filteredRows, globalStats, metrics]);
 
   const makeDataset = (key: StatKey): DailyDataPoint[] =>
-    filteredRows.map((d) => ({ date: d.date, value: (d[key] as number) ?? 0, is_today: d.is_today }));
+    filteredRows.map((d) => ({
+      date: d.date,
+      value: typeof d[key] === "number" ? (d[key] as number) : null,
+      is_today: d.is_today,
+    }));
 
   return (
     <div>

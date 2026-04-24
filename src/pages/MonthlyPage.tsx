@@ -37,11 +37,11 @@ export function MonthlyPage({ refreshKey }: MonthlyPageProps) {
 
   const makeDataset = (key: StatKey): MonthlyDataPoint[] =>
     rows.map((d: MonthlyRow) => {
-      const value = (d[key] as number) ?? 0;
+      const value = typeof d[key] === "number" ? (d[key] as number) : null;
       const projected = d[`${key}_projected`] as number | undefined;
       return {
         date: d.date, value,
-        gap: projected != null ? projected - value : undefined,
+        gap: projected != null && value != null ? projected - value : undefined,
         projected,
         projection_day: d.projection_day ?? undefined,
         projection_days_in_month: d.projection_days_in_month ?? undefined,

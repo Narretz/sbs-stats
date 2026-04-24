@@ -115,8 +115,14 @@ export function HourlyPage({ refreshKey }: HourlyPageProps) {
     const deduped = Array.from(latest.values());
     const result = {} as GlobalStats;
     for (const m of metrics) {
-      const vals = deduped.map(r => (r[m.key] as number) ?? 0).sort((a, b) => a - b);
-      result[m.key] = { max: Math.max(...vals), median: vals[Math.floor(vals.length / 2)] };
+      const vals = deduped
+        .map(r => r[m.key])
+        .filter((v): v is number => typeof v === "number")
+        .sort((a, b) => a - b);
+      result[m.key] = {
+        max: vals.length ? Math.max(...vals) : 0,
+        median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
+      };
     }
     return result;
   }, [filteredRows, globalStats, metrics]);
@@ -125,7 +131,10 @@ export function HourlyPage({ refreshKey }: HourlyPageProps) {
     const map = new Map<string, DailyDaySeries>();
     for (const row of filteredRows) {
       if (!map.has(row.date)) map.set(row.date, { date: row.date, is_today: row.is_today, points: [] });
-      map.get(row.date)!.points.push({ hour: row.hour, value: (row[key] as number) ?? 0 });
+      map.get(row.date)!.points.push({
+        hour: row.hour,
+        value: typeof row[key] === "number" ? (row[key] as number) : null,
+      });
     }
     for (const s of map.values()) s.points.sort((a, b) => a.hour - b.hour);
     return Array.from(map.values()).sort((a, b) => {

@@ -34,7 +34,7 @@ export type DailyRow = {
   date: string;   // "YYYY-MM-DD"
   hour: number;
   is_today: boolean;
-} & Record<StatKey, number>;
+} & Record<StatKey, number | null>;
 
 export type ProjectedKey = `${StatKey}_projected`;
 
@@ -48,14 +48,14 @@ export type MonthlyRow = {
 // ─── Daily chart (one value per day) ─────────────────────────────────────────
 export interface DailyDataPoint {
   date: string;
-  value: number;
+  value: number | null;
   is_today: boolean;
 }
 
 // ─── Hourly chart (one line per day, x-axis = hours) ─────────────────────────
 export interface HourPoint {
   hour: number;
-  value: number;
+  value: number | null;
 }
 
 export interface DailyDaySeries {
@@ -67,7 +67,7 @@ export interface DailyDaySeries {
 // ─── Monthly chart ────────────────────────────────────────────────────────────
 export interface MonthlyDataPoint {
   date: string;
-  value: number;
+  value: number | null;
   gap?: number;
   projected?: number;
   projection_day?: number;
