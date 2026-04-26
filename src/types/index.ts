@@ -1,10 +1,11 @@
 // ─── Target classification IDs ────────────────────────────────────────────────
-export const TARGET_IDS = [1, 32, 2, 5, 7, 18, 21, 22, 25] as const;
+export const TARGET_IDS = [1, 32, 3, 2, 5, 7, 18, 21, 22, 25] as const;
 export type TargetId = (typeof TARGET_IDS)[number];
 
 export const TARGET_LABELS: Record<TargetId, string> = {
   1: "Tanks",
   32: "SAM",
+  3: "Cannons, Howitzers",
   2: "APCs / IFVs / ACVs",
   5: "MLRS (+ SAM / AA Guns until 2026-03)",
   7: "Vehicles",
