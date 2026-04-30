@@ -1,0 +1,13 @@
+{
+  "name": "sbs-stats-cron",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260430.1",
+    "wrangler": "^4.86.0"
+  }
+}

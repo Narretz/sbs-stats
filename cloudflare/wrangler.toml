@@ -1,0 +1,16 @@
+name = "sbs-stats-cron"
+main = "worker.ts"
+compatibility_date = "2025-01-01"
+workers_dev = false
+preview_urls = false
+
+[triggers]
+crons = ["15,35,55 * * * *"]
+
+[vars]
+GH_OWNER = "narretz"
+GH_REPO = "sbs-stats"
+GH_WORKFLOW = "update-db.yml"
+GH_REF = "main"
+
+# Set the token with: wrangler secret put GH_TOKEN
