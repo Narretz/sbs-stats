@@ -152,6 +152,9 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
   const total = pastSeries.length;
   const getOpacity = (index: number) =>
     total <= 1 ? 0.18 : 0.07 + (index / (total - 1)) * 0.35;
+
+  const isToday = !selectedDate || selectedDate === Temporal.Now.plainDateISO().toString();
+
   return (
     <div className="hourly-card" style={{
       background: t.surface,
@@ -166,7 +169,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
         {title}
       </div>
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ color: t.accent, fontWeight: 700 }}>{selectedDate}</span>
+        <span style={{ color: t.accent, fontWeight: 700 }}>{isToday ? 'TODAY' : selectedDate}</span>
         <span style={{ color: t.textMuted }}>{total} previous day{total !== 1 ? "s" : ""}</span>
         <span style={{ color: t.accent }}>▲ MAX {globalMax.toLocaleString()}</span>
         <span style={{ color: t.muted }}>~ MED {globalMedian.toLocaleString()}</span>
