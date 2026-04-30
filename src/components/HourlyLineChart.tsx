@@ -41,13 +41,15 @@ function pivotData(series: DailyDaySeries[]): Record<string, number | null>[] {
 type TooltipEntry = { dataKey: string; value: number };
 
 const CustomTooltip = ({
-  active, payload, label, todayDate, t, sortMode,
+  active, payload, label, currentDate, t, sortMode,
 }: TooltipProps<number, string> & {
-  todayDate: string | undefined;
+  currentDate: string | undefined;
   t: Theme;
   sortMode: TooltipSortMode;
 }) => {
   if (!active || !payload?.length) return null;
+
+  const today = Temporal.Now.plainDateISO().toString();
 
   // Normalise Recharts payload to our simple shape, filtering out bad entries
   const entries: TooltipEntry[] = payload
@@ -57,14 +59,14 @@ const CustomTooltip = ({
   // Sort by value (highest first) or by date (today first, then newest→oldest)
   const sorted = [...entries].sort((a, b) => {
     if (sortMode === "value") return (b.value ?? 0) - (a.value ?? 0);
-    if (a.dataKey === todayDate) return -1;
-    if (b.dataKey === todayDate) return 1;
+    if (a.dataKey === currentDate) return -1;
+    if (b.dataKey === currentDate) return 1;
     return b.dataKey.localeCompare(a.dataKey);
   });
   const hourMedian = sorted.length
     ? [...sorted].map((e) => e.value).sort((a, b) => a - b)[Math.floor(sorted.length / 2)]
     : 0;
-  const currentEntry = todayDate ? sorted.find((e) => e.dataKey === todayDate) : undefined;
+  const currentEntry = currentDate ? sorted.find((e) => e.dataKey === currentDate) : undefined;
   const currentDeltaPct = currentEntry
     ? (hourMedian !== 0 ? ((currentEntry.value - hourMedian) / hourMedian) * 100 : null)
     : null;
@@ -98,18 +100,25 @@ const CustomTooltip = ({
         {columns.map((col, ci) => (
           <div key={ci}>
             {col.map((p) => {
-              const isToday = p.dataKey === todayDate;
               // Show MM-DD for past days to save space
-              const [y, m, d] = p.dataKey.split('-');
+              const [_y, m, d] = p.dataKey.split('-');
+
+              const isToday = p.dataKey === today;
+
+              const isCurrentDate = p.dataKey === currentDate;
+
+              const highlight = isToday || isCurrentDate;
+
               const label = isToday ? "TODAY" : `${d}.${m}.`;
+
               return (
                 <div key={p.dataKey} style={{
                   display: "flex",
                   justifyContent: "space-between",
                   gap: 8,
                   marginBottom: 2,
-                  color: isToday ? t.accent : t.textMuted,
-                  fontWeight: isToday ? 700 : 400,
+                  color: highlight ? t.accent : t.textMuted,
+                  fontWeight: highlight ? 700 : 400,
                   lineHeight: "15px",
                 }}>
                   <span>{label}</span>
@@ -157,7 +166,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
         {title}
       </div>
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ color: t.accent, fontWeight: 700 }}>— TODAY</span>
+        <span style={{ color: t.accent, fontWeight: 700 }}>{selectedDate}</span>
         <span style={{ color: t.textMuted }}>{total} previous day{total !== 1 ? "s" : ""}</span>
         <span style={{ color: t.accent }}>▲ MAX {globalMax.toLocaleString()}</span>
         <span style={{ color: t.muted }}>~ MED {globalMedian.toLocaleString()}</span>
@@ -175,7 +184,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
           />
           <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, globalMax)]} />
           <Tooltip
-            content={(props) => <CustomTooltip {...props} todayDate={primarySeries?.date} t={t} sortMode={tooltipSort} />}
+            content={(props) => <CustomTooltip {...props} currentDate={primarySeries?.date} t={t} sortMode={tooltipSort} />}
             allowEscapeViewBox={{ x: false, y: true }}
             wrapperStyle={{ zIndex: 9999 }}
           />
