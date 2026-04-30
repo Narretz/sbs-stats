@@ -1,15 +1,16 @@
 import { useState, useMemo, useEffect } from "react";
+import { Temporal } from "temporal-polyfill";
 import { useDatabaseContext } from "@/context/useDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { buildMetrics } from "@/utils/metrics";
 import type { DailyRow, DailyDataPoint, GlobalStats, StatKey, Metric } from "@/types";
 import { FONTS } from "@/theme";
 
 const DAY_OPTIONS = [7, 14, 30, 60, 90, 120, 150, 180] as const;
 type DayOption = (typeof DAY_OPTIONS)[number];
-const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function parseWeekdays(raw: string | null): number[] {
   if (!raw) return [];
@@ -61,14 +62,9 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
 
   const updateDays = (d: DayOption) => { setDays(d); setUrlParams({ days: String(d) }); };
   const updateDate = (d: string) => { setSelectedDate(d); setUrlParams({ date: d }); };
-  const toggleWeekday = (dow: number) => {
-    setSelectedWeekdays(prev => {
-      const next = prev.includes(dow)
-        ? prev.filter(d => d !== dow)
-        : [...prev, dow].sort((a, b) => a - b);
-      setUrlParams({ weekdays: next.join(",") });
-      return next;
-    });
+  const updateWeekdays = (next: number[]) => {
+    setSelectedWeekdays(next);
+    setUrlParams({ weekdays: next.join(",") });
   };
 
   useEffect(() => {
@@ -89,6 +85,14 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
   ).getDay();
 
   const maxSelectableDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
+
+  const shiftSelectedDate = (delta: number) => {
+    const base = selectedDate || Temporal.Now.plainDateISO("Europe/Kyiv").toString();
+    const next = Temporal.PlainDate.from(base).add({ days: delta }).toString();
+    if (next > maxSelectableDate) return;
+    updateDate(next);
+  };
+  const canGoNext = selectedDate !== "" && selectedDate < maxSelectableDate;
 
   const filteredRows = useMemo(() => {
     if (selectedDate) {
@@ -136,35 +140,40 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
           </p>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: 6 }}>
-            {DOW_LABELS.map((label, dow) => (
-              <button key={dow} onClick={() => toggleWeekday(dow)} style={{
-                background: selectedWeekdays.includes(dow) ? t.accent : t.bgAlt,
-                color: selectedWeekdays.includes(dow) ? "#fff" : t.textMuted,
-                border: `1px solid ${selectedWeekdays.includes(dow) ? t.accent : t.border}`,
-                borderRadius: 4, padding: "5px 12px",
-                fontFamily: FONTS.mono, fontSize: 11,
-                fontWeight: selectedWeekdays.includes(dow) ? 700 : 400,
-                cursor: "pointer", transition: "all 0.15s",
-                boxShadow: dow === todayDow ? `0 2px 0 0 ${t.text}` : undefined,
-              }}>{label}</button>
-            ))}
-          </div>
-          <input
-            type="date"
-            value={selectedDate}
-            max={maxSelectableDate}
-            onChange={e => updateDate(e.target.value)}
-            style={{
-              background: selectedDate ? t.accent : t.bgAlt,
-              color: selectedDate ? "#fff" : t.textMuted,
-              border: `1px solid ${selectedDate ? t.accent : t.border}`,
-              borderRadius: 4, padding: "5px 8px",
-              fontFamily: FONTS.mono, fontSize: 11,
-              cursor: "pointer", transition: "all 0.15s",
-              colorScheme: "dark",
-            }}
+          <WeekdayMultiSelect
+            selected={selectedWeekdays}
+            onChange={updateWeekdays}
+            todayDow={todayDow}
           />
+          <div style={{ display: "flex", gap: "3px" }}>
+            <button onClick={() => shiftSelectedDate(-1)} style={{
+              background: t.bgAlt, color: t.textMuted,
+              border: `1px solid ${t.border}`,
+              fontFamily: FONTS.mono, fontSize: 11,
+              borderRadius: 4, padding: "5px 8px", height: "25px", cursor: "pointer",
+            }}>&lt;</button>
+            <input
+              type="date"
+              value={selectedDate}
+              max={maxSelectableDate}
+              onChange={e => updateDate(e.target.value)}
+              style={{
+                background: selectedDate ? t.accent : t.bgAlt,
+                color: selectedDate ? "#fff" : t.textMuted,
+                border: `1px solid ${selectedDate ? t.accent : t.border}`,
+                borderRadius: 4, padding: "5px 8px",
+                fontFamily: FONTS.mono, fontSize: 11,
+                cursor: "pointer", transition: "all 0.15s",
+                colorScheme: "dark",
+              }}
+            />
+            <button onClick={() => shiftSelectedDate(1)} disabled={!canGoNext} style={{
+              background: t.bgAlt, color: canGoNext ? t.textMuted : t.border,
+              border: `1px solid ${t.border}`,
+              fontFamily: FONTS.mono, fontSize: 11,
+              borderRadius: 4, padding: "5px 8px", height: "25px", cursor: canGoNext ? "pointer" : "not-allowed",
+            }}>&gt;</button>
+          </div>
           <div style={{ display: "flex", gap: 6 }}>
             {DAY_OPTIONS.map((d) => (
               <button key={d} onClick={() => updateDays(d)} style={{
