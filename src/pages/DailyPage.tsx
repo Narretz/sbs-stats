@@ -78,7 +78,7 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
     }
   }, [loadState, days, selectedDate, queryDaily, refreshKey]);
 
-  const metrics = useMemo<Metric[]>(() => buildMetrics({ pairTargets: true }), []);
+  const metrics = useMemo<Metric[]>(() => buildMetrics({ paired: true }), []);
 
   const todayDow = new Date(
     new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00"
@@ -208,9 +208,11 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
               wfull={m.wfull ?? false}
               highlight={!!selectedDate}
               data2={m.pairedKey ? makeDataset(m.pairedKey) : undefined}
+              primaryLabel={m.primaryLabel}
               label2={m.pairedLabel}
               globalMax2={m.pairedKey ? chartStats[m.pairedKey]?.max ?? 0 : undefined}
               globalMedian2={m.pairedKey ? chartStats[m.pairedKey]?.median ?? 0 : undefined}
+              pairMode={m.pairMode}
             />
           ))}
         </ChartGrid>

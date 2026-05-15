@@ -78,12 +78,16 @@ export interface MonthlyDataPoint {
 }
 
 // ─── Metric descriptor ────────────────────────────────────────────────────────
+export type PairMode = "subset" | "sum";
+
 export interface Metric {
   key: StatKey;
   label: string;
   wfull?: boolean;
   pairedKey?: StatKey;
   pairedLabel?: string;
+  primaryLabel?: string;
+  pairMode?: PairMode;
 }
 
 // ─── App state ────────────────────────────────────────────────────────────────
