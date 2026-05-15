@@ -78,7 +78,7 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
     }
   }, [loadState, days, selectedDate, queryDaily, refreshKey]);
 
-  const metrics = useMemo<Metric[]>(() => buildMetrics(), []);
+  const metrics = useMemo<Metric[]>(() => buildMetrics({ pairTargets: true }), []);
 
   const todayDow = new Date(
     new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00"
@@ -106,12 +106,17 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
   const chartStats = useMemo<GlobalStats>(() => {
     if (filteredRows.length === 0) return globalStats;
     const result = {} as GlobalStats;
+    const keys = new Set<StatKey>();
     for (const m of metrics) {
+      keys.add(m.key);
+      if (m.pairedKey) keys.add(m.pairedKey);
+    }
+    for (const key of keys) {
       const vals = filteredRows
-        .map(r => r[m.key])
+        .map(r => r[key])
         .filter((v): v is number => typeof v === "number")
         .sort((a, b) => a - b);
-      result[m.key] = {
+      result[key] = {
         max: vals.length ? Math.max(...vals) : 0,
         median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
       };
@@ -202,6 +207,10 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
               globalMedian={chartStats[m.key]?.median ?? 0}
               wfull={m.wfull ?? false}
               highlight={!!selectedDate}
+              data2={m.pairedKey ? makeDataset(m.pairedKey) : undefined}
+              label2={m.pairedLabel}
+              globalMax2={m.pairedKey ? chartStats[m.pairedKey]?.max ?? 0 : undefined}
+              globalMedian2={m.pairedKey ? chartStats[m.pairedKey]?.median ?? 0 : undefined}
             />
           ))}
         </ChartGrid>

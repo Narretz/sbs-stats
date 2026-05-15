@@ -1,7 +1,7 @@
 import type { Metric } from "@/types";
 import { TARGET_IDS, TARGET_LABELS } from "@/types";
 
-export function buildMetrics(): Metric[] {
+export function buildMetrics(options?: { pairTargets?: boolean }): Metric[] {
   const base: Metric[] = [
     { key: "total_personnel_casualties", label: "Personnel Casualties", wfull: true },
     { key: "personnel_killed", label: "Personnel Killed" },
@@ -12,10 +12,17 @@ export function buildMetrics(): Metric[] {
     { key: "total_targets_destroyed", label: "Targets Destroyed" },
   ];
 
-  const targetMetrics: Metric[] = TARGET_IDS.flatMap((id) => [
-    { key: `hit_${id}` as Metric["key"], label: `${TARGET_LABELS[id]} — Hit` },
-    { key: `destroyed_${id}` as Metric["key"], label: `${TARGET_LABELS[id]} — Destroyed` },
-  ]);
+  const targetMetrics: Metric[] = options?.pairTargets
+    ? TARGET_IDS.map((id) => ({
+        key: `hit_${id}` as Metric["key"],
+        label: `${TARGET_LABELS[id]} — Hit / Destroyed`,
+        pairedKey: `destroyed_${id}` as Metric["key"],
+        pairedLabel: "Destroyed",
+      }))
+    : TARGET_IDS.flatMap((id) => [
+        { key: `hit_${id}` as Metric["key"], label: `${TARGET_LABELS[id]} — Hit` },
+        { key: `destroyed_${id}` as Metric["key"], label: `${TARGET_LABELS[id]} — Destroyed` },
+      ]);
 
   return [...base, ...targetMetrics];
 }

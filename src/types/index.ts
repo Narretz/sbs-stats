@@ -82,6 +82,8 @@ export interface Metric {
   key: StatKey;
   label: string;
   wfull?: boolean;
+  pairedKey?: StatKey;
+  pairedLabel?: string;
 }
 
 // ─── App state ────────────────────────────────────────────────────────────────
