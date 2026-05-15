@@ -39,7 +39,7 @@ export const LIGHT: Theme = {
   muted:        "#70a65b",
   headerBg:     "rgba(244,245,247,0.92)",
   chartGrid:    "#e5e7eb",
-  bgImportant:  "#db2c18",
+  bgImportant:  "#E17B6F",
   textImportant:  "#ffffff",
 };
 
