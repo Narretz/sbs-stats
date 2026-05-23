@@ -8,6 +8,7 @@ on:
       - "index.html"
       - "vite.config.ts"
       - "package.json"
+      - ".env.production"
   workflow_dispatch:
 
 permissions:
