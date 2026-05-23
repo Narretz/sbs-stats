@@ -35,6 +35,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # .npmrc has `ignore-scripts=true` (supply-chain hardening), which skips
+      # the postinstall hook that would normally copy sql.js + sql.js-httpvfs
+      # assets into public/vendor/. Run it explicitly here so Vite can include
+      # them in dist/.
+      - name: Populate public/vendor (sql.js + httpvfs assets)
+        run: npm run setup-dev
+
       - name: Build
         run: npm run build
 
