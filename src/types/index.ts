@@ -147,3 +147,10 @@ export interface GsuaDirectionRow {
 }
 
 export type GsuaGlobalStats = Record<GsuaMetricKey, { max: number; median: number }>;
+
+export type GsuaMonthlyRow = {
+  date: string; // "YYYY-MM"
+  is_current_month: boolean;
+  projection_day: number | null;
+  projection_days_in_month: number | null;
+} & Record<GsuaMetricKey, number> & Partial<Record<`${GsuaMetricKey}_projected`, number>>;

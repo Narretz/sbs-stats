@@ -75,7 +75,7 @@ interface Props {
 export function GsuaHourlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
   const {
-    loadState, error, querySnapshots, queryDirectionList, queryDirectionDaily,
+    loadState, error, querySnapshots, queryDirectionList, queryDirectionSnapshots,
   } = useGsuaDatabaseContext();
 
   const initial = useMemo(() => getUrlParams(), []);
@@ -119,12 +119,12 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
     if (loadState !== "ready") return;
     setRows(querySnapshots(days, selectedDate || undefined));
     if (selectedDirection) {
-      setDirectionRows(queryDirectionDaily(selectedDirection, days, selectedDate || undefined));
+      setDirectionRows(queryDirectionSnapshots(selectedDirection, days, selectedDate || undefined));
     } else {
       setDirectionRows([]);
     }
     setHasData(true);
-  }, [loadState, days, selectedDate, selectedDirection, querySnapshots, queryDirectionDaily, refreshKey]);
+  }, [loadState, days, selectedDate, selectedDirection, querySnapshots, queryDirectionSnapshots, refreshKey]);
 
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00").getDay();
 
@@ -182,24 +182,57 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
     return result;
   }, [filteredRows]);
 
-  // Direction view (attacks/ongoing per snapshot per day).
-  // queryDirectionDaily collapses to one row per date — for now reuse that
-  // (only daily granularity); the page intentionally collapses snapshots.
+  // Direction view: per-snapshot attacks/ongoing, telegram-preferred dedup, +
+  // weekday / date-window filters mirroring the aggregate view.
+  const filteredDirectionRows = useMemo(() => {
+    let r = directionRows;
+    if (selectedDate) {
+      const startDate = shiftDate(selectedDate, -days);
+      r = r.filter((row) => row.date >= startDate && row.date <= selectedDate);
+    } else if (selectedWeekdays.length > 0) {
+      r = r.filter((row) => selectedWeekdays.includes(new Date(row.date + "T12:00:00").getDay()));
+    }
+    return r;
+  }, [directionRows, selectedDate, selectedWeekdays, days]);
+
   const directionSeries = (which: "attacks" | "ongoing"): DailyDaySeries[] => {
     const map = new Map<string, DailyDaySeries>();
-    for (const row of directionRows) {
+    for (const row of filteredDirectionRows) {
       if (!map.has(row.date)) map.set(row.date, { date: row.date, is_today: row.is_today, points: [] });
       map.get(row.date)!.points.push({
         hour: effectiveHour(row.date, row.snapshot_at),
         value: typeof row[which] === "number" ? (row[which] as number) : null,
       });
     }
+    for (const s of map.values()) s.points.sort((a, b) => a.hour - b.hour);
     return Array.from(map.values()).sort((a, b) => {
       if (a.is_today) return 1;
       if (b.is_today) return -1;
       return a.date.localeCompare(b.date);
     });
   };
+
+  const directionStats = useMemo(() => {
+    const peakByDate = new Map<string, { attacks: number | null; ongoing: number | null }>();
+    for (const row of filteredDirectionRows) {
+      const cur = peakByDate.get(row.date) ?? { attacks: null, ongoing: null };
+      if (typeof row.attacks === "number" && (cur.attacks ?? -1) < row.attacks) cur.attacks = row.attacks;
+      if (typeof row.ongoing === "number" && (cur.ongoing ?? -1) < row.ongoing) cur.ongoing = row.ongoing;
+      peakByDate.set(row.date, cur);
+    }
+    const stat = (vals: (number | null)[]) => {
+      const xs = vals.filter((v): v is number => typeof v === "number").sort((a, b) => a - b);
+      return {
+        max: xs.length ? xs[xs.length - 1] : 0,
+        median: xs.length ? xs[Math.floor(xs.length / 2)] : 0,
+      };
+    };
+    const peaks = Array.from(peakByDate.values());
+    return {
+      attacks: stat(peaks.map((p) => p.attacks)),
+      ongoing: stat(peaks.map((p) => p.ongoing)),
+    };
+  }, [filteredDirectionRows]);
 
   return (
     <div>
@@ -317,8 +350,8 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
           <HourlyLineChart
             title={`Attacks · ${selectedDirection}`}
             data={directionSeries("attacks")}
-            globalMax={0}
-            globalMedian={0}
+            globalMax={directionStats.attacks.max}
+            globalMedian={directionStats.attacks.median}
             wfull={false}
             tooltipSort={tooltipSort}
             highlight={!!selectedDate}
@@ -327,8 +360,8 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
           <HourlyLineChart
             title={`Ongoing · ${selectedDirection}`}
             data={directionSeries("ongoing")}
-            globalMax={0}
-            globalMedian={0}
+            globalMax={directionStats.ongoing.max}
+            globalMedian={directionStats.ongoing.median}
             wfull={false}
             tooltipSort={tooltipSort}
             highlight={!!selectedDate}

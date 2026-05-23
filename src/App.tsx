@@ -5,11 +5,14 @@ import { GsuaDatabaseProvider } from "@/context/GsuaDatabaseContext";
 import { useGsuaDatabaseContext } from "@/context/useGsuaDatabaseContext";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { SiteHeader } from "@/components/SiteHeader";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorScreen } from "@/components/Layout";
 import { DailyPage } from "@/pages/DailyPage";
 import { HourlyPage } from "@/pages/HourlyPage";
 import { MonthlyPage } from "@/pages/MonthlyPage";
 import { GsuaDailyPage } from "@/pages/GsuaDailyPage";
 import { GsuaHourlyPage } from "@/pages/GsuaHourlyPage";
+import { GsuaMonthlyPage } from "@/pages/GsuaMonthlyPage";
 import type { Page, Site } from "@/types";
 import { GLOBAL_CSS } from "@/theme";
 
@@ -61,8 +64,9 @@ function GsuaRoot({
         onRefresh={refresh} isLoading={loadState === "loading"}
       />
       <PageShell>
-        {page === "daily"  && <GsuaDailyPage refreshKey={refreshCount} />}
-        {page === "hourly" && <GsuaHourlyPage refreshKey={refreshCount} />}
+        {page === "daily"   && <GsuaDailyPage refreshKey={refreshCount} />}
+        {page === "hourly"  && <GsuaHourlyPage refreshKey={refreshCount} />}
+        {page === "monthly" && <GsuaMonthlyPage refreshKey={refreshCount} />}
       </PageShell>
     </>
   );
@@ -81,14 +85,18 @@ function AppInner() {
       </style>
       <div style={{ minHeight: "100vh", background: t.bg }}>
         {site === "sbs" && (
-          <DatabaseProvider>
-            <SbsRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
-          </DatabaseProvider>
+          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
+            <DatabaseProvider>
+              <SbsRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
+            </DatabaseProvider>
+          </ErrorBoundary>
         )}
         {site === "gsua" && (
-          <GsuaDatabaseProvider>
-            <GsuaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
-          </GsuaDatabaseProvider>
+          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
+            <GsuaDatabaseProvider>
+              <GsuaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
+            </GsuaDatabaseProvider>
+          </ErrorBoundary>
         )}
       </div>
     </>

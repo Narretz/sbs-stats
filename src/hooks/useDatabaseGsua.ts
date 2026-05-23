@@ -4,6 +4,7 @@ import type {
   GsuaDailyRow,
   GsuaDirectionRow,
   GsuaMetricKey,
+  GsuaMonthlyRow,
   LoadState,
 } from "@/types";
 import { GSUA_METRIC_KEYS } from "@/types";
@@ -48,9 +49,18 @@ async function loadDatabase(): Promise<Database> {
   const SQL = await initSqlJs({ wasmBinary });
 
   const response = await fetch(DB_URL + `?bust=${Date.now()}`, { cache: "no-store" });
-  if (!response.ok) throw new Error(`Failed to fetch GSUA DB: ${response.status}`);
+  if (!response.ok) throw new Error(`GSUA database not available at ${DB_URL} (HTTP ${response.status})`);
   const buffer = await response.arrayBuffer();
-  return new SQL.Database(new Uint8Array(buffer));
+  // Dev servers commonly return index.html as a SPA fallback for unknown
+  // routes — that surfaces as a 200 with HTML bytes. Validate the SQLite magic
+  // string before handing bytes to sql.js so we fail with a useful message.
+  const bytes = new Uint8Array(buffer);
+  const MAGIC = "SQLite format 3\0";
+  const head = String.fromCharCode(...bytes.slice(0, MAGIC.length));
+  if (head !== MAGIC) {
+    throw new Error(`GSUA database not available at ${DB_URL} (got ${bytes.byteLength} bytes that aren't a SQLite file — usually means the file is missing and the dev server returned index.html)`);
+  }
+  return new SQL.Database(bytes);
 }
 
 function getOrCreateDbPromise(): Promise<Database> {
@@ -267,6 +277,82 @@ export function useDatabaseGsua() {
     return result;
   }, [db]);
 
+  // Monthly aggregates: sum the daily-final values per month. Current month
+  // gets a linear end-of-month projection.
+  const queryMonthly = useCallback((): GsuaMonthlyRow[] => {
+    if (!db) return [];
+    const sql = `
+      WITH per_date_source AS (
+        SELECT date, source, MAX(snapshot_at) AS latest_snapshot, ${METRIC_COLS}
+        FROM posts
+        GROUP BY date, source, snapshot_at
+      ),
+      last_per_date_source AS (
+        SELECT date, source, MAX(latest_snapshot) AS latest_snapshot
+        FROM per_date_source
+        GROUP BY date, source
+      )
+      SELECT p.date, p.source, ${GSUA_METRIC_KEYS.join(", ")}
+      FROM per_date_source p
+      INNER JOIN last_per_date_source l
+        ON p.date = l.date AND p.source = l.source AND p.latest_snapshot = l.latest_snapshot
+      ORDER BY p.date ASC,
+               CASE p.source WHEN 'telegram' THEN 0 ELSE 1 END ASC
+    `;
+    // Dedup to one row per date (telegram preferred).
+    const seen = new Set<string>();
+    const daily: Record<string, number | null>[] = [];
+    for (const row of queryRows<Record<string, number | null>>(db, sql)) {
+      const d = String(row["date"]);
+      if (seen.has(d)) continue;
+      seen.add(d);
+      daily.push(row);
+    }
+
+    // Group by month and sum.
+    const byMonth = new Map<string, Record<GsuaMetricKey, number>>();
+    for (const row of daily) {
+      const month = String(row["date"]).slice(0, 7);
+      const bucket =
+        byMonth.get(month) ??
+        (GSUA_METRIC_KEYS.reduce((acc, k) => {
+          acc[k] = 0;
+          return acc;
+        }, {} as Record<GsuaMetricKey, number>));
+      for (const k of GSUA_METRIC_KEYS) {
+        const v = row[k];
+        if (typeof v === "number") bucket[k] += v;
+      }
+      byMonth.set(month, bucket);
+    }
+
+    const kyivDateStr = getKyivDateString();
+    const currentMonth = kyivDateStr.slice(0, 7);
+    const dayOfMonth = parseInt(kyivDateStr.slice(8, 10), 10);
+    const [y, m] = currentMonth.split("-").map(Number);
+    const daysInMonth = new Date(y, m, 0).getDate();
+
+    return Array.from(byMonth.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, sums]) => {
+        const isCurrent = month === currentMonth;
+        const row: GsuaMonthlyRow = {
+          date: month,
+          is_current_month: isCurrent,
+          projection_day: isCurrent ? dayOfMonth : null,
+          projection_days_in_month: isCurrent ? daysInMonth : null,
+          ...sums,
+        } as GsuaMonthlyRow;
+        if (isCurrent && dayOfMonth > 0) {
+          const mult = daysInMonth / dayOfMonth;
+          for (const k of GSUA_METRIC_KEYS) {
+            row[`${k}_projected`] = Math.round(sums[k] * mult);
+          }
+        }
+        return row;
+      });
+  }, [db]);
+
   // Distinct directions ever observed (ordered by total attacks desc).
   const queryDirectionList = useCallback((): string[] => {
     if (!db) return [];
@@ -330,10 +416,49 @@ export function useDatabaseGsua() {
     [db]
   );
 
+  // Per-direction per-snapshot rows — every snapshot in the range. Used by
+  // the hourly view so each day shows the intra-day progression.
+  const queryDirectionSnapshots = useCallback(
+    (direction: string, days: number, endDate?: string): GsuaDirectionRow[] => {
+      if (!db) return [];
+      const todayStr = getKyivDateString();
+      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
+      const dirSafe = direction.replace(/'/g, "''");
+
+      const sql = `
+        SELECT
+          p.date,
+          p.source,
+          p.snapshot_at,
+          d.direction,
+          d.attacks,
+          d.ongoing
+        FROM posts p
+        INNER JOIN directions d
+          ON p.source = d.source AND p.source_id = d.source_id
+        WHERE d.direction = '${dirSafe}'
+          AND p.date >= date('${endDateSql}', '-${days} days')
+          AND p.date <= date('${endDateSql}')
+          AND p.snapshot_at IS NOT NULL
+        ORDER BY p.date ASC, p.snapshot_at ASC,
+                 CASE p.source WHEN 'telegram' THEN 0 ELSE 1 END ASC
+      `;
+      return queryRows<Record<string, unknown>>(db, sql).map((row) => ({
+        date: String(row.date),
+        snapshot_at: String(row.snapshot_at ?? ""),
+        direction: String(row.direction ?? ""),
+        attacks: typeof row.attacks === "number" ? row.attacks : null,
+        ongoing: typeof row.ongoing === "number" ? row.ongoing : null,
+        is_today: String(row.date) === todayStr,
+      }));
+    },
+    [db]
+  );
+
   return {
     loadState, error,
-    queryDaily, querySnapshots, queryGlobalStats,
-    queryDirectionList, queryDirectionDaily,
+    queryDaily, querySnapshots, queryGlobalStats, queryMonthly,
+    queryDirectionList, queryDirectionDaily, queryDirectionSnapshots,
     refresh, lastRefreshed, refreshCount,
   };
 }

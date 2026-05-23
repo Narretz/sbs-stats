@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Page, Site } from "@/types";
 
 const SBS_PAGES: Page[] = ["hourly", "daily", "monthly"];
-const GSUA_PAGES: Page[] = ["hourly", "daily"];
+const GSUA_PAGES: Page[] = ["hourly", "daily", "monthly"];
 
 function pagesFor(site: Site): Page[] {
   return site === "gsua" ? GSUA_PAGES : SBS_PAGES;

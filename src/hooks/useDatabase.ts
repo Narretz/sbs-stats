@@ -44,9 +44,17 @@ async function loadDatabase(): Promise<Database> {
   const SQL = await initSqlJs({ wasmBinary });
 
   const response = await fetch(DB_URL + `?bust=${Date.now()}`, { cache: "no-store" });
-  if (!response.ok) throw new Error(`Failed to fetch DB: ${response.status}`);
+  if (!response.ok) throw new Error(`SBS database not available at ${DB_URL} (HTTP ${response.status})`);
   const buffer = await response.arrayBuffer();
-  return new SQL.Database(new Uint8Array(buffer));
+  // SPA fallbacks can return index.html for missing routes — validate the
+  // SQLite magic header before handing bytes to sql.js for a clear error.
+  const bytes = new Uint8Array(buffer);
+  const MAGIC = "SQLite format 3\0";
+  const head = String.fromCharCode(...bytes.slice(0, MAGIC.length));
+  if (head !== MAGIC) {
+    throw new Error(`SBS database not available at ${DB_URL} (got ${bytes.byteLength} bytes that aren't a SQLite file — usually means the file is missing and the dev server returned index.html)`);
+  }
+  return new SQL.Database(bytes);
 }
 
 function getOrCreateDbPromise(): Promise<Database> {
