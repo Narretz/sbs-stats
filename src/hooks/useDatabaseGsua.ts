@@ -9,9 +9,9 @@ import type {
 } from "@/types";
 import { GSUA_METRIC_KEYS } from "@/types";
 
-const DB_URL = import.meta.env.VITE_GSUA_DB_URL ?? "/data/general-staff.db";
-const WORKER_URL = "/vendor/httpvfs/sqlite.worker.js";
-const WASM_URL = "/vendor/httpvfs/sql-wasm.wasm";
+const DB_URL = import.meta.env.VITE_GSUA_DB_URL ?? `${import.meta.env.BASE_URL}data/general-staff.db`;
+const WORKER_URL = `${import.meta.env.BASE_URL}vendor/httpvfs/sqlite.worker.js`;
+const WASM_URL = `${import.meta.env.BASE_URL}vendor/httpvfs/sql-wasm.wasm`;
 
 // SQLite default page size is 4096; matching it keeps range fetches aligned.
 const REQUEST_CHUNK_SIZE = 4096;
