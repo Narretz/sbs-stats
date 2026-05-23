@@ -1,0 +1,12 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://narretz.github.io",
+      "http://localhost:5173"
+    ],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["Content-Length", "Content-Range", "ETag", "Accept-Ranges"],
+    "MaxAgeSeconds": 3600
+  }
+]
