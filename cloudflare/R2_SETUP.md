@@ -39,11 +39,17 @@ In the Cloudflare dashboard: **My Profile → API Tokens → Create
 Token → Custom token**.
 
 - Name: `sbs-stats GHA R2 upload`
-- Permissions: `Account → Workers R2 Storage → Edit`
-- Account resources: include your account
-- (Optional but recommended) Token TTL: rotate yearly
+- Permissions:
+  - `Account → Workers R2 Storage → Edit` (required for the upload)
+  - `Account → Account Settings → Read` (recommended; lets wrangler
+    look up account metadata when needed)
+- Account resources: **Include → your specific account** (or
+  `All accounts` if you'd rather not tighten this)
+- Zone resources: leave default — R2 doesn't need zone scoping
+- Client IP filter: leave blank (GHA runners have rotating IPs)
+- TTL: optional, e.g. 1 year with a calendar reminder to rotate
 
-Copy the token value.
+Copy the token value (it's shown only once).
 
 ## 5. Add the GHA secrets
 
