@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { Database } from "sql.js";
+import { createDbWorker, type WorkerHttpvfs } from "sql.js-httpvfs";
 import type {
   GsuaDailyRow,
   GsuaDirectionRow,
@@ -10,73 +10,42 @@ import type {
 import { GSUA_METRIC_KEYS } from "@/types";
 
 const DB_URL = import.meta.env.VITE_GSUA_DB_URL ?? "/data/general-staff.db";
-const SQL_JS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0";
-const SQL_WASM_URL = import.meta.env.DEV ? "/vendor/sql-wasm.wasm" : `${SQL_JS_CDN}/sql-wasm.wasm`;
-const SQL_JS_URL = import.meta.env.DEV ? "/vendor/sql-wasm.js" : `${SQL_JS_CDN}/sql-wasm.js`;
+const WORKER_URL = "/vendor/httpvfs/sqlite.worker.js";
+const WASM_URL = "/vendor/httpvfs/sql-wasm.wasm";
+
+// SQLite default page size is 4096; matching it keeps range fetches aligned.
+const REQUEST_CHUNK_SIZE = 4096;
+// Hard cap on total bytes the worker will fetch over its lifetime. Plenty for
+// a few months of queries on a 32 MB file; cap protects against runaway scans.
+const MAX_BYTES = 50 * 1024 * 1024;
 
 function getKyivDateString(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
 }
 
-function loadSqlJsScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if ((window as unknown as Record<string, unknown>)["initSqlJs"]) {
-      resolve();
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = SQL_JS_URL;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load sql.js script"));
-    document.head.appendChild(script);
-  });
+let workerPromise: Promise<WorkerHttpvfs> | null = null;
+
+async function loadWorker(): Promise<WorkerHttpvfs> {
+  return createDbWorker(
+    [
+      {
+        from: "inline",
+        config: {
+          serverMode: "full",
+          url: DB_URL,
+          requestChunkSize: REQUEST_CHUNK_SIZE,
+        },
+      },
+    ],
+    WORKER_URL,
+    WASM_URL,
+    MAX_BYTES
+  );
 }
 
-let dbPromise: Promise<Database> | null = null;
-
-async function loadDatabase(): Promise<Database> {
-  await loadSqlJsScript();
-
-  const wasmResponse = await fetch(SQL_WASM_URL);
-  if (!wasmResponse.ok) throw new Error(`Failed to fetch sql-wasm.wasm: ${wasmResponse.status}`);
-  const wasmBinary = await wasmResponse.arrayBuffer();
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const initSqlJs = (window as any)["initSqlJs"] as (config: {
-    wasmBinary: ArrayBuffer;
-  }) => Promise<{ Database: new (data: Uint8Array) => Database }>;
-
-  const SQL = await initSqlJs({ wasmBinary });
-
-  const response = await fetch(DB_URL + `?bust=${Date.now()}`, { cache: "no-store" });
-  if (!response.ok) throw new Error(`GSUA database not available at ${DB_URL} (HTTP ${response.status})`);
-  const buffer = await response.arrayBuffer();
-  // Dev servers commonly return index.html as a SPA fallback for unknown
-  // routes — that surfaces as a 200 with HTML bytes. Validate the SQLite magic
-  // string before handing bytes to sql.js so we fail with a useful message.
-  const bytes = new Uint8Array(buffer);
-  const MAGIC = "SQLite format 3\0";
-  const head = String.fromCharCode(...bytes.slice(0, MAGIC.length));
-  if (head !== MAGIC) {
-    throw new Error(`GSUA database not available at ${DB_URL} (got ${bytes.byteLength} bytes that aren't a SQLite file — usually means the file is missing and the dev server returned index.html)`);
-  }
-  return new SQL.Database(bytes);
-}
-
-function getOrCreateDbPromise(): Promise<Database> {
-  if (!dbPromise) dbPromise = loadDatabase();
-  return dbPromise;
-}
-
-function queryRows<T>(db: Database, sql: string): T[] {
-  const results = db.exec(sql);
-  if (!results.length) return [];
-  const { columns, values } = results[0];
-  return values.map((row) => {
-    const obj: Record<string, unknown> = {};
-    columns.forEach((col, i) => (obj[col] = row[i]));
-    return obj as T;
-  });
+function getOrCreateWorker(): Promise<WorkerHttpvfs> {
+  if (!workerPromise) workerPromise = loadWorker();
+  return workerPromise;
 }
 
 const METRIC_COLS = GSUA_METRIC_KEYS.map((k) => `MAX(${k}) AS ${k}`).join(", ");
@@ -84,7 +53,7 @@ const METRIC_COLS = GSUA_METRIC_KEYS.map((k) => `MAX(${k}) AS ${k}`).join(", ");
 export const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 
 export function useDatabaseGsua() {
-  const [db, setDb] = useState<Database | null>(null);
+  const [worker, setWorker] = useState<WorkerHttpvfs | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
@@ -93,9 +62,9 @@ export function useDatabaseGsua() {
 
   const doLoad = useCallback(() => {
     setLoadState("loading");
-    getOrCreateDbPromise()
-      .then((database) => {
-        setDb(database);
+    getOrCreateWorker()
+      .then((w) => {
+        setWorker(w);
         setLoadState("ready");
         const now = new Date();
         setLastRefreshed(now);
@@ -104,13 +73,13 @@ export function useDatabaseGsua() {
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : String(err));
         setLoadState("error");
-        dbPromise = null;
+        workerPromise = null;
       });
   }, []);
 
   const doRefresh = useCallback(() => {
-    dbPromise = null;
-    setDb(null);
+    workerPromise = null;
+    setWorker(null);
     setRefreshCount((c) => c + 1);
     doLoad();
   }, [doLoad]);
@@ -137,25 +106,22 @@ export function useDatabaseGsua() {
 
   const refresh = useCallback(() => { doRefresh(); }, [doRefresh]);
 
-  // Daily: one row per date, using the latest snapshot per (date, source).
-  // GS posts run totals throughout the day; the last snapshot ≈ daily total.
-  // Telegram and Facebook may both exist for a date; prefer telegram if present.
+  // ── Queries ─────────────────────────────────────────────────────────────────
+  // Each query is async: the worker reads SQLite pages over HTTP range
+  // requests rather than the whole DB up-front.
+
   const queryDaily = useCallback(
-    (days: number, endDate?: string): GsuaDailyRow[] => {
-      if (!db) return [];
+    async (days: number, endDate?: string): Promise<GsuaDailyRow[]> => {
+      if (!worker) return [];
       const todayStr = getKyivDateString();
       const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
+      const startDateSql = `date('${endDateSql}', '-${days} days')`;
 
       const sql = `
         WITH per_date_source AS (
-          SELECT
-            date,
-            source,
-            MAX(snapshot_at) AS latest_snapshot,
-            ${METRIC_COLS}
+          SELECT date, source, MAX(snapshot_at) AS latest_snapshot, ${METRIC_COLS}
           FROM posts
-          WHERE date >= date('${endDateSql}', '-${days} days')
-            AND date <= date('${endDateSql}')
+          WHERE date >= ${startDateSql} AND date <= '${endDateSql}'
           GROUP BY date, source, snapshot_at
         ),
         last_snapshot_per_date_source AS (
@@ -170,15 +136,14 @@ export function useDatabaseGsua() {
         ORDER BY p.date ASC,
                  CASE p.source WHEN 'telegram' THEN 0 ELSE 1 END ASC
       `;
-
-      // De-dup to one row per date (telegram wins via ORDER BY).
+      const rows = (await worker.db.query(sql)) as Record<string, unknown>[];
       const seen = new Set<string>();
       const result: GsuaDailyRow[] = [];
-      for (const row of queryRows<Record<string, unknown>>(db, sql)) {
+      for (const row of rows) {
         const d = String(row.date);
         if (seen.has(d)) continue;
         seen.add(d);
-        const typed: GsuaDailyRow = {
+        result.push({
           date: d,
           snapshot_at: String(row.snapshot_at ?? ""),
           source: String(row.source ?? ""),
@@ -187,39 +152,32 @@ export function useDatabaseGsua() {
             acc[k] = typeof row[k] === "number" ? (row[k] as number) : null;
             return acc;
           }, {} as Record<GsuaMetricKey, number | null>)),
-        } as GsuaDailyRow;
-        result.push(typed);
+        } as GsuaDailyRow);
       }
       return result;
     },
-    [db]
+    [worker]
   );
 
-  // Hourly: every snapshot in the range. X-axis = hour-of-snapshot,
-  // one line per (date, source).
   const querySnapshots = useCallback(
-    (days: number, endDate?: string): GsuaDailyRow[] => {
-      if (!db) return [];
+    async (days: number, endDate?: string): Promise<GsuaDailyRow[]> => {
+      if (!worker) return [];
       const todayStr = getKyivDateString();
       const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
+      const startDateSql = `date('${endDateSql}', '-${days} days')`;
 
       const sql = `
-        SELECT
-          date,
-          source,
-          snapshot_at,
-          ${METRIC_COLS}
+        SELECT date, source, snapshot_at, ${METRIC_COLS}
         FROM posts
-        WHERE date >= date('${endDateSql}', '-${days} days')
-          AND date <= date('${endDateSql}')
+        WHERE date >= ${startDateSql} AND date <= '${endDateSql}'
           AND snapshot_at IS NOT NULL
         GROUP BY date, source, snapshot_at
         ORDER BY date ASC, snapshot_at ASC
       `;
-
-      return queryRows<Record<string, unknown>>(db, sql).map((row) => {
+      const rows = (await worker.db.query(sql)) as Record<string, unknown>[];
+      return rows.map((row) => {
         const d = String(row.date);
-        const r: GsuaDailyRow = {
+        return {
           date: d,
           snapshot_at: String(row.snapshot_at ?? ""),
           source: String(row.source ?? ""),
@@ -229,16 +187,58 @@ export function useDatabaseGsua() {
             return acc;
           }, {} as Record<GsuaMetricKey, number | null>)),
         } as GsuaDailyRow;
-        return r;
       });
     },
-    [db]
+    [worker]
   );
 
-  // Global stats: max + median across entire history (using daily totals).
-  const queryGlobalStats = useCallback(() => {
-    if (!db) return {} as Record<GsuaMetricKey, { max: number; median: number }>;
+  const queryGlobalStats = useCallback(
+    async (): Promise<Record<GsuaMetricKey, { max: number; median: number }>> => {
+      if (!worker) return {} as Record<GsuaMetricKey, { max: number; median: number }>;
 
+      const sql = `
+        WITH per_date_source AS (
+          SELECT date, source, MAX(snapshot_at) AS latest_snapshot, ${METRIC_COLS}
+          FROM posts
+          GROUP BY date, source, snapshot_at
+        ),
+        last_per_date_source AS (
+          SELECT date, source, MAX(latest_snapshot) AS latest_snapshot
+          FROM per_date_source
+          GROUP BY date, source
+        )
+        SELECT p.date, p.source, ${GSUA_METRIC_KEYS.join(", ")}
+        FROM per_date_source p
+        INNER JOIN last_per_date_source l
+          ON p.date = l.date AND p.source = l.source AND p.latest_snapshot = l.latest_snapshot
+        ORDER BY p.date ASC,
+                 CASE p.source WHEN 'telegram' THEN 0 ELSE 1 END ASC
+      `;
+      const rows = (await worker.db.query(sql)) as Record<string, number>[];
+      const seen = new Set<string>();
+      const deduped: Record<string, number>[] = [];
+      for (const row of rows) {
+        const d = String(row.date);
+        if (seen.has(d)) continue;
+        seen.add(d);
+        deduped.push(row);
+      }
+
+      const result = {} as Record<GsuaMetricKey, { max: number; median: number }>;
+      for (const key of GSUA_METRIC_KEYS) {
+        const vals = deduped.map((r) => r[key]).filter((v): v is number => typeof v === "number").sort((a, b) => a - b);
+        result[key] = {
+          max: vals.length ? vals[vals.length - 1] : 0,
+          median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
+        };
+      }
+      return result;
+    },
+    [worker]
+  );
+
+  const queryMonthly = useCallback(async (): Promise<GsuaMonthlyRow[]> => {
+    if (!worker) return [];
     const sql = `
       WITH per_date_source AS (
         SELECT date, source, MAX(snapshot_at) AS latest_snapshot, ${METRIC_COLS}
@@ -257,59 +257,16 @@ export function useDatabaseGsua() {
       ORDER BY p.date ASC,
                CASE p.source WHEN 'telegram' THEN 0 ELSE 1 END ASC
     `;
-    const seen = new Set<string>();
-    const rows: Record<string, number>[] = [];
-    for (const row of queryRows<Record<string, number>>(db, sql)) {
-      const d = String(row["date"]);
-      if (seen.has(d)) continue;
-      seen.add(d);
-      rows.push(row);
-    }
-
-    const result = {} as Record<GsuaMetricKey, { max: number; median: number }>;
-    for (const key of GSUA_METRIC_KEYS) {
-      const vals = rows.map((r) => r[key]).filter((v): v is number => typeof v === "number").sort((a, b) => a - b);
-      result[key] = {
-        max: vals.length ? vals[vals.length - 1] : 0,
-        median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
-      };
-    }
-    return result;
-  }, [db]);
-
-  // Monthly aggregates: sum the daily-final values per month. Current month
-  // gets a linear end-of-month projection.
-  const queryMonthly = useCallback((): GsuaMonthlyRow[] => {
-    if (!db) return [];
-    const sql = `
-      WITH per_date_source AS (
-        SELECT date, source, MAX(snapshot_at) AS latest_snapshot, ${METRIC_COLS}
-        FROM posts
-        GROUP BY date, source, snapshot_at
-      ),
-      last_per_date_source AS (
-        SELECT date, source, MAX(latest_snapshot) AS latest_snapshot
-        FROM per_date_source
-        GROUP BY date, source
-      )
-      SELECT p.date, p.source, ${GSUA_METRIC_KEYS.join(", ")}
-      FROM per_date_source p
-      INNER JOIN last_per_date_source l
-        ON p.date = l.date AND p.source = l.source AND p.latest_snapshot = l.latest_snapshot
-      ORDER BY p.date ASC,
-               CASE p.source WHEN 'telegram' THEN 0 ELSE 1 END ASC
-    `;
-    // Dedup to one row per date (telegram preferred).
+    const rows = (await worker.db.query(sql)) as Record<string, number | null>[];
     const seen = new Set<string>();
     const daily: Record<string, number | null>[] = [];
-    for (const row of queryRows<Record<string, number | null>>(db, sql)) {
+    for (const row of rows) {
       const d = String(row["date"]);
       if (seen.has(d)) continue;
       seen.add(d);
       daily.push(row);
     }
 
-    // Group by month and sum.
     const byMonth = new Map<string, Record<GsuaMetricKey, number>>();
     for (const row of daily) {
       const month = String(row["date"]).slice(0, 7);
@@ -351,11 +308,10 @@ export function useDatabaseGsua() {
         }
         return row;
       });
-  }, [db]);
+  }, [worker]);
 
-  // Distinct directions ever observed (ordered by total attacks desc).
-  const queryDirectionList = useCallback((): string[] => {
-    if (!db) return [];
+  const queryDirectionList = useCallback(async (): Promise<string[]> => {
+    if (!worker) return [];
     const sql = `
       SELECT direction, SUM(COALESCE(attacks, 0)) AS total
       FROM directions
@@ -363,29 +319,25 @@ export function useDatabaseGsua() {
       HAVING total > 0
       ORDER BY total DESC
     `;
-    return queryRows<{ direction: string }>(db, sql).map((r) => r.direction);
-  }, [db]);
+    const rows = (await worker.db.query(sql)) as { direction: string }[];
+    return rows.map((r) => r.direction);
+  }, [worker]);
 
-  // Per-direction daily totals. `attacks` is cumulative (peaks in the 08:00
-  // next-day final summary); `ongoing` is instantaneous (the same final summary
-  // typically has it NULL because no engagements are still in progress at that
-  // moment). MAX per (date, source) gives the right number for both.
   const queryDirectionDaily = useCallback(
-    (direction: string, days: number, endDate?: string): GsuaDirectionRow[] => {
-      if (!db) return [];
+    async (direction: string, days: number, endDate?: string): Promise<GsuaDirectionRow[]> => {
+      if (!worker) return [];
       const todayStr = getKyivDateString();
       const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
-      // Escape single quotes in the direction name.
       const dirSafe = direction.replace(/'/g, "''");
 
       const sql = `
         SELECT
           p.date,
           p.source,
-          MAX(p.snapshot_at)       AS snapshot_at,
-          '${dirSafe}'             AS direction,
-          MAX(d.attacks)           AS attacks,
-          MAX(d.ongoing)           AS ongoing
+          MAX(p.snapshot_at) AS snapshot_at,
+          '${dirSafe}'       AS direction,
+          MAX(d.attacks)     AS attacks,
+          MAX(d.ongoing)     AS ongoing
         FROM posts p
         INNER JOIN directions d
           ON p.source = d.source AND p.source_id = d.source_id
@@ -396,9 +348,10 @@ export function useDatabaseGsua() {
         ORDER BY p.date ASC,
                  CASE p.source WHEN 'telegram' THEN 0 ELSE 1 END ASC
       `;
+      const rows = (await worker.db.query(sql)) as Record<string, unknown>[];
       const seen = new Set<string>();
       const out: GsuaDirectionRow[] = [];
-      for (const row of queryRows<Record<string, unknown>>(db, sql)) {
+      for (const row of rows) {
         const d = String(row.date);
         if (seen.has(d)) continue;
         seen.add(d);
@@ -413,26 +366,20 @@ export function useDatabaseGsua() {
       }
       return out;
     },
-    [db]
+    [worker]
   );
 
-  // Per-direction per-snapshot rows — every snapshot in the range. Used by
-  // the hourly view so each day shows the intra-day progression.
   const queryDirectionSnapshots = useCallback(
-    (direction: string, days: number, endDate?: string): GsuaDirectionRow[] => {
-      if (!db) return [];
+    async (direction: string, days: number, endDate?: string): Promise<GsuaDirectionRow[]> => {
+      if (!worker) return [];
       const todayStr = getKyivDateString();
       const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
       const dirSafe = direction.replace(/'/g, "''");
 
       const sql = `
         SELECT
-          p.date,
-          p.source,
-          p.snapshot_at,
-          d.direction,
-          d.attacks,
-          d.ongoing
+          p.date, p.source, p.snapshot_at,
+          d.direction, d.attacks, d.ongoing
         FROM posts p
         INNER JOIN directions d
           ON p.source = d.source AND p.source_id = d.source_id
@@ -443,7 +390,8 @@ export function useDatabaseGsua() {
         ORDER BY p.date ASC, p.snapshot_at ASC,
                  CASE p.source WHEN 'telegram' THEN 0 ELSE 1 END ASC
       `;
-      return queryRows<Record<string, unknown>>(db, sql).map((row) => ({
+      const rows = (await worker.db.query(sql)) as Record<string, unknown>[];
+      return rows.map((row) => ({
         date: String(row.date),
         snapshot_at: String(row.snapshot_at ?? ""),
         direction: String(row.direction ?? ""),
@@ -452,7 +400,7 @@ export function useDatabaseGsua() {
         is_today: String(row.date) === todayStr,
       }));
     },
-    [db]
+    [worker]
   );
 
   return {

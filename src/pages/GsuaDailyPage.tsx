@@ -90,21 +90,34 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   };
 
   useEffect(() => {
-    if (loadState === "ready") {
-      setGlobalStats(queryGlobalStats());
-      setDirectionList(queryDirectionList());
-    }
+    if (loadState !== "ready") return;
+    let cancelled = false;
+    (async () => {
+      const [gs, dl] = await Promise.all([queryGlobalStats(), queryDirectionList()]);
+      if (cancelled) return;
+      setGlobalStats(gs);
+      setDirectionList(dl);
+    })();
+    return () => { cancelled = true; };
   }, [loadState, queryGlobalStats, queryDirectionList, refreshKey]);
 
   useEffect(() => {
     if (loadState !== "ready") return;
-    setRows(queryDaily(days, selectedDate || undefined));
-    if (selectedDirection) {
-      setDirectionRows(queryDirectionDaily(selectedDirection, days, selectedDate || undefined));
-    } else {
-      setDirectionRows([]);
-    }
-    setHasData(true);
+    let cancelled = false;
+    (async () => {
+      const daily = await queryDaily(days, selectedDate || undefined);
+      if (cancelled) return;
+      setRows(daily);
+      if (selectedDirection) {
+        const dir = await queryDirectionDaily(selectedDirection, days, selectedDate || undefined);
+        if (cancelled) return;
+        setDirectionRows(dir);
+      } else {
+        setDirectionRows([]);
+      }
+      setHasData(true);
+    })();
+    return () => { cancelled = true; };
   }, [loadState, days, selectedDate, selectedDirection, queryDaily, queryDirectionDaily, refreshKey]);
 
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00").getDay();

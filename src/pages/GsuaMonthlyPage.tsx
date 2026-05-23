@@ -23,10 +23,15 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
   const [hasData, setHasData] = useState(false);
 
   useEffect(() => {
-    if (loadState === "ready") {
-      setRows(queryMonthly());
+    if (loadState !== "ready") return;
+    let cancelled = false;
+    (async () => {
+      const monthly = await queryMonthly();
+      if (cancelled) return;
+      setRows(monthly);
       setHasData(true);
-    }
+    })();
+    return () => { cancelled = true; };
   }, [loadState, queryMonthly, refreshKey]);
 
   const makeDataset = (key: GsuaMetricKey): MonthlyDataPoint[] =>

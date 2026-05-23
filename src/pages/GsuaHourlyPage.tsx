@@ -112,18 +112,32 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
   const canGoNext = selectedDate !== "" && selectedDate < maxSelectableDate;
 
   useEffect(() => {
-    if (loadState === "ready") setDirectionList(queryDirectionList());
+    if (loadState !== "ready") return;
+    let cancelled = false;
+    (async () => {
+      const dl = await queryDirectionList();
+      if (!cancelled) setDirectionList(dl);
+    })();
+    return () => { cancelled = true; };
   }, [loadState, queryDirectionList, refreshKey]);
 
   useEffect(() => {
     if (loadState !== "ready") return;
-    setRows(querySnapshots(days, selectedDate || undefined));
-    if (selectedDirection) {
-      setDirectionRows(queryDirectionSnapshots(selectedDirection, days, selectedDate || undefined));
-    } else {
-      setDirectionRows([]);
-    }
-    setHasData(true);
+    let cancelled = false;
+    (async () => {
+      const snaps = await querySnapshots(days, selectedDate || undefined);
+      if (cancelled) return;
+      setRows(snaps);
+      if (selectedDirection) {
+        const dir = await queryDirectionSnapshots(selectedDirection, days, selectedDate || undefined);
+        if (cancelled) return;
+        setDirectionRows(dir);
+      } else {
+        setDirectionRows([]);
+      }
+      setHasData(true);
+    })();
+    return () => { cancelled = true; };
   }, [loadState, days, selectedDate, selectedDirection, querySnapshots, queryDirectionSnapshots, refreshKey]);
 
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00").getDay();

@@ -32,6 +32,23 @@ CREATE TABLE IF NOT EXISTS posts (
 
 CREATE INDEX IF NOT EXISTS idx_posts_date ON posts(date);
 
+-- Covering index for the aggregate frontend queries (queryDaily, querySnapshots,
+-- queryGlobalStats, queryMonthly). They all read posts ordered by (date,
+-- source, snapshot_at) and project the 8 metric columns; SQLite can satisfy
+-- them entirely from this index without ever touching the bulky `text` pages.
+CREATE INDEX IF NOT EXISTS idx_posts_metrics ON posts(
+    date, source, snapshot_at,
+    combat_engagements, missile_strikes, missiles_used,
+    air_strikes, kabs_dropped, kamikaze_drones,
+    shellings, mlrs_shellings
+);
+
+-- Mirror of the primary key with date + snapshot_at appended, so the
+-- directions↔posts join in queryDirectionDaily/Snapshots can be satisfied
+-- index-only on the posts side.
+CREATE INDEX IF NOT EXISTS idx_posts_pk_date_snap
+    ON posts(source, source_id, date, snapshot_at);
+
 CREATE TABLE IF NOT EXISTS directions (
     source      TEXT    NOT NULL,
     source_id   TEXT    NOT NULL,
@@ -41,6 +58,14 @@ CREATE TABLE IF NOT EXISTS directions (
     PRIMARY KEY (source, source_id, direction),
     FOREIGN KEY (source, source_id) REFERENCES posts(source, source_id) ON DELETE CASCADE
 );
+
+-- Covering index for the per-direction frontend queries (queryDirectionList,
+-- queryDirectionDaily, queryDirectionSnapshots). All five columns of
+-- `directions` are included so SQLite can satisfy both the GROUP BY direction
+-- summary and the (direction → source, source_id) join keys without touching
+-- the table's row pages.
+CREATE INDEX IF NOT EXISTS idx_directions_dir_full
+    ON directions(direction, source, source_id, attacks, ongoing);
 
 -- One row per (source, date, snapshot_at), merging continuation parts.
 -- Late-2024 Telegram posts were occasionally split into "(1/2)" (aggregate
