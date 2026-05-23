@@ -16,7 +16,7 @@ wrangler r2 bucket create russia-ukraine-war
 ## 2. Apply the CORS rules
 
 ```sh
-wrangler r2 bucket cors put russia-ukraine-war --file=r2-cors.json
+wrangler r2 bucket cors set russia-ukraine-war --file=r2-cors.json
 ```
 
 The rules in `r2-cors.json` allow `GET` / `HEAD` from
