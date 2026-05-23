@@ -27,18 +27,16 @@ jobs:
           SUMMARY_PATH: /tmp/update-summary.txt
         run: python scripts/fetch_and_update.py
 
-      - name: Commit updated DB (if changed)
-        id: commit
+      # R2 is now the source of truth for the deployed DB, so we no longer
+      # commit data/sbs.db back to the repo. We still need a "did the file
+      # actually change?" signal so the downstream Release + R2 upload steps
+      # can skip when there's nothing new to publish.
+      - name: Detect DB change
+        id: change
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/sbs.db
-          if git diff --staged --quiet; then
+          if git diff --quiet -- data/sbs.db; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
-            SUMMARY=$(cat /tmp/update-summary.txt 2>/dev/null || echo "update")
-            git commit -m "chore: update sbs.db [skip ci]" -m "$SUMMARY"
-            git push
             echo "changed=true"  >> "$GITHUB_OUTPUT"
           fi
 
@@ -47,7 +45,7 @@ jobs:
       # history accrual. Released bytes are CDN-served with range support, so
       # the frontend can fetch via sql.js-httpvfs in the future.
       - name: Upload DB to rolling `latest` release
-        if: steps.commit.outputs.changed == 'true'
+        if: steps.change.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -69,7 +67,7 @@ jobs:
       # (R2 Edit, scoped to the russia-ukraine-war bucket) and
       # CLOUDFLARE_ACCOUNT_ID.
       - name: Upload DB to R2
-        if: steps.commit.outputs.changed == 'true'
+        if: steps.change.outputs.changed == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
