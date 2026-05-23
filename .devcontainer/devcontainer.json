@@ -1,0 +1,32 @@
+{
+  "name": "SBS Stats",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bookworm",
+  "features": {
+    "ghcr.io/anthropics/devcontainer-features/claude-code:latest": {},
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.12"
+    }
+  },
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude.json,target=/home/node/.claude.json,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.gitconfig,target=/home/node/.gitconfig,type=bind,readonly"
+  ],
+  "postCreateCommand": "npm install && pip install --user -r scripts/requirements.txt",
+  "forwardPorts": [5173],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-python.python",
+        "anthropic.claude-code"
+      ]
+    }
+  },
+  "containerEnv": {
+    "NPM_CONFIG_FUND": "false",
+    "DISABLE_AUTOUPDATER": "1"
+  },
+  "remoteUser": "node"
+}
