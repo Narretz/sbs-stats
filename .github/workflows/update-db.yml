@@ -30,12 +30,38 @@ jobs:
         run: python scripts/fetch_and_update.py
 
       - name: Commit updated DB (if changed)
+        id: commit
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/sbs.db
-          if ! git diff --staged --quiet; then
+          if git diff --staged --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
             SUMMARY=$(cat /tmp/update-summary.txt 2>/dev/null || echo "update")
             git commit -m "chore: update sbs.db [skip ci]" -m "$SUMMARY"
             git push
+            echo "changed=true"  >> "$GITHUB_OUTPUT"
           fi
+
+      # Publish the same DB as a rolling `latest` release asset. Overwriting
+      # the same asset URL each run keeps total Release storage at ~1 MB, no
+      # history accrual. Released bytes are CDN-served with range support, so
+      # the frontend can fetch via sql.js-httpvfs in the future.
+      - name: Upload DB to rolling `latest` release
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view latest >/dev/null 2>&1; then
+            gh release create latest \
+              --title "Latest data snapshot" \
+              --notes "Rolling release. Always overwritten by the most recent update-db run." \
+              --prerelease
+          fi
+          SUMMARY=$(cat /tmp/update-summary.txt 2>/dev/null || echo "update")
+          gh release upload latest data/sbs.db --clobber
+          gh release edit latest \
+            --notes "Last updated: $(date -u +'%Y-%m-%dT%H:%M:%SZ')
+
+$SUMMARY"
