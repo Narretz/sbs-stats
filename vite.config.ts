@@ -17,6 +17,7 @@ export default defineConfig(({ mode }) => ({
     exclude: ["sql.js"],
   },
   server: {
+    host: true,
     fs: {
       // Allow serving files from the project root (needed for public/data/sbs.db)
       allow: ["."],

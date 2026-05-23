@@ -13,7 +13,7 @@
     "source=${localEnv:HOME}/.gitconfig,target=/home/node/.gitconfig,type=bind,readonly"
   ],
   "postCreateCommand": "npm install && pip install --user -r scripts/requirements.txt",
-  "forwardPorts": [5173],
+  "appPort": ["5173:5173"],
   "customizations": {
     "vscode": {
       "extensions": [
