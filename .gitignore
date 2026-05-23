@@ -13,3 +13,9 @@ public/vendor/
 
 
 scripts/__pycache__
+
+# Windows NTFS alternate-data-stream markers
+*:Zone.Identifier
+
+# Large GSUA DB — fetched/scraped, not committed
+data/general-staff.db

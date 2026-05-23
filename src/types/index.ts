@@ -92,7 +92,58 @@ export interface Metric {
 
 // ─── App state ────────────────────────────────────────────────────────────────
 export type Page = "daily" | "hourly" | "monthly";
+export type Site = "sbs" | "gsua";
+export const SITES: Site[] = ["sbs", "gsua"];
+export const SITE_LABELS: Record<Site, string> = {
+  sbs: "SBS STATISTICS",
+  gsua: "GENERAL STAFF UA",
+};
 export type LoadState = "idle" | "loading" | "ready" | "error";
 
 // ─── Global stats (max + median across all data) ──────────────────────────────
 export type GlobalStats = Record<StatKey, { max: number; median: number }>;
+
+// ─── GSUA (General Staff UA) ──────────────────────────────────────────────────
+// Schema mirrors data/schema-general-staff.sql. `posts` carries the aggregate
+// metrics (one row per snapshot); `directions` carries per-direction attacks
+// keyed by (source, source_id).
+export const GSUA_METRIC_KEYS = [
+  "combat_engagements",
+  "kabs_dropped",
+  "air_strikes",
+  "missile_strikes",
+  "missiles_used",
+  "kamikaze_drones",
+  "shellings",
+  "mlrs_shellings",
+] as const;
+export type GsuaMetricKey = (typeof GSUA_METRIC_KEYS)[number];
+
+export const GSUA_METRIC_LABELS: Record<GsuaMetricKey, string> = {
+  combat_engagements: "Combat Engagements",
+  kabs_dropped: "KABs Dropped",
+  air_strikes: "Air Strikes",
+  missile_strikes: "Missile Strikes",
+  missiles_used: "Missiles Used",
+  kamikaze_drones: "Kamikaze Drones",
+  shellings: "Shellings",
+  mlrs_shellings: "MLRS Shellings",
+};
+
+export type GsuaDailyRow = {
+  date: string;          // YYYY-MM-DD
+  snapshot_at: string;   // ISO local Kyiv
+  is_today: boolean;
+  source: string;
+} & Record<GsuaMetricKey, number | null>;
+
+export interface GsuaDirectionRow {
+  date: string;
+  snapshot_at: string;
+  direction: string;
+  attacks: number | null;
+  ongoing: number | null;
+  is_today: boolean;
+}
+
+export type GsuaGlobalStats = Record<GsuaMetricKey, { max: number; median: number }>;
