@@ -7,7 +7,7 @@ jobs:
   update-db:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # needed to commit back to repo
+      contents: write  # needed for `gh release` (Releases live under contents)
 
     steps:
       - name: Checkout repo
@@ -27,25 +27,12 @@ jobs:
           SUMMARY_PATH: /tmp/update-summary.txt
         run: python scripts/fetch_and_update.py
 
-      # R2 is now the source of truth for the deployed DB, so we no longer
-      # commit data/sbs.db back to the repo. We still need a "did the file
-      # actually change?" signal so the downstream Release + R2 upload steps
-      # can skip when there's nothing new to publish.
-      - name: Detect DB change
-        id: change
-        run: |
-          if git diff --quiet -- data/sbs.db; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true"  >> "$GITHUB_OUTPUT"
-          fi
-
       # Publish the same DB as a rolling `latest` release asset. Overwriting
       # the same asset URL each run keeps total Release storage at ~1 MB, no
-      # history accrual. Released bytes are CDN-served with range support, so
-      # the frontend can fetch via sql.js-httpvfs in the future.
+      # history accrual. Released bytes are CDN-served with range support.
+      # Unconditional: `--clobber` is idempotent and Release API calls are
+      # well within free-tier limits.
       - name: Upload DB to rolling `latest` release
-        if: steps.change.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -65,9 +52,9 @@ jobs:
       # Release CDN). One-time setup of the bucket + CORS lives in
       # cloudflare/r2-cors.json. Requires repo secrets CLOUDFLARE_API_TOKEN
       # (R2 Edit, scoped to the russia-ukraine-war bucket) and
-      # CLOUDFLARE_ACCOUNT_ID.
+      # CLOUDFLARE_ACCOUNT_ID. Unconditional: PUT is idempotent and well
+      # within R2 free-tier limits.
       - name: Upload DB to R2
-        if: steps.change.outputs.changed == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
