@@ -24,6 +24,7 @@
 # Usage:
 #   ./run_local.sh                 # download → scrape → upload
 #   ./run_local.sh --no-upload     # download → scrape, skip the upload
+#   ./run_local.sh --upload-only   # just upload the existing local DB to R2
 #   ./run_local.sh --since 2026-05-01   # force an explicit cutoff date
 
 set -euo pipefail
@@ -43,15 +44,36 @@ DB_LOCAL="output/$GSUA_DB_NAME"
 WRANGLER="npx --yes wrangler@4"
 
 NO_UPLOAD=0
+UPLOAD_ONLY=0
 FORCE_SINCE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --no-upload) NO_UPLOAD=1; shift ;;
+    --upload-only) UPLOAD_ONLY=1; shift ;;
     --since) FORCE_SINCE="$2"; shift 2 ;;
     -h|--help) sed -n '2,30p' "$SELF"; exit 0 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
+
+upload() {
+  echo "==> Uploading $DB_LOCAL → $R2_BUCKET/$GSUA_DB_NAME"
+  $WRANGLER r2 object put "$R2_BUCKET/$GSUA_DB_NAME" \
+    --file "$DB_LOCAL" \
+    --content-type application/vnd.sqlite3 \
+    --remote
+}
+
+# Shortcut: just push the existing local DB, no download/scrape.
+if [ "$UPLOAD_ONLY" -eq 1 ]; then
+  if [ ! -f "$DB_LOCAL" ]; then
+    echo "error: $DB_LOCAL not found — nothing to upload" >&2
+    exit 1
+  fi
+  upload
+  echo "==> Done (upload only)."
+  exit 0
+fi
 
 mkdir -p output
 
@@ -82,10 +104,7 @@ if [ "$NO_UPLOAD" -eq 1 ]; then
   exit 0
 fi
 
-echo "==> [4/4] Uploading $DB_LOCAL → $R2_BUCKET/$GSUA_DB_NAME"
-$WRANGLER r2 object put "$R2_BUCKET/$GSUA_DB_NAME" \
-  --file "$DB_LOCAL" \
-  --content-type application/vnd.sqlite3 \
-  --remote
+echo "==> [4/4] Uploading to R2"
+upload
 
 echo "==> Done."
