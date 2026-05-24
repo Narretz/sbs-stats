@@ -26,7 +26,7 @@ jobs:
         run: python -m playwright install --with-deps chromium
 
       # R2 is the source of truth. Pull the current DB to the path the scraper
-      # expects (gs.DB_PATH == output/general_staff.db, relative to its CWD).
+      # expects (gs.DB_PATH == output/ru-attacks-gsua.db, relative to its CWD).
       - name: Download current GSUA DB from R2
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -34,8 +34,8 @@ jobs:
         run: |
           mkdir -p scripts/gsua/output
           npx --yes wrangler@4 r2 object get \
-            russia-ukraine-war/general-staff.db \
-            --file scripts/gsua/output/general_staff.db \
+            russia-ukraine-war/ru-attacks-gsua.db \
+            --file scripts/gsua/output/ru-attacks-gsua.db \
             --remote
 
       # Cutoff = latest report date in the DB minus a 3-day lookback, so late
@@ -45,7 +45,7 @@ jobs:
         run: |
           SINCE=$(python3 - <<'PY'
           import sqlite3, datetime
-          c = sqlite3.connect("scripts/gsua/output/general_staff.db")
+          c = sqlite3.connect("scripts/gsua/output/ru-attacks-gsua.db")
           row = c.execute("SELECT MAX(date) FROM posts").fetchone()
           latest = row[0] if row and row[0] else "2024-05-13"
           since = datetime.date.fromisoformat(latest) - datetime.timedelta(days=3)
@@ -68,7 +68,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           npx --yes wrangler@4 r2 object put \
-            russia-ukraine-war/general-staff.db \
-            --file scripts/gsua/output/general_staff.db \
+            russia-ukraine-war/ru-attacks-gsua.db \
+            --file scripts/gsua/output/ru-attacks-gsua.db \
             --content-type application/vnd.sqlite3 \
             --remote

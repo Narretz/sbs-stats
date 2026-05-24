@@ -65,10 +65,9 @@ recorded per row (`telegram` / `facebook`).
 
 ## DB output
 
-All scrapers write to **`output/general_staff.db`** (relative to the working
-directory), hardcoded as `gs.DB_PATH`. Note this differs from the app's
-`data/general-staff.db` (hyphen) — the CI workflow bridges the two by
-downloading/uploading at the `output/` path.
+All scrapers write to **`output/ru-attacks-gsua.db`** (relative to the working
+directory), hardcoded as `gs.DB_PATH`. The CI workflow downloads/uploads the
+R2 object of the same name (`ru-attacks-gsua.db`) at this path.
 
 ## Dependencies
 
@@ -87,13 +86,9 @@ create).
    uses the **Nitter→FB** path instead. Telegram remains the better source for
    manual backfills (it has every report directly; the X→FB path only covers
    reports the GS cross-posts to X with a working FB link).
-2. **`schema.sql` was missing from the copied files** and had to be restored
-   here — without it *every* scraper crashes on import (they all
-   `import scrape_general_staff`, which reads `schema.sql` at module load). It
-   is now the single source of truth (the former `data/` copy was removed).
-3. **Nitter instances are flaky.** They rotate and die; a CI run can fail
+2. **Nitter instances are flaky.** They rotate and die; a CI run can fail
    purely because every instance in the list was down. The workflow will just
    succeed on the next scheduled run.
-4. **Source coverage differs.** The Nitter→FB path depends on the GS posting
+3. **Source coverage differs.** The Nitter→FB path depends on the GS posting
    to X with a resolvable FB link. If they skip X for a report, that report
    won't be captured until a Telegram backfill.

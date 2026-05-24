@@ -19,7 +19,7 @@ Setup:
     4. On first run you'll be prompted to log in with your phone number.
 
 Output:
-    output/general_staff.db, with two tables:
+    output/ru-attacks-gsua.db, with two tables:
       - posts      : one row per operational report; PK is (source, source_id).
                      Multiple rows per `date` are expected (evening
                      report + next-morning wrap-up + later corrections).
@@ -77,7 +77,7 @@ FLOOD_WAIT_MARGIN = 5       # extra seconds to add on top of Telegram's wait tim
 CHECKPOINT_FILE = Path("output/.checkpoint")
 
 OUTPUT_DIR = Path("output")
-DB_PATH = OUTPUT_DIR / "general_staff.db"
+DB_PATH = OUTPUT_DIR / "ru-attacks-gsua.db"
 LOG_LEVEL = logging.INFO
 
 logging.basicConfig(

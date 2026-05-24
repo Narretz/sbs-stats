@@ -19,7 +19,7 @@ scripts/gsua/__pycache__
 *:Zone.Identifier
 
 # DBs are fetched/scraped, served from R2 — not committed
-data/general-staff.db
+data/ru-attacks-gsua.db
 data/sbs-foosint.db
 
 # GSUA scraper local artifacts

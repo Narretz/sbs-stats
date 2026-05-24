@@ -1,5 +1,5 @@
 """
-Re-parse stored posts in place from output/general_staff.db, without going
+Re-parse stored posts in place from output/ru-attacks-gsua.db, without going
 back to the source (Telegram / Facebook). Use after a parser change to fix
 specific rows or a batch.
 
