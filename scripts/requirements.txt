@@ -1,1 +1,10 @@
+# SBS scraper (scripts/fetch_and_update.py)
 requests>=2.31.0
+
+# GSUA scrapers (scripts/gsua/*)
+# telethon: Telegram path + hard import for all gsua scrapers
+# playwright: Nitter/Facebook path (also run `playwright install chromium`)
+# python-dotenv: optional, for local TELEGRAM_API_* via .env
+telethon>=1.36.0
+playwright>=1.44.0
+python-dotenv>=1.0.0

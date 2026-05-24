@@ -1,0 +1,74 @@
+name: Update GSUA Database
+
+on:
+  workflow_dispatch: # allow manual trigger from GitHub UI
+  # No schedule here yet — drive it from the Cloudflare Worker (add this
+  # workflow to its dispatch list) or add a `schedule:` block. GS reports
+  # update ~3×/day, so every few hours is plenty.
+
+jobs:
+  update-gsua-db:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Install Playwright browser
+        run: python -m playwright install --with-deps chromium
+
+      # R2 is the source of truth. Pull the current DB to the path the scraper
+      # expects (gs.DB_PATH == output/general_staff.db, relative to its CWD).
+      - name: Download current GSUA DB from R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          mkdir -p scripts/gsua/output
+          npx --yes wrangler@4 r2 object get \
+            russia-ukraine-war/general-staff.db \
+            --file scripts/gsua/output/general_staff.db \
+            --remote
+
+      # Cutoff = latest report date in the DB minus a 3-day lookback, so late
+      # corrections to recent reports get re-ingested (upsert, so idempotent).
+      - name: Compute scrape cutoff
+        id: cutoff
+        run: |
+          SINCE=$(python3 - <<'PY'
+          import sqlite3, datetime
+          c = sqlite3.connect("scripts/gsua/output/general_staff.db")
+          row = c.execute("SELECT MAX(date) FROM posts").fetchone()
+          latest = row[0] if row and row[0] else "2024-05-13"
+          since = datetime.date.fromisoformat(latest) - datetime.timedelta(days=3)
+          print(since.isoformat())
+          PY
+          )
+          echo "since=$SINCE" >> "$GITHUB_OUTPUT"
+          echo "Scraping since $SINCE"
+
+      # Nitter → Facebook path (no auth, headless). The Telegram path needs an
+      # interactive login and is intentionally not used in CI (see
+      # scripts/gsua/doc.md).
+      - name: Scrape GSUA reports
+        working-directory: scripts/gsua
+        run: python scrape_twitter.py ingest --since "${{ steps.cutoff.outputs.since }}"
+
+      - name: Upload GSUA DB to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            russia-ukraine-war/general-staff.db \
+            --file scripts/gsua/output/general_staff.db \
+            --content-type application/vnd.sqlite3 \
+            --remote

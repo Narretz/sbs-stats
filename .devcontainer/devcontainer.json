@@ -12,7 +12,7 @@
     "source=${localEnv:HOME}/.claude.json,target=/home/node/.claude.json,type=bind,consistency=cached",
     "source=${localEnv:HOME}/.gitconfig,target=/home/node/.gitconfig,type=bind,readonly"
   ],
-  "postCreateCommand": "npm install && pip install --user -r scripts/requirements.txt && sudo npx --yes playwright install-deps chromium && npx --yes playwright install chromium",
+  "postCreateCommand": "npm install && pip install --user -r scripts/requirements.txt && sudo npx --yes playwright install-deps chromium && npx --yes playwright install chromium && python -m playwright install chromium",
   "appPort": ["5173:5173"],
   "customizations": {
     "vscode": {

@@ -13,9 +13,17 @@ public/vendor/
 
 
 scripts/__pycache__
+scripts/gsua/__pycache__
 
 # Windows NTFS alternate-data-stream markers
 *:Zone.Identifier
 
-# Large GSUA DB — fetched/scraped, not committed
+# DBs are fetched/scraped, served from R2 — not committed
 data/general-staff.db
+data/sbs-foosint.db
+
+# GSUA scraper local artifacts
+scripts/gsua/output/
+# Telegram session is a credential — never commit
+*.session
+scripts/gsua/.checkpoint

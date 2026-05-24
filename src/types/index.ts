@@ -104,7 +104,7 @@ export type LoadState = "idle" | "loading" | "ready" | "error";
 export type GlobalStats = Record<StatKey, { max: number; median: number }>;
 
 // ─── GSUA (General Staff UA) ──────────────────────────────────────────────────
-// Schema mirrors data/schema-general-staff.sql. `posts` carries the aggregate
+// Schema mirrors scripts/gsua/schema.sql. `posts` carries the aggregate
 // metrics (one row per snapshot); `directions` carries per-direction attacks
 // keyed by (source, source_id).
 export const GSUA_METRIC_KEYS = [
