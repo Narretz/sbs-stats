@@ -13,6 +13,10 @@ on:
 env:
   R2_BUCKET: russia-ukraine-war
   GSUA_DB_NAME: ru-attacks-gsua.db
+  # Re-scrape this many days before the newest stored report each run, to
+  # catch late corrections (idempotent upsert). Keep small if cadence is high;
+  # a few days is fine for ~daily runs.
+  GSUA_LOOKBACK_DAYS: "2"
 
 jobs:
   update-gsua-db:
@@ -46,7 +50,7 @@ jobs:
             --file "scripts/gsua/output/$GSUA_DB_NAME" \
             --remote
 
-      # Cutoff = latest report date in the DB minus a 3-day lookback, so late
+      # Cutoff = latest report date in the DB minus GSUA_LOOKBACK_DAYS, so late
       # corrections to recent reports get re-ingested (upsert, so idempotent).
       - name: Compute scrape cutoff
         id: cutoff
@@ -58,7 +62,8 @@ jobs:
           c = sqlite3.connect(os.environ["DB_PATH"])
           row = c.execute("SELECT MAX(date) FROM posts").fetchone()
           latest = row[0] if row and row[0] else "2024-05-13"
-          since = datetime.date.fromisoformat(latest) - datetime.timedelta(days=3)
+          lookback = int(os.environ.get("GSUA_LOOKBACK_DAYS", "2"))
+          since = datetime.date.fromisoformat(latest) - datetime.timedelta(days=lookback)
           print(since.isoformat())
           PY
           )
