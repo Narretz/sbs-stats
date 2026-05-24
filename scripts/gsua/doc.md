@@ -56,6 +56,13 @@ recorded per row (`telegram` / `facebook`).
   `--null-combat`, `--since/--until`, `--all`, `--dry-run`. Rows that no longer
   pass `is_operational_report` are deleted.
 
+- **`run_local.sh`** — runs the whole update pipeline locally in one go
+  (download DB from R2 → compute cutoff → Nitter→FB scrape → upload to R2).
+  Use this from a **residential IP**: Facebook login-walls datacenter IPs, so
+  the GitHub Actions workflow's FB fetch fails (see Problems). `--no-upload`
+  and `--since YYYY-MM-DD` flags available; config via `R2_BUCKET` /
+  `GSUA_DB_NAME` / `GSUA_LOOKBACK_DAYS` env vars.
+
 - **`test_scrape_general_staff.py`** — unit tests for the parser/detector.
 
 - **`schema.sql`** — the canonical DB shape, loaded by `open_db` at import
