@@ -29,6 +29,12 @@ Output:
     ones (matched by (source, source_id)), so edited posts get reparsed.
 """
 
+# Defers all annotations to strings (PEP 563), so the `Message` /
+# `TelegramClient` type hints below don't require telethon at import time —
+# only the Telegram code path (scrape/main) imports it lazily. This lets the
+# Nitter→Facebook path run with just playwright installed.
+from __future__ import annotations
+
 import argparse
 import os
 import re
@@ -37,6 +43,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 # Channel publishes in Kyiv local time. Used to detect mis-typed snapshot
@@ -45,9 +52,11 @@ from zoneinfo import ZoneInfo
 KYIV_TZ = ZoneInfo("Europe/Kyiv")
 from dataclasses import dataclass
 
-from telethon import TelegramClient
-from telethon.errors import FloodWaitError
-from telethon.tl.types import Message
+# telethon is imported lazily inside scrape()/main() (the only Telegram-path
+# code). Type-only references stay available to type checkers here.
+if TYPE_CHECKING:
+    from telethon import TelegramClient
+    from telethon.tl.types import Message
 
 try:
     from dotenv import load_dotenv
@@ -1146,6 +1155,11 @@ async def scrape(
     - Each parsed report is upserted into the DB immediately, so even an
       interrupted run leaves a valid, queryable database.
     """
+    # Telegram-only path — import telethon here so the Nitter→FB path can run
+    # without telethon installed.
+    from telethon.errors import FloodWaitError
+    from telethon.tl.types import Message
+
     explicit_window = since is not None or until is not None
     offset_date = since if since is not None else SCRAPE_SINCE
     log.info(
@@ -1311,6 +1325,8 @@ async def main():
             "       TELEGRAM_API_HASH=abcdef1234567890abcdef1234567890\n"
         )
         return
+
+    from telethon import TelegramClient
 
     client = TelegramClient(SESSION_NAME, int(API_ID), API_HASH)
 

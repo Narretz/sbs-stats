@@ -79,7 +79,8 @@ R2 object of the same name (`ru-attacks-gsua.db`) at this path.
 ## Dependencies
 
 Declared in the project-wide `scripts/requirements.txt` (installed by the
-devcontainer): `telethon` (hard import, needed even for the Nitter→FB path),
+devcontainer): `telethon` (only the Telegram path needs it — it's imported
+lazily inside `scrape()`/`main()`, so the Nitter→FB path runs without it),
 `playwright`, and `python-dotenv`. Playwright also needs its browser:
 `python -m playwright install chromium` (the devcontainer does this on
 create).
