@@ -6,6 +6,14 @@ on:
   # workflow to its dispatch list) or add a `schedule:` block. GS reports
   # update ~3×/day, so every few hours is plenty.
 
+# Single source of truth for the bucket + DB filename. GSUA_DB_NAME is also
+# read by the scraper (scrape_general_staff.py: gs.DB_PATH) since it's defined
+# at workflow scope and inherited by every step — so changing it here keeps the
+# download path, the scraper's output path, and the upload path in lockstep.
+env:
+  R2_BUCKET: russia-ukraine-war
+  GSUA_DB_NAME: ru-attacks-gsua.db
+
 jobs:
   update-gsua-db:
     runs-on: ubuntu-latest
@@ -26,7 +34,7 @@ jobs:
         run: python -m playwright install --with-deps chromium
 
       # R2 is the source of truth. Pull the current DB to the path the scraper
-      # expects (gs.DB_PATH == output/ru-attacks-gsua.db, relative to its CWD).
+      # expects (gs.DB_PATH == output/$GSUA_DB_NAME, relative to its CWD).
       - name: Download current GSUA DB from R2
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -34,18 +42,20 @@ jobs:
         run: |
           mkdir -p scripts/gsua/output
           npx --yes wrangler@4 r2 object get \
-            russia-ukraine-war/ru-attacks-gsua.db \
-            --file scripts/gsua/output/ru-attacks-gsua.db \
+            "$R2_BUCKET/$GSUA_DB_NAME" \
+            --file "scripts/gsua/output/$GSUA_DB_NAME" \
             --remote
 
       # Cutoff = latest report date in the DB minus a 3-day lookback, so late
       # corrections to recent reports get re-ingested (upsert, so idempotent).
       - name: Compute scrape cutoff
         id: cutoff
+        env:
+          DB_PATH: scripts/gsua/output/${{ env.GSUA_DB_NAME }}
         run: |
           SINCE=$(python3 - <<'PY'
-          import sqlite3, datetime
-          c = sqlite3.connect("scripts/gsua/output/ru-attacks-gsua.db")
+          import os, sqlite3, datetime
+          c = sqlite3.connect(os.environ["DB_PATH"])
           row = c.execute("SELECT MAX(date) FROM posts").fetchone()
           latest = row[0] if row and row[0] else "2024-05-13"
           since = datetime.date.fromisoformat(latest) - datetime.timedelta(days=3)
@@ -57,7 +67,8 @@ jobs:
 
       # Nitter → Facebook path (no auth, headless). The Telegram path needs an
       # interactive login and is intentionally not used in CI (see
-      # scripts/gsua/doc.md).
+      # scripts/gsua/doc.md). GSUA_DB_NAME is inherited from workflow env, so
+      # the scraper writes to the same output/$GSUA_DB_NAME we up/download.
       - name: Scrape GSUA reports
         working-directory: scripts/gsua
         run: python scrape_twitter.py ingest --since "${{ steps.cutoff.outputs.since }}"
@@ -68,7 +79,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           npx --yes wrangler@4 r2 object put \
-            russia-ukraine-war/ru-attacks-gsua.db \
-            --file scripts/gsua/output/ru-attacks-gsua.db \
+            "$R2_BUCKET/$GSUA_DB_NAME" \
+            --file "scripts/gsua/output/$GSUA_DB_NAME" \
             --content-type application/vnd.sqlite3 \
             --remote

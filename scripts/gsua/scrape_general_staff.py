@@ -77,7 +77,8 @@ FLOOD_WAIT_MARGIN = 5       # extra seconds to add on top of Telegram's wait tim
 CHECKPOINT_FILE = Path("output/.checkpoint")
 
 OUTPUT_DIR = Path("output")
-DB_PATH = OUTPUT_DIR / "ru-attacks-gsua.db"
+# Filename overridable via env so the CI workflow controls it in one place.
+DB_PATH = OUTPUT_DIR / os.environ.get("GSUA_DB_NAME", "ru-attacks-gsua.db")
 LOG_LEVEL = logging.INFO
 
 logging.basicConfig(
