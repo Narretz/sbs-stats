@@ -79,6 +79,12 @@ class FbFetchError(Exception):
     """Raised when a Facebook fetch fails — timeout, login-walled, etc."""
 
 
+class NotAnOperationalReport(FbFetchError):
+    """The post loaded fine but isn't a daily operational situation report
+    (strike announcement, losses tally, personnel/recruitment news, a different
+    command's post, …). Expected and common — not an error."""
+
+
 async def fetch_facebook_post(
     browser: Browser, url: str, *, timeout_ms: int = 30000
 ) -> dict:
@@ -123,7 +129,7 @@ async def fetch_facebook_post(
             # a permanently-deleted or geo-restricted post. (Fresh-link gating
             # has not been observed in practice.)
             preview = " ".join(body.split())[:200]
-            raise FbFetchError(
+            raise NotAnOperationalReport(
                 f"Body does not contain 'Оперативна інформація' header. "
                 f"Preview: {preview!r}"
             )
@@ -163,8 +169,12 @@ async def scrape_and_upsert(
     """
     try:
         fetched = await fetch_facebook_post(browser, url)
+    except NotAnOperationalReport:
+        # Expected: the GS/X feed mixes in non-report posts we deliberately skip.
+        log.info(f"FB skipped (not an operational report): {url}")
+        return False
     except FbFetchError as e:
-        log.warning(f"FB fetch failed: {url}: {e}")
+        log.warning(f"FB fetch error: {url}: {e}")
         return False
 
     # Build a Telethon-Message-like stand-in so parse_summary can read
