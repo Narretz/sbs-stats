@@ -22,9 +22,10 @@
 #   GSUA_LOOKBACK_DAYS  default: 2
 #
 # Usage:
-#   ./run_local.sh                 # download → scrape → upload
-#   ./run_local.sh --no-upload     # download → scrape, skip the upload
-#   ./run_local.sh --upload-only   # just upload the existing local DB to R2
+#   ./run_local.sh                  # download → scrape → upload
+#   ./run_local.sh --no-upload      # download → scrape, skip the upload
+#   ./run_local.sh --no-download    # scrape the existing local DB → upload
+#   ./run_local.sh --no-download --no-upload   # scrape only, no R2 sync
 #   ./run_local.sh --since 2026-05-01   # force an explicit cutoff date
 
 set -euo pipefail
@@ -44,41 +45,30 @@ DB_LOCAL="output/$GSUA_DB_NAME"
 WRANGLER="npx --yes wrangler@4"
 
 NO_UPLOAD=0
-UPLOAD_ONLY=0
+NO_DOWNLOAD=0
 FORCE_SINCE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --no-upload) NO_UPLOAD=1; shift ;;
-    --upload-only) UPLOAD_ONLY=1; shift ;;
+    --no-download) NO_DOWNLOAD=1; shift ;;
     --since) FORCE_SINCE="$2"; shift 2 ;;
     -h|--help) sed -n '2,30p' "$SELF"; exit 0 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
 
-upload() {
-  echo "==> Uploading $DB_LOCAL → $R2_BUCKET/$GSUA_DB_NAME"
-  $WRANGLER r2 object put "$R2_BUCKET/$GSUA_DB_NAME" \
-    --file "$DB_LOCAL" \
-    --content-type application/vnd.sqlite3 \
-    --remote
-}
-
-# Shortcut: just push the existing local DB, no download/scrape.
-if [ "$UPLOAD_ONLY" -eq 1 ]; then
-  if [ ! -f "$DB_LOCAL" ]; then
-    echo "error: $DB_LOCAL not found — nothing to upload" >&2
-    exit 1
-  fi
-  upload
-  echo "==> Done (upload only)."
-  exit 0
-fi
-
 mkdir -p output
 
-echo "==> [1/4] Downloading $R2_BUCKET/$GSUA_DB_NAME from R2"
-$WRANGLER r2 object get "$R2_BUCKET/$GSUA_DB_NAME" --file "$DB_LOCAL" --remote
+if [ "$NO_DOWNLOAD" -eq 1 ]; then
+  echo "==> [1/4] Skipping download (--no-download); using existing $DB_LOCAL"
+  if [ ! -f "$DB_LOCAL" ]; then
+    echo "error: $DB_LOCAL not found — nothing to scrape into" >&2
+    exit 1
+  fi
+else
+  echo "==> [1/4] Downloading $R2_BUCKET/$GSUA_DB_NAME from R2"
+  $WRANGLER r2 object get "$R2_BUCKET/$GSUA_DB_NAME" --file "$DB_LOCAL" --remote
+fi
 
 if [ -n "$FORCE_SINCE" ]; then
   SINCE="$FORCE_SINCE"
@@ -101,10 +91,12 @@ python3 scrape_twitter.py ingest --since "$SINCE"
 
 if [ "$NO_UPLOAD" -eq 1 ]; then
   echo "==> [4/4] Skipping upload (--no-upload). DB left at $DB_LOCAL"
-  exit 0
+else
+  echo "==> [4/4] Uploading $DB_LOCAL → $R2_BUCKET/$GSUA_DB_NAME"
+  $WRANGLER r2 object put "$R2_BUCKET/$GSUA_DB_NAME" \
+    --file "$DB_LOCAL" \
+    --content-type application/vnd.sqlite3 \
+    --remote
 fi
-
-echo "==> [4/4] Uploading to R2"
-upload
 
 echo "==> Done."
