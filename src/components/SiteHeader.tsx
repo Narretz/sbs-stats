@@ -14,6 +14,7 @@ interface SiteHeaderProps {
   refreshCount: number;
   onRefresh: () => void;
   isLoading: boolean;
+  refreshIntervalMs: number;
 }
 
 const PAGE_LABEL: Record<Page, string> = {
@@ -24,7 +25,7 @@ const PAGE_LABEL: Record<Page, string> = {
 
 export function SiteHeader({
   site, page, pages, onSiteChange, onPageChange,
-  lastRefreshed, refreshCount, onRefresh, isLoading,
+  lastRefreshed, refreshCount, onRefresh, isLoading, refreshIntervalMs,
 }: SiteHeaderProps) {
   const { mode, theme: t, toggle } = useTheme();
 
@@ -113,6 +114,7 @@ export function SiteHeader({
           refreshCount={refreshCount}
           onRefresh={onRefresh}
           isLoading={isLoading}
+          intervalMs={refreshIntervalMs}
         />
         <button
           onClick={toggle}

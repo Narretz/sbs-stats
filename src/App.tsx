@@ -34,7 +34,7 @@ function SbsRoot({
   page: Page; pages: Page[]; site: Site;
   setSite: (s: Site) => void; setPage: (p: Page) => void;
 }) {
-  const { loadState, refresh, lastRefreshed, refreshCount } = useDatabaseContext();
+  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useDatabaseContext();
   return (
     <>
       <SiteHeader
@@ -42,6 +42,7 @@ function SbsRoot({
         onSiteChange={setSite} onPageChange={setPage}
         lastRefreshed={lastRefreshed} refreshCount={refreshCount}
         onRefresh={refresh} isLoading={loadState === "loading"}
+        refreshIntervalMs={refreshIntervalMs}
       />
       <PageShell>
         {page === "daily"   && <DailyPage refreshKey={refreshCount} />}
@@ -58,7 +59,7 @@ function GsuaRoot({
   page: Page; pages: Page[]; site: Site;
   setSite: (s: Site) => void; setPage: (p: Page) => void;
 }) {
-  const { loadState, refresh, lastRefreshed, refreshCount } = useGsuaDatabaseContext();
+  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useGsuaDatabaseContext();
   return (
     <>
       <SiteHeader
@@ -66,6 +67,7 @@ function GsuaRoot({
         onSiteChange={setSite} onPageChange={setPage}
         lastRefreshed={lastRefreshed} refreshCount={refreshCount}
         onRefresh={refresh} isLoading={loadState === "loading"}
+        refreshIntervalMs={refreshIntervalMs}
       />
       <PageShell>
         {page === "daily"   && <GsuaDailyPage refreshKey={refreshCount} />}
@@ -82,7 +84,7 @@ function RuLossesRoot({
   page: Page; pages: Page[]; site: Site;
   setSite: (s: Site) => void; setPage: (p: Page) => void;
 }) {
-  const { loadState, refresh, lastRefreshed, refreshCount } = useRuLossesDatabaseContext();
+  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useRuLossesDatabaseContext();
   return (
     <>
       <SiteHeader
@@ -90,6 +92,7 @@ function RuLossesRoot({
         onSiteChange={setSite} onPageChange={setPage}
         lastRefreshed={lastRefreshed} refreshCount={refreshCount}
         onRefresh={refresh} isLoading={loadState === "loading"}
+        refreshIntervalMs={refreshIntervalMs}
       />
       <PageShell>
         {page === "daily"   && <RuLossesDailyPage refreshKey={refreshCount} />}

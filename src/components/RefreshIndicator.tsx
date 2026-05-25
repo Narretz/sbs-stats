@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useTheme } from "@/hooks/useTheme";
-import { REFRESH_INTERVAL_MS } from "@/hooks/useDatabase";
 import { FONTS } from "@/theme";
 
 interface Props {
@@ -8,30 +7,32 @@ interface Props {
   refreshCount: number;
   onRefresh: () => void;
   isLoading: boolean;
+  // Auto-refresh interval of the active site's loader (varies per site).
+  intervalMs: number;
 }
 
-export function RefreshIndicator({ lastRefreshed, refreshCount, onRefresh, isLoading }: Props) {
+export function RefreshIndicator({ lastRefreshed, refreshCount, onRefresh, isLoading, intervalMs }: Props) {
   const { theme: t } = useTheme();
   const [progress, setProgress] = useState(1);
-  const [secondsLeft, setSecondsLeft] = useState(REFRESH_INTERVAL_MS / 1000);
+  const [secondsLeft, setSecondsLeft] = useState(intervalMs / 1000);
   const startRef = useRef<number>(Date.now());
 
   useEffect(() => {
     startRef.current = Date.now();
     setProgress(1);
-    setSecondsLeft(REFRESH_INTERVAL_MS / 1000);
-  }, [lastRefreshed, refreshCount]);
+    setSecondsLeft(intervalMs / 1000);
+  }, [lastRefreshed, refreshCount, intervalMs]);
 
   useEffect(() => {
     const tick = () => {
       const elapsed = Date.now() - startRef.current;
-      const remaining = Math.max(0, REFRESH_INTERVAL_MS - elapsed);
-      setProgress(remaining / REFRESH_INTERVAL_MS);
+      const remaining = Math.max(0, intervalMs - elapsed);
+      setProgress(remaining / intervalMs);
       setSecondsLeft(Math.ceil(remaining / 1000));
     };
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [intervalMs]);
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);

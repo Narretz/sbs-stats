@@ -90,7 +90,9 @@ const LATEST_PER_DATE = `(
     ON d.date = l.date AND d.snapshot_at = l.ms
 ) latest`;
 
-export const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+// russian-casualties.in.ua updates once a day (mornings), so hourly polling is
+// already generous. The on-focus + manual refresh paths still apply.
+export const REFRESH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 export function useDatabaseRuLosses() {
   const [db, setDb] = useState<Database | null>(null);
@@ -237,5 +239,6 @@ export function useDatabaseRuLosses() {
     loadState, error,
     queryDaily, queryGlobalStats, queryMonthly,
     refresh, lastRefreshed, refreshCount,
+    refreshIntervalMs: REFRESH_INTERVAL_MS,
   };
 }

@@ -335,5 +335,6 @@ export function useDatabase() {
     loadState, error,
     queryDaily, queryHourly, queryMonthly, queryGlobalStats,
     refresh, lastRefreshed, refreshCount,
+    refreshIntervalMs: REFRESH_INTERVAL_MS,
   };
 }

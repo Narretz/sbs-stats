@@ -57,7 +57,9 @@ function getOrCreateWorker(): Promise<WorkerHttpvfs> {
 
 const METRIC_COLS = GSUA_METRIC_KEYS.map((k) => `MAX(${k}) AS ${k}`).join(", ");
 
-export const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
+// GSUA reports update only ~3×/day, so polling the 32 MB R2 DB every 10 min is
+// wasteful. Refresh hourly; the on-focus + manual refresh paths still apply.
+export const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 
 export function useDatabaseGsua() {
   const [worker, setWorker] = useState<WorkerHttpvfs | null>(null);
@@ -415,5 +417,6 @@ export function useDatabaseGsua() {
     queryDaily, querySnapshots, queryGlobalStats, queryMonthly,
     queryDirectionList, queryDirectionDaily, queryDirectionSnapshots,
     refresh, lastRefreshed, refreshCount,
+    refreshIntervalMs: REFRESH_INTERVAL_MS,
   };
 }
