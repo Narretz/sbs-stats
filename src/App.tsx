@@ -3,6 +3,8 @@ import { DatabaseProvider } from "@/context/DatabaseContext";
 import { useDatabaseContext } from "@/context/useDatabaseContext";
 import { GsuaDatabaseProvider } from "@/context/GsuaDatabaseContext";
 import { useGsuaDatabaseContext } from "@/context/useGsuaDatabaseContext";
+import { RuLossesDatabaseProvider } from "@/context/RuLossesDatabaseContext";
+import { useRuLossesDatabaseContext } from "@/context/useRuLossesDatabaseContext";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -13,6 +15,8 @@ import { MonthlyPage } from "@/pages/MonthlyPage";
 import { GsuaDailyPage } from "@/pages/GsuaDailyPage";
 import { GsuaHourlyPage } from "@/pages/GsuaHourlyPage";
 import { GsuaMonthlyPage } from "@/pages/GsuaMonthlyPage";
+import { RuLossesDailyPage } from "@/pages/RuLossesDailyPage";
+import { RuLossesMonthlyPage } from "@/pages/RuLossesMonthlyPage";
 import type { Page, Site } from "@/types";
 import { GLOBAL_CSS } from "@/theme";
 
@@ -72,6 +76,29 @@ function GsuaRoot({
   );
 }
 
+function RuLossesRoot({
+  page, pages, site, setSite, setPage,
+}: {
+  page: Page; pages: Page[]; site: Site;
+  setSite: (s: Site) => void; setPage: (p: Page) => void;
+}) {
+  const { loadState, refresh, lastRefreshed, refreshCount } = useRuLossesDatabaseContext();
+  return (
+    <>
+      <SiteHeader
+        site={site} page={page} pages={pages}
+        onSiteChange={setSite} onPageChange={setPage}
+        lastRefreshed={lastRefreshed} refreshCount={refreshCount}
+        onRefresh={refresh} isLoading={loadState === "loading"}
+      />
+      <PageShell>
+        {page === "daily"   && <RuLossesDailyPage refreshKey={refreshCount} />}
+        {page === "monthly" && <RuLossesMonthlyPage refreshKey={refreshCount} />}
+      </PageShell>
+    </>
+  );
+}
+
 function AppInner() {
   const { theme: t } = useTheme();
   const { site, setSite, page, setPage, pagesFor } = useAppRoute();
@@ -91,11 +118,18 @@ function AppInner() {
             </DatabaseProvider>
           </ErrorBoundary>
         )}
-        {site === "gsua" && (
+        {site === "ru-attacks-gsua" && (
           <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
             <GsuaDatabaseProvider>
               <GsuaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
             </GsuaDatabaseProvider>
+          </ErrorBoundary>
+        )}
+        {site === "ru-losses-gsua" && (
+          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
+            <RuLossesDatabaseProvider>
+              <RuLossesRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
+            </RuLossesDatabaseProvider>
           </ErrorBoundary>
         )}
       </div>

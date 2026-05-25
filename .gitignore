@@ -20,10 +20,14 @@ scripts/gsua/__pycache__
 
 # DBs are fetched/scraped, served from R2 — not committed
 data/ru-attacks-gsua.db
+data/ru-losses-gsua.db
 data/sbs-foosint.db
 
 # GSUA scraper local artifacts
 scripts/gsua/output/
+# RU losses ingest local artifacts
+scripts/ru_losses/output/
+__pycache__/
 # Telegram session is a credential — never commit
 *.session
 scripts/gsua/.checkpoint

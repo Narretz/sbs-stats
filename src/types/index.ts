@@ -92,11 +92,12 @@ export interface Metric {
 
 // ─── App state ────────────────────────────────────────────────────────────────
 export type Page = "daily" | "hourly" | "monthly";
-export type Site = "sbs" | "gsua";
-export const SITES: Site[] = ["sbs", "gsua"];
+export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua";
+export const SITES: Site[] = ["sbs", "ru-attacks-gsua", "ru-losses-gsua"];
 export const SITE_LABELS: Record<Site, string> = {
   sbs: "SBS STATISTICS",
-  gsua: "RU ATTACKS - GSUA",
+  "ru-attacks-gsua": "RU ATTACKS - GSUA",
+  "ru-losses-gsua": "RU LOSSES - GSUA",
 };
 export type LoadState = "idle" | "loading" | "ready" | "error";
 
@@ -154,3 +155,56 @@ export type GsuaMonthlyRow = {
   projection_day: number | null;
   projection_days_in_month: number | null;
 } & Record<GsuaMetricKey, number> & Partial<Record<`${GsuaMetricKey}_projected`, number>>;
+
+// ─── RU Losses (russian-casualties.in.ua → ru-losses-gsua.db) ─────────────────
+// Daily Russian losses (personnel + equipment) as reported by the Ukrainian
+// General Staff. The source API already returns per-day increments, so each
+// `daily_losses` row is one day. Keys/order mirror scripts/ru_losses/ingest.py.
+export const RU_LOSSES_METRIC_KEYS = [
+  "personnel",
+  "tanks",
+  "apv",
+  "artillery",
+  "mlrs",
+  "aaws",
+  "aircraft",
+  "helicopters",
+  "uav",
+  "vehicles",
+  "boats",
+  "se",
+  "missiles",
+  "captive",
+] as const;
+export type RuLossesMetricKey = (typeof RU_LOSSES_METRIC_KEYS)[number];
+
+export const RU_LOSSES_METRIC_LABELS: Record<RuLossesMetricKey, string> = {
+  personnel: "Personnel",
+  tanks: "Tanks",
+  apv: "Armoured Vehicles",
+  artillery: "Artillery Systems",
+  mlrs: "MLRS",
+  aaws: "Anti-Aircraft Systems",
+  aircraft: "Aircraft",
+  helicopters: "Helicopters",
+  uav: "UAV",
+  vehicles: "Vehicles & Fuel Tanks",
+  boats: "Boats",
+  se: "Special Equipment",
+  missiles: "Cruise Missiles",
+  captive: "POW (Captured)",
+};
+
+export type RuLossesDailyRow = {
+  date: string;        // YYYY-MM-DD
+  is_today: boolean;
+} & Record<RuLossesMetricKey, number | null>;
+
+export type RuLossesGlobalStats = Record<RuLossesMetricKey, { max: number; median: number }>;
+
+export type RuLossesMonthlyRow = {
+  date: string; // "YYYY-MM"
+  is_current_month: boolean;
+  projection_day: number | null;
+  projection_days_in_month: number | null;
+} & Record<RuLossesMetricKey, number> & Partial<Record<`${RuLossesMetricKey}_projected`, number>>;

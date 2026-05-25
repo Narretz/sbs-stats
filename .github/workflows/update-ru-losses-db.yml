@@ -1,0 +1,64 @@
+name: Update RU Losses Database
+
+on:
+  workflow_dispatch: # allow manual trigger from GitHub UI
+  schedule:
+    # russian-casualties.in.ua publishes once a day; one run each morning (UTC)
+    # is plenty. Adjust or drive from the Cloudflare Worker if you prefer.
+    - cron: "30 9 * * *"
+
+# Single source of truth for the bucket + DB filename.
+env:
+  R2_BUCKET: russia-ukraine-war
+  RU_LOSSES_DB_NAME: ru-losses-gsua.db
+
+jobs:
+  update-ru-losses-db:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # Pull the current DB so the build MERGES into it (upsert, never delete)
+      # rather than starting from empty — this preserves any dates the upstream
+      # API might later drop. `continue-on-error` so the very first run (object
+      # not yet in R2) still works: ingest then creates the DB fresh.
+      - name: Download current RU losses DB from R2
+        id: download
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          mkdir -p scripts/ru_losses/output
+          npx --yes wrangler@4 r2 object get \
+            "$R2_BUCKET/$RU_LOSSES_DB_NAME" \
+            --file "scripts/ru_losses/output/$RU_LOSSES_DB_NAME" \
+            --remote
+
+      # ingest.py merges the fetched days into the (downloaded) DB and aborts
+      # without writing if the fetch looks partial/broken — so a bad upstream
+      # response fails this step and the upload below is skipped, leaving R2
+      # untouched. stdlib only, so no pip install needed.
+      - name: Build RU losses DB
+        run: |
+          mkdir -p scripts/ru_losses/output
+          python3 scripts/ru_losses/ingest.py \
+            --out "scripts/ru_losses/output/$RU_LOSSES_DB_NAME"
+
+      - name: Upload RU losses DB to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/$RU_LOSSES_DB_NAME" \
+            --file "scripts/ru_losses/output/$RU_LOSSES_DB_NAME" \
+            --content-type application/vnd.sqlite3 \
+            --remote

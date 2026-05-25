@@ -3,18 +3,23 @@ import type { Page, Site } from "@/types";
 
 const SBS_PAGES: Page[] = ["hourly", "daily", "monthly"];
 const GSUA_PAGES: Page[] = ["hourly", "daily", "monthly"];
+// russian-casualties.in.ua is daily-only (no hourly snapshots, no directions).
+const RU_LOSSES_PAGES: Page[] = ["daily", "monthly"];
 
 function pagesFor(site: Site): Page[] {
-  return site === "gsua" ? GSUA_PAGES : SBS_PAGES;
+  if (site === "ru-attacks-gsua") return GSUA_PAGES;
+  if (site === "ru-losses-gsua") return RU_LOSSES_PAGES;
+  return SBS_PAGES;
 }
 
 function readUrl(): { site: Site; page: Page } {
   const p = new URLSearchParams(window.location.search);
   const rawSite = p.get("site");
-  const site: Site = rawSite === "gsua" ? "gsua" : "sbs";
+  const site: Site =
+    rawSite === "ru-attacks-gsua" ? "ru-attacks-gsua" : rawSite === "ru-losses-gsua" ? "ru-losses-gsua" : "sbs";
   const rawPage = p.get("page");
   const pages = pagesFor(site);
-  const page: Page = pages.includes(rawPage as Page) ? (rawPage as Page) : "hourly";
+  const page: Page = pages.includes(rawPage as Page) ? (rawPage as Page) : pages[0];
   return { site, page };
 }
 
@@ -32,7 +37,7 @@ export function useAppRoute() {
 
   const setSite = (s: Site) => {
     const pages = pagesFor(s);
-    const safePage: Page = pages.includes(page) ? page : "hourly";
+    const safePage: Page = pages.includes(page) ? page : pages[0];
     setSiteState(s);
     if (safePage !== page) setPageState(safePage);
     writeUrl({ site: s, page: safePage });
