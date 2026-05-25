@@ -34,6 +34,13 @@ async function loadWorker(): Promise<WorkerHttpvfs> {
           serverMode: "full",
           url: DB_URL,
           requestChunkSize: REQUEST_CHUNK_SIZE,
+          // The R2 object is overwritten by every scrape. Without a cache-bust,
+          // the browser can serve stale cached byte-ranges mixed with fresh
+          // ones — producing inconsistent/empty reads (different queries touch
+          // different pages). A per-load token makes every worker (initial +
+          // each refresh) fetch a coherent snapshot. Mirrors the SBS loader's
+          // `?bust=` + no-store. (sql.js-httpvfs appends this as a query param.)
+          cacheBust: String(Date.now()),
         },
       },
     ],
