@@ -11,6 +11,7 @@ import {
   type GsuaDailyRow,
   type GsuaMetricKey,
   type GsuaDirectionRow,
+  type EodEstimate,
 } from "@/types";
 import type { DailyDaySeries } from "@/types";
 import { FONTS } from "@/theme";
@@ -75,7 +76,7 @@ interface Props {
 export function GsuaHourlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
   const {
-    loadState, error, querySnapshots, queryDirectionList, queryDirectionSnapshots,
+    loadState, error, querySnapshots, queryDirectionList, queryDirectionSnapshots, queryEodProjection,
   } = useGsuaDatabaseContext();
 
   const initial = useMemo(() => getUrlParams(), []);
@@ -88,6 +89,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
   const [rows, setRows] = useState<GsuaDailyRow[]>([]);
   const [directionRows, setDirectionRows] = useState<GsuaDirectionRow[]>([]);
   const [directionList, setDirectionList] = useState<string[]>([]);
+  const [eod, setEod] = useState<Partial<Record<GsuaMetricKey, EodEstimate>>>({});
   const [hasData, setHasData] = useState(false);
 
   const updateDays = (d: DayOption) => { setDays(d); setUrlParams({ days: String(d) }); };
@@ -115,11 +117,13 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
     if (loadState !== "ready") return;
     let cancelled = false;
     (async () => {
-      const dl = await queryDirectionList();
-      if (!cancelled) setDirectionList(dl);
+      const [dl, ep] = await Promise.all([queryDirectionList(), queryEodProjection()]);
+      if (cancelled) return;
+      setDirectionList(dl);
+      setEod(ep);
     })();
     return () => { cancelled = true; };
-  }, [loadState, queryDirectionList, refreshKey]);
+  }, [loadState, queryDirectionList, queryEodProjection, refreshKey]);
 
   useEffect(() => {
     if (loadState !== "ready") return;
@@ -355,6 +359,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
               tooltipSort={tooltipSort}
               highlight={!!selectedDate}
               selectedDate={selectedDate}
+              eod={eod[k] ?? null}
             />
           ))}
         </ChartGrid>

@@ -6,7 +6,7 @@ import { HourlyLineChart, type TooltipSortMode } from "@/components/HourlyLineCh
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { buildMetrics } from "@/utils/metrics";
-import type { DailyRow, DailyDaySeries, GlobalStats, StatKey, Metric } from "@/types";
+import type { DailyRow, DailyDaySeries, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
 import { FONTS } from "@/theme";
 
 const DAY_OPTIONS = [7, 14, 30, 60, 120] as const;
@@ -53,11 +53,12 @@ interface HourlyPageProps {
 
 export function HourlyPage({ refreshKey }: HourlyPageProps) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryHourly, queryGlobalStats } = useDatabaseContext();
+  const { loadState, error, queryHourly, queryGlobalStats, queryEodProjection } = useDatabaseContext();
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
   const [rows, setRows] = useState<DailyRow[]>([]);
   const [globalStats, setGlobalStats] = useState<GlobalStats>({} as GlobalStats);
+  const [eod, setEod] = useState<Partial<Record<StatKey, EodEstimate>>>({});
   const [hasData, setHasData] = useState(false);
   const [tooltipSort, setTooltipSort] = useState<TooltipSortMode>(initial.sort);
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>(initial.weekdays);
@@ -82,8 +83,11 @@ export function HourlyPage({ refreshKey }: HourlyPageProps) {
   const canGoNext = selectedDate !== "" && selectedDate < maxSelectableDate;
 
   useEffect(() => {
-    if (loadState === "ready") setGlobalStats(queryGlobalStats());
-  }, [loadState, queryGlobalStats, refreshKey]);
+    if (loadState === "ready") {
+      setGlobalStats(queryGlobalStats());
+      setEod(queryEodProjection());
+    }
+  }, [loadState, queryGlobalStats, queryEodProjection, refreshKey]);
 
   useEffect(() => {
     if (loadState === "ready") {
@@ -246,6 +250,7 @@ export function HourlyPage({ refreshKey }: HourlyPageProps) {
               tooltipSort={tooltipSort}
               highlight={!!selectedDate}
               selectedDate={selectedDate}
+              eod={eod[m.key] ?? null}
             />
           ))}
         </ChartGrid>

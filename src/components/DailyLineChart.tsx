@@ -3,7 +3,7 @@ import {
   Tooltip, ReferenceLine, ResponsiveContainer, type DotProps,
 } from "recharts";
 import { useMemo } from "react";
-import type { DailyDataPoint, PairMode } from "@/types";
+import type { DailyDataPoint, EodEstimate, PairMode } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS, type Theme } from "@/theme";
 
@@ -40,6 +40,9 @@ interface Props {
   globalMax2?: number;
   globalMedian2?: number;
   pairMode?: PairMode;
+  // End-of-day estimate for the "today" point (primary / paired series).
+  eod?: EodEstimate | null;
+  eod2?: EodEstimate | null;
 }
 const DESTROYED_COLOR = "#dc2626";
 const DESTROYED_TREND_COLOR = "#fca5a5";
@@ -60,6 +63,8 @@ type PairedRow = {
   trend1: number | null;
   trend2: number | null;
   is_today: boolean;
+  eod: EodEstimate | null;
+  eod2: EodEstimate | null;
 };
 
 interface TooltipPayloadEntry {
@@ -73,6 +78,49 @@ function fmt(n: number | null | undefined): string {
 function formatDate(v: string): string {
   const [y, m, d] = v.split("-");
   return `${d}.${m}.${y}`;
+}
+
+function tipRow(color: string, label: string, val: string) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, color }}>
+      <span>{label}</span><span>{val}</span>
+    </div>
+  );
+}
+
+// Tooltip line for the end-of-day estimate (only shown on the "today" point).
+function eodRow(color: string, label: string, e: EodEstimate) {
+  return tipRow(color, `${label} · EoD est`, `~${fmt(e.projected)} (${Math.round(e.fraction * 100)}%)`);
+}
+
+function SingleTooltip({
+  active, payload, t, primaryColor, primaryLabel,
+}: {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+  t: Theme;
+  primaryColor: string;
+  primaryLabel: string;
+}) {
+  if (!active || !payload?.length || !payload[0].payload) return null;
+  const d = payload[0].payload;
+  return (
+    <div style={{
+      background: t.surface,
+      border: `1px solid ${t.border}`,
+      borderRadius: 6,
+      padding: "8px 10px",
+      fontFamily: FONTS.mono,
+      fontSize: 12,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+      minWidth: 160,
+    }}>
+      <div style={{ color: t.textMuted, marginBottom: 4 }}>{formatDate(d.date)}</div>
+      {tipRow(primaryColor, primaryLabel, fmt(d.value))}
+      {tipRow(t.muted, "Trend", fmt(d.trend1))}
+      {d.is_today && d.eod && eodRow(t.accent, primaryLabel, d.eod)}
+    </div>
+  );
 }
 
 function PairedTooltip({
@@ -98,11 +146,6 @@ function PairedTooltip({
   const pct = typeof total === "number" && total > 0 && typeof v2 === "number"
     ? (v2 / total) * 100
     : null;
-  const row = (color: string, label: string, val: string) => (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, color }}>
-      <span>{label}</span><span>{val}</span>
-    </div>
-  );
   return (
     <div style={{
       background: t.surface,
@@ -115,19 +158,32 @@ function PairedTooltip({
       minWidth: 180,
     }}>
       <div style={{ color: t.textMuted, marginBottom: 4 }}>{formatDate(d.date)}</div>
-      {pairMode === "sum" && row(t.text, "Total", fmt(total))}
-      {row(primaryColor, primaryLabel, fmt(v))}
-      {row(DESTROYED_COLOR, secondaryLabel, fmt(v2))}
-      {pct !== null && row(t.textMuted, `% ${secondaryLabel}`, `${pct.toFixed(1)}%`)}
-      {row(t.muted, `Trend (${primaryLabel})`, fmt(tr1))}
-      {row(DESTROYED_TREND_COLOR, `Trend (${secondaryLabel})`, fmt(tr2))}
+      {pairMode === "sum" && tipRow(t.text, "Total", fmt(total))}
+      {tipRow(primaryColor, primaryLabel, fmt(v))}
+      {tipRow(DESTROYED_COLOR, secondaryLabel, fmt(v2))}
+      {pct !== null && tipRow(t.textMuted, `% ${secondaryLabel}`, `${pct.toFixed(1)}%`)}
+      {tipRow(t.muted, `Trend (${primaryLabel})`, fmt(tr1))}
+      {tipRow(DESTROYED_TREND_COLOR, `Trend (${secondaryLabel})`, fmt(tr2))}
+      {d.is_today && d.eod && eodRow(primaryColor, primaryLabel, d.eod)}
+      {d.is_today && d.eod2 && eodRow(DESTROYED_COLOR, secondaryLabel, d.eod2)}
     </div>
   );
+}
+
+// Elevate the hovered card so a tooltip overflowing its bottom edge isn't
+// painted over by the next chart card (a later sibling in the grid).
+const STYLE_ID = "daily-chart-hover-style";
+if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
+  const s = document.createElement("style");
+  s.id = STYLE_ID;
+  s.textContent = `.daily-card { position: relative; z-index: 1; } .daily-card:hover { z-index: 100; }`;
+  document.head.appendChild(s);
 }
 
 export function DailyLineChart({
   title, data, globalMax, globalMedian, wfull,
   data2, primaryLabel, label2, globalMax2, globalMedian2, pairMode = "subset",
+  eod, eod2,
 }: Props) {
   const { theme: t } = useTheme();
   const max = globalMax;
@@ -158,16 +214,18 @@ export function DailyLineChart({
         trend1: trend1[i] ?? null,
         trend2: trend2?.[i] ?? null,
         valueDiff: diff,
+        eod: d.is_today ? (eod ?? null) : null,
+        eod2: d.is_today ? (eod2 ?? null) : null,
       };
     });
-  }, [data, data2, pairMode]);
+  }, [data, data2, pairMode, eod, eod2]);
 
   const yMax = hasPair && pairMode === "sum"
     ? Math.max(globalMax + (globalMax2 ?? 0), 0)
     : globalMax;
 
   return (
-    <div style={{
+    <div className="daily-card" style={{
       background: t.surface,
       border: `1px solid ${t.surfaceBorder}`,
       borderRadius: 8,
@@ -204,6 +262,7 @@ export function DailyLineChart({
               domain={[0, (dataMax: number) => Math.max(dataMax, yMax)]} />
             <Tooltip
               allowEscapeViewBox={{ x: false, y: true }}
+              wrapperStyle={{ zIndex: 9999 }}
               cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
               content={(props) => (
                 <PairedTooltip
@@ -238,10 +297,17 @@ export function DailyLineChart({
               domain={[0, (dataMax: number) => Math.max(dataMax, globalMax)]} />
             <Tooltip
               allowEscapeViewBox={{ x: false, y: true }}
-              contentStyle={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 6, fontFamily: FONTS.mono, fontSize: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
-              labelStyle={{ color: t.textMuted, marginBottom: 4 }}
-              itemStyle={{ color: t.primary }}
-              labelFormatter={(v: string) => formatDate(v)}
+              wrapperStyle={{ zIndex: 9999 }}
+              cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
+              content={(props) => (
+                <SingleTooltip
+                  active={props.active}
+                  payload={props.payload as TooltipPayloadEntry[] | undefined}
+                  t={t}
+                  primaryColor={primaryColor}
+                  primaryLabel={resolvedPrimaryLabel}
+                />
+              )}
             />
             <ReferenceLine y={max} stroke={t.accent} strokeDasharray="4 4" strokeOpacity={0.6}
               label={{ value: "MAX", position: "insideTopRight", fontSize: 9, fill: t.accent, fontFamily: FONTS.mono }} />

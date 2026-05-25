@@ -6,7 +6,7 @@ import { DailyLineChart } from "@/components/DailyLineChart";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { buildMetrics } from "@/utils/metrics";
-import type { DailyRow, DailyDataPoint, GlobalStats, StatKey, Metric } from "@/types";
+import type { DailyRow, DailyDataPoint, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
 import { FONTS } from "@/theme";
 
 const DAY_OPTIONS = [7, 14, 30, 60, 90, 120, 150, 180] as const;
@@ -51,13 +51,14 @@ interface DailyPageProps {
 
 export function DailyPage({ refreshKey }: DailyPageProps) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryDaily, queryGlobalStats } = useDatabaseContext();
+  const { loadState, error, queryDaily, queryGlobalStats, queryEodProjection } = useDatabaseContext();
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>(initial.weekdays);
   const [selectedDate, setSelectedDate] = useState<string>(initial.date);
   const [rows, setRows] = useState<DailyRow[]>([]);
   const [globalStats, setGlobalStats] = useState<GlobalStats>({} as GlobalStats);
+  const [eod, setEod] = useState<Partial<Record<StatKey, EodEstimate>>>({});
   const [hasData, setHasData] = useState(false);
 
   const updateDays = (d: DayOption) => { setDays(d); setUrlParams({ days: String(d) }); };
@@ -68,8 +69,11 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
   };
 
   useEffect(() => {
-    if (loadState === "ready") setGlobalStats(queryGlobalStats());
-  }, [loadState, queryGlobalStats, refreshKey]);
+    if (loadState === "ready") {
+      setGlobalStats(queryGlobalStats());
+      setEod(queryEodProjection());
+    }
+  }, [loadState, queryGlobalStats, queryEodProjection, refreshKey]);
 
   useEffect(() => {
     if (loadState === "ready") {
@@ -212,6 +216,8 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
               globalMax2={m.pairedKey ? chartStats[m.pairedKey]?.max ?? 0 : undefined}
               globalMedian2={m.pairedKey ? chartStats[m.pairedKey]?.median ?? 0 : undefined}
               pairMode={m.pairMode}
+              eod={eod[m.key] ?? null}
+              eod2={m.pairedKey ? (eod[m.pairedKey] ?? null) : undefined}
             />
           ))}
         </ChartGrid>

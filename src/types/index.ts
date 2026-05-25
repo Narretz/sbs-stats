@@ -55,6 +55,14 @@ export interface DailyDataPoint {
   is_today: boolean;
 }
 
+// End-of-day projection for the current (still incomplete) day, derived from the
+// historical intraday completion curve. Only meaningful for "today".
+export interface EodEstimate {
+  projected: number; // estimated settled end-of-day value
+  fraction: number;  // 0..1 — share of the day's total already reported by `asOf`
+  asOf: string;      // intraday checkpoint label, e.g. "14:00"
+}
+
 // ─── Hourly chart (one line per day, x-axis = hours) ─────────────────────────
 export interface HourPoint {
   hour: number;

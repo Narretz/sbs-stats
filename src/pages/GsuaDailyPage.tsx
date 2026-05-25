@@ -11,6 +11,7 @@ import {
   type GsuaDailyRow,
   type GsuaDirectionRow,
   type GsuaMetricKey,
+  type EodEstimate,
 } from "@/types";
 import { FONTS } from "@/theme";
 
@@ -60,7 +61,7 @@ interface Props {
 export function GsuaDailyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
   const {
-    loadState, error, queryDaily, queryGlobalStats,
+    loadState, error, queryDaily, queryGlobalStats, queryEodProjection,
     queryDirectionList, queryDirectionDaily,
   } = useGsuaDatabaseContext();
 
@@ -76,6 +77,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   );
   const [directionList, setDirectionList] = useState<string[]>([]);
   const [directionRows, setDirectionRows] = useState<GsuaDirectionRow[]>([]);
+  const [eod, setEod] = useState<Partial<Record<GsuaMetricKey, EodEstimate>>>({});
   const [hasData, setHasData] = useState(false);
 
   const updateDays = (d: DayOption) => { setDays(d); setUrlParams({ days: String(d) }); };
@@ -93,13 +95,14 @@ export function GsuaDailyPage({ refreshKey }: Props) {
     if (loadState !== "ready") return;
     let cancelled = false;
     (async () => {
-      const [gs, dl] = await Promise.all([queryGlobalStats(), queryDirectionList()]);
+      const [gs, dl, ep] = await Promise.all([queryGlobalStats(), queryDirectionList(), queryEodProjection()]);
       if (cancelled) return;
       setGlobalStats(gs);
       setDirectionList(dl);
+      setEod(ep);
     })();
     return () => { cancelled = true; };
-  }, [loadState, queryGlobalStats, queryDirectionList, refreshKey]);
+  }, [loadState, queryGlobalStats, queryDirectionList, queryEodProjection, refreshKey]);
 
   useEffect(() => {
     if (loadState !== "ready") return;
@@ -279,6 +282,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
               globalMax={globalStats[k]?.max ?? 0}
               globalMedian={globalStats[k]?.median ?? 0}
               wfull={k === "combat_engagements"}
+              eod={eod[k] ?? null}
             />
           ))}
         </ChartGrid>

@@ -3,7 +3,8 @@ import {
   Tooltip, ReferenceLine, ResponsiveContainer,
 } from "recharts";
 import type { TooltipProps } from "recharts";
-import type { DailyDaySeries } from "@/types";
+import { Temporal } from "temporal-polyfill";
+import type { DailyDaySeries, EodEstimate } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import type { Theme } from "@/theme";
 import { FONTS } from "@/theme";
@@ -18,6 +19,8 @@ interface Props {
   tooltipSort?: TooltipSortMode;
   highlight?: boolean;
   selectedDate?: string;
+  // End-of-day estimate for today's (in-progress) series.
+  eod?: EodEstimate | null;
 }
 function pivotData(series: DailyDaySeries[]): Record<string, number | null>[] {
   // X-axis runs 0–24. Hour 0 is always 0 (day start anchor).
@@ -41,11 +44,12 @@ function pivotData(series: DailyDaySeries[]): Record<string, number | null>[] {
 type TooltipEntry = { dataKey: string; value: number };
 
 const CustomTooltip = ({
-  active, payload, label, currentDate, t, sortMode,
+  active, payload, label, currentDate, t, sortMode, eod,
 }: TooltipProps<number, string> & {
   currentDate: string | undefined;
   t: Theme;
   sortMode: TooltipSortMode;
+  eod: EodEstimate | null;
 }) => {
   if (!active || !payload?.length) return null;
 
@@ -95,6 +99,11 @@ const CustomTooltip = ({
         {` · med ${hourMedian.toLocaleString()}`}
         {` · cur ${currentDeltaPct == null ? "n/a" : `${currentDeltaPct >= 0 ? "+" : ""}${currentDeltaPct.toFixed(1)}%`} vs med`}
       </div>
+      {eod && (
+        <div style={{ color: t.accent, marginBottom: 5, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
+          {`TODAY EoD est ~${eod.projected.toLocaleString()} (${Math.round(eod.fraction * 100)}% in by ${eod.asOf})`}
+        </div>
+      )}
       {/* Columns */}
       <div style={{ display: "flex", gap: 12 }}>
         {columns.map((col, ci) => (
@@ -142,7 +151,7 @@ if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
   s.textContent = `.hourly-card { position: relative; z-index: 1; } .hourly-card:hover { z-index: 100; }`;
   document.head.appendChild(s);
 }
-export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, tooltipSort = "date", highlight = false, selectedDate }: Props) {
+export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, tooltipSort = "date", highlight = false, selectedDate, eod }: Props) {
   const { theme: t } = useTheme();
   const chartData = pivotData(data);
   // When a date is selected, highlight only the series for that exact date.
@@ -190,7 +199,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
           />
           <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, globalMax)]} />
           <Tooltip
-            content={(props) => <CustomTooltip {...props} currentDate={primarySeries?.date} t={t} sortMode={tooltipSort} />}
+            content={(props) => <CustomTooltip {...props} currentDate={primarySeries?.date} t={t} sortMode={tooltipSort} eod={isToday ? (eod ?? null) : null} />}
             allowEscapeViewBox={{ x: false, y: true }}
             wrapperStyle={{ zIndex: 9999 }}
           />

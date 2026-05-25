@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Database } from "sql.js";
-import type { DailyRow, MonthlyRow, StatKey, LoadState } from "@/types";
+import type { DailyRow, MonthlyRow, StatKey, LoadState, EodEstimate } from "@/types";
 import { TARGET_IDS } from "@/types";
+import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
 
 const DB_URL = import.meta.env.VITE_DB_URL ?? "/data/sbs.db";
 const SQL_JS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0";
@@ -277,6 +278,44 @@ export function useDatabase() {
     return result;
   }, [db]);
 
+  // ── End-of-day projection for today ──────────────────────────────────────────
+  // Today's daily value is only a partial running total (latest hour so far);
+  // project where it settles from the last 90 days' intraday curves. Readings are
+  // keyed by hour; the day-final is the max-hour value (incl. next-day revisions).
+  const queryEodProjection = useCallback((): Partial<Record<StatKey, EodEstimate>> => {
+    if (!db) return {};
+    const todayStr = getKyivDateString();
+    const availableCols = getTableColumns(db, "daily_stats");
+    const allKeys: StatKey[] = [
+      "personnel_killed", "personnel_wounded",
+      "total_targets_hit", "total_targets_destroyed",
+      "total_personnel_casualties", "flights_strike", "flights_recon",
+      ...TARGET_IDS.flatMap((id) => [`hit_${id}` as StatKey, `destroyed_${id}` as StatKey]),
+    ];
+    const keys = allKeys.filter((k) => availableCols.includes(k));
+    if (!keys.length) return {};
+
+    const statCols = keys.map((k) => `COALESCE(${k}, 0) AS ${k}`).join(", ");
+    const sql = `
+      SELECT date, hour, ${statCols}
+      FROM daily_stats
+      WHERE date >= date('${todayStr}', '-90 days')
+      ORDER BY date ASC, hour ASC
+    `;
+    const byDate = new Map<string, EodReading<StatKey>[]>();
+    for (const r of queryRows<Record<string, number>>(db, sql)) {
+      const d = String(r.date);
+      const hour = Number(r.hour);
+      if (!byDate.has(d)) byDate.set(d, []);
+      byDate.get(d)!.push({
+        bucket: String(hour),
+        asOf: `${String(hour).padStart(2, "0")}:00`,
+        values: r as Record<StatKey, number>,
+      });
+    }
+    return computeEodProjection(byDate, todayStr, keys);
+  }, [db]);
+
   // ── Monthly ──────────────────────────────────────────────────────────────────
   const queryMonthly = useCallback((): MonthlyRow[] => {
     if (!db) return [];
@@ -333,7 +372,7 @@ export function useDatabase() {
 
   return {
     loadState, error,
-    queryDaily, queryHourly, queryMonthly, queryGlobalStats,
+    queryDaily, queryHourly, queryMonthly, queryGlobalStats, queryEodProjection,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs: REFRESH_INTERVAL_MS,
   };

@@ -6,8 +6,10 @@ import type {
   GsuaMetricKey,
   GsuaMonthlyRow,
   LoadState,
+  EodEstimate,
 } from "@/types";
 import { GSUA_METRIC_KEYS } from "@/types";
+import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
 
 const DB_URL = import.meta.env.VITE_GSUA_DB_URL ?? `${import.meta.env.BASE_URL}data/ru-attacks-gsua.db`;
 const WORKER_URL = `${import.meta.env.BASE_URL}vendor/httpvfs/sqlite.worker.js`;
@@ -319,6 +321,36 @@ export function useDatabaseGsua() {
       });
   }, [worker]);
 
+  // ── End-of-day projection for today ──────────────────────────────────────────
+  // GS posts run cumulative daily totals across the day (e.g. "as of 16:00",
+  // "as of 22:00") and settle with next morning's report. Today's latest snapshot
+  // is therefore partial; project the settled total from the last 90 days, keying
+  // readings by the snapshot's clock hour. day-final = last snapshot of the day.
+  const queryEodProjection = useCallback(async (): Promise<Partial<Record<GsuaMetricKey, EodEstimate>>> => {
+    if (!worker) return {};
+    const todayStr = getKyivDateString();
+    const sql = `
+      SELECT date, snapshot_at, ${METRIC_COLS}
+      FROM posts
+      WHERE date >= date('${todayStr}', '-90 days') AND snapshot_at IS NOT NULL
+      GROUP BY date, snapshot_at
+      ORDER BY date ASC, snapshot_at ASC
+    `;
+    const rows = (await worker.db.query(sql)) as Record<string, unknown>[];
+    const byDate = new Map<string, EodReading<GsuaMetricKey>[]>();
+    for (const r of rows) {
+      const d = String(r.date);
+      const snap = String(r.snapshot_at);
+      if (!byDate.has(d)) byDate.set(d, []);
+      byDate.get(d)!.push({
+        bucket: snap.slice(11, 13), // clock hour, "16"
+        asOf: snap.slice(11, 16),   // "16:00"
+        values: r as Record<GsuaMetricKey, number | null>,
+      });
+    }
+    return computeEodProjection(byDate, todayStr, GSUA_METRIC_KEYS);
+  }, [worker]);
+
   const queryDirectionList = useCallback(async (): Promise<string[]> => {
     if (!worker) return [];
     const sql = `
@@ -414,7 +446,7 @@ export function useDatabaseGsua() {
 
   return {
     loadState, error,
-    queryDaily, querySnapshots, queryGlobalStats, queryMonthly,
+    queryDaily, querySnapshots, queryGlobalStats, queryMonthly, queryEodProjection,
     queryDirectionList, queryDirectionDaily, queryDirectionSnapshots,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs: REFRESH_INTERVAL_MS,
