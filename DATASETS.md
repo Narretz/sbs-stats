@@ -88,6 +88,31 @@ The Russian MoD (Минобороны России) DOES post centrally — on m
 - **Caveats:** claims are unverified (widely considered inflated); stream 2 counts drones
   **downed/intercepted**, a floor for drones *launched at Russia*, not the launch count itself.
 
+### Status of what's IMPLEMENTED (scripts/ru_mod → ru-mod-ad.db, RU AIR DEFENSE - MoD site)
+- We scrape stream 2 (air-defense intercepts) from @mod_russia via the t.me/s web preview (no API)
+  with a telethon backfill option. Per-day totals + overnight/daytime split are charted.
+- **Per-region counts:** the MoD format *changed over time*. In 2025 some night reports itemized
+  per region ("42 – над территорией Саратовской области, 12 – над Ростовской, …", summing to the
+  total); through 2026 they give only a total + a flat region list. The parser captures the itemized
+  pairs into `ad_regions` when present, but all currently-scraped 2026 posts are total-only, so that
+  table is empty until a telethon backfill into 2025. A per-region view should wait on that.
+
+### Ukrainian-LOSSES reporting by the MoD — degraded, REVISIT (noted 2026-05)
+The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:
+- **2025:** weekly "Сводка … о ходе проведения СВО **с DD month по DD month YYYY**" posts carried
+  cumulative **equipment** losses (tanks, aircraft, UAVs, …) — but **no personnel** figures.
+- **2026:** the cumulative-**loss** Сводки appear to be gone. Сводка posts still show up, but the ones
+  our 2026 scrape captured are **operational/ceasefire narratives**, not loss tables — e.g. the
+  8–11 May 2026 Victory-Day truce produced daily ("по состоянию на DD мая") and weekly ("со 2 по 8
+  мая") Сводки reporting *truce-violation* counts, with no cumulative equipment/personnel totals.
+  They're also **multi-part** (the same header repeats across [1/n] message parts).
+- We now **store every Сводka post raw** in a `summaries` table (post_id, posted_at, kind ∈
+  {svodka_weekly, svodka_daily, svodka}, parsed header period, full text) **without parsing numbers**,
+  so the source is retained whatever the format does next.
+- **REVISIT:** (a) telethon-backfill 2025 to recover the weekly equipment Сводки; (b) parse cumulative
+  equipment from those; (c) pin down exactly when personnel reporting stopped (looks pre-2025 already);
+  (d) compare equipment trend against the GSUA RU-LOSSES series. Deep history needs the telethon backend.
+
 ---
 
 ## 4. Ukrainian strikes INTO Russia (drones launched at Russian territory)
