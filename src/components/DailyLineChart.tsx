@@ -133,9 +133,11 @@ export function DailyLineChart({
   const max = globalMax;
   const median = globalMedian;
   const hasPair = !!data2;
-  // Primary series always uses the accent (red); the chart no longer recolors
-  // on date selection.
+  // Single-line charts use the accent (red). On paired charts the whole "Hit"
+  // series (line + area) is blue so it stays distinguishable from the red
+  // "Destroyed" series.
   const primaryColor = t.accent;
+  const hitFill = t.primary;
   const resolvedPrimaryLabel = primaryLabel ?? (hasPair ? "Hit" : title);
   const resolvedSecondaryLabel = label2 ?? "Destroyed";
 
@@ -178,7 +180,7 @@ export function DailyLineChart({
         {title}
       </div>
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
-        {hasPair && <span style={{ color: primaryColor }}>● {resolvedPrimaryLabel}</span>}
+        {hasPair && <span style={{ color: hitFill }}>● {resolvedPrimaryLabel}</span>}
         <span style={{ color: t.accent }}>▲ MAX {max.toLocaleString()}</span>
         <span style={{ color: t.muted }}>~ MED {median.toLocaleString()}</span>
         {hasPair && (
@@ -208,7 +210,7 @@ export function DailyLineChart({
                   active={props.active}
                   payload={props.payload as TooltipPayloadEntry[] | undefined}
                   t={t}
-                  primaryColor={primaryColor}
+                  primaryColor={hitFill}
                   primaryLabel={resolvedPrimaryLabel}
                   secondaryLabel={resolvedSecondaryLabel}
                   pairMode={pairMode}
@@ -222,7 +224,7 @@ export function DailyLineChart({
             <Area type="monotone" dataKey="value2" name={resolvedSecondaryLabel} stackId="1"
               stroke={DESTROYED_COLOR} strokeWidth={1.5} fill={DESTROYED_COLOR} fillOpacity={0.55} isAnimationActive={false} />
             <Area type="monotone" dataKey="valueDiff" name={resolvedPrimaryLabel} stackId="1"
-              stroke={primaryColor} strokeWidth={1.5} fill={primaryColor} fillOpacity={0.35} isAnimationActive={false} />
+              stroke={hitFill} strokeWidth={1.5} fill={hitFill} fillOpacity={0.35} isAnimationActive={false} />
           </ComposedChart>
         ) : (
           <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
