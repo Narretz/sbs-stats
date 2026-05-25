@@ -145,8 +145,11 @@ if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
 export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, tooltipSort = "date", highlight = false, selectedDate }: Props) {
   const { theme: t } = useTheme();
   const chartData = pivotData(data);
+  // When a date is selected, highlight only the series for that exact date.
+  // No fallback to the most-recent day: selecting a date with no data (e.g. a
+  // day whose report hasn't landed) must not emphasise a different day.
   const primarySeries = (highlight && data.length > 0)
-    ? (data.find((s) => s.date === selectedDate) ?? data[data.length - 1])
+    ? data.find((s) => s.date === selectedDate)
     : data.find((s) => s.is_today);
   const pastSeries = data.filter((s) => s.date !== primarySeries?.date);
   const total = pastSeries.length;

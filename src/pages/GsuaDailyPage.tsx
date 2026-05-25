@@ -153,6 +153,18 @@ export function GsuaDailyPage({ refreshKey }: Props) {
     return r;
   }, [directionRows, selectedDate, selectedWeekdays, days]);
 
+  // Only highlight when the *selected* date actually has a report. Picking a
+  // date with no data (e.g. today before the report lands) must not emphasise
+  // the most-recent prior day — that day isn't the selected date.
+  const selectedDateHasData = useMemo(
+    () => !!selectedDate && filteredRows.some((r) => r.date === selectedDate),
+    [filteredRows, selectedDate]
+  );
+  const selectedDirectionDateHasData = useMemo(
+    () => !!selectedDate && filteredDirectionRows.some((r) => r.date === selectedDate),
+    [filteredDirectionRows, selectedDate]
+  );
+
   const makeDataset = (key: GsuaMetricKey) =>
     filteredRows.map((d) => ({
       date: d.date,
@@ -279,7 +291,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
               globalMax={globalStats[k]?.max ?? 0}
               globalMedian={globalStats[k]?.median ?? 0}
               wfull={k === "combat_engagements"}
-              highlight={!!selectedDate}
+              highlight={selectedDateHasData}
             />
           ))}
         </ChartGrid>
@@ -292,7 +304,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
             globalMax={directionAttacksStats.max}
             globalMedian={directionAttacksStats.median}
             wfull={false}
-            highlight={!!selectedDate}
+            highlight={selectedDirectionDateHasData}
           />
           <DailyLineChart
             title={`Ongoing engagements · ${selectedDirection}`}
@@ -300,7 +312,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
             globalMax={directionOngoingStats.max}
             globalMedian={directionOngoingStats.median}
             wfull={false}
-            highlight={!!selectedDate}
+            highlight={selectedDirectionDateHasData}
           />
         </ChartGrid>
       )}
