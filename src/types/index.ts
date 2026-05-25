@@ -96,7 +96,7 @@ export type Site = "sbs" | "gsua";
 export const SITES: Site[] = ["sbs", "gsua"];
 export const SITE_LABELS: Record<Site, string> = {
   sbs: "SBS STATISTICS",
-  gsua: "GENERAL STAFF UA",
+  gsua: "RU ATTACKS - GSUA",
 };
 export type LoadState = "idle" | "loading" | "ready" | "error";
 
