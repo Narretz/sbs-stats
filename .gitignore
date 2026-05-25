@@ -31,3 +31,7 @@ __pycache__/
 # Telegram session is a credential — never commit
 *.session
 scripts/gsua/.checkpoint
+# Playwright e2e
+e2e/fixtures/
+test-results/
+playwright-report/
