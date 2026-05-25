@@ -70,19 +70,40 @@ already stored. Frontend reads the latest snapshot per date.
 
 ## 3. Official Russian sources (Ukrainian losses + drones shot down over Russia) — GAP
 
-- **No digitized dataset exists.** Russian MoD (Минобороны) daily claims live only as press text
-  (RT / Pravda / their Telegram). Would require our own scraper of mil.ru or their Telegram —
-  same pattern as the GSUA scraper. Flagged as a genuine gap.
+The Russian MoD (Минобороны России) DOES post centrally — on mil.ru and its Telegram channel
+("Минобороны России") — in two streams (confirmed 2026-05):
+1. **Daily "Сводка" (SVO summary):** cumulative-since-2022 claims of destroyed Ukrainian materiel,
+   including a running **UAV count** ("беспилотных летательных аппаратов"). Mirror of the GSUA losses
+   report we ingest (RU LOSSES site).
+2. **Air-defense intercept reports:** posted several times/day during attacks — "за минувшую ночь
+   средствами ПВО перехвачено и уничтожено N украинских БПЛА," often with a **regional breakdown**
+   (Moscow Obl., Bryansk, Kursk, …). RIA Novosti relays these into weekly tallies.
+
+- **Still a GAP for ingestion — no digitized RU-MoD dataset found** (checked 2026-05). Every
+  machine-readable "drones" dataset out there is UKRAINIAN-side (piterfm "Massive Missile Attacks" =
+  what Russia *launched*, per UA Air Force — see §2), not a parse of the RU MoD's own claims.
+- To use it we'd build our own scraper of mil.ru / the MoD Telegram, **same pattern as the GSUA
+  scraper** — parse prose for (1) the daily cumulative UAV-destroyed number and (2) the air-defense
+  intercept counts + regions.
+- **Caveats:** claims are unverified (widely considered inflated); stream 2 counts drones
+  **downed/intercepted**, a floor for drones *launched at Russia*, not the launch count itself.
 
 ---
 
 ## 4. Ukrainian strikes INTO Russia (drones launched at Russian territory)
 
-### unmannedsystemstracker.com — LIVE
+### unmannedsystemstracker.com — reference only (NOT for ingestion)
 - https://unmannedsystemstracker.com/ — updated through April 2026.
-- Tracks both directions: Ukrainian long-range drone strikes into Russia (refineries, air defense)
-  + Russian strikes on Ukraine. In-browser CSV export (USV strike log, UAV kill board, air defense
-  log) + GitHub backing. No stable API — scrape the export endpoints. No stated license.
+- Tracks USV strikes (vs Black Sea Fleet), UGV ops, UAV strikes (claims 822k+ w/ casualty figures),
+  plus air-defence interceptions, Oryx equipment losses, territorial advances, and deep-strike logs
+  (UA→RU refineries/air defense + RU→UA). In-browser CSV export per table; no stable API.
+- Verdict (checked 2026-05): an AGGREGATOR, not a primary source. Inputs are sources we already
+  catalogue — piterfm/PetroIvaniuk air defense, Oryx (via leedrake5), Mediazona/BBC named-KIA, ISW/CSIS.
+  Updates ~quarterly (not daily), CSV is generated client-side (fragile to scrape), no stated license.
+  Poor fit for our daily CI→R2→SQLite snapshot pattern. Keep as a human cross-check only; if we ever add
+  a drone/naval-strike view, ingest the UPSTREAM repos (piterfm for air defense, leedrake5/Oryx for
+  losses) rather than scraping this site. The only genuinely distinct content here is the USV/UGV/
+  deep-strike logs, which have no machine-readable upstream + only quarterly freshness.
 
 ### Baker Institute — Ukraine strikes on Russian energy infrastructure — periodic
 - bakerinstitute.org — ~272 strike events, Apr 2022–Feb 2026. Likely Excel/CSV on request.
