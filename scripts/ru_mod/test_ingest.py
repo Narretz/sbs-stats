@@ -144,6 +144,103 @@ class TestRegions:
         assert r.region_count == 0
 
 
+# ── itemized per-region breakdown (the format that gives per-region counts) ───
+ITEMIZED_DEC7 = (
+    "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены 77 "
+    "украинских беспилотных летательных аппаратов самолетного типа: \n"
+    "▫️ 42 – над территорией Саратовской области, \n"
+    "▫️ 12 – над территорией Ростовской области, \n"
+    "▫️ 10 – над территорией Республики Крым, \n"
+    "▫️ 9 – над территорией Волгоградской области, \n"
+    "▫️ 2 – над территорией Белгородской области,\n"
+    "▫️ 1 – над территорией Астраханской области.\n"
+    "▫️ 1 – над территорией Чеченской Республики."
+)
+
+
+class TestBreakdown:
+    def test_itemized_per_region_counts(self):
+        r = _parse(ITEMIZED_DEC7, posted_utc="2025-12-07T06:00:00+00:00")
+        assert r.drones == 77
+        assert r.window_kind == "night"
+        assert r.region_count == 7
+        bd = dict(r.breakdown)
+        assert bd["Саратовской области"] == 42
+        assert bd["Республики Крым"] == 10
+        assert bd["Чеченской Республики"] == 1
+        assert sum(bd.values()) == 77            # per-region sums to the total
+
+    def test_total_only_has_no_breakdown(self):
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "
+            "173 украинских беспилотных летательных аппарата самолетного типа над "
+            "территориями Белгородской, Брянской областей и Республики Крым.",
+            posted_utc="2026-05-25T06:07:01+00:00",
+        )
+        assert r.breakdown == []
+        assert r.region_count == 3   # falls back to the loose clause count
+
+
+# ── Сводка summary capture (stored raw, numbers not parsed) ───────────────────
+WEEKLY_SVODKA = (
+    "Сводка Министерства обороны Российской Федерации о ходе проведения специальной "
+    "военной операции с 29 ноября по 5 декабря 2025 г. Всего с начала проведения "
+    "специальной военной операции уничтожено: 672 самолета, 283 вертолета, 84512 "
+    "беспилотных летательных аппаратов, 611 зенитных ракетных комплексов, 24788 танков."
+)
+
+
+def _summary(text: str, mid: int = 1, posted_utc: str = "2025-12-06T08:00:00+00:00"):
+    return ig.parse_summary(text, mid, datetime.fromisoformat(posted_utc))
+
+
+class TestSummary:
+    def test_weekly_header_parsed(self):
+        s = _summary(WEEKLY_SVODKA)
+        assert s is not None
+        assert s.kind == "svodka_weekly"
+        assert s.period == "29 ноября – 5 декабря 2025"
+        assert "84512" in s.raw_text          # full text retained, not parsed
+
+    def test_weekly_shared_month_form(self):
+        # "со 2 по 8 мая 2026" — first day has no month (shared with the end).
+        s = _summary(
+            "Сводка Министерства обороны Российской Федерации о ходе проведения специальной "
+            "военной операции со 2 по 8 мая 2026 г. Всего зафиксировано 1630 нарушений режима.",
+            posted_utc="2026-05-08T18:00:00+00:00",
+        )
+        assert s.kind == "svodka_weekly"
+        assert s.period == "2 мая – 8 мая 2026"
+
+    def test_daily_svodka_form(self):
+        s = _summary(
+            "Сводка Министерства обороны Российской Федерации о ходе проведения специальной "
+            "военной операции по состоянию на 12 мая 2026 г. …",
+            posted_utc="2026-05-12T08:00:00+00:00",
+        )
+        assert s.kind == "svodka_daily"
+        assert s.period == "12 мая 2026"
+
+    def test_weekly_svodka_is_not_an_ad_report(self):
+        # The loss Сводка must not be misread as a daily air-defense report.
+        assert _parse(WEEKLY_SVODKA, posted_utc="2025-12-06T08:00:00+00:00") is None
+
+    def test_ad_report_is_not_a_summary(self):
+        assert _summary(
+            "С 14.00 до 20.00 мск дежурными средствами ПВО перехвачены и уничтожены 11 "
+            "украинских беспилотных летательных аппаратов над территориями Курской области."
+        ) is None
+
+    def test_summary_persisted(self, tmp_path):
+        import sqlite3
+        db = tmp_path / "ad.db"
+        ig.store(db, [], [_summary(WEEKLY_SVODKA, mid=500)])
+        conn = sqlite3.connect(db)
+        row = conn.execute("SELECT kind, period FROM summaries WHERE post_id=500").fetchone()
+        conn.close()
+        assert row == ("svodka_weekly", "29 ноября – 5 декабря 2025")
+
+
 # ── storage: append-only by post_id + daily_ad aggregation ────────────────────
 class TestStorage:
     def _reports_for_one_drone_day(self):
@@ -182,6 +279,18 @@ class TestStorage:
         # Re-store the same posts → INSERT OR IGNORE, nothing added.
         inserted2, total2, _ = ig.store(db, reports)
         assert inserted2 == 0 and total2 == 4
+
+    def test_region_breakdown_persisted(self, tmp_path):
+        import sqlite3
+        db = tmp_path / "ad.db"
+        ig.store(db, [_parse(ITEMIZED_DEC7, mid=99, posted_utc="2025-12-07T06:00:00+00:00")])
+        conn = sqlite3.connect(db)
+        n_regions = conn.execute("SELECT COUNT(*) FROM ad_regions WHERE post_id=99").fetchone()[0]
+        saratov = conn.execute(
+            "SELECT drones FROM region_totals WHERE region='Саратовской области'").fetchone()[0]
+        conn.close()
+        assert n_regions == 7
+        assert saratov == 42
 
     def test_overlap_detection(self, tmp_path):
         # Two windows that overlap (08:00–23:00 vs next night 20:00→07:00).

@@ -39,7 +39,7 @@ import sqlite3
 import sys
 import time
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dc_field
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -67,8 +67,23 @@ NIGHT_DATED_RE = re.compile(
 DAY_RANGE_RE = re.compile(r"с\s+(\d{1,2})[.:]\d{2}\s*(?:мск\s*)?до\s+(\d{1,2})[.:]\d{2}\s*мск", re.I)
 NIGHT_PHRASE_RE = re.compile(r"прошедш\w+\s+ноч|в\s+течение\s+ноч|минувш\w+\s+ноч", re.I)
 REGION_RE = re.compile(r"над\s+территор\w+\s+(.*)", re.I)
+# Itemized per-region breakdown line, e.g. "42 – над территорией Саратовской
+# области," (dash may be -, –, —). The MoD uses this format on some days; on
+# others it gives only a total + a region list (no per-region counts).
+REGION_ITEM_RE = re.compile(
+    r"(\d+)\s*[-–—]\s*над\s+территори\w+\s+([^,.;▫\d]+)", re.I)
 
 MAX_PLAUSIBLE = 5000  # guard against a runaway parse
+
+# MoD "Сводка о ходе проведения СВО" summary posts. In 2025 a weekly variant
+# ("с DD month по DD month YYYY") carried cumulative Ukrainian *equipment* losses
+# (no personnel); a daily variant uses "по состоянию на DD month YYYY". These
+# appear to have stopped on the channel in 2026. We capture them RAW (header +
+# full text) for later parsing — see DATASETS.md §3.
+SVODKA_GATE = re.compile(r"обороны\s+Российской\s+Федерации\s+о\s+ходе\s+проведения\s+специальной\s+военной\s+операции", re.I)
+# Weekly range: "с 29 ноября по 5 декабря 2025" or shared-month "со 2 по 8 мая 2026".
+SVODKA_WEEKLY_RE = re.compile(r"с[о]?\s+(\d{1,2})(?:\s+(\w+))?\s+по\s+(\d{1,2})\s+(\w+)\s+(\d{4})", re.I)
+SVODKA_DAILY_RE = re.compile(r"по\s+состоянию\s+на\s+(\d{1,2}\s+\w+\s+\d{4})", re.I)
 
 
 @dataclass
@@ -82,6 +97,18 @@ class Report:
     drones: int
     region_count: int
     regions: str
+    raw_text: str
+    # Per-region (name, count) pairs when the post itemizes them; else empty.
+    breakdown: list[tuple[str, int]] = dc_field(default_factory=list)
+
+
+@dataclass
+class Summary:
+    """A MoD Сводка summary post, captured raw (numbers not parsed yet)."""
+    post_id: int
+    posted_at: str            # UTC ISO
+    kind: str                 # 'svodka_weekly' | 'svodka_daily' | 'svodka'
+    period: str | None        # parsed header period, e.g. "29 ноября – 5 декабря 2025"
     raw_text: str
 
 
@@ -132,6 +159,16 @@ def _parse_regions(text: str):
     return len(parts), clause[:300]
 
 
+def parse_breakdown(text: str) -> list[tuple[str, int]]:
+    """Extract per-region (name, count) pairs when the post itemizes them.
+
+    Returns [] for the total-only format. Requires ≥2 items (a single match in
+    the total-only wording would be spurious)."""
+    items = [(re.sub(r"\s+", " ", name).strip(" .,"), int(n))
+             for n, name in REGION_ITEM_RE.findall(text)]
+    return items if len(items) >= 2 else []
+
+
 def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | None:
     """Parse one AD intercept post; return None if it isn't one."""
     flat = re.sub(r"\s+", " ", html.unescape(text)).strip()
@@ -147,7 +184,15 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
     start, end, kind = _parse_window(flat, posted_msk)
     # attribute to the MSK date of the window end; fall back to posted MSK date
     report_date = (end or posted_msk).date().isoformat()
-    rc, regions = _parse_regions(flat)
+
+    # Prefer the itemized per-region counts when present; else the loose clause.
+    breakdown = parse_breakdown(flat)
+    if breakdown:
+        region_count = len(breakdown)
+        regions = ", ".join(name for name, _ in breakdown)[:300]
+    else:
+        region_count, regions = _parse_regions(flat)
+
     return Report(
         post_id=post_id,
         posted_at=posted_at_utc.astimezone(timezone.utc).isoformat(timespec="seconds"),
@@ -156,9 +201,34 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
         window_kind=kind,
         report_date=report_date,
         drones=drones,
-        region_count=rc,
+        region_count=region_count,
         regions=regions,
         raw_text=flat[:1000],
+        breakdown=breakdown,
+    )
+
+
+def parse_summary(text: str, post_id: int, posted_at_utc: datetime) -> Summary | None:
+    """Detect a MoD Сводка summary post and capture it raw (header + full text).
+
+    Numbers are intentionally NOT parsed yet (see DATASETS.md §3). Returns None
+    for non-summary posts (incl. the air-defense intercept reports)."""
+    flat = re.sub(r"\s+", " ", html.unescape(text)).strip()
+    if not SVODKA_GATE.search(flat):
+        return None
+    w = SVODKA_WEEKLY_RE.search(flat)
+    if w:
+        d1, mon1, d2, mon2, yr = w.groups()
+        kind, period = "svodka_weekly", f"{d1} {mon1 or mon2} – {d2} {mon2} {yr}"
+    else:
+        d = SVODKA_DAILY_RE.search(flat)
+        kind, period = ("svodka_daily", d.group(1)) if d else ("svodka", None)
+    return Summary(
+        post_id=post_id,
+        posted_at=posted_at_utc.astimezone(timezone.utc).isoformat(timespec="seconds"),
+        kind=kind,
+        period=period,
+        raw_text=flat[:20000],
     )
 
 
@@ -279,20 +349,50 @@ CREATE TABLE IF NOT EXISTS ad_reports (
   scraped_at   TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_ad_date ON ad_reports(report_date);
+-- Per-region counts, populated only for posts that itemize them (the MoD does
+-- this on some days; on others it gives just a total + region list).
+CREATE TABLE IF NOT EXISTS ad_regions (
+  post_id     INTEGER NOT NULL,
+  report_date TEXT NOT NULL,
+  region      TEXT NOT NULL,
+  drones      INTEGER NOT NULL,
+  PRIMARY KEY (post_id, region)
+);
+CREATE INDEX IF NOT EXISTS ix_adr_region ON ad_regions(region);
 CREATE VIEW IF NOT EXISTS daily_ad AS
   SELECT report_date AS date,
          SUM(drones)  AS drones_destroyed,
          COUNT(*)     AS reports
   FROM ad_reports GROUP BY report_date;
+CREATE VIEW IF NOT EXISTS region_totals AS
+  SELECT region,
+         SUM(drones)         AS drones,
+         COUNT(DISTINCT post_id) AS reports
+  FROM ad_regions GROUP BY region;
+-- MoD Сводка summary posts captured raw (cumulative UA losses, not yet parsed).
+CREATE TABLE IF NOT EXISTS summaries (
+  post_id    INTEGER PRIMARY KEY,
+  posted_at  TEXT NOT NULL,
+  kind       TEXT,
+  period     TEXT,
+  raw_text   TEXT NOT NULL,
+  scraped_at TEXT NOT NULL
+);
 """
 
 
-def store(db_path: Path, reports: list[Report]) -> tuple[int, int, str | None]:
+def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -> tuple[int, int, str | None]:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
         conn.executescript(SCHEMA)
         scraped = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        for s in summaries:
+            conn.execute(
+                "INSERT OR IGNORE INTO summaries (post_id,posted_at,kind,period,raw_text,scraped_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (s.post_id, s.posted_at, s.kind, s.period, s.raw_text, scraped),
+            )
         inserted = 0
         for r in reports:
             cur = conn.execute(
@@ -304,6 +404,12 @@ def store(db_path: Path, reports: list[Report]) -> tuple[int, int, str | None]:
                  r.report_date, r.drones, r.region_count, r.regions, r.raw_text, scraped),
             )
             inserted += cur.rowcount
+            for region, n in r.breakdown:
+                conn.execute(
+                    "INSERT OR IGNORE INTO ad_regions (post_id,report_date,region,drones) "
+                    "VALUES (?,?,?,?)",
+                    (r.post_id, r.report_date, region, n),
+                )
         conn.commit()
         total = conn.execute("SELECT COUNT(*) FROM ad_reports").fetchone()[0]
         latest = conn.execute("SELECT MAX(report_date) FROM ad_reports").fetchone()[0]
@@ -393,6 +499,7 @@ def main() -> int:
     since = max_stored_id(out)
 
     reports: list[Report] = []
+    summaries: list[Summary] = []
     if args.source == "web":
         print(f"==> web preview t.me/s/{args.channel} (since_id={since}, backfill={args.backfill})")
         src = iter_web(args.channel, since, args.max_pages, args.sleep, args.backfill)
@@ -406,10 +513,15 @@ def main() -> int:
         r = parse_report(text, pid, posted)
         if r:
             reports.append(r)
+            continue
+        s = parse_summary(text, pid, posted)
+        if s:
+            summaries.append(s)
 
-    inserted, total, latest = store(out, reports)
-    print(f"==> scanned {scanned} posts, parsed {len(reports)} AD reports, "
-          f"inserted {inserted} new; DB total {total} (latest {latest}) → {out}")
+    inserted, total, latest = store(out, reports, summaries)
+    print(f"==> scanned {scanned} posts, parsed {len(reports)} AD reports "
+          f"+ {len(summaries)} Сводка summaries, inserted {inserted} new AD; "
+          f"DB total {total} (latest {latest}) → {out}")
     return 0
 
 
