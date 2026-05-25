@@ -34,7 +34,6 @@ interface Props {
   globalMax: number;
   globalMedian: number;
   wfull: boolean;
-  highlight?: boolean;
   data2?: DailyDataPoint[];
   primaryLabel?: string;
   label2?: string;
@@ -127,14 +126,16 @@ function PairedTooltip({
 }
 
 export function DailyLineChart({
-  title, data, globalMax, globalMedian, wfull, highlight = false,
+  title, data, globalMax, globalMedian, wfull,
   data2, primaryLabel, label2, globalMax2, globalMedian2, pairMode = "subset",
 }: Props) {
   const { theme: t } = useTheme();
   const max = globalMax;
   const median = globalMedian;
   const hasPair = !!data2;
-  const primaryColor = highlight ? t.accent : t.primary;
+  // Primary series always uses the accent (red); the chart no longer recolors
+  // on date selection.
+  const primaryColor = t.accent;
   const resolvedPrimaryLabel = primaryLabel ?? (hasPair ? "Hit" : title);
   const resolvedSecondaryLabel = label2 ?? "Destroyed";
 

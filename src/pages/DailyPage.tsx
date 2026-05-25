@@ -141,7 +141,7 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
             Latest reported value per day · MAX/MED based on all data · {new Date().toDateString()}
             <br/>
-            <span style={{ color: t.textImportant, background: t.bgImportant, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4}}>Since 2026-03-19, the daily values are the results of the "Previous day" endpoint if the current day has passed. Older daily values reflect the results of the latest request to the "Current day" endpoint. Results often adjusted hours or even a day later.</span>
+            <span style={{ color: t.textImportant, border: `2px solid ${t.borderImportant}`, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4}}>Since 2026-03-19, the daily values are the results of the "Previous day" endpoint if the current day has passed. Older daily values reflect the results of the latest request to the "Current day" endpoint. Results often adjusted hours or even a day later.</span>
           </p>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -163,9 +163,9 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
               max={maxSelectableDate}
               onChange={e => updateDate(e.target.value)}
               style={{
-                background: selectedDate ? t.accent : t.bgAlt,
+                background: selectedDate ? t.primary : t.bgAlt,
                 color: selectedDate ? "#fff" : t.textMuted,
-                border: `1px solid ${selectedDate ? t.accent : t.border}`,
+                border: `1px solid ${selectedDate ? t.primary : t.border}`,
                 borderRadius: 4, padding: "5px 8px",
                 fontFamily: FONTS.mono, fontSize: 11,
                 cursor: "pointer", transition: "all 0.15s",
@@ -206,7 +206,6 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
               globalMax={chartStats[m.key]?.max ?? 0}
               globalMedian={chartStats[m.key]?.median ?? 0}
               wfull={m.wfull ?? false}
-              highlight={!!selectedDate}
               data2={m.pairedKey ? makeDataset(m.pairedKey) : undefined}
               primaryLabel={m.primaryLabel}
               label2={m.pairedLabel}

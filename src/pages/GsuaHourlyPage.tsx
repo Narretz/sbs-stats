@@ -266,9 +266,9 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
             value={selectedDirection}
             onChange={(e) => updateDirection(e.target.value)}
             style={{
-              background: selectedDirection ? t.accent : t.bgAlt,
+              background: selectedDirection ? t.primary : t.bgAlt,
               color: selectedDirection ? "#fff" : t.textMuted,
-              border: `1px solid ${selectedDirection ? t.accent : t.border}`,
+              border: `1px solid ${selectedDirection ? t.primary : t.border}`,
               borderRadius: 4, padding: "5px 8px",
               fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
             }}
@@ -292,9 +292,9 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
               max={maxSelectableDate}
               onChange={(e) => updateDate(e.target.value)}
               style={{
-                background: selectedDate ? t.accent : t.bgAlt,
+                background: selectedDate ? t.primary : t.bgAlt,
                 color: selectedDate ? "#fff" : t.textMuted,
-                border: `1px solid ${selectedDate ? t.accent : t.border}`,
+                border: `1px solid ${selectedDate ? t.primary : t.border}`,
                 borderRadius: 4, padding: "5px 8px",
                 fontFamily: FONTS.mono, fontSize: 11,
                 cursor: "pointer", transition: "all 0.15s",

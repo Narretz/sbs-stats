@@ -43,9 +43,9 @@ export function WeekdayMultiSelect({ selected, onChange, todayDow }: WeekdayMult
       <button
         onClick={() => setOpen(o => !o)}
         style={{
-          background: active ? t.accent : t.bgAlt,
+          background: active ? t.primary : t.bgAlt,
           color: active ? "#fff" : t.textMuted,
-          border: `1px solid ${active ? t.accent : t.border}`,
+          border: `1px solid ${active ? t.primary : t.border}`,
           borderRadius: 4, padding: "5px 12px",
           fontFamily: FONTS.mono, fontSize: 11,
           fontWeight: active ? 700 : 400,

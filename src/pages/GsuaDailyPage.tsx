@@ -153,18 +153,6 @@ export function GsuaDailyPage({ refreshKey }: Props) {
     return r;
   }, [directionRows, selectedDate, selectedWeekdays, days]);
 
-  // Only highlight when the *selected* date actually has a report. Picking a
-  // date with no data (e.g. today before the report lands) must not emphasise
-  // the most-recent prior day — that day isn't the selected date.
-  const selectedDateHasData = useMemo(
-    () => !!selectedDate && filteredRows.some((r) => r.date === selectedDate),
-    [filteredRows, selectedDate]
-  );
-  const selectedDirectionDateHasData = useMemo(
-    () => !!selectedDate && filteredDirectionRows.some((r) => r.date === selectedDate),
-    [filteredDirectionRows, selectedDate]
-  );
-
   const makeDataset = (key: GsuaMetricKey) =>
     filteredRows.map((d) => ({
       date: d.date,
@@ -221,9 +209,9 @@ export function GsuaDailyPage({ refreshKey }: Props) {
             value={selectedDirection}
             onChange={(e) => updateDirection(e.target.value)}
             style={{
-              background: selectedDirection ? t.accent : t.bgAlt,
+              background: selectedDirection ? t.primary : t.bgAlt,
               color: selectedDirection ? "#fff" : t.textMuted,
-              border: `1px solid ${selectedDirection ? t.accent : t.border}`,
+              border: `1px solid ${selectedDirection ? t.primary : t.border}`,
               borderRadius: 4, padding: "5px 8px",
               fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
             }}
@@ -246,9 +234,9 @@ export function GsuaDailyPage({ refreshKey }: Props) {
               max={maxSelectableDate}
               onChange={(e) => updateDate(e.target.value)}
               style={{
-                background: selectedDate ? t.accent : t.bgAlt,
+                background: selectedDate ? t.primary : t.bgAlt,
                 color: selectedDate ? "#fff" : t.textMuted,
-                border: `1px solid ${selectedDate ? t.accent : t.border}`,
+                border: `1px solid ${selectedDate ? t.primary : t.border}`,
                 borderRadius: 4, padding: "5px 8px",
                 fontFamily: FONTS.mono, fontSize: 11,
                 cursor: "pointer", transition: "all 0.15s",
@@ -291,7 +279,6 @@ export function GsuaDailyPage({ refreshKey }: Props) {
               globalMax={globalStats[k]?.max ?? 0}
               globalMedian={globalStats[k]?.median ?? 0}
               wfull={k === "combat_engagements"}
-              highlight={selectedDateHasData}
             />
           ))}
         </ChartGrid>
@@ -304,7 +291,6 @@ export function GsuaDailyPage({ refreshKey }: Props) {
             globalMax={directionAttacksStats.max}
             globalMedian={directionAttacksStats.median}
             wfull={false}
-            highlight={selectedDirectionDateHasData}
           />
           <DailyLineChart
             title={`Ongoing engagements · ${selectedDirection}`}
@@ -312,7 +298,6 @@ export function GsuaDailyPage({ refreshKey }: Props) {
             globalMax={directionOngoingStats.max}
             globalMedian={directionOngoingStats.median}
             wfull={false}
-            highlight={selectedDirectionDateHasData}
           />
         </ChartGrid>
       )}
