@@ -3,18 +3,28 @@
 # run_local.sh — run the GSUA update pipeline locally, in one go.
 #
 # Mirrors .github/workflows/update-gsua-db.yml, but meant to run from a
-# residential IP (Facebook login-walls datacenter IPs like GitHub Actions
-# runners — see scripts/gsua/doc.md). Steps:
+# residential IP. Steps:
 #   1. download the current DB from R2
-#   2. compute the scrape cutoff (latest stored report date − lookback)
-#   3. scrape via the Nitter → Facebook path
+#   2. compute the scrape cutoff (Nitter path only; Telegram auto-resumes)
+#   3. scrape — Nitter→Facebook by default, or Telegram (Telethon) with
+#      --telegram
 #   4. upload the DB back to R2
+#
+# Source paths (see scripts/gsua/doc.md):
+#   - Nitter→Facebook (default): no auth, but Facebook login-walls datacenter
+#     IPs, so this only works from a residential IP.
+#   - Telegram (--telegram): richest source, no datacenter blocking, but needs
+#     TELEGRAM_API_ID + TELEGRAM_API_HASH and an interactive phone login on the
+#     first run (writes gs_scraper_session.session). Auto-resumes from the
+#     highest stored message id, so it ignores the date cutoff unless you pass
+#     --since explicitly.
 #
 # Prereqs:
 #   - Python deps installed:  pip install -r ../requirements.txt
-#   - Playwright browser:     python -m playwright install chromium
+#   - Playwright browser (Nitter path):  python -m playwright install chromium
 #   - wrangler auth: either `wrangler login`, or export CLOUDFLARE_API_TOKEN
 #     and CLOUDFLARE_ACCOUNT_ID in your shell.
+#   - Telegram path: export TELEGRAM_API_ID and TELEGRAM_API_HASH (or .env).
 #
 # Config (override by exporting before running):
 #   R2_BUCKET           default: russia-ukraine-war
@@ -22,7 +32,8 @@
 #   GSUA_LOOKBACK_DAYS  default: 2
 #
 # Usage (each step — download / scrape / upload — is independently skippable):
-#   ./run_local.sh                              # download → scrape → upload
+#   ./run_local.sh                              # download → Nitter scrape → upload
+#   ./run_local.sh --telegram                   # download → Telegram scrape → upload
 #   ./run_local.sh --no-upload                  # download → scrape, no upload
 #   ./run_local.sh --no-download                # scrape existing local DB → upload
 #   ./run_local.sh --no-scrape                  # download → upload (refresh local, no fetch)
@@ -48,14 +59,16 @@ WRANGLER="npx --yes wrangler@4"
 NO_UPLOAD=0
 NO_DOWNLOAD=0
 NO_SCRAPE=0
+TELEGRAM=0
 FORCE_SINCE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --no-upload) NO_UPLOAD=1; shift ;;
     --no-download) NO_DOWNLOAD=1; shift ;;
     --no-scrape) NO_SCRAPE=1; shift ;;
+    --telegram) TELEGRAM=1; shift ;;
     --since) FORCE_SINCE="$2"; shift 2 ;;
-    -h|--help) sed -n '2,30p' "$SELF"; exit 0 ;;
+    -h|--help) sed -n '2,40p' "$SELF"; exit 0 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -75,6 +88,16 @@ fi
 
 if [ "$NO_SCRAPE" -eq 1 ]; then
   echo "==> [2-3/4] Skipping cutoff + scrape (--no-scrape)"
+elif [ "$TELEGRAM" -eq 1 ]; then
+  # Telegram scraper auto-resumes from the highest stored message id, so no
+  # date cutoff is needed; pass --since only if the user forced one.
+  if [ -n "$FORCE_SINCE" ]; then
+    echo "==> [2-3/4] Scraping via Telegram (Telethon) since $FORCE_SINCE"
+    python3 scrape_general_staff.py --since "$FORCE_SINCE"
+  else
+    echo "==> [2-3/4] Scraping via Telegram (Telethon), resuming from latest stored message"
+    python3 scrape_general_staff.py
+  fi
 else
   if [ -n "$FORCE_SINCE" ]; then
     SINCE="$FORCE_SINCE"

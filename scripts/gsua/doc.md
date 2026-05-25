@@ -57,11 +57,14 @@ recorded per row (`telegram` / `facebook`).
   pass `is_operational_report` are deleted.
 
 - **`run_local.sh`** — runs the whole update pipeline locally in one go
-  (download DB from R2 → compute cutoff → Nitter→FB scrape → upload to R2).
-  Use this from a **residential IP**: Facebook login-walls datacenter IPs, so
-  the GitHub Actions workflow's FB fetch fails (see Problems). `--no-upload`
-  and `--since YYYY-MM-DD` flags available; config via `R2_BUCKET` /
-  `GSUA_DB_NAME` / `GSUA_LOOKBACK_DAYS` env vars.
+  (download DB from R2 → scrape → upload to R2). Default scrape is Nitter→FB
+  (use from a **residential IP** — Facebook login-walls datacenter IPs, so the
+  GHA workflow's FB fetch fails; see Problems). Pass `--telegram` to scrape via
+  Telethon instead (richest source, needs `TELEGRAM_API_ID`/`TELEGRAM_API_HASH`
+  + a one-time interactive login). Each step is independently skippable:
+  `--no-download` / `--no-scrape` / `--no-upload` (e.g. `--no-download
+  --no-scrape` = upload the local DB as-is). Config via `R2_BUCKET` /
+  `GSUA_DB_NAME` / `GSUA_LOOKBACK_DAYS`; `--since YYYY-MM-DD` forces a cutoff.
 
 - **`test_scrape_general_staff.py`** — unit tests for the parser/detector.
 
