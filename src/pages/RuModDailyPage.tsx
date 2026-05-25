@@ -1,0 +1,191 @@
+import { useState, useMemo, useEffect } from "react";
+import { Temporal } from "temporal-polyfill";
+import { useRuModDatabaseContext } from "@/context/useRuModDatabaseContext";
+import { useTheme } from "@/hooks/useTheme";
+import { DailyLineChart } from "@/components/DailyLineChart";
+import { DailyMultiLineChart } from "@/components/DailyMultiLineChart";
+import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
+import type { RuAdDailyRow, RuAdGlobalStats } from "@/types";
+import { FONTS } from "@/theme";
+
+const DAY_OPTIONS = [7, 14, 30, 60, 90, 120, 150, 180] as const;
+type DayOption = (typeof DAY_OPTIONS)[number];
+
+function parseWeekdays(raw: string | null): number[] {
+  if (!raw) return [];
+  const parsed = raw.split(",").map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+  return [...new Set(parsed)].sort((a, b) => a - b);
+}
+function parseDate(raw: string | null): string {
+  return raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+}
+function shiftDate(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+function getUrlParams() {
+  const p = new URLSearchParams(window.location.search);
+  const d = Number(p.get("days"));
+  return {
+    days: (DAY_OPTIONS as readonly number[]).includes(d) ? (d as DayOption) : 30,
+    weekdays: parseWeekdays(p.get("weekdays")),
+    date: parseDate(p.get("date")),
+  };
+}
+function setUrlParams(params: Record<string, string>) {
+  const p = new URLSearchParams(window.location.search);
+  for (const [k, v] of Object.entries(params)) {
+    if (v === "") p.delete(k);
+    else p.set(k, v);
+  }
+  window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
+}
+
+interface Props {
+  refreshKey?: number;
+}
+
+export function RuModDailyPage({ refreshKey }: Props) {
+  const { theme: t } = useTheme();
+  const { loadState, error, queryDaily, queryGlobalStats } = useRuModDatabaseContext();
+
+  const initial = useMemo(() => getUrlParams(), []);
+  const [days, setDays] = useState<DayOption>(initial.days);
+  const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>(initial.weekdays);
+  const [selectedDate, setSelectedDate] = useState<string>(initial.date);
+
+  const [rows, setRows] = useState<RuAdDailyRow[]>([]);
+  const [globalStats, setGlobalStats] = useState<RuAdGlobalStats>(
+    { total: { max: 0, median: 0 }, night: { max: 0, median: 0 }, day: { max: 0, median: 0 } });
+  const [hasData, setHasData] = useState(false);
+
+  const updateDays = (d: DayOption) => { setDays(d); setUrlParams({ days: String(d) }); };
+  const updateDate = (d: string) => { setSelectedDate(d); setUrlParams({ date: d }); };
+  const updateWeekdays = (next: number[]) => {
+    setSelectedWeekdays(next);
+    setUrlParams({ weekdays: next.join(",") });
+  };
+
+  useEffect(() => {
+    if (loadState === "ready") setGlobalStats(queryGlobalStats());
+  }, [loadState, queryGlobalStats, refreshKey]);
+
+  useEffect(() => {
+    if (loadState === "ready") {
+      setRows(queryDaily(days, selectedDate || undefined));
+      setHasData(true);
+    }
+  }, [loadState, days, selectedDate, queryDaily, refreshKey]);
+
+  const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" }) + "T12:00:00").getDay();
+  const maxSelectableDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
+
+  const shiftSelectedDate = (delta: number) => {
+    const base = selectedDate || Temporal.Now.plainDateISO("Europe/Moscow").toString();
+    const next = Temporal.PlainDate.from(base).add({ days: delta }).toString();
+    if (next > maxSelectableDate) return;
+    updateDate(next);
+  };
+  const canGoNext = selectedDate !== "" && selectedDate < maxSelectableDate;
+
+  const filteredRows = useMemo(() => {
+    if (selectedDate) {
+      const startDate = shiftDate(selectedDate, -days);
+      return rows.filter((row) => row.date >= startDate && row.date <= selectedDate);
+    }
+    if (selectedWeekdays.length === 0) return rows;
+    return rows.filter((row) => selectedWeekdays.includes(new Date(row.date + "T12:00:00").getDay()));
+  }, [rows, selectedWeekdays, selectedDate, days]);
+
+  const makeDataset = (key: "total" | "night" | "day") =>
+    filteredRows.map((d) => ({ date: d.date, value: d[key], is_today: d.is_today }));
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
+            Ukrainian UAVs Downed (RU claims)
+          </h1>
+          <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
+            Russian MoD air-defense intercept claims · source: @mod_russia (Telegram) · per drone-day (MSK) · {new Date().toDateString()}
+            <br />
+            <span style={{ color: t.textImportant, border: `2px solid ${t.borderImportant}`, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4 }}>
+              Unverified Russian claims. Counts are UAVs reported intercepted/downed over Russia — a floor for the number launched, not a launch count. A day aggregates the overnight report (20:00 prev → 07:00) plus that day's daytime windows.
+            </span>
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
+          <div style={{ display: "flex", gap: "3px" }}>
+            <button onClick={() => shiftSelectedDate(-1)} style={{
+              background: t.bgAlt, color: t.textMuted,
+              border: `1px solid ${t.border}`,
+              fontFamily: FONTS.mono, fontSize: 11,
+              borderRadius: 4, padding: "5px 8px", height: "25px", cursor: "pointer",
+            }}>&lt;</button>
+            <input
+              type="date"
+              value={selectedDate}
+              max={maxSelectableDate}
+              onChange={(e) => updateDate(e.target.value)}
+              style={{
+                background: selectedDate ? t.primary : t.bgAlt,
+                color: selectedDate ? "#fff" : t.textMuted,
+                border: `1px solid ${selectedDate ? t.primary : t.border}`,
+                borderRadius: 4, padding: "5px 8px",
+                fontFamily: FONTS.mono, fontSize: 11,
+                cursor: "pointer", transition: "all 0.15s",
+                colorScheme: "dark",
+              }}
+            />
+            <button onClick={() => shiftSelectedDate(1)} disabled={!canGoNext} style={{
+              background: t.bgAlt, color: canGoNext ? t.textMuted : t.border,
+              border: `1px solid ${t.border}`,
+              fontFamily: FONTS.mono, fontSize: 11,
+              borderRadius: 4, padding: "5px 8px", height: "25px",
+              cursor: canGoNext ? "pointer" : "not-allowed",
+            }}>&gt;</button>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {DAY_OPTIONS.map((d) => (
+              <button key={d} onClick={() => updateDays(d)} style={{
+                background: days === d ? t.primary : t.bgAlt,
+                color: days === d ? "#fff" : t.textMuted,
+                border: `1px solid ${days === d ? t.primary : t.border}`,
+                borderRadius: 4, padding: "5px 12px",
+                fontFamily: FONTS.mono, fontSize: 11,
+                fontWeight: days === d ? 700 : 400,
+                cursor: "pointer", transition: "all 0.15s",
+              }}>{d}d</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {loadState === "loading" && !hasData && <LoadingScreen message="Loading RU air-defense database…" />}
+      {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
+      {(loadState === "ready" || hasData) && (
+        <ChartGrid>
+          <DailyLineChart
+            title="UAVs Downed — Daily Total"
+            data={makeDataset("total")}
+            globalMax={globalStats.total.max}
+            globalMedian={globalStats.total.median}
+            wfull
+          />
+          <DailyMultiLineChart
+            title="By Reporting Window — Overnight vs Daytime"
+            series={[
+              { key: "night", label: "Overnight", color: t.accent, data: makeDataset("night") },
+              { key: "day", label: "Daytime", color: t.primary, data: makeDataset("day") },
+            ]}
+            wfull
+          />
+        </ChartGrid>
+      )}
+    </div>
+  );
+}

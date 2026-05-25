@@ -100,12 +100,13 @@ export interface Metric {
 
 // ─── App state ────────────────────────────────────────────────────────────────
 export type Page = "daily" | "hourly" | "monthly";
-export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua";
-export const SITES: Site[] = ["sbs", "ru-attacks-gsua", "ru-losses-gsua"];
+export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod";
+export const SITES: Site[] = ["sbs", "ru-attacks-gsua", "ru-losses-gsua", "ru-airdef-mod"];
 export const SITE_LABELS: Record<Site, string> = {
   sbs: "SBS STATISTICS",
   "ru-attacks-gsua": "RU ATTACKS - GSUA",
   "ru-losses-gsua": "RU LOSSES - GSUA",
+  "ru-airdef-mod": "RU AIR DEFENSE - MoD",
 };
 export type LoadState = "idle" | "loading" | "ready" | "error";
 
@@ -216,3 +217,22 @@ export type RuLossesMonthlyRow = {
   projection_day: number | null;
   projection_days_in_month: number | null;
 } & Record<RuLossesMetricKey, number> & Partial<Record<`${RuLossesMetricKey}_projected`, number>>;
+
+// ─── RU Air Defense (MoD Telegram → ru-mod-ad.db) ─────────────────────────────
+// Russian MoD claims of Ukrainian UAVs intercepted/downed over Russia, parsed
+// from @mod_russia (scripts/ru_mod/ingest.py). Each `ad_reports` row is one ПВО
+// post; we aggregate per "drone-day" (MSK date of the report window's end), and
+// split by reporting window: overnight vs daytime. Unverified claims; "downed"
+// is a floor for "launched". Stats mirror the {max, median} shape used elsewhere.
+export type RuAdStat = { max: number; median: number };
+
+export type RuAdDailyRow = {
+  date: string;        // YYYY-MM-DD (MSK drone-day)
+  is_today: boolean;
+  total: number | null;
+  night: number | null;
+  day: number | null;
+  reports: number;
+};
+
+export type RuAdGlobalStats = { total: RuAdStat; night: RuAdStat; day: RuAdStat };

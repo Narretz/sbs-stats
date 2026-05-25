@@ -5,6 +5,8 @@ import { GsuaDatabaseProvider } from "@/context/GsuaDatabaseContext";
 import { useGsuaDatabaseContext } from "@/context/useGsuaDatabaseContext";
 import { RuLossesDatabaseProvider } from "@/context/RuLossesDatabaseContext";
 import { useRuLossesDatabaseContext } from "@/context/useRuLossesDatabaseContext";
+import { RuModDatabaseProvider } from "@/context/RuModDatabaseContext";
+import { useRuModDatabaseContext } from "@/context/useRuModDatabaseContext";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -17,6 +19,7 @@ import { GsuaHourlyPage } from "@/pages/GsuaHourlyPage";
 import { GsuaMonthlyPage } from "@/pages/GsuaMonthlyPage";
 import { RuLossesDailyPage } from "@/pages/RuLossesDailyPage";
 import { RuLossesMonthlyPage } from "@/pages/RuLossesMonthlyPage";
+import { RuModDailyPage } from "@/pages/RuModDailyPage";
 import type { Page, Site } from "@/types";
 import { GLOBAL_CSS } from "@/theme";
 
@@ -102,6 +105,29 @@ function RuLossesRoot({
   );
 }
 
+function RuModRoot({
+  page, pages, site, setSite, setPage,
+}: {
+  page: Page; pages: Page[]; site: Site;
+  setSite: (s: Site) => void; setPage: (p: Page) => void;
+}) {
+  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useRuModDatabaseContext();
+  return (
+    <>
+      <SiteHeader
+        site={site} page={page} pages={pages}
+        onSiteChange={setSite} onPageChange={setPage}
+        lastRefreshed={lastRefreshed} refreshCount={refreshCount}
+        onRefresh={refresh} isLoading={loadState === "loading"}
+        refreshIntervalMs={refreshIntervalMs}
+      />
+      <PageShell>
+        {page === "daily" && <RuModDailyPage refreshKey={refreshCount} />}
+      </PageShell>
+    </>
+  );
+}
+
 function AppInner() {
   const { theme: t } = useTheme();
   const { site, setSite, page, setPage, pagesFor } = useAppRoute();
@@ -133,6 +159,13 @@ function AppInner() {
             <RuLossesDatabaseProvider>
               <RuLossesRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
             </RuLossesDatabaseProvider>
+          </ErrorBoundary>
+        )}
+        {site === "ru-airdef-mod" && (
+          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
+            <RuModDatabaseProvider>
+              <RuModRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
+            </RuModDatabaseProvider>
           </ErrorBoundary>
         )}
       </div>

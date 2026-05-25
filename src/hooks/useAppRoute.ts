@@ -5,10 +5,13 @@ const SBS_PAGES: Page[] = ["hourly", "daily", "monthly"];
 const GSUA_PAGES: Page[] = ["hourly", "daily", "monthly"];
 // russian-casualties.in.ua is daily-only (no hourly snapshots, no directions).
 const RU_LOSSES_PAGES: Page[] = ["daily", "monthly"];
+// RU MoD air-defense: daily only for now.
+const RU_AD_PAGES: Page[] = ["daily"];
 
 function pagesFor(site: Site): Page[] {
   if (site === "ru-attacks-gsua") return GSUA_PAGES;
   if (site === "ru-losses-gsua") return RU_LOSSES_PAGES;
+  if (site === "ru-airdef-mod") return RU_AD_PAGES;
   return SBS_PAGES;
 }
 
@@ -16,7 +19,10 @@ function readUrl(): { site: Site; page: Page } {
   const p = new URLSearchParams(window.location.search);
   const rawSite = p.get("site");
   const site: Site =
-    rawSite === "ru-attacks-gsua" ? "ru-attacks-gsua" : rawSite === "ru-losses-gsua" ? "ru-losses-gsua" : "sbs";
+    rawSite === "ru-attacks-gsua" ? "ru-attacks-gsua"
+      : rawSite === "ru-losses-gsua" ? "ru-losses-gsua"
+      : rawSite === "ru-airdef-mod" ? "ru-airdef-mod"
+      : "sbs";
   const rawPage = p.get("page");
   const pages = pagesFor(site);
   const page: Page = pages.includes(rawPage as Page) ? (rawPage as Page) : pages[0];
