@@ -21,6 +21,7 @@ scripts/gsua/__pycache__
 # DBs are fetched/scraped, served from R2 — not committed
 data/ru-attacks-gsua.db
 data/ru-losses-gsua.db
+data/ru-mod-ad.db
 data/sbs-foosint.db
 
 # GSUA scraper local artifacts
@@ -35,3 +36,6 @@ scripts/gsua/.checkpoint
 e2e/fixtures/
 test-results/
 playwright-report/
+# RU MoD ingest local artifacts
+scripts/ru_mod/output/
+.pytest_cache/
