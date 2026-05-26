@@ -34,9 +34,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r scripts/requirements.txt
 
-      - name: Install Playwright browser
-        run: python -m playwright install --with-deps chromium
-
       # R2 is the source of truth. Pull the current DB to the path the scraper
       # expects (gs.DB_PATH == output/$GSUA_DB_NAME, relative to its CWD).
       - name: Download current GSUA DB from R2
@@ -70,13 +67,15 @@ jobs:
           echo "since=$SINCE" >> "$GITHUB_OUTPUT"
           echo "Scraping since $SINCE"
 
-      # Nitter → Facebook path (no auth, headless). The Telegram path needs an
-      # interactive login and is intentionally not used in CI (see
-      # scripts/gsua/doc.md). GSUA_DB_NAME is inherited from workflow env, so
-      # the scraper writes to the same output/$GSUA_DB_NAME we up/download.
-      - name: Scrape GSUA reports
+      # Web-preview path: parses the public t.me/s/GeneralStaffZSU preview as
+      # static HTML — no Telegram API account, no browser. (The telethon path
+      # needs interactive login; the Nitter/FB scripts still exist but are no
+      # longer used here — slated for removal.) GSUA_DB_NAME is inherited from
+      # workflow env, so the scraper writes to the same output/$GSUA_DB_NAME we
+      # up/download.
+      - name: Scrape GSUA reports (web preview)
         working-directory: scripts/gsua
-        run: python scrape_twitter.py ingest --since "${{ steps.cutoff.outputs.since }}"
+        run: python scrape_general_staff.py --source web --since "${{ steps.cutoff.outputs.since }}"
 
       - name: Upload GSUA DB to R2
         env:

@@ -40,9 +40,14 @@ import os
 import re
 import sqlite3
 import asyncio
+import html
 import logging
+import time
+import urllib.request
 from datetime import datetime, timezone, timedelta
+from html.parser import HTMLParser
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
@@ -1136,6 +1141,173 @@ def _gate_failure_reason(text: str) -> str:
     return "(unknown — all gate checks passed?)"
 
 
+def _process_message(conn: sqlite3.Connection, msg, debug_rejected: bool = False) -> bool:
+    """Gate → parse → upsert one message. `msg` is anything with .id/.date/.text
+    (a Telethon Message or a SimpleNamespace from the web path). Returns True if
+    an operational report was upserted. Source defaults to 'telegram'."""
+    text = msg.text
+    if not is_operational_report(text):
+        if debug_rejected:
+            reason = _gate_failure_reason(text)
+            preview = " ".join(text.split())[:200]
+            log.info(f"REJECTED msg {msg.id} ({msg.date.date()}): {reason} | {preview!r}")
+        return False
+    summary = parse_summary(text, msg)
+    if summary:
+        dirs = parse_directions(text, msg, summary.date)
+        url = f"https://t.me/{CHANNEL}/{msg.id}"
+        upsert_report(conn, summary, dirs, text, url)
+        return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Web-preview source (public t.me/s/<channel> — no Telegram API account)
+# ---------------------------------------------------------------------------
+# A third fetch backend alongside telethon (and the separate Nitter/FB scripts).
+# Parses the public channel preview as static HTML: clean, no credentials, no
+# browser. Returns the SAME (id, date, text) the telethon path feeds to the
+# shared parser. Full report text (incl. all directions) is present — verified
+# against multi-KB GS reports. Best for the daily incremental CI pull; telethon
+# remains the path for deep historical backfill.
+_WEB_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
+
+
+class _TgPreviewParser(HTMLParser):
+    """Extract (post id, ISO datetime, text) per message + the 'before' page id."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.posts: list[dict] = []
+        self.cur: dict | None = None
+        self._cap = 0
+        self.next_before: str | None = None
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        cls = a.get("class", "")
+        if tag == "div" and a.get("data-post") and "tgme_widget_message" in cls:
+            self.cur = {"id": a["data-post"].split("/")[-1], "dt": None, "text": []}
+            self.posts.append(self.cur)
+        if tag == "div" and "tgme_widget_message_text" in cls:
+            self._cap = 1
+            return
+        if self._cap:
+            if tag == "div":
+                self._cap += 1
+            elif tag == "br" and self.cur:
+                self.cur["text"].append("\n")
+        if tag == "time" and self.cur and self.cur["dt"] is None and a.get("datetime"):
+            self.cur["dt"] = a["datetime"]
+        if tag == "a" and "tme_messages_more" in cls and a.get("data-before"):
+            self.next_before = a["data-before"]
+
+    def handle_endtag(self, tag):
+        if self._cap and tag == "div":
+            self._cap -= 1
+
+    def handle_data(self, data):
+        if self._cap and self.cur:
+            self.cur["text"].append(data)
+
+
+def _fetch_web(url: str) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": _WEB_UA})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return r.read().decode("utf-8", "replace")
+
+
+def iter_web_preview(channel: str, since_id: int, max_pages: int, sleep: float):
+    """Yield (post_id:int, date:datetime UTC, text:str), newest first.
+
+    Pages backwards via ?before=<id>. Stops once it reaches `since_id` (already
+    stored) — pass since_id=0 to walk the full `max_pages` (date-windowed runs
+    stop themselves by date in scrape_web)."""
+    base = f"https://t.me/s/{channel}"
+    before = None
+    seen: set[int] = set()
+    for _ in range(max_pages):
+        url = base + (f"?before={before}" if before else "")
+        p = _TgPreviewParser()
+        p.feed(_fetch_web(url))
+        page_ids: list[int] = []
+        reached_known = False
+        for post in p.posts:
+            if not post["id"].isdigit():
+                continue
+            pid = int(post["id"])
+            page_ids.append(pid)
+            if pid in seen:
+                continue
+            seen.add(pid)
+            if since_id and pid <= since_id:
+                reached_known = True
+                continue
+            if not post["dt"]:
+                continue
+            dt = datetime.fromisoformat(post["dt"]).astimezone(timezone.utc)
+            yield pid, dt, "".join(post["text"])
+        if not page_ids or reached_known:
+            break
+        before = p.next_before or str(min(page_ids))
+        time.sleep(sleep)
+
+
+def _resume_min_id(conn: sqlite3.Connection) -> int:
+    """Incremental resume point: checkpoint, else highest stored telegram id."""
+    if CHECKPOINT_FILE.exists():
+        try:
+            return int(CHECKPOINT_FILE.read_text().strip())
+        except ValueError:
+            pass
+    row = conn.execute(
+        "SELECT MAX(CAST(source_id AS INTEGER)) FROM posts WHERE source = 'telegram'"
+    ).fetchone()
+    return int(row[0]) if row and row[0] else 0
+
+
+def scrape_web(
+    conn: sqlite3.Connection,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    debug_rejected: bool = False,
+    max_pages: int = 80,
+    sleep: float = 1.0,
+):
+    """Web-preview equivalent of scrape(): walk t.me/s/<channel> and upsert
+    operational reports via the shared parser. No Telegram credentials."""
+    explicit = since is not None or until is not None
+    # Date-windowed runs scan from newest and stop by date; incremental runs stop
+    # by id once they reach already-stored posts.
+    since_id = 0 if explicit else _resume_min_id(conn)
+    if since_id:
+        log.info(f"[web] incremental: stopping at stored message_id ≤ {since_id}")
+    log.info(
+        f"[web] Fetching @{CHANNEL} preview "
+        f"(since={since.date().isoformat() if since else 'auto'}, "
+        f"until={until.date().isoformat() if until else 'now'})..."
+    )
+
+    count = found = 0
+    last_id = since_id
+    for pid, dt, text in iter_web_preview(CHANNEL, since_id, max_pages, sleep):
+        if until is not None and dt > until:
+            continue
+        if since is not None and dt < since:
+            break  # newest→oldest: everything below is older than the window
+        count += 1
+        last_id = max(last_id, pid)
+        msg = SimpleNamespace(id=pid, date=dt, source="telegram", text=text)
+        if _process_message(conn, msg, debug_rejected):
+            found += 1
+        if count % 200 == 0:
+            conn.commit()
+    conn.commit()
+    log.info(f"[web] Done. Processed {count} messages, upserted {found} operational reports → {DB_PATH}")
+    if not explicit and last_id > since_id:
+        _save_checkpoint(last_id)
+
+
 async def scrape(
     client: TelegramClient,
     conn: sqlite3.Connection,
@@ -1210,7 +1382,6 @@ async def scrape(
                 log.info(f"Reached --until ({until.isoformat()}); stopping.")
                 break
 
-            text = msg.text
             count += 1
             batch_count += 1
             last_msg_id = msg.id
@@ -1226,20 +1397,7 @@ async def scrape(
                 conn.commit()
                 _save_checkpoint(msg.id)
 
-            if not is_operational_report(text):
-                if debug_rejected:
-                    reason = _gate_failure_reason(text)
-                    preview = " ".join(text.split())[:200]
-                    log.info(
-                        f"REJECTED msg {msg.id} ({msg.date.date()}): {reason} | {preview!r}"
-                    )
-                continue
-
-            summary = parse_summary(text, msg)
-            if summary:
-                dirs = parse_directions(text, msg, summary.date)
-                url = f"https://t.me/{CHANNEL}/{msg.id}"
-                upsert_report(conn, summary, dirs, text, url)
+            if _process_message(conn, msg, debug_rejected):
                 reports_found += 1
 
     except FloodWaitError as e:
@@ -1309,15 +1467,38 @@ def parse_args() -> argparse.Namespace:
              "gate component failed and a text preview. Use when scrolling a "
              "month and 'upserted 0' to figure out which gate clause changed.",
     )
+    p.add_argument(
+        "--source", choices=["telethon", "web"], default="telethon",
+        help="Fetch backend: 'telethon' (Telegram API, needs TELEGRAM_API_* + a "
+             "session; best for deep backfill) or 'web' (public t.me/s preview, "
+             "no credentials; good for incremental/CI). Nitter/FB are separate "
+             "scripts (scrape_twitter.py / scrape_facebook.py).",
+    )
+    p.add_argument("--max-pages", type=int, default=80, help="web: preview pages to walk (≈9–16 posts each)")
+    p.add_argument("--sleep", type=float, default=1.0, help="web: delay between preview pages")
     return p.parse_args()
 
 
 async def main():
     args = parse_args()
 
+    # Web-preview path: no Telegram credentials, no telethon — run synchronously.
+    if args.source == "web":
+        conn = open_db(DB_PATH)
+        try:
+            scrape_web(
+                conn,
+                since=args.since, until=args.until,
+                debug_rejected=args.debug_rejected,
+                max_pages=args.max_pages, sleep=args.sleep,
+            )
+        finally:
+            conn.close()
+        return
+
     if not API_ID or not API_HASH:
         print(
-            "ERROR: Set TELEGRAM_API_ID and TELEGRAM_API_HASH.\n"
+            "ERROR: Set TELEGRAM_API_ID and TELEGRAM_API_HASH (or use --source web).\n"
             "  1. Go to https://my.telegram.org → API development tools\n"
             "  2. Create an application to get your api_id and api_hash\n"
             "  3. Set them as environment variables or in a .env file:\n"
