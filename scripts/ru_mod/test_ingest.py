@@ -529,6 +529,25 @@ class TestStorage:
                        mid=2, posted_utc="2026-05-15T05:57:00+00:00")
         return evening, night
 
+    def test_breakdown_mismatch_detected(self, tmp_path, capsys):
+        # Total says 100 but only 50 is itemized → a missed/partial breakdown the
+        # scraper should flag (run vs DB total), with the post id and the sums.
+        import sqlite3
+        db = tmp_path / "ad.db"
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "
+            "100 украинских беспилотных летательных аппаратов самолетного типа: "
+            "▫️ 30 – над территорией Брянской области, ▫️ 20 – над территорией Курской области.",
+            mid=999, posted_utc="2026-03-09T05:00:00+00:00",
+        )
+        ig.store(db, [r])
+        msg = capsys.readouterr().err
+        assert "don't sum to the total" in msg and "post 999: 50/100" in msg
+        conn = sqlite3.connect(db)
+        m = ig._breakdown_mismatches(conn)
+        conn.close()
+        assert len(m) == 1 and (m[0][2], m[0][3]) == (100, 50)
+
     def test_overlap_report_distinguishes_run_vs_total(self, tmp_path, capsys):
         db = tmp_path / "ad.db"
         evening, night = self._overlapping_pair()

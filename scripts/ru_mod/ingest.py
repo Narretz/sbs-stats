@@ -553,10 +553,15 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
         # — the web preview vs telethon, whose text normalization differs slightly
         # — dedups instead of looking like an edit. A real edit changes one of
         # these parsed values and so still inserts a new version.
+        #
+        # region_count is included so a re-scrape that recovers MORE per-region
+        # lines than a previous (e.g. truncated) parse is detected as a change —
+        # the `regions` string is capped at 300 chars and so is blind to extra
+        # regions past the cap, but region_count isn't.
         latest_ad = {
             row[0]: tuple(row[1:])
             for row in conn.execute(
-                "SELECT post_id, drones, window_start, window_end, window_kind, regions "
+                "SELECT post_id, drones, window_start, window_end, window_kind, region_count, regions "
                 "FROM ad_latest"
             )
         }
@@ -572,7 +577,7 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
         inserted = 0
         inserted_ids: set[int] = set()
         for r in reports:
-            content = (r.drones, r.window_start, r.window_end, r.window_kind, r.regions)
+            content = (r.drones, r.window_start, r.window_end, r.window_kind, r.region_count, r.regions)
             if latest_ad.get(r.post_id) == content:
                 continue  # unchanged — no new version
             inserted_ids.add(r.post_id)
@@ -620,6 +625,20 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
             else:
                 print(f"note: {len(pairs)} pre-existing overlapping window(s) in DB; "
                       f"none new this run. See ad_reports.notes.", file=sys.stderr)
+
+        # Breakdown integrity: an itemized report whose per-region counts don't
+        # sum to its total has a missed region line — flag it like overlaps.
+        mismatches = _breakdown_mismatches(conn)
+        if mismatches:
+            run_m = [m for m in mismatches if m[0] in inserted_ids]
+            if run_m:
+                detail = ", ".join(f"post {pid}: {bd}/{tot}" for pid, _sa, tot, bd in run_m)
+                print(f"WARNING: {len(run_m)} itemized report(s) this run whose per-region "
+                      f"counts don't sum to the total ({detail}) — likely a missed region "
+                      f"line. ({len(mismatches)} total in DB.)", file=sys.stderr)
+            else:
+                print(f"note: {len(mismatches)} itemized report(s) in DB with an incomplete "
+                      f"per-region breakdown; none new this run.", file=sys.stderr)
     finally:
         conn.close()
     return inserted, total, latest
@@ -654,6 +673,21 @@ def _overlap_pairs(conn) -> list[tuple[int, str, int, str]]:
 
 def _overlap_count(conn) -> int:
     return len(_overlap_pairs(conn))
+
+
+def _breakdown_mismatches(conn) -> list[tuple[int, str, int, int]]:
+    """Latest itemized reports whose per-region counts don't sum to the report
+    total. A mismatch means a region line was missed (e.g. a new wording the
+    REGION_ITEM_RE doesn't cover) — the same kind of drift we want surfaced at
+    scrape time rather than discovered later. Returns (post_id, scraped_at,
+    total, breakdown_sum). Total-only reports (no ad_regions rows) are excluded
+    by the join, so they don't count as mismatches."""
+    return conn.execute(
+        "SELECT a.post_id, a.scraped_at, a.drones, SUM(g.drones) "
+        "FROM ad_latest a JOIN ad_regions g "
+        "  ON g.post_id = a.post_id AND g.scraped_at = a.scraped_at "
+        "GROUP BY a.post_id, a.scraped_at HAVING SUM(g.drones) <> a.drones"
+    ).fetchall()
 
 
 def _flag_overlaps(conn) -> list[tuple[int, str, int, str]]:
