@@ -1102,3 +1102,74 @@ class TestSanityCheck:
         assert not any(
             "< max direction attacks" in r.message for r in caplog.records
         )
+
+
+# ---------------------------------------------------------------------------
+# Edit versioning — an edited post adds a new version; reads use the latest
+# ---------------------------------------------------------------------------
+
+def _report_text(ce: int, pokrovsk: int = 5) -> str:
+    return (
+        "Оперативна інформація станом на 22:00 01.05.2026 щодо російського вторгнення\n"
+        f"Загалом від початку цієї доби відбулося {ce} бойових зіткнень.\n"
+        f"На Покровському напрямку противник здійснив {pokrovsk} атак."
+    )
+
+
+def _ingest(conn, text: str, mid: int = 99999, posted: str = "2026-05-01T23:00:00+00:00") -> bool:
+    msg = _msg(text, mid, posted)
+    summary = gs.parse_summary(text, msg)
+    dirs = gs.parse_directions(text, msg, summary.date)
+    return gs.upsert_report(conn, summary, dirs, text, f"https://t.me/x/{mid}")
+
+
+def _latest_ce(conn, source_id="99999"):
+    return conn.execute(
+        """SELECT combat_engagements FROM posts p WHERE source_id = ?
+           AND NOT EXISTS (SELECT 1 FROM posts n WHERE n.source = p.source
+                           AND n.source_id = p.source_id AND n.scraped_at > p.scraped_at)""",
+        (source_id,),
+    ).fetchone()[0]
+
+
+class TestVersioning:
+    def test_fresh_db_is_versioned_schema(self, tmp_path):
+        conn = gs.open_db(tmp_path / "g.db")
+        pk = {r[1] for r in conn.execute("PRAGMA table_info(posts)") if r[5] > 0}
+        dpk = {r[1] for r in conn.execute("PRAGMA table_info(directions)") if r[5] > 0}
+        conn.close()
+        assert pk == {"source", "source_id", "scraped_at"}
+        assert dpk == {"source", "source_id", "scraped_at", "direction"}
+
+    def test_edit_adds_version_latest_wins(self, tmp_path):
+        conn = gs.open_db(tmp_path / "g.db")
+        assert _ingest(conn, _report_text(100)) is True    # new post
+        assert _ingest(conn, _report_text(100)) is False   # unchanged text → no-op
+        assert _ingest(conn, _report_text(140)) is True     # edited → new version
+        conn.commit()
+        versions = conn.execute(
+            "SELECT COUNT(*) FROM posts WHERE source_id='99999'").fetchone()[0]
+        assert versions == 2                  # both kept, nothing overwritten
+        assert _latest_ce(conn) == 140        # latest version wins
+        conn.close()
+
+    def test_directions_versioned_with_post(self, tmp_path):
+        conn = gs.open_db(tmp_path / "g.db")
+        _ingest(conn, _report_text(100, pokrovsk=5))
+        _ingest(conn, _report_text(140, pokrovsk=9))  # edit changes a direction too
+        conn.commit()
+        # directions kept per version; the latest-post join yields the new value.
+        latest_attacks = conn.execute(
+            """SELECT d.attacks FROM directions d
+               JOIN posts p ON p.source=d.source AND p.source_id=d.source_id
+                            AND p.scraped_at=d.scraped_at
+               WHERE d.direction='Pokrovsk' AND p.source_id='99999'
+                 AND NOT EXISTS (SELECT 1 FROM posts n WHERE n.source=p.source
+                                 AND n.source_id=p.source_id AND n.scraped_at>p.scraped_at)"""
+        ).fetchone()[0]
+        total_dir_versions = conn.execute(
+            "SELECT COUNT(*) FROM directions WHERE source_id='99999' AND direction='Pokrovsk'"
+        ).fetchone()[0]
+        conn.close()
+        assert latest_attacks == 9
+        assert total_dir_versions == 2        # one Pokrovsk row per version, both retained

@@ -942,6 +942,70 @@ def _migrate_to_source_keyed_schema(conn: sqlite3.Connection) -> None:
     log.info("Migration complete.")
 
 
+def _migrate_to_versioned_schema(conn: sqlite3.Connection) -> None:
+    """One-shot migration: add `scraped_at` to the primary key so edits create a
+    new version instead of overwriting. posts already HAS a populated scraped_at
+    column, so we just promote it into the PK (no NULLs, no backfill); directions
+    gains scraped_at copied from its parent post (one version each pre-migration).
+    No-op on a fresh DB, the legacy message_id schema (handled earlier), or a DB
+    already on the versioned schema.
+    """
+    info = list(conn.execute("PRAGMA table_info(posts)"))
+    if not info:
+        return  # fresh DB — executescript(SCHEMA) builds the versioned shape
+    cols = {r[1] for r in info}
+    pk_cols = {r[1] for r in info if r[5] > 0}  # r[5] = pk position (0 = not in PK)
+    if "source" not in cols:
+        return  # legacy message_id schema — the earlier migration runs first
+    if "scraped_at" in pk_cols:
+        return  # already versioned
+
+    log.info("Migrating posts/directions to edit-versioned schema (scraped_at in PK)…")
+    with conn:
+        conn.execute("DROP VIEW IF EXISTS daily_combined")
+        conn.execute("""
+            CREATE TABLE posts_v (
+                source TEXT NOT NULL, source_id TEXT NOT NULL, date TEXT NOT NULL,
+                message_date TEXT NOT NULL, snapshot_at TEXT, text TEXT NOT NULL, url TEXT NOT NULL,
+                combat_engagements INTEGER, missile_strikes INTEGER, missiles_used INTEGER,
+                air_strikes INTEGER, kabs_dropped INTEGER, kamikaze_drones INTEGER,
+                shellings INTEGER, mlrs_shellings INTEGER, scraped_at TEXT NOT NULL,
+                notes TEXT, part TEXT,
+                PRIMARY KEY (source, source_id, scraped_at)
+            )
+        """)
+        conn.execute("""
+            INSERT INTO posts_v SELECT
+                source, source_id, date, message_date, snapshot_at, text, url,
+                combat_engagements, missile_strikes, missiles_used, air_strikes,
+                kabs_dropped, kamikaze_drones, shellings, mlrs_shellings,
+                scraped_at, notes, part
+            FROM posts
+        """)
+        conn.execute("""
+            CREATE TABLE directions_v (
+                source TEXT NOT NULL, source_id TEXT NOT NULL, scraped_at TEXT NOT NULL,
+                direction TEXT NOT NULL, attacks INTEGER, ongoing INTEGER,
+                PRIMARY KEY (source, source_id, scraped_at, direction),
+                FOREIGN KEY (source, source_id, scraped_at)
+                    REFERENCES posts(source, source_id, scraped_at) ON DELETE CASCADE
+            )
+        """)
+        # Each (source, source_id) has exactly one version pre-migration, so the
+        # join yields a single scraped_at per directions row.
+        conn.execute("""
+            INSERT INTO directions_v
+            SELECT d.source, d.source_id, p.scraped_at, d.direction, d.attacks, d.ongoing
+            FROM directions d
+            JOIN posts p ON d.source = p.source AND d.source_id = p.source_id
+        """)
+        conn.execute("DROP TABLE directions")
+        conn.execute("DROP TABLE posts")
+        conn.execute("ALTER TABLE posts_v RENAME TO posts")
+        conn.execute("ALTER TABLE directions_v RENAME TO directions")
+    log.info("Edit-versioning migration complete.")
+
+
 def open_db(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
@@ -950,6 +1014,7 @@ def open_db(path: Path) -> sqlite3.Connection:
     # directions wipes the directions table out from under us. Only turn
     # FK enforcement back on after both tables have been rebuilt.
     _migrate_to_source_keyed_schema(conn)
+    _migrate_to_versioned_schema(conn)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
     return conn
@@ -1080,12 +1145,30 @@ def upsert_report(
     directions: list["DirectionEntry"],
     text: str,
     url: str,
-) -> None:
-    """Insert-or-replace a single operational report and its directions."""
+) -> bool:
+    """Store one operational report, edit-versioned.
+
+    Append-only: if the post's latest stored version has identical `text`, this
+    is a no-op (a re-scrape of an unchanged post). Otherwise — a new post or an
+    edit — insert a NEW version (posts + directions tagged with a fresh
+    `scraped_at`), never overwriting prior versions. Returns True if a version
+    was written. Edits are detected by `text`; parser-only reprocessing is the
+    job of reparse.py, not this path.
+    """
     _sanity_check(summary, directions, text)
+
+    prev = conn.execute(
+        "SELECT text FROM posts WHERE source = ? AND source_id = ? "
+        "ORDER BY scraped_at DESC LIMIT 1",
+        (summary.source, summary.source_id),
+    ).fetchone()
+    if prev is not None and prev[0] == text:
+        return False  # unchanged — no new version
+
+    scraped_at = datetime.now(timezone.utc).isoformat()
     conn.execute(
         """
-        INSERT OR REPLACE INTO posts (
+        INSERT INTO posts (
             source, source_id, date, message_date, snapshot_at, text, url,
             combat_engagements, missile_strikes, missiles_used, air_strikes,
             kabs_dropped, kamikaze_drones, shellings, mlrs_shellings,
@@ -1100,26 +1183,23 @@ def upsert_report(
             summary.missiles_used, summary.air_strikes,
             summary.kabs_dropped, summary.kamikaze_drones,
             summary.shellings, summary.mlrs_shellings,
-            datetime.now(timezone.utc).isoformat(),
+            scraped_at,
             summary.notes,
             summary.part,
         ),
     )
-    conn.execute(
-        "DELETE FROM directions WHERE source = ? AND source_id = ?",
-        (summary.source, summary.source_id),
-    )
     if directions:
         conn.executemany(
             """
-            INSERT INTO directions (source, source_id, direction, attacks, ongoing)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO directions (source, source_id, scraped_at, direction, attacks, ongoing)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             [
-                (summary.source, summary.source_id, d.direction, d.attacks, d.ongoing)
+                (summary.source, summary.source_id, scraped_at, d.direction, d.attacks, d.ongoing)
                 for d in directions
             ],
         )
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -1156,8 +1236,7 @@ def _process_message(conn: sqlite3.Connection, msg, debug_rejected: bool = False
     if summary:
         dirs = parse_directions(text, msg, summary.date)
         url = f"https://t.me/{CHANNEL}/{msg.id}"
-        upsert_report(conn, summary, dirs, text, url)
-        return True
+        return upsert_report(conn, summary, dirs, text, url)
     return False
 
 
