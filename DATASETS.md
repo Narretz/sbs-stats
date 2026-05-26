@@ -96,6 +96,14 @@ The Russian MoD (Минобороны России) DOES post centrally — on m
   total); through 2026 they give only a total + a flat region list. The parser captures the itemized
   pairs into `ad_regions` when present, but all currently-scraped 2026 posts are total-only, so that
   table is empty until a telethon backfill into 2025. A per-region view should wait on that.
+- **Window overlaps (possible double-count):** occasionally the MoD posts an evening update (e.g.
+  "с 20.00 до 23.00 мск") *and* a separate overnight report that states no start time — we assume
+  20:00, so the two windows overlap and the overnight count may re-include the evening's drones. We
+  don't guess a different start; the build flags the later report in `ad_reports.notes` and warns.
+  These sit on adjacent `report_date`s, so a single day's total isn't inflated; the open question is
+  only whether the MoD itself re-counts across the two posts (unknowable from the text). The flag is
+  recomputed from the latest version each run, so it never goes stale. As of the Jan–May 2026
+  backfill: 3 such cases, all February.
 
 ### Ukrainian-LOSSES reporting by the MoD — degraded, REVISIT (noted 2026-05)
 The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:

@@ -440,6 +440,20 @@ class TestStorage:
         import sqlite3
         conn = sqlite3.connect(tmp_path / "ad.db")
         assert ig._overlap_count(conn) == 1   # the 20:00–23:00 overlap is flagged
+        # the later (night) report carries the note; the evening one stays clean
+        night_note = conn.execute("SELECT notes FROM ad_latest WHERE post_id=2").fetchone()[0]
+        evening_note = conn.execute("SELECT notes FROM ad_latest WHERE post_id=1").fetchone()[0]
+        assert night_note and "double-count" in night_note and "post 1" in night_note
+        assert evening_note is None
+        conn.close()
+
+    def test_no_overlap_leaves_notes_null(self, tmp_path):
+        # Cleanly tiled day → no overlap → notes stays NULL on every row.
+        r = self._reports_for_one_drone_day()
+        ig.store(tmp_path / "ad.db", r)
+        import sqlite3
+        conn = sqlite3.connect(tmp_path / "ad.db")
+        assert conn.execute("SELECT COUNT(*) FROM ad_reports WHERE notes IS NOT NULL").fetchone()[0] == 0
         conn.close()
 
 

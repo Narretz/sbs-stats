@@ -420,6 +420,7 @@ CREATE TABLE IF NOT EXISTS ad_reports (
   region_count INTEGER,
   regions      TEXT,
   raw_text     TEXT,
+  notes        TEXT,        -- derived caveat (NULL = clean); set by _flag_overlaps
   PRIMARY KEY (post_id, scraped_at)
 );
 CREATE INDEX IF NOT EXISTS ix_ad_date ON ad_reports(report_date);
@@ -471,6 +472,10 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
     conn = sqlite3.connect(db_path)
     try:
         conn.executescript(SCHEMA)
+        # Migration: `notes` was added after the table first shipped; ADD COLUMN
+        # on pre-existing DBs (CREATE TABLE IF NOT EXISTS won't alter them).
+        if "notes" not in {r[1] for r in conn.execute("PRAGMA table_info(ad_reports)")}:
+            conn.execute("ALTER TABLE ad_reports ADD COLUMN notes TEXT")
         # Microsecond precision so two edits seen close together (or back-to-back
         # store() calls) get distinct version keys.
         scraped = datetime.now(timezone.utc).isoformat(timespec="microseconds")
@@ -531,28 +536,58 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
         conn.commit()
         total = conn.execute("SELECT COUNT(*) FROM ad_reports").fetchone()[0]
         latest = conn.execute("SELECT MAX(report_date) FROM ad_reports").fetchone()[0]
-        overlaps = _overlap_count(conn)
+        overlaps = _flag_overlaps(conn)
+        conn.commit()
         if overlaps:
-            print(f"WARNING: {overlaps} overlapping report window(s) detected "
-                  f"(possible double-count) — inspect window_start/window_end.", file=sys.stderr)
+            print(f"WARNING: {overlaps} overlapping report window(s) detected and noted "
+                  f"(possible double-count) — see ad_reports.notes / inspect window_start/window_end.",
+                  file=sys.stderr)
     finally:
         conn.close()
     return inserted, total, latest
 
 
-def _overlap_count(conn) -> int:
-    # Overlap is a property of the current (latest) version of each post.
+def _overlap_pairs(conn) -> list[tuple[int, str, str]]:
+    """Detect overlapping windows among the latest version of each post.
+
+    Returns (post_id, scraped_at, note) for the later-starting report of each
+    overlapping adjacency — i.e. the one whose window begins before the previous
+    report's window ended. That later report is the ambiguous one: in the common
+    case its overnight count may re-include drones already reported in a separate
+    evening update (the MoD posts both, and overnight reports often state no start
+    time, so we assume 20:00). Overlap is a property of the latest versions only.
+    """
     rows = conn.execute(
-        "SELECT window_start, window_end FROM ad_latest "
+        "SELECT post_id, scraped_at, window_start, window_end FROM ad_latest "
         "WHERE window_start IS NOT NULL AND window_end IS NOT NULL ORDER BY window_start"
     ).fetchall()
-    n, prev_end = 0, None
-    for s, e in rows:
-        if prev_end and s < prev_end:
-            n += 1
-        if prev_end is None or e > prev_end:
-            prev_end = e
-    return n
+    out: list[tuple[int, str, str]] = []
+    prev_id = prev_end = None
+    for pid, sa, ws, we in rows:
+        if prev_end and ws < prev_end:
+            note = (f"window may overlap preceding report (post {prev_id}, "
+                    f"ends {prev_end[11:16]}) — possible double-count")
+            out.append((pid, sa, note))
+        if prev_end is None or we > prev_end:
+            prev_end, prev_id = we, pid
+    return out
+
+
+def _overlap_count(conn) -> int:
+    return len(_overlap_pairs(conn))
+
+
+def _flag_overlaps(conn) -> int:
+    """Refresh the overlap note on every report: write it on the latest version of
+    each overlapping report, clear it everywhere else. Idempotent — recomputed
+    from the current latest set each run, so it can't go stale. Returns the count.
+    """
+    conn.execute("UPDATE ad_reports SET notes = NULL WHERE notes IS NOT NULL")
+    pairs = _overlap_pairs(conn)
+    for pid, sa, note in pairs:
+        conn.execute("UPDATE ad_reports SET notes = ? WHERE post_id = ? AND scraped_at = ?",
+                     (note, pid, sa))
+    return len(pairs)
 
 
 def max_stored_id(db_path: Path) -> int:

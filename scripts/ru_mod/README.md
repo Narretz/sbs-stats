@@ -29,9 +29,16 @@ Each report covers a time window, all in MSK:
 We attribute a report to `report_date` = the MSK calendar date of its window
 **end**, so the overnight report (which starts the previous evening) and that
 day's daytime windows aggregate to the same date — tiling 24h at a 20:00 MSK
-boundary with no overlap under the normal pattern. Irregular merged windows can
-overlap by a few hours; the build **logs** any detected overlap rather than
-guessing.
+boundary with no overlap under the normal pattern.
+
+Sometimes the MoD posts an evening update (e.g. "с 20.00 до 23.00 мск") **and** a
+separate overnight report that states no start time — we assume 20:00, so the two
+windows overlap and the overnight count may re-include the evening's drones. We
+don't guess a different start; instead the build flags the later (overnight)
+report by writing an `ad_reports.notes` string ("window may overlap preceding
+report … possible double-count") and prints a warning. The flag is recomputed
+from the latest version of each report on every run (`_flag_overlaps`), so it
+never goes stale; clean reports keep `notes = NULL`.
 
 ## Schema & edit-versioning
 
