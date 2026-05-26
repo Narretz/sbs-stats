@@ -121,10 +121,15 @@ def _parse_window(text: str, posted_msk: datetime):
         mo1, mo2 = MONTHS.get(mon1.lower()), MONTHS.get(mon2.lower())
         if mo1 and mo2:
             yr = posted_msk.year
-            end = datetime(yr, mo2, int(d2), int(h2), 0, tzinfo=MSK)
+
+            def mk(y, mo, d, hh):  # tolerate "24.00" → next-day 00:00
+                extra, hh = divmod(int(hh), 24)
+                return datetime(y, mo, int(d), hh, 0, tzinfo=MSK) + timedelta(days=extra)
+
+            end = mk(yr, mo2, d2, h2)
             # start is the prior boundary; roll the year back if it wraps Dec→Jan
             yr1 = yr - 1 if mo1 > mo2 else yr
-            start = datetime(yr1, mo1, int(d1), int(h1), 0, tzinfo=MSK)
+            start = mk(yr1, mo1, d1, h1)
             return start, end, "night"
     if NIGHT_PHRASE_RE.search(text):
         # standard undated night = 20:00 (prev day) → 07:00 (posted day)

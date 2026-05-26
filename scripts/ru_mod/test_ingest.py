@@ -33,6 +33,22 @@ class TestWindows:
         assert r.window_start == "2026-05-22T20:00+03:00"
         assert r.window_end == "2026-05-23T07:00+03:00"
 
+    def test_night_dated_2400_end(self):
+        # "до 24.00 мск" in a DATED night range must not crash (hour=24 is
+        # out of range for datetime); end rolls to next-day 00:00.
+        r = _parse(
+            "В период с 20.00 мск 31 марта до 24.00 мск 31 марта дежурными средствами ПВО "
+            "перехвачены и уничтожены 12 украинских беспилотных летательных аппаратов "
+            "над территориями Брянской области.",
+            posted_utc="2026-04-01T00:30:00+00:00",
+        )
+        assert r is not None
+        assert r.drones == 12
+        assert r.window_kind == "night"
+        assert r.window_start == "2026-03-31T20:00+03:00"
+        assert r.window_end == "2026-04-01T00:00+03:00"   # 24.00 → next-day 00:00
+        assert r.report_date == "2026-04-01"              # window-END date
+
     def test_night_phrase_undated(self):
         # msg 63943 — "В течение прошедшей ночи …" (no explicit times)
         r = _parse(
