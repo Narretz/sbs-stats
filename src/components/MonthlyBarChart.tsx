@@ -42,6 +42,11 @@ const MonthlyTooltip = ({
           </div>
         </>
       )}
+      {d.note && (
+        <div style={{ color: t.textImportant, fontSize: 10, marginTop: 6, maxWidth: 220 }}>
+          ⚠ {d.note}
+        </div>
+      )}
     </div>
   );
 };
@@ -80,8 +85,15 @@ export function MonthlyBarChart({ title, data, wfull }: Props) {
             allowEscapeViewBox={{ x: false, y: true }}
           />
           <Bar dataKey="value" stackId="a" name="Actual">
-            {data.map((_, i) => (
-              <Cell key={`val-${i}`} fill={i === lastIdx ? t.accent : t.primary} opacity={i === lastIdx ? 1 : 0.8} />
+            {data.map((d, i) => (
+              <Cell
+                key={`val-${i}`}
+                fill={i === lastIdx ? t.accent : t.primary}
+                opacity={i === lastIdx ? 1 : 0.8}
+                stroke={d.note ? t.textImportant : undefined}
+                strokeWidth={d.note ? 1.5 : undefined}
+                strokeDasharray={d.note ? "3 2" : undefined}
+              />
             ))}
           </Bar>
           <Bar dataKey="gap" stackId="a" name="Projected" radius={[3, 3, 0, 0]}>

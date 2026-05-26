@@ -20,6 +20,7 @@ import { GsuaMonthlyPage } from "@/pages/GsuaMonthlyPage";
 import { RuLossesDailyPage } from "@/pages/RuLossesDailyPage";
 import { RuLossesMonthlyPage } from "@/pages/RuLossesMonthlyPage";
 import { RuModDailyPage } from "@/pages/RuModDailyPage";
+import { RuModMonthlyPage } from "@/pages/RuModMonthlyPage";
 import type { Page, Site } from "@/types";
 import { GLOBAL_CSS } from "@/theme";
 
@@ -123,6 +124,7 @@ function RuModRoot({
       />
       <PageShell>
         {page === "daily" && <RuModDailyPage refreshKey={refreshCount} />}
+        {page === "monthly" && <RuModMonthlyPage refreshKey={refreshCount} />}
       </PageShell>
     </>
   );

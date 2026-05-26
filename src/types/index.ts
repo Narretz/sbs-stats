@@ -83,6 +83,7 @@ export interface MonthlyDataPoint {
   projected?: number;
   projection_day?: number;
   projection_days_in_month?: number;
+  note?: string; // optional caveat (e.g. possible double-count); shown in tooltip + flags the bar
 }
 
 // ─── Metric descriptor ────────────────────────────────────────────────────────
@@ -236,3 +237,16 @@ export type RuAdDailyRow = {
 };
 
 export type RuAdGlobalStats = { total: RuAdStat; night: RuAdStat; day: RuAdStat };
+
+export type RuAdMonthlyRow = {
+  date: string; // "YYYY-MM"
+  is_current_month: boolean;
+  projection_day: number | null;
+  projection_days_in_month: number | null;
+  total: number;
+  night: number;
+  day: number;
+  // count of reports in the month flagged with an overlap caveat (possible
+  // double-count) — see ad_reports.notes / scripts/ru_mod.
+  overlap_reports: number;
+} & Partial<Record<"total_projected" | "night_projected" | "day_projected", number>>;

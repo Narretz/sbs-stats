@@ -5,8 +5,8 @@ const SBS_PAGES: Page[] = ["hourly", "daily", "monthly"];
 const GSUA_PAGES: Page[] = ["hourly", "daily", "monthly"];
 // russian-casualties.in.ua is daily-only (no hourly snapshots, no directions).
 const RU_LOSSES_PAGES: Page[] = ["daily", "monthly"];
-// RU MoD air-defense: daily only for now.
-const RU_AD_PAGES: Page[] = ["daily"];
+// RU MoD air-defense: daily + monthly (no hourly — the MoD posts ~2–3×/day).
+const RU_AD_PAGES: Page[] = ["daily", "monthly"];
 
 function pagesFor(site: Site): Page[] {
   if (site === "ru-attacks-gsua") return GSUA_PAGES;

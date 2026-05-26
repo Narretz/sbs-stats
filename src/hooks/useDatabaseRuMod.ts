@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Database } from "sql.js";
-import type { RuAdDailyRow, RuAdGlobalStats, RuAdStat, LoadState } from "@/types";
+import type { RuAdDailyRow, RuAdGlobalStats, RuAdMonthlyRow, RuAdStat, LoadState } from "@/types";
 
 // Tiny DB → fetch whole via sql.js, like the SBS / RU-losses loaders (no httpvfs).
 const DB_URL =
@@ -187,9 +187,57 @@ export function useDatabaseRuMod() {
     };
   }, [db]);
 
+  // ── Monthly: sum per month, split night/day, with current-month projection ────
+  // `overlap_reports` counts rows whose `notes` flags a possible double-count
+  // (overnight window overlapping a separate evening report) — surfaced as a
+  // caveat in the monthly chart, not deducted (we can't verify the double-count).
+  const queryMonthly = useCallback((): RuAdMonthlyRow[] => {
+    if (!db) return [];
+    const rows = queryRows<Record<string, number | string>>(
+      db,
+      `SELECT substr(report_date, 1, 7) AS month,
+              SUM(drones) AS total,
+              SUM(CASE WHEN window_kind = 'night' THEN drones ELSE 0 END) AS night,
+              SUM(CASE WHEN window_kind = 'night' THEN 0 ELSE drones END) AS day,
+              SUM(CASE WHEN notes IS NOT NULL THEN 1 ELSE 0 END) AS overlap_reports
+       FROM ${LATEST_PER_POST}
+       GROUP BY month
+       ORDER BY month ASC`
+    );
+
+    const mskDateStr = getMskDateString();
+    const currentMonth = mskDateStr.slice(0, 7);
+    const dayOfMonth = parseInt(mskDateStr.slice(8, 10), 10);
+    const [y, m] = currentMonth.split("-").map(Number);
+    const daysInMonth = new Date(y, m, 0).getDate();
+
+    return rows.map((r) => {
+      const month = String(r.month);
+      const isCurrent = month === currentMonth;
+      const num = (k: string) => (typeof r[k] === "number" ? (r[k] as number) : 0);
+      const out: RuAdMonthlyRow = {
+        date: month,
+        is_current_month: isCurrent,
+        projection_day: isCurrent ? dayOfMonth : null,
+        projection_days_in_month: isCurrent ? daysInMonth : null,
+        total: num("total"),
+        night: num("night"),
+        day: num("day"),
+        overlap_reports: num("overlap_reports"),
+      };
+      if (isCurrent && dayOfMonth > 0) {
+        const mult = daysInMonth / dayOfMonth;
+        out.total_projected = Math.round(out.total * mult);
+        out.night_projected = Math.round(out.night * mult);
+        out.day_projected = Math.round(out.day * mult);
+      }
+      return out;
+    });
+  }, [db]);
+
   return {
     loadState, error,
-    queryDaily, queryGlobalStats,
+    queryDaily, queryGlobalStats, queryMonthly,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs: REFRESH_INTERVAL_MS,
   };
