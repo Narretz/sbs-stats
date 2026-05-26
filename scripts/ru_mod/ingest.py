@@ -259,7 +259,9 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
         drones=drones,
         region_count=region_count,
         regions=regions,
-        raw_text=flat[:4000],  # generous cap; itemized per-region lists can be long
+        raw_text=flat,  # full text (uncapped) so a parser fix can re-derive in
+                        # place from stored rows, like the GSUA scraper — the DB
+                        # is tiny and AD posts are short.
         breakdown=breakdown,
     )
 
