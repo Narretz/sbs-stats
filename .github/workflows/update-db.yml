@@ -1,4 +1,4 @@
-name: Update Database
+name: Update SBS Database
 
 on:
   workflow_dispatch: # allow manual trigger from GitHub UI
