@@ -570,10 +570,12 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
         }
 
         inserted = 0
+        inserted_ids: set[int] = set()
         for r in reports:
             content = (r.drones, r.window_start, r.window_end, r.window_kind, r.regions)
             if latest_ad.get(r.post_id) == content:
                 continue  # unchanged — no new version
+            inserted_ids.add(r.post_id)
             conn.execute(
                 "INSERT INTO ad_reports "
                 "(post_id,scraped_at,posted_at,window_start,window_end,window_kind,report_date,"
@@ -604,38 +606,47 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
         conn.commit()
         total = conn.execute("SELECT COUNT(*) FROM ad_reports").fetchone()[0]
         latest = conn.execute("SELECT MAX(report_date) FROM ad_reports").fetchone()[0]
-        overlaps = _flag_overlaps(conn)
+        pairs = _flag_overlaps(conn)
         conn.commit()
-        if overlaps:
-            print(f"WARNING: {overlaps} overlapping report window(s) detected and noted "
-                  f"(possible double-count) — see ad_reports.notes / inspect window_start/window_end.",
-                  file=sys.stderr)
+        if pairs:
+            # An overlap is "this run" only if one of the two posts was just
+            # inserted; the rest are pre-existing in the DB (don't re-alarm on them).
+            run_pairs = [p for p in pairs if p[0] in inserted_ids or p[2] in inserted_ids]
+            if run_pairs:
+                ids = ", ".join(f"{p[0]} (overlaps {p[2]})" for p in run_pairs)
+                print(f"WARNING: {len(run_pairs)} overlapping report window(s) in THIS run "
+                      f"— post {ids} — possible double-count, noted in ad_reports.notes. "
+                      f"({len(pairs)} total in DB.)", file=sys.stderr)
+            else:
+                print(f"note: {len(pairs)} pre-existing overlapping window(s) in DB; "
+                      f"none new this run. See ad_reports.notes.", file=sys.stderr)
     finally:
         conn.close()
     return inserted, total, latest
 
 
-def _overlap_pairs(conn) -> list[tuple[int, str, str]]:
+def _overlap_pairs(conn) -> list[tuple[int, str, int, str]]:
     """Detect overlapping windows among the latest version of each post.
 
-    Returns (post_id, scraped_at, note) for the later-starting report of each
-    overlapping adjacency — i.e. the one whose window begins before the previous
-    report's window ended. That later report is the ambiguous one: in the common
-    case its overnight count may re-include drones already reported in a separate
-    evening update (the MoD posts both, and overnight reports often state no start
-    time, so we assume 20:00). Overlap is a property of the latest versions only.
+    Returns (post_id, scraped_at, neighbor_post_id, note) for the later-starting
+    report of each overlapping adjacency — i.e. the one whose window begins before
+    the previous report's window ended. That later report is the ambiguous one: in
+    the common case its overnight count may re-include drones already reported in a
+    separate evening update (the MoD posts both, and overnight reports often state
+    no start time, so we assume 20:00). Overlap is a property of the latest
+    versions only.
     """
     rows = conn.execute(
         "SELECT post_id, scraped_at, window_start, window_end FROM ad_latest "
         "WHERE window_start IS NOT NULL AND window_end IS NOT NULL ORDER BY window_start"
     ).fetchall()
-    out: list[tuple[int, str, str]] = []
+    out: list[tuple[int, str, int, str]] = []
     prev_id = prev_end = None
     for pid, sa, ws, we in rows:
         if prev_end and ws < prev_end:
             note = (f"window may overlap preceding report (post {prev_id}, "
                     f"ends {prev_end[11:16]}) — possible double-count")
-            out.append((pid, sa, note))
+            out.append((pid, sa, prev_id, note))
         if prev_end is None or we > prev_end:
             prev_end, prev_id = we, pid
     return out
@@ -645,17 +656,17 @@ def _overlap_count(conn) -> int:
     return len(_overlap_pairs(conn))
 
 
-def _flag_overlaps(conn) -> int:
+def _flag_overlaps(conn) -> list[tuple[int, str, int, str]]:
     """Refresh the overlap note on every report: write it on the latest version of
     each overlapping report, clear it everywhere else. Idempotent — recomputed
-    from the current latest set each run, so it can't go stale. Returns the count.
+    from the current latest set each run, so it can't go stale. Returns the pairs.
     """
     conn.execute("UPDATE ad_reports SET notes = NULL WHERE notes IS NOT NULL")
     pairs = _overlap_pairs(conn)
-    for pid, sa, note in pairs:
+    for pid, sa, _neighbor, note in pairs:
         conn.execute("UPDATE ad_reports SET notes = ? WHERE post_id = ? AND scraped_at = ?",
                      (note, pid, sa))
-    return len(pairs)
+    return pairs
 
 
 def max_stored_id(db_path: Path) -> int:

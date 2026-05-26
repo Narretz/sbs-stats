@@ -519,6 +519,29 @@ class TestStorage:
         assert conn.execute("SELECT COUNT(*) FROM ad_reports WHERE notes IS NOT NULL").fetchone()[0] == 0
         conn.close()
 
+    def _overlapping_pair(self):
+        evening = _parse("С 08.00 до 23.00 мск дежурными средствами ПВО перехвачены и уничтожены "
+                         "38 украинских беспилотных летательных аппаратов над территориями Брянской области.",
+                         mid=1, posted_utc="2026-05-14T20:45:00+00:00")
+        night = _parse("В период с 20.00 мск 14 мая до 7.00 мск 15 мая дежурными средствами ПВО "
+                       "перехвачены и уничтожены 355 украинских беспилотных летательных аппаратов "
+                       "над территориями Белгородской области.",
+                       mid=2, posted_utc="2026-05-15T05:57:00+00:00")
+        return evening, night
+
+    def test_overlap_report_distinguishes_run_vs_total(self, tmp_path, capsys):
+        db = tmp_path / "ad.db"
+        evening, night = self._overlapping_pair()
+        # First run inserts both → the overlap is NEW this run, named with its ids.
+        ig.store(db, [evening, night])
+        msg = capsys.readouterr().err
+        assert "THIS run" in msg and "post 2 (overlaps 1)" in msg
+
+        # Second run re-stores the same posts → nothing inserted → pre-existing only.
+        ig.store(db, [evening, night])
+        msg = capsys.readouterr().err
+        assert "none new this run" in msg and "THIS run" not in msg
+
 
 # ── edit versioning: append a new row on change, never overwrite ──────────────
 class TestVersioning:
