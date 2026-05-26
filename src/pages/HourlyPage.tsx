@@ -6,6 +6,8 @@ import { HourlyLineChart, type TooltipSortMode } from "@/components/HourlyLineCh
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
+import { DateNav } from "@/components/DateNav";
+import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { buildMetrics } from "@/utils/metrics";
 import type { DailyRow, DailyDaySeries, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
 import { FONTS } from "@/theme";
@@ -171,53 +173,8 @@ export function HourlyPage({ refreshKey }: HourlyPageProps) {
             onChange={updateWeekdays}
             todayDow={todayDow}
           />
-          <div style={{display: "flex", gap: "3px"}}>
-          <button onClick={() => shiftSelectedDate(-1)} style={{
-              background: t.bgAlt,
-              color: t.textMuted,
-              border: `1px solid ${t.border}`,
-              borderRadius: 4, padding: "5px 8px",
-              fontFamily: FONTS.mono, fontSize: 11,
-              height: "25px", cursor: "pointer",
-          }}>&lt;</button>
-          <input
-            type="date"
-            value={selectedDate}
-            max={maxSelectableDate}
-            onChange={e => updateDate(e.target.value)}
-            style={{
-              background: selectedDate ? t.primary : t.bgAlt,
-              color: selectedDate ? "#fff" : t.textMuted,
-              border: `1px solid ${selectedDate ? t.primary : t.border}`,
-              borderRadius: 4, padding: "5px 8px",
-              fontFamily: FONTS.mono, fontSize: 11,
-              cursor: "pointer", transition: "all 0.15s",
-              colorScheme: "dark",
-            }}
-          />
-          <button onClick={() => shiftSelectedDate(1)} disabled={!canGoNext} style={{
-              background: t.bgAlt,
-              color: canGoNext ? t.textMuted : t.border,
-              border: `1px solid ${t.border}`,
-              borderRadius: 4, padding: "5px 8px",
-              fontFamily: FONTS.mono, fontSize: 11,
-              height: "25px",
-              cursor: canGoNext ? "pointer" : "not-allowed",
-          }}>&gt;</button>
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            {DAY_OPTIONS.map((d) => (
-              <button key={d} onClick={() => updateDays(d)} style={{
-                background: days === d ? t.primary : t.bgAlt,
-                color: days === d ? "#fff" : t.textMuted,
-                border: `1px solid ${days === d ? t.primary : t.border}`,
-                borderRadius: 4, padding: "5px 12px",
-                fontFamily: FONTS.mono, fontSize: 11,
-                fontWeight: days === d ? 700 : 400,
-                cursor: "pointer", transition: "all 0.15s",
-              }}>{d}d</button>
-            ))}
-          </div>
+          <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
+          <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
           <select
             value={tooltipSort}
             onChange={e => updateSort(e.target.value as TooltipSortMode)}

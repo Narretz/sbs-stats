@@ -161,7 +161,10 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
   // end-of-day total (max of its cumulative intraday points).
   const win = scope === "window";
   const winStat = useMemo(
-    () => maxMedian(data.map((s) => (s.points.length ? Math.max(...s.points.map((p) => p.value)) : null))),
+    () => maxMedian(data.map((s) => {
+      const vals = s.points.map((p) => p.value).filter((v): v is number => typeof v === "number");
+      return vals.length ? Math.max(...vals) : null;
+    })),
     [data]
   );
   const max = win ? winStat.max : globalMax;
