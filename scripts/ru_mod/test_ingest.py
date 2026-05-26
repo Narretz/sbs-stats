@@ -273,6 +273,28 @@ class TestBreakdown:
         assert bd["Чеченской Республики"] == 1
         assert sum(bd.values()) == 77            # per-region sums to the total
 
+    def test_itemized_with_bpla_unit_and_sea_area(self):
+        # From ~Mar 2026 the per-region lines insert the unit "БПЛА" before the
+        # dash ("57 БПЛА – над территорией …") and include sea areas ("акваторией
+        # Каспийского моря"). Both must be captured.
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "
+            "151 украинский беспилотный летательный аппарат самолетного типа: "
+            "▫️ 57 БПЛА – над территорией Волгоградской области, "
+            "▫️ 48 БПЛА – над территорией Ростовской области, "
+            "▫️ 35 БПЛА – над территорией Белгородской области, "
+            "▫️ 9 БПЛА – над акваторией Каспийского моря, "
+            "▫️ 1 БПЛА – над территорией Республики Калмыкия, "
+            "▫️ 1 БПЛА – над территорией Тамбовской области.",
+            posted_utc="2026-04-10T05:00:00+00:00",
+        )
+        assert r.drones == 151
+        bd = dict(r.breakdown)
+        assert bd["Волгоградской области"] == 57
+        assert bd["Каспийского моря"] == 9      # sea area captured
+        assert r.region_count == 6
+        assert sum(bd.values()) == 151          # per-region sums to the total
+
     def test_total_only_has_no_breakdown(self):
         r = _parse(
             "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "

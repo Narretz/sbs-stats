@@ -78,9 +78,12 @@ NIGHT_HOURS_RE = re.compile(r"с\s+(\d{1,2})[.:]\d{2}.*?до\s+(\d{1,2})[.:]\d{2
 REGION_RE = re.compile(r"над\s+территор\w+\s+(.*)", re.I)
 # Itemized per-region breakdown line, e.g. "42 – над территорией Саратовской
 # области," (dash may be -, –, —). The MoD uses this format on some days; on
-# others it gives only a total + a region list (no per-region counts).
+# others it gives only a total + a region list (no per-region counts). The count
+# is sometimes followed by the unit "БПЛА" before the dash (from ~Mar 2026:
+# "57 БПЛА – над территорией …"); the item may be over a territory ("территорией")
+# or a sea area ("акваторией Каспийского моря"), so accept both.
 REGION_ITEM_RE = re.compile(
-    r"(\d+)\s*[-–—]\s*над\s+территори\w+\s+([^,.;▫\d]+)", re.I)
+    r"(\d+)\s*(?:БПЛА\s*)?[-–—]\s*над\s+(?:территори\w+|акватори\w+)\s+([^,.;▫\d]+)", re.I)
 
 MAX_PLAUSIBLE = 5000  # guard against a runaway parse
 
@@ -256,7 +259,7 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
         drones=drones,
         region_count=region_count,
         regions=regions,
-        raw_text=flat[:1000],
+        raw_text=flat[:4000],  # generous cap; itemized per-region lists can be long
         breakdown=breakdown,
     )
 
