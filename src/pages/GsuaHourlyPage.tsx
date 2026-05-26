@@ -8,6 +8,7 @@ import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
+import { DAY_OPTIONS, type DayOption } from "@/utils/dayRange";
 import {
   GSUA_METRIC_KEYS,
   GSUA_METRIC_LABELS,
@@ -19,8 +20,6 @@ import {
 import type { DailyDaySeries } from "@/types";
 import { FONTS } from "@/theme";
 
-const DAY_OPTIONS = [7, 14, 30, 60, 120] as const;
-type DayOption = (typeof DAY_OPTIONS)[number];
 const SORT_OPTIONS: TooltipSortMode[] = ["value", "date"];
 
 function parseWeekdays(raw: string | null): number[] {

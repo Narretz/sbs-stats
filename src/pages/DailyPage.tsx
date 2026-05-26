@@ -8,12 +8,11 @@ import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
+import { DAY_OPTIONS, type DayOption } from "@/utils/dayRange";
 import { buildMetrics } from "@/utils/metrics";
 import type { DailyRow, DailyDataPoint, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
 import { FONTS } from "@/theme";
 
-const DAY_OPTIONS = [7, 14, 30, 60, 90, 120, 150, 180] as const;
-type DayOption = (typeof DAY_OPTIONS)[number];
 
 function parseWeekdays(raw: string | null): number[] {
   if (!raw) return [];
