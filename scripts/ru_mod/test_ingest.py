@@ -276,7 +276,7 @@ class TestStorage:
         conn.close()
         assert row == ("2026-05-23", 348 + 17 + 42 + 11, 4)  # 418 total, 4 reports
 
-        # Re-store the same posts → INSERT OR IGNORE, nothing added.
+        # Re-store the same posts → change detection sees no change, nothing added.
         inserted2, total2, _ = ig.store(db, reports)
         assert inserted2 == 0 and total2 == 4
 
@@ -307,3 +307,45 @@ class TestStorage:
         conn = sqlite3.connect(tmp_path / "ad.db")
         assert ig._overlap_count(conn) == 1   # the 20:00–23:00 overlap is flagged
         conn.close()
+
+
+# ── edit versioning: append a new row on change, never overwrite ──────────────
+class TestVersioning:
+    def _report(self, drones: int, mid: int = 700, posted: str = "2026-05-20T18:00:00+00:00"):
+        return _parse(
+            f"С 14.00 до 20.00 мск дежурными средствами ПВО перехвачены и уничтожены {drones} "
+            f"украинских беспилотных летательных аппаратов над территориями Курской области.",
+            mid=mid, posted_utc=posted)
+
+    def test_edit_adds_version_latest_wins(self, tmp_path):
+        import sqlite3
+        db = tmp_path / "ad.db"
+        assert ig.store(db, [self._report(100)])[:2] == (1, 1)   # first version
+        assert ig.store(db, [self._report(100)])[:2] == (0, 1)   # unchanged → no new version
+        assert ig.store(db, [self._report(120)])[:2] == (1, 2)   # edited → second version
+
+        conn = sqlite3.connect(db)
+        versions = conn.execute("SELECT COUNT(*) FROM ad_reports WHERE post_id=700").fetchone()[0]
+        latest = conn.execute("SELECT drones FROM ad_latest WHERE post_id=700").fetchone()[0]
+        day = conn.execute("SELECT drones_destroyed FROM daily_ad").fetchone()[0]
+        conn.close()
+        assert versions == 2          # both versions retained — nothing overwritten
+        assert latest == 120          # newest wins
+        assert day == 120             # aggregate counts the latest only (not 100, not 220)
+
+    def test_region_versioning_latest_wins(self, tmp_path):
+        import sqlite3
+        db = tmp_path / "ad.db"
+        ig.store(db, [_parse(ITEMIZED_DEC7, mid=800, posted_utc="2025-12-07T06:00:00+00:00")])
+        edited = (ITEMIZED_DEC7
+                  .replace("уничтожены 77 ", "уничтожены 85 ")
+                  .replace("42 – над территорией Саратовской", "50 – над территорией Саратовской"))
+        ig.store(db, [_parse(edited, mid=800, posted_utc="2025-12-07T06:00:00+00:00")])
+
+        conn = sqlite3.connect(db)
+        saratov = conn.execute(
+            "SELECT drones FROM region_totals WHERE region='Саратовской области'").fetchone()[0]
+        all_rows = conn.execute("SELECT COUNT(*) FROM ad_regions WHERE post_id=800").fetchone()[0]
+        conn.close()
+        assert saratov == 50          # region_totals reflects the latest version
+        assert all_rows == 14         # 7 regions × 2 versions kept (no loss)

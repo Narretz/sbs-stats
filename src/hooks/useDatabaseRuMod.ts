@@ -72,6 +72,17 @@ function queryRows<T>(db: Database, sql: string): T[] {
   });
 }
 
+// `ad_reports` is append-only & versioned: an edited post yields a new row
+// tagged with a later `scraped_at`. Every read goes through the latest version
+// per post_id (mirrors the ru_losses LATEST_PER_DATE pattern). The DB also ships
+// an `ad_latest` view doing the same; we inline it so the query is self-contained.
+const LATEST_PER_POST = `(
+  SELECT r.*
+  FROM ad_reports r
+  JOIN (SELECT post_id, MAX(scraped_at) AS ms FROM ad_reports GROUP BY post_id) l
+    ON r.post_id = l.post_id AND r.scraped_at = l.ms
+) latest`;
+
 // Per drone-day aggregation, split by reporting window (overnight vs daytime).
 // 'other'-kind reports fold into `day` so night + day == total.
 const DAILY_SELECT = `
@@ -80,7 +91,7 @@ const DAILY_SELECT = `
          SUM(CASE WHEN window_kind = 'night' THEN drones ELSE 0 END) AS night,
          SUM(CASE WHEN window_kind = 'night' THEN 0 ELSE drones END) AS day,
          COUNT(*) AS reports
-  FROM ad_reports`;
+  FROM ${LATEST_PER_POST}`;
 
 const stat = (vals: number[]): RuAdStat => {
   const s = [...vals].filter((v) => typeof v === "number").sort((a, b) => a - b);

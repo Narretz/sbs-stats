@@ -334,9 +334,14 @@ def iter_telethon(channel: str, min_id: int):
 
 
 # ── storage ─────────────────────────────────────────────────────────────────
+# Append-only & versioned: a Telegram post (post_id) can be EDITED after we first
+# store it, so each scrape that sees changed content inserts a NEW row tagged with
+# `scraped_at` rather than overwriting — no version is ever lost (mirrors the
+# ru_losses model). All reads go through the latest scraped_at per post_id.
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ad_reports (
-  post_id      INTEGER PRIMARY KEY,
+  post_id      INTEGER NOT NULL,
+  scraped_at   TEXT NOT NULL,
   posted_at    TEXT NOT NULL,
   window_start TEXT,
   window_end   TEXT,
@@ -346,37 +351,48 @@ CREATE TABLE IF NOT EXISTS ad_reports (
   region_count INTEGER,
   regions      TEXT,
   raw_text     TEXT,
-  scraped_at   TEXT NOT NULL
+  PRIMARY KEY (post_id, scraped_at)
 );
 CREATE INDEX IF NOT EXISTS ix_ad_date ON ad_reports(report_date);
--- Per-region counts, populated only for posts that itemize them (the MoD does
--- this on some days; on others it gives just a total + region list).
+-- Latest stored version of each post.
+CREATE VIEW IF NOT EXISTS ad_latest AS
+  SELECT r.* FROM ad_reports r
+  JOIN (SELECT post_id, MAX(scraped_at) AS ms FROM ad_reports GROUP BY post_id) l
+    ON r.post_id = l.post_id AND r.scraped_at = l.ms;
+-- Per-region counts, populated only for posts that itemize them; versioned with
+-- their post via scraped_at.
 CREATE TABLE IF NOT EXISTS ad_regions (
   post_id     INTEGER NOT NULL,
+  scraped_at  TEXT NOT NULL,
   report_date TEXT NOT NULL,
   region      TEXT NOT NULL,
   drones      INTEGER NOT NULL,
-  PRIMARY KEY (post_id, region)
+  PRIMARY KEY (post_id, scraped_at, region)
 );
 CREATE INDEX IF NOT EXISTS ix_adr_region ON ad_regions(region);
 CREATE VIEW IF NOT EXISTS daily_ad AS
   SELECT report_date AS date,
          SUM(drones)  AS drones_destroyed,
          COUNT(*)     AS reports
-  FROM ad_reports GROUP BY report_date;
+  FROM ad_latest GROUP BY report_date;
 CREATE VIEW IF NOT EXISTS region_totals AS
-  SELECT region,
-         SUM(drones)         AS drones,
-         COUNT(DISTINCT post_id) AS reports
-  FROM ad_regions GROUP BY region;
--- MoD Сводка summary posts captured raw (cumulative UA losses, not yet parsed).
+  SELECT g.region,
+         SUM(g.drones)           AS drones,
+         COUNT(DISTINCT g.post_id) AS reports
+  FROM ad_regions g
+  JOIN (SELECT post_id, MAX(scraped_at) AS ms FROM ad_reports GROUP BY post_id) l
+    ON g.post_id = l.post_id AND g.scraped_at = l.ms
+  GROUP BY g.region;
+-- MoD Сводка summary posts captured raw (cumulative UA losses, not yet parsed);
+-- versioned on edit, same as ad_reports.
 CREATE TABLE IF NOT EXISTS summaries (
-  post_id    INTEGER PRIMARY KEY,
+  post_id    INTEGER NOT NULL,
+  scraped_at TEXT NOT NULL,
   posted_at  TEXT NOT NULL,
   kind       TEXT,
   period     TEXT,
   raw_text   TEXT NOT NULL,
-  scraped_at TEXT NOT NULL
+  PRIMARY KEY (post_id, scraped_at)
 );
 """
 
@@ -386,30 +402,60 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
     conn = sqlite3.connect(db_path)
     try:
         conn.executescript(SCHEMA)
-        scraped = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        for s in summaries:
-            conn.execute(
-                "INSERT OR IGNORE INTO summaries (post_id,posted_at,kind,period,raw_text,scraped_at) "
-                "VALUES (?,?,?,?,?,?)",
-                (s.post_id, s.posted_at, s.kind, s.period, s.raw_text, scraped),
+        # Microsecond precision so two edits seen close together (or back-to-back
+        # store() calls) get distinct version keys.
+        scraped = datetime.now(timezone.utc).isoformat(timespec="microseconds")
+
+        # Latest stored content per post, for change detection. A re-scrape that
+        # sees identical content adds nothing; an edit inserts a new version.
+        latest_ad = {
+            row[0]: tuple(row[1:])
+            for row in conn.execute(
+                "SELECT post_id, drones, window_start, window_end, window_kind, regions, raw_text "
+                "FROM ad_latest"
             )
+        }
+        latest_sum = {
+            row[0]: row[1]
+            for row in conn.execute(
+                "SELECT s.post_id, s.raw_text FROM summaries s "
+                "JOIN (SELECT post_id, MAX(scraped_at) AS ms FROM summaries GROUP BY post_id) l "
+                "ON s.post_id = l.post_id AND s.scraped_at = l.ms"
+            )
+        }
+
         inserted = 0
         for r in reports:
-            cur = conn.execute(
-                "INSERT OR IGNORE INTO ad_reports "
-                "(post_id,posted_at,window_start,window_end,window_kind,report_date,"
-                " drones,region_count,regions,raw_text,scraped_at) "
+            content = (r.drones, r.window_start, r.window_end, r.window_kind, r.regions, r.raw_text)
+            if latest_ad.get(r.post_id) == content:
+                continue  # unchanged — no new version
+            conn.execute(
+                "INSERT INTO ad_reports "
+                "(post_id,scraped_at,posted_at,window_start,window_end,window_kind,report_date,"
+                " drones,region_count,regions,raw_text) "
                 "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                (r.post_id, r.posted_at, r.window_start, r.window_end, r.window_kind,
-                 r.report_date, r.drones, r.region_count, r.regions, r.raw_text, scraped),
+                (r.post_id, scraped, r.posted_at, r.window_start, r.window_end, r.window_kind,
+                 r.report_date, r.drones, r.region_count, r.regions, r.raw_text),
             )
-            inserted += cur.rowcount
             for region, n in r.breakdown:
                 conn.execute(
-                    "INSERT OR IGNORE INTO ad_regions (post_id,report_date,region,drones) "
-                    "VALUES (?,?,?,?)",
-                    (r.post_id, r.report_date, region, n),
+                    "INSERT INTO ad_regions (post_id,scraped_at,report_date,region,drones) "
+                    "VALUES (?,?,?,?,?)",
+                    (r.post_id, scraped, r.report_date, region, n),
                 )
+            inserted += 1
+
+        sum_inserted = 0
+        for s in summaries:
+            if latest_sum.get(s.post_id) == s.raw_text:
+                continue
+            conn.execute(
+                "INSERT INTO summaries (post_id,scraped_at,posted_at,kind,period,raw_text) "
+                "VALUES (?,?,?,?,?,?)",
+                (s.post_id, scraped, s.posted_at, s.kind, s.period, s.raw_text),
+            )
+            sum_inserted += 1
+
         conn.commit()
         total = conn.execute("SELECT COUNT(*) FROM ad_reports").fetchone()[0]
         latest = conn.execute("SELECT MAX(report_date) FROM ad_reports").fetchone()[0]
@@ -423,8 +469,9 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
 
 
 def _overlap_count(conn) -> int:
+    # Overlap is a property of the current (latest) version of each post.
     rows = conn.execute(
-        "SELECT window_start, window_end FROM ad_reports "
+        "SELECT window_start, window_end FROM ad_latest "
         "WHERE window_start IS NOT NULL AND window_end IS NOT NULL ORDER BY window_start"
     ).fetchall()
     n, prev_end = 0, None
@@ -489,26 +536,40 @@ def main() -> int:
     ap.add_argument("--max-pages", type=int, default=20, help="web: pages to walk (10–20 posts each)")
     ap.add_argument("--sleep", type=float, default=1.0, help="web: delay between pages")
     ap.add_argument("--backfill", action="store_true", help="web: ignore stored ids, walk max-pages")
+    ap.add_argument(
+        "--since", metavar="YYYY-MM-DD",
+        help="web: re-scan posts on/after this MSK date instead of stopping at the last stored "
+             "id. Lets edits to recent posts be re-checked (a new version is stored only when "
+             "content changed). Use latest-stored-date minus a couple days in CI.",
+    )
     ap.add_argument("--selftest", action="store_true", help="parse built-in samples, no network")
     args = ap.parse_args()
 
     if args.selftest:
         return selftest()
+    if args.since and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args.since):
+        ap.error("--since must be YYYY-MM-DD")
 
     out = Path(args.out)
-    since = max_stored_id(out)
 
     reports: list[Report] = []
     summaries: list[Summary] = []
     if args.source == "web":
-        print(f"==> web preview t.me/s/{args.channel} (since_id={since}, backfill={args.backfill})")
-        src = iter_web(args.channel, since, args.max_pages, args.sleep, args.backfill)
+        # With --since we re-scan a recent date window (id-stop off) so edits get
+        # re-checked; otherwise stop at the last stored post id.
+        since_id = 0 if (args.since or args.backfill) else max_stored_id(out)
+        print(f"==> web preview t.me/s/{args.channel} "
+              f"(since={args.since or f'id>{since_id}'}, backfill={args.backfill})")
+        src = iter_web(args.channel, since_id, args.max_pages, args.sleep, args.backfill or bool(args.since))
     else:
-        print(f"==> telethon @{args.channel} (min_id={since})")
-        src = iter_telethon(args.channel, since)
+        print(f"==> telethon @{args.channel} (min_id={max_stored_id(out)})")
+        src = iter_telethon(args.channel, max_stored_id(out))
 
     scanned = 0
     for pid, posted, text in src:
+        # Date window (newest→oldest): stop once older than --since.
+        if args.since and posted.astimezone(MSK).date().isoformat() < args.since:
+            break
         scanned += 1
         r = parse_report(text, pid, posted)
         if r:
