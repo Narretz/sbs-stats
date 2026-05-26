@@ -42,3 +42,5 @@ playwright-report/
 # RU MoD ingest local artifacts
 scripts/ru_mod/output/
 .pytest_cache/
+
+.claude/worktrees
