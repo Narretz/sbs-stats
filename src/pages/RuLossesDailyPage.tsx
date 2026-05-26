@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
+import { StatScopeToggle } from "@/components/StatScopeToggle";
 import {
   RU_LOSSES_METRIC_KEYS,
   RU_LOSSES_METRIC_LABELS,
@@ -170,6 +171,7 @@ export function RuLossesDailyPage({ refreshKey }: Props) {
               }}>{d}d</button>
             ))}
           </div>
+          <StatScopeToggle />
         </div>
       </div>
 

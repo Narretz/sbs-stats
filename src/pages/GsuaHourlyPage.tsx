@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { HourlyLineChart, type TooltipSortMode } from "@/components/HourlyLineChart";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
+import { StatScopeToggle } from "@/components/StatScopeToggle";
 import {
   GSUA_METRIC_KEYS,
   GSUA_METRIC_LABELS,
@@ -327,6 +328,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
               }}>{d}d</button>
             ))}
           </div>
+          <StatScopeToggle />
           <select
             value={tooltipSort}
             onChange={(e) => updateSort(e.target.value as TooltipSortMode)}

@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
+import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { buildMetrics } from "@/utils/metrics";
 import type { DailyRow, DailyDataPoint, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
 import { FONTS } from "@/theme";
@@ -196,6 +197,7 @@ export function DailyPage({ refreshKey }: DailyPageProps) {
               }}>{d}d</button>
             ))}
           </div>
+          <StatScopeToggle />
         </div>
       </div>
       {loadState === "loading" && !hasData && <LoadingScreen />}

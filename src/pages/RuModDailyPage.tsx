@@ -6,6 +6,7 @@ import { DailyLineChart } from "@/components/DailyLineChart";
 import { DailyMultiLineChart } from "@/components/DailyMultiLineChart";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
+import { StatScopeToggle } from "@/components/StatScopeToggle";
 import type { RuAdDailyRow, RuAdGlobalStats } from "@/types";
 import { FONTS } from "@/theme";
 
@@ -162,6 +163,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
               }}>{d}d</button>
             ))}
           </div>
+          <StatScopeToggle />
         </div>
       </div>
 

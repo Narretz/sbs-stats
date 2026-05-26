@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { HourlyLineChart, type TooltipSortMode } from "@/components/HourlyLineChart";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
+import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { buildMetrics } from "@/utils/metrics";
 import type { DailyRow, DailyDaySeries, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
 import { FONTS } from "@/theme";
@@ -233,6 +234,7 @@ export function HourlyPage({ refreshKey }: HourlyPageProps) {
               <option key={mode} value={mode}>Tooltip Data Sort: {mode === "value" ? "Value" : "Date"}</option>
             ))}
           </select>
+          <StatScopeToggle />
         </div>
       </div>
       {loadState === "loading" && !hasData && <LoadingScreen />}

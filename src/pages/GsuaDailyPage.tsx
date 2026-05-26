@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
+import { StatScopeToggle } from "@/components/StatScopeToggle";
 import {
   GSUA_METRIC_KEYS,
   GSUA_METRIC_LABELS,
@@ -267,6 +268,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
               }}>{d}d</button>
             ))}
           </div>
+          <StatScopeToggle />
         </div>
       </div>
 

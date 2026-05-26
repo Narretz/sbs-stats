@@ -15,9 +15,12 @@ const StatScopeContext = createContext<StatScopeValue>({ scope: "all", setScope:
 export function StatScopeProvider({ children }: { children: ReactNode }) {
   const [scope, setScopeState] = useState<StatScope>(() => {
     try {
-      return localStorage.getItem("statScope") === "window" ? "window" : "all";
+      // Default to "window" — most views are looked at over a short range, where
+      // the windowed MAX/MED is the more useful reference. Only an explicit "all"
+      // overrides it.
+      return localStorage.getItem("statScope") === "all" ? "all" : "window";
     } catch {
-      return "all";
+      return "window";
     }
   });
   const setScope = useCallback((s: StatScope) => {
