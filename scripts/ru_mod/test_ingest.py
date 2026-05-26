@@ -151,6 +151,19 @@ class TestRegions:
         assert r.region_count == 3
         assert "Белгородской" in r.regions and "Курской" in r.regions
 
+    def test_markdown_stripped_from_regions(self):
+        # telethon returns Markdown source; **bold** markers must not leak into
+        # the parsed region name (web preview returns plain text, so both sources
+        # must parse to the same clean string — see _strip_md).
+        r = _parse(
+            "С 14.00 до 20.00 мск дежурными средствами ПВО перехвачены и уничтожены 11 "
+            "украинских беспилотных летательных аппаратов над территориями "
+            "**Белгородской, Брянской и Курской областей**.",
+        )
+        assert "*" not in r.regions
+        assert r.regions.startswith("Белгородской")
+        assert r.region_count == 3
+
     def test_no_regions_clause(self):
         r = _parse(
             "С 14.00 до 20.00 мск дежурными средствами ПВО перехвачены и уничтожены 5 "

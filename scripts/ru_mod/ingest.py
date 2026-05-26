@@ -113,6 +113,17 @@ class Summary:
 
 
 # ── parsing ───────────────────────────────────────────────────────────────────
+def _strip_md(text: str) -> str:
+    """Remove Telegram Markdown so the web and telethon backends parse to the
+    same text. telethon returns the post's Markdown source (**bold**, italics,
+    [label](url) links); the web preview returns it already rendered to plain
+    text. Left in, the markers leak into parsed fields (e.g. a `**` glued onto a
+    region name) — which both dirties the data and makes the same post look
+    edited across sources, spuriously inserting a new version."""
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)  # [label](url) → label
+    return text.replace("*", "").replace("_", "")          # bold/italic markers
+
+
 def _parse_window(text: str, posted_msk: datetime):
     """Return (start, end, kind) as MSK datetimes (or None) + kind string."""
     m = NIGHT_DATED_RE.search(text)
@@ -176,7 +187,7 @@ def parse_breakdown(text: str) -> list[tuple[str, int]]:
 
 def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | None:
     """Parse one AD intercept post; return None if it isn't one."""
-    flat = re.sub(r"\s+", " ", html.unescape(text)).strip()
+    flat = re.sub(r"\s+", " ", _strip_md(html.unescape(text))).strip()
     if not AD_GATE.search(flat) or "беспилотн" not in flat.lower():
         return None
     cm = COUNT_RE.search(flat)
@@ -241,14 +252,11 @@ def _norm_summary(text: str) -> str:
     """Source-agnostic form of a summary's text, for change detection.
 
     Summaries are stored raw (unparsed), so unlike AD reports we have no parsed
-    fields to compare — we compare the text instead. But telethon keeps Markdown
-    (**bold**, [label](url) links) while the web preview returns plain text, so
-    the same post looks different per source. Strip that formatting (and collapse
-    whitespace) so web↔telethon dedups, while a genuine edit to the wording still
-    changes the normalized text and inserts a new version."""
-    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)  # [label](url) → label
-    text = text.replace("*", "").replace("_", "")          # markdown emphasis
-    return re.sub(r"\s+", " ", text).strip()
+    fields to compare — we compare the text instead. The web and telethon
+    backends format the same post differently (see _strip_md), so normalize the
+    Markdown + whitespace away: web↔telethon dedups, while a genuine wording edit
+    still changes the normalized text and inserts a new version."""
+    return re.sub(r"\s+", " ", _strip_md(text)).strip()
 
 
 # ── web backend (t.me/s preview) ───────────────────────────────────────────────
