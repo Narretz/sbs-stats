@@ -11,11 +11,11 @@ locally), writes a small SQLite file, and that file is uploaded to R2.
 
 Append-only by design (mirrors the GSUA `posts` snapshot model): a stored row is
 never mutated or deleted. Each `daily_losses` row is one *version* of a date's
-numbers, tagged with `snapshot_at` (when we ingested it). On each run we compare
+numbers, tagged with `scraped_at` (when we ingested it). On each run we compare
 the fetched values to the latest stored version per date and insert a NEW row
 only when they differ (or the date is new) — so unchanged days add nothing, and
 the General Staff's occasional same-day corrections are captured as a fresh row
-that simply wins by having a newer `snapshot_at`. The frontend always reads the
+that simply wins by having a newer `scraped_at`. The frontend always reads the
 latest snapshot per date. Nothing is ever overwritten, so a bad value can't
 clobber good stored data — the prior version is still in the table.
 
@@ -100,7 +100,7 @@ def build(db_path: Path, payload: dict) -> tuple[int, int, str]:
     """Append changed/new day-versions into db_path. Never mutates/deletes rows.
 
     Compares each fetched day to the latest stored snapshot for that date and
-    inserts a new (date, snapshot_at, …) row only when the values differ or the
+    inserts a new (date, scraped_at, …) row only when the values differ or the
     date is unseen. Aborts (raises) without writing if the payload looks broken,
     so a bad fetch can't pollute the DB and the caller can skip the R2 upload.
 
@@ -120,10 +120,17 @@ def build(db_path: Path, payload: dict) -> tuple[int, int, str]:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
+        # One-shot rename: the version-key column was historically `snapshot_at`;
+        # renamed to `scraped_at` for consistency with the GSUA/ru_mod scrapers
+        # (where snapshot_at means the report's own time, not the ingest time).
+        existing = {r[1] for r in conn.execute("PRAGMA table_info(daily_losses)")}
+        if "snapshot_at" in existing and "scraped_at" not in existing:
+            conn.execute("ALTER TABLE daily_losses RENAME COLUMN snapshot_at TO scraped_at")
+
         conn.execute(
             f"CREATE TABLE IF NOT EXISTS daily_losses "
-            f"(date TEXT NOT NULL, snapshot_at TEXT NOT NULL, {cols}, "
-            f"PRIMARY KEY (date, snapshot_at))"
+            f"(date TEXT NOT NULL, scraped_at TEXT NOT NULL, {cols}, "
+            f"PRIMARY KEY (date, scraped_at))"
         )
 
         # Latest stored version per date, for change detection.
@@ -131,8 +138,8 @@ def build(db_path: Path, payload: dict) -> tuple[int, int, str]:
             f"""
             SELECT d.date, {metric_cols}
             FROM daily_losses d
-            JOIN (SELECT date, MAX(snapshot_at) AS ms FROM daily_losses GROUP BY date) l
-              ON d.date = l.date AND d.snapshot_at = l.ms
+            JOIN (SELECT date, MAX(scraped_at) AS ms FROM daily_losses GROUP BY date) l
+              ON d.date = l.date AND d.scraped_at = l.ms
             """
         ).fetchall()
         stored = {r[0]: tuple(r[1:]) for r in latest_rows}
@@ -144,16 +151,16 @@ def build(db_path: Path, payload: dict) -> tuple[int, int, str]:
                 f"refusing to write a shrinking dataset into {db_path}."
             )
 
-        snapshot_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        scraped_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
         to_insert = [
-            [date, snapshot_at, *vals]
+            [date, scraped_at, *vals]
             for date, vals in fetched.items()
             if stored.get(date) != vals  # new date, or values changed
         ]
 
         if to_insert:
             placeholders = ", ".join(["?"] * (len(METRICS) + 2))
-            collist = ", ".join(["date", "snapshot_at"] + METRICS)
+            collist = ", ".join(["date", "scraped_at"] + METRICS)
             conn.executemany(
                 f"INSERT INTO daily_losses ({collist}) VALUES ({placeholders})",
                 to_insert,

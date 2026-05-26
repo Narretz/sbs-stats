@@ -82,12 +82,12 @@ const METRIC_COLS = RU_LOSSES_METRIC_KEYS.join(", ");
 
 // `daily_losses` is append-only: a date can have several snapshot rows (one per
 // version of the General Staff's numbers). Every read goes through this derived
-// table, which keeps only the latest `snapshot_at` per date.
+// table, which keeps only the latest `scraped_at` per date.
 const LATEST_PER_DATE = `(
   SELECT d.*
   FROM daily_losses d
-  JOIN (SELECT date, MAX(snapshot_at) AS ms FROM daily_losses GROUP BY date) l
-    ON d.date = l.date AND d.snapshot_at = l.ms
+  JOIN (SELECT date, MAX(scraped_at) AS ms FROM daily_losses GROUP BY date) l
+    ON d.date = l.date AND d.scraped_at = l.ms
 ) latest`;
 
 // russian-casualties.in.ua updates once a day (mornings), so hourly polling is
