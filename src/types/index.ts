@@ -109,7 +109,7 @@ export const SITE_LABELS: Record<Site, string> = {
   "ru-attacks-gsua": "RU ATTACKS - GSUA",
   "ru-losses-gsua": "RU LOSSES - GSUA",
   "ru-airdef-mod": "RU AIR DEFENSE - RU MoD",
-  "ru-air-attacks-gsua": "RU MISSILE & UAV ATTACKS",
+  "ru-air-attacks-gsua": "RU MISSILE & UAV ATTACKS - GSUA",
 };
 export type LoadState = "idle" | "loading" | "ready" | "error";
 

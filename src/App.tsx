@@ -14,9 +14,6 @@ import { useAppRoute } from "@/hooks/useAppRoute";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorScreen } from "@/components/Layout";
-import { DailyPage } from "@/pages/DailyPage";
-import { HourlyPage } from "@/pages/HourlyPage";
-import { MonthlyPage } from "@/pages/MonthlyPage";
 import { GsuaDailyPage } from "@/pages/GsuaDailyPage";
 import { GsuaHourlyPage } from "@/pages/GsuaHourlyPage";
 import { GsuaMonthlyPage } from "@/pages/GsuaMonthlyPage";
@@ -26,6 +23,9 @@ import { RuModDailyPage } from "@/pages/RuModDailyPage";
 import { RuAirAttacksDailyPage } from "@/pages/RuAirAttacksDailyPage";
 import { RuAirAttacksMonthlyPage } from "@/pages/RuAirAttacksMonthlyPage";
 import { RuModMonthlyPage } from "@/pages/RuModMonthlyPage";
+import { SbsDailyPage } from "@/pages/SbsDailyPage";
+import { SbsHourlyPage } from "@/pages/SbsHourlyPage";
+import { SbsMonthlyPage } from "@/pages/SbsMonthlyPage";
 import type { Page, Site } from "@/types";
 import { GLOBAL_CSS } from "@/theme";
 
@@ -54,9 +54,9 @@ function SbsRoot({
         refreshIntervalMs={refreshIntervalMs}
       />
       <PageShell>
-        {page === "daily"   && <DailyPage refreshKey={refreshCount} />}
-        {page === "hourly"  && <HourlyPage refreshKey={refreshCount} />}
-        {page === "monthly" && <MonthlyPage refreshKey={refreshCount} />}
+        {page === "daily"   && <SbsDailyPage refreshKey={refreshCount} />}
+        {page === "hourly"  && <SbsHourlyPage refreshKey={refreshCount} />}
+        {page === "monthly" && <SbsMonthlyPage refreshKey={refreshCount} />}
       </PageShell>
     </>
   );

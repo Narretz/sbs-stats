@@ -54,7 +54,7 @@ interface HourlyPageProps {
   refreshKey?: number;
 }
 
-export function HourlyPage({ refreshKey }: HourlyPageProps) {
+export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
   const { theme: t } = useTheme();
   const { loadState, error, queryHourly, queryGlobalStats, queryEodProjection } = useDatabaseContext();
   const initial = useMemo(() => getUrlParams(), []);

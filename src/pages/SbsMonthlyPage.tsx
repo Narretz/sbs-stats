@@ -13,7 +13,7 @@ interface MonthlyPageProps {
   refreshKey?: number;
 }
 
-export function MonthlyPage({ refreshKey }: MonthlyPageProps) {
+export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
   const { theme: t } = useTheme();
   const { loadState, error, queryMonthly } = useDatabaseContext();
   const [rows, setRows] = useState<MonthlyRow[]>([]);

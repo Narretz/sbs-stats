@@ -51,7 +51,7 @@ interface DailyPageProps {
   refreshKey?: number;
 }
 
-export function DailyPage({ refreshKey }: DailyPageProps) {
+export function SbsDailyPage({ refreshKey }: DailyPageProps) {
   const { theme: t } = useTheme();
   const { loadState, error, queryDaily, queryGlobalStats, queryEodProjection } = useDatabaseContext();
   const initial = useMemo(() => getUrlParams(), []);
