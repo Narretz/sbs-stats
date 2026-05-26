@@ -1,0 +1,134 @@
+name: Update Telegram-web Databases
+
+# GSUA (General Staff) + RU MoD air-defense both scrape the public t.me/s
+# Telegram web preview (no API account, no browser, stdlib only). Same source
+# and cadence, so they share one workflow — but as two independent jobs, so a
+# parse hiccup or t.me rate-limit on one source can't block the other's upload.
+
+on:
+  workflow_dispatch: # manual trigger from the GitHub UI
+  schedule:
+    # GS reports land ~08:00 / 16:00 / 22:00 Kyiv. GitHub Actions added an IANA
+    # `timezone:` field for cron (2026-03), so we schedule in Kyiv local time and
+    # it follows DST automatically — no UTC offset juggling. GitHub's scheduler
+    # runs a few minutes late, which lands each run just after the report; a 2-day
+    # idempotent lookback covers anything missed by timing.
+    - cron: "0 8,16,22 * * *"
+      timezone: "Europe/Kyiv"
+
+jobs:
+  # ── GSUA General Staff operational reports → ru-attacks-gsua.db ──────────────
+  gsua:
+    runs-on: ubuntu-latest
+    env:
+      R2_BUCKET: russia-ukraine-war
+      GSUA_DB_NAME: ru-attacks-gsua.db
+      # Re-scrape this many days before the newest stored report to catch late
+      # corrections (idempotent upsert).
+      GSUA_LOOKBACK_DAYS: "2"
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # NOTE: no continue-on-error — the full ~32 MB history lives only in R2.
+      # If the download fails we must abort, NOT rebuild a partial DB from the
+      # web preview (which can't reach far back) and overwrite the good object.
+      - name: Download current GSUA DB from R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          mkdir -p scripts/gsua/output
+          npx --yes wrangler@4 r2 object get \
+            "$R2_BUCKET/$GSUA_DB_NAME" \
+            --file "scripts/gsua/output/$GSUA_DB_NAME" \
+            --remote
+
+      - name: Compute scrape cutoff
+        id: cutoff
+        env:
+          DB_PATH: scripts/gsua/output/${{ env.GSUA_DB_NAME }}
+        run: |
+          SINCE=$(python3 - <<'PY'
+          import os, sqlite3, datetime
+          c = sqlite3.connect(os.environ["DB_PATH"])
+          row = c.execute("SELECT MAX(date) FROM posts").fetchone()
+          latest = row[0] if row and row[0] else "2024-05-13"
+          lookback = int(os.environ.get("GSUA_LOOKBACK_DAYS", "2"))
+          since = datetime.date.fromisoformat(latest) - datetime.timedelta(days=lookback)
+          print(since.isoformat())
+          PY
+          )
+          echo "since=$SINCE" >> "$GITHUB_OUTPUT"
+          echo "Scraping since $SINCE"
+
+      # Web-preview path: parses t.me/s/GeneralStaffZSU as static HTML. (telethon
+      # needs interactive login; the Nitter/FB scripts still exist but are no
+      # longer used — slated for removal.) GSUA_DB_NAME is inherited from job env.
+      - name: Scrape GSUA reports (web preview)
+        working-directory: scripts/gsua
+        run: python scrape_general_staff.py --source web --since "${{ steps.cutoff.outputs.since }}"
+
+      - name: Upload GSUA DB to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/$GSUA_DB_NAME" \
+            --file "scripts/gsua/output/$GSUA_DB_NAME" \
+            --content-type application/vnd.sqlite3 \
+            --remote
+
+  # ── RU MoD air-defense intercept reports → ru-mod-ad.db ─────────────────────
+  rumod:
+    runs-on: ubuntu-latest
+    env:
+      R2_BUCKET: russia-ukraine-war
+      RU_MOD_DB_NAME: ru-mod-ad.db
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # continue-on-error so the very first run (object not yet in R2) still
+      # works — ingest is append-only (INSERT OR IGNORE by post id), so a normal
+      # run merges into the downloaded DB.
+      - name: Download current RU MoD DB from R2
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          mkdir -p scripts/ru_mod/output
+          npx --yes wrangler@4 r2 object get \
+            "$R2_BUCKET/$RU_MOD_DB_NAME" \
+            --file "scripts/ru_mod/output/$RU_MOD_DB_NAME" \
+            --remote
+
+      - name: Build RU MoD DB
+        run: |
+          mkdir -p scripts/ru_mod/output
+          python3 scripts/ru_mod/ingest.py \
+            --source web --max-pages 40 \
+            --out "scripts/ru_mod/output/$RU_MOD_DB_NAME"
+
+      - name: Upload RU MoD DB to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/$RU_MOD_DB_NAME" \
+            --file "scripts/ru_mod/output/$RU_MOD_DB_NAME" \
+            --content-type application/vnd.sqlite3 \
+            --remote
