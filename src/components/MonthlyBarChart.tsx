@@ -81,7 +81,13 @@ export function MonthlyBarChart({ title, data, wfull }: Props) {
           />
           <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
           <Tooltip
-            content={(props) => <MonthlyTooltip {...props} t={t} />}
+            content={({ active, payload }) => (
+              <MonthlyTooltip
+                active={active}
+                payload={payload as unknown as Array<{ payload: MonthlyDataPoint }>}
+                t={t}
+              />
+            )}
             allowEscapeViewBox={{ x: false, y: true }}
           />
           <Bar dataKey="value" stackId="a" name="Actual">

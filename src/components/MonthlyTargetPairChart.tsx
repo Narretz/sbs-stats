@@ -120,9 +120,10 @@ export function MonthlyTargetPairChart({
           />
           <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
           <Tooltip
-            content={(props) => (
+            content={({ active, payload }) => (
               <MonthlyPairTooltip
-                {...props}
+                active={active}
+                payload={payload as unknown as Array<{ payload: MonthlyTargetPairDataPoint }>}
                 t={t}
                 primaryLabel={primaryLabel}
                 secondaryLabel={secondaryLabel}

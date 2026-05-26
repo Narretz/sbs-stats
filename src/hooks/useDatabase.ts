@@ -347,7 +347,7 @@ export function useDatabase() {
         is_current_month: isCurrentMonth,
         projection_day: isCurrentMonth ? dayOfMonth : null,
         projection_days_in_month: isCurrentMonth ? daysInMonth : null,
-        ...(row as Record<string, number>),
+        ...(row as unknown as Record<StatKey, number>),
       };
 
       if (isCurrentMonth) {

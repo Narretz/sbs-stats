@@ -215,7 +215,17 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
           />
           <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, max)]} />
           <Tooltip
-            content={(props) => <CustomTooltip {...props} currentDate={primarySeries?.date} t={t} sortMode={tooltipSort} eod={isToday ? (eod ?? null) : null} />}
+            content={({ active, payload, label }) => (
+              <CustomTooltip
+                active={active}
+                payload={payload as TooltipProps<number, string>["payload"]}
+                label={label}
+                currentDate={primarySeries?.date}
+                t={t}
+                sortMode={tooltipSort}
+                eod={isToday ? (eod ?? null) : null}
+              />
+            )}
             allowEscapeViewBox={{ x: false, y: true }}
             wrapperStyle={{ zIndex: 9999 }}
           />
