@@ -229,6 +229,107 @@ Tradeoffs:
 
 ---
 
+## 7. Russian recruitment & budget-derived casualties (Janis Kluge / Russianomics) — GAP
+
+### janiskluge.substack.com ("Russianomics") — LIVE (content) but NOT machine-readable
+- https://janiskluge.substack.com/ — Janis Kluge (SWP). Tracks Russian **recruitment**
+  (~800–1,000 contracts/day in early 2026, falling) and **personnel losses** (~250–300
+  KIA/day), plus defense spending. Distinctive because it's derived from *Russian* budget
+  data, not Ukrainian claims or OSINT obituaries — an independent third estimate.
+- **Methodology (his, originally from iStories):** Russian regional + federal budget
+  *execution* reports give (a) total signing-bonus outlays → ÷ per-recruit bonus =
+  recruit count; (b) family death-compensation payouts → KIA count. Sample = ~40 regions
+  (~47% of population), scaled to a national figure.
+- **The catch — only charts, and they're flat PNGs.** Every figure is published as a
+  static `substackcdn.com/image/fetch/...` PNG (verified 2026-05); there is **no backing
+  dataset, CSV, or chart embed** (not Datawrapper/Flourish/Highcharts) to read. His
+  separate budget browser (http://budget.jakluge.de, federal budget 2018–2025) is a JS
+  viz with **no export/API** either, and covers federal totals — not the regional
+  recruitment/casualty derivation.
+
+### Is chart-scraping feasible? — technically yes, practically poor fit
+- **Direct extraction = plot digitization** (WebPlotDigitizer-style pixel analysis, or OCR
+  of the axis-labelled bars). Doable for a one-off, but **fragile and approximate**: it
+  breaks every time he restyles a chart, can't be trusted to ±, and yields a handful of
+  quarterly points — not a clean time series. A bad fit for our daily CI→R2→SQLite pattern,
+  and the data only updates **quarterly** anyway. Not recommended as an ingestion source.
+- **The right path is the upstream, not the charts.** His inputs are *public Russian
+  Finance Ministry data* — federal budget execution + **regional budget execution reports**
+  (roiv finance portals / budget.gov.ru / "Электронный бюджет"). Reconstructing his numbers
+  means our own **research-grade scraper** of regional budget execution lines (signing
+  bonuses, death compensation) + re-implementing the bonus-division methodology. That's a
+  heavy, Russian-language, multi-source build (each region publishes differently) — far more
+  than a CSV pull, in the same "build our own" tier as the RU-MoD scraper (§3).
+- **Verdict:** keep as a **human cross-check / reference** for now (cite his posts when
+  presenting GSUA/MoD personnel figures — his budget-derived KIA is a useful independent
+  comparison). Treat full ingestion as a long-term GAP: it needs an upstream Russian-budget
+  scraper, not chart-scraping, and its quarterly cadence suits a periodic view, not the
+  daily dashboard. If pursued, ask Kluge directly — researchers often share the underlying
+  spreadsheet on request, which would moot the whole extraction problem.
+
+---
+
+## 8. Territorial control — frontline / area held (mappers)
+
+The question "who publishes *structured* data?" splits these sharply: two ship
+machine-readable GeoJSON; the rest are images or charts only. Note this is **GIS
+data (polygons), not the scalar daily-counts shape** the rest of the dashboard is
+built on — a "territory lost/gained" view means computing polygon **area** per
+snapshot (shapely/turf) and diffing consecutive days, plus handling large files.
+Feasible as a **periodic (weekly/monthly) snapshot**, not a trivial CSV pull.
+
+### DeepState (deepstatemap.live) — LIVE — ✅ STRUCTURED (best option)
+- Ukrainian OSINT map, blended from UA MoD data + confirmed OSINT. ~2–3 day lag.
+- **Public GeoJSON API** (verified 2026-05): `https://deepstatemap.live/api/history/last`
+  returns the full FeatureCollection of occupied/frontline polygons; historical snapshots
+  via `https://deepstatemap.live/api/history/<unix_ts>/geojson`. (The `/api/history` index
+  itself returns `Unauthorized`, but `last` + per-timestamp `geojson` are open.)
+- **Daily mirror:** `github.com/cyterat/deepstate-map-data` — Multipolygon GeoJSON of
+  occupied territory, GPL-3.0, **updated daily 03:00 UTC** (pushed 2026-05-26). Cleaner to
+  consume than the API for a daily CI snapshot.
+- **Area methodology reference:** `github.com/conflict-investigations/deepstatemap-territory`
+  — scrapes DeepState and computes total "occupied" km². STALE (last push 2023, no license),
+  but the notebook shows exactly how to turn the polygons into a km² time series.
+- To produce "territory gained/lost/day": snapshot the GeoJSON, compute area (equal-area
+  projection), diff vs. previous snapshot. Heavy-ish geometry + large daily files, but the
+  pipeline shape (snapshot → derive → store) matches ours.
+
+### Playfra (playframap.github.io) — LIVE — ✅ STRUCTURED
+- Repo `playframap/playframap.github.io` (pushed 2026-05-26) ships **daily
+  `data/grayzone<DDMMYY>.geojson`** frontline/grayzone polygons (~85 files, raw-fetchable
+  via raw.githubusercontent / GitHub Pages). Second independent structured source / good
+  cross-check against DeepState. License not stated on the repo — confirm before use.
+
+### ISW / Critical Threats — reference only (NOT structured)
+- criticalthreats.org Russian Offensive Campaign Assessment + an interactive **ArcGIS
+  StoryMap** (storymaps.arcgis.com), updated daily, with monthly time-lapse. **No official
+  GeoJSON/shapefile/CSV download.** The backing ArcGIS FeatureServer can sometimes be queried
+  unofficially, but it's undocumented and ToS-grey. Treat as authoritative human analysis /
+  cross-check, not an ingestion source.
+
+### War Mapper / "Poulet Volant" (warmapper.org) — numbers, but NOT structured
+- Weekly control updates + **monthly territorial-change charts in km²** (UA side collated by
+  OwlOSINT). The figures are exactly what we'd want, but published as **charts + Telegram
+  posts**, with no documented data file/API (site returns 403 to fetchers). Same situation
+  as Janis Kluge (§7): real numbers, no machine-readable feed → cross-check, or ask directly.
+
+### Rybar (rybar.ru) — NOT structured (+ bias caveat)
+- Pro-Russian (anonymous, ~1.1M followers). Maps shared as **images on Telegram**; an online
+  map at `map.rybar.ru` is **subscription-gated**. No free structured export. Russian-MoD-aligned
+  framing — only useful as an adversary-narrative counterpoint, not a data source.
+
+### AMK Mapping — NOT structured
+- English pro-Ukrainian OSINT Telegram/X channel (~46k). Control maps + strike overlays as
+  **images / an interactive map**, updated several times daily. No data export.
+
+**Bottom line:** of the five you named, only **DeepState** publishes a real structured feed
+(GeoJSON API + GPL daily GitHub mirror); **Playfra** is a strong second (daily GeoJSON in a
+public repo). ISW, War Mapper, Rybar, and AMK are image/chart-only → reference & cross-check,
+not ingestion. If we add a territory view, DeepState is the primary source and the work is
+GIS area-diffing on a periodic (not daily-scalar) cadence.
+
+---
+
 ## Suggested integration order
 
 1. **russian-casualties.in.ua** — national GSUA totals. Lowest effort: pre-differenced daily
