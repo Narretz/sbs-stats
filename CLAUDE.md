@@ -14,6 +14,7 @@ via sql.js / sql.js-httpvfs.
 | RU ATTACKS — GSUA | `ru-attacks-gsua` | Ukrainian General Staff operational reports (Telegram) | [`scripts/gsua/`](scripts/gsua/README.md) → `ru-attacks-gsua.db` |
 | RU LOSSES — GSUA | `ru-losses-gsua` | russian-casualties.in.ua national totals | [`scripts/ru_losses/`](scripts/ru_losses/README.md) → `ru-losses-gsua.db` |
 | RU AIR DEFENSE — RU MoD | `ru-airdef-mod` | Russian MoD air-defense claims (Telegram) | [`scripts/ru_mod/`](scripts/ru_mod/README.md) → `ru-mod-ad.db` |
+| RU MISSILE & UAV ATTACKS — GSUA | `ru-air-attacks-gsua` | UA Air Force Command + General Staff strike reports (piterfm / Kaggle) | [`scripts/missile_attacks/`](scripts/missile_attacks/README.md) → `ru-air-attacks-gsua.db` |
 
 [`DATASETS.md`](DATASETS.md) tracks source research, recency, and candidate
 datasets for future views.
@@ -41,6 +42,9 @@ GitHub Actions in `.github/workflows/`:
   public `t.me/s` web preview, no API account). Scheduled at 08:00 / 16:00 /
   22:00 **Europe/Kyiv** (IANA `timezone:` cron field) to land just after the GS
   reports; a 2-day idempotent lookback covers GitHub's scheduler lag.
+- `update-missile-attacks-db.yml` — RU missile & UAV attacks. Daily (06:00 UTC);
+  pulls piterfm's Kaggle dataset (needs `KAGGLE_USERNAME` / `KAGGLE_KEY`
+  secrets), append-on-change so an unchanged ~weekly re-publish inserts nothing.
 - `deploy.yml` — builds and publishes to GitHub Pages.
 
 ## Common commands

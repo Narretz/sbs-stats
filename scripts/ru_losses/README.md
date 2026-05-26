@@ -52,3 +52,9 @@ python ingest.py --out /tmp/test.db    # write elsewhere
 uav, vehicles, boats, se, missiles` (the source's own legend keys; `submarines`
 is omitted — absent from the legend and flat-zero). Mirrors
 `RU_LOSSES_METRIC_KEYS` in `src/types/index.ts`.
+
+> **Every column is a single-day count, not a running cumulative total.** `uav`
+> on a given date is the UAVs the GS reported lost *that day* (~1,800/day in
+> early 2026), not the war-to-date sum. To get a monthly/period figure, **sum
+> across dates** — e.g. `SELECT substr(date,1,7) m, SUM(uav) FROM …` yields
+> ~60k UAVs for Mar 2026.
