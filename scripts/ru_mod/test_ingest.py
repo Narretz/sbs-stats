@@ -319,6 +319,23 @@ class TestBreakdown:
         assert "Москву" not in " ".join(bd)         # sub-clause not a region
         assert sum(bd.values()) == 60               # sums to total (no double-count)
 
+    def test_itemized_word_form_counts(self):
+        # Low-count days spell the per-region numbers out ("восемь", "два").
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "
+            "11 украинских беспилотных летательных аппаратов самолетного типа: "
+            "▫️ восемь – над территорией Белгородской области, "
+            "▫️ два – над территорией Курской области, "
+            "▫️ один БПЛА – над акваторией Черного моря.",
+            posted_utc="2026-01-04T05:00:00+00:00",
+        )
+        assert r.drones == 11
+        bd = dict(r.breakdown)
+        assert bd["Белгородской области"] == 8
+        assert bd["Курской области"] == 2
+        assert bd["Черного моря"] == 1
+        assert sum(bd.values()) == 11
+
     def test_total_only_has_no_breakdown(self):
         r = _parse(
             "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "

@@ -87,13 +87,59 @@ REGION_RE = re.compile(r"над\s+территор\w+\s+(.*)", re.I)
 #   "9 БПЛА – над акваторией Каспийского моря"     (sea area, not a territory)
 #   "39 – над Московским регионом"                 (region, no "территорией")
 #   "1 – территорией Белгородской области"         ("над" dropped)
-# The "в том числе N БПЛА, летевших на Москву" sub-clause has no dash, so it is
-# correctly NOT matched (a subset of the Moscow line, not a separate region).
+#   "восемь – над территорией Белгородской …"      (count spelled out, low days)
+# The count is a digit OR a spelled-out numeral (1–3 words); a non-numeral word
+# phrase is filtered out in parse_breakdown via _ru_numeral. The "в том числе N …,
+# летевших на Москву" sub-clause has no dash, so it is correctly NOT matched (a
+# subset of the Moscow line, not a separate region).
+# The multi-word part is lazy ({0,2}?) so the count stays minimal and the "БПЛА"
+# unit is consumed by the dedicated group below (not swallowed into the numeral,
+# which would make "один БПЛА" fail to parse); it only expands for genuine
+# multi-word numerals like "двадцать три".
 REGION_ITEM_RE = re.compile(
-    r"(\d+)\s*(?:БПЛА\s*)?[-–—]\s*(?:над\s+)?([^,.;▫\d]+)", re.I)
+    r"(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){0,2}?)\s*(?:БПЛА\s*)?[-–—]\s*(?:над\s+)?([^,.;▫\d]+)", re.I)
 # Leading "территорией "/"акваторией " noun stripped off the captured phrase so
 # the region name itself remains (e.g. "Брянской области", "Азовского моря").
 _REGION_NOUN_RE = re.compile(r"^(?:территори\w+|акватори\w+)\s+", re.I)
+
+# Spelled-out Russian cardinals as they appear in per-region counts. Low-count
+# days (≤ a few dozen drones over any one region) write the number as a word.
+_RU_UNITS = {
+    "ноль": 0, "один": 1, "одного": 1, "одна": 1, "одно": 1, "два": 2, "две": 2,
+    "три": 3, "четыре": 4, "пять": 5, "шесть": 6, "семь": 7, "восемь": 8, "девять": 9,
+    "десять": 10, "одиннадцать": 11, "двенадцать": 12, "тринадцать": 13,
+    "четырнадцать": 14, "пятнадцать": 15, "шестнадцать": 16, "семнадцать": 17,
+    "восемнадцать": 18, "девятнадцать": 19,
+}
+_RU_TENS = {
+    "двадцать": 20, "тридцать": 30, "сорок": 40, "пятьдесят": 50, "шестьдесят": 60,
+    "семьдесят": 70, "восемьдесят": 80, "девяносто": 90,
+}
+_RU_HUNDREDS = {
+    "сто": 100, "двести": 200, "триста": 300, "четыреста": 400, "пятьсот": 500,
+}
+
+
+def _ru_numeral(text: str) -> int | None:
+    """Parse a spelled-out Russian cardinal (e.g. 'двадцать три' → 23). Returns
+    None if any word isn't a numeral, so non-numeric phrases are rejected."""
+    total = 0
+    matched = False
+    for w in text.lower().split():
+        for table in (_RU_HUNDREDS, _RU_TENS, _RU_UNITS):
+            if w in table:
+                total += table[w]
+                matched = True
+                break
+        else:
+            return None  # a non-numeral word — not a spelled-out number
+    return total if matched else None
+
+
+def _count_to_int(token: str) -> int | None:
+    """A breakdown count is either digits or a spelled-out numeral."""
+    token = token.strip()
+    return int(token) if token.isdigit() else _ru_numeral(token)
 
 MAX_PLAUSIBLE = 5000  # guard against a runaway parse
 
@@ -232,10 +278,13 @@ def parse_breakdown(text: str) -> list[tuple[str, int]]:
     the total-only wording would be spurious)."""
     items = []
     for n, name in REGION_ITEM_RE.findall(text):
+        count = _count_to_int(n)
+        if count is None:                                   # matched phrase wasn't a number
+            continue
         name = _REGION_NOUN_RE.sub("", name)                # drop "территорией "/"акваторией "
         name = re.sub(r"\s+", " ", name).strip(" .,")
         if name:
-            items.append((name, int(n)))
+            items.append((name, count))
     return items if len(items) >= 2 else []
 
 
