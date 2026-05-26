@@ -101,13 +101,14 @@ export interface Metric {
 
 // ─── App state ────────────────────────────────────────────────────────────────
 export type Page = "daily" | "hourly" | "monthly";
-export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod";
-export const SITES: Site[] = ["sbs", "ru-attacks-gsua", "ru-losses-gsua", "ru-airdef-mod"];
+export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua";
+export const SITES: Site[] = ["sbs", "ru-attacks-gsua", "ru-losses-gsua", "ru-airdef-mod", "ru-air-attacks-gsua"];
 export const SITE_LABELS: Record<Site, string> = {
   sbs: "SBS STATISTICS",
   "ru-attacks-gsua": "RU ATTACKS - GSUA",
   "ru-losses-gsua": "RU LOSSES - GSUA",
   "ru-airdef-mod": "RU AIR DEFENSE - RU MoD",
+  "ru-air-attacks-gsua": "RU MISSILE & UAV ATTACKS",
 };
 export type LoadState = "idle" | "loading" | "ready" | "error";
 
@@ -218,6 +219,47 @@ export type RuLossesMonthlyRow = {
   projection_day: number | null;
   projection_days_in_month: number | null;
 } & Record<RuLossesMetricKey, number> & Partial<Record<`${RuLossesMetricKey}_projected`, number>>;
+
+// ─── RU Air Attacks (piterfm Kaggle → ru-air-attacks-gsua.db) ─────────────────
+// Russian missile/UAV strikes on Ukraine, digitized by piterfm from the UA Air
+// Force + General Staff reports. Each source row is launched/destroyed per weapon
+// model; scripts/missile_attacks/ingest.py derives a `category`
+// (drone/cruise/ballistic/other) and the frontend reads the `daily_by_category`
+// view. "all" = sum across every category (including the small "other" bucket).
+// "intercepted" is the source's `destroyed` count.
+export const ATTACK_CATEGORY_KEYS = ["all", "drone", "cruise", "ballistic"] as const;
+export type AttackCategoryKey = (typeof ATTACK_CATEGORY_KEYS)[number];
+// The three real DB categories charted as launched-vs-intercepted (no "all", no
+// "other"); "all" is computed, "other" is folded into "all" only.
+export const ATTACK_DB_CATEGORIES = ["drone", "cruise", "ballistic"] as const;
+export type AttackDbCategory = (typeof ATTACK_DB_CATEGORIES)[number];
+
+export const ATTACK_CATEGORY_LABELS: Record<AttackCategoryKey, string> = {
+  all: "All — Drones + Missiles",
+  drone: "Drones",
+  cruise: "Cruise Missiles",
+  ballistic: "Ballistic Missiles",
+};
+
+export type AttackMetricCol = `${AttackCategoryKey}_launched` | `${AttackCategoryKey}_intercepted`;
+
+export type RuAirAttacksDailyRow = {
+  date: string;        // YYYY-MM-DD (date of attack window start)
+  is_today: boolean;
+} & Record<AttackMetricCol, number | null>;
+
+export type RuAirAttacksGlobalStats = Record<
+  AttackCategoryKey,
+  { launched: { max: number; median: number }; intercepted: { max: number; median: number } }
+>;
+
+// Monthly = launched sums per category (interception is shown on the daily view).
+export type RuAirAttacksMonthlyRow = {
+  date: string; // "YYYY-MM"
+  is_current_month: boolean;
+  projection_day: number | null;
+  projection_days_in_month: number | null;
+} & Record<AttackCategoryKey, number> & Partial<Record<`${AttackCategoryKey}_projected`, number>>;
 
 // ─── RU Air Defense (MoD Telegram → ru-mod-ad.db) ─────────────────────────────
 // Russian MoD claims of Ukrainian UAVs intercepted/downed over Russia, parsed

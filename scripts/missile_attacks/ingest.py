@@ -81,6 +81,48 @@ REQUIRED = {"time_start", "time_end", "model", "launched", "destroyed", "source"
 # aggregation without relying on SQLite parsing arbitrary timestamp formats.
 DATE_COL = "attack_date"
 
+# Derived column: weapon category for the launched-vs-intercepted views. The
+# `model` field is a single weapon or a " and "-joined bundle; we tokenize it and
+# classify. The drone↔missile boundary is clean in the data (no bundle mixes the
+# two); the only mixed bundles are cruise+ballistic, which we resolve to ballistic
+# (the higher-tier threat, and the bundle always includes an Iskander-class round).
+CATEGORY_COL = "category"
+DRONE_MODELS = {
+    "Shahed-136/131", "Orlan-10", "Orlan-30", "ZALA", "Supercam", "Lancet",
+    "Merlin-VR", "Mohajer-6", "Orion", "Forpost", "Eleron", "Granat-4", "Kub",
+    "Молнія", "Фенікс", "Картограф", "Привет-82", "Reconnaissance UAV",
+    "Unknown UAV",
+}
+CRUISE_MODELS = {
+    "X-101/X-555", "Kalibr", "X-59", "X-69", "X-59/X-69", "X-59MK2", "X-22",
+    "X-32", "X-35", "X-55", "P-800 Oniks", "3M22 Zircon", "Iskander-K",
+    "Banderol", "X-31", "X-31P", "X-31PD",
+}
+BALLISTIC_MODELS = {
+    "Iskander-M", "Iskander-M/KN-23", "KN-23", "X-47 Kinzhal",  # Kinzhal = aeroballistic
+    "Ballistic Missile", "Intercontinental Ballistic Missile",
+    "Intercontinental ballistic missile", "C-300", "C-400", "C-300/C-400",
+}
+# Known but uncategorizable (guided/aerial bombs, unattributed) — classified as
+# "other" WITHOUT a warning. Genuinely new/unknown tokens still warn.
+OTHER_MODELS = {"GBU", "Aerial Bomb", "Unknown Missile"}
+_KNOWN = DRONE_MODELS | CRUISE_MODELS | BALLISTIC_MODELS | OTHER_MODELS
+
+
+def classify(model: str) -> tuple[str, list[str]]:
+    """Map a (possibly bundled) model string to a category. Returns
+    (category, unmapped_tokens). Precedence ballistic > cruise > drone so a
+    cruise+ballistic bundle resolves to ballistic; anything unrecognized → other."""
+    tokens = [t.strip() for t in model.split(" and ") if t.strip()]
+    unmapped = [t for t in tokens if t not in _KNOWN]
+    if any(t in BALLISTIC_MODELS for t in tokens):
+        return "ballistic", unmapped
+    if any(t in CRUISE_MODELS for t in tokens):
+        return "cruise", unmapped
+    if tokens and all(t in DRONE_MODELS for t in tokens):
+        return "drone", unmapped
+    return "other", unmapped
+
 # Absolute floor: the dataset spans Oct 2022→now at one row per model per attack,
 # i.e. thousands of rows. Anything tiny means a broken/partial download.
 MIN_ROWS_FLOOR = int(os.environ.get("MISSILE_MIN_ROWS", "1000"))
@@ -160,13 +202,24 @@ def parse_rows(text: str) -> tuple[list[str], list[dict]]:
 
     key_cols = [c for c in KEY_COLS if c in header]
     rows: list[dict] = []
+    unmapped: set[str] = set()
     for raw in reader:
         row = {c: (raw.get(c) or "").strip() for c in header}
         for c in key_cols:
             row[c] = row.get(c, "")  # already '' if empty — keep non-NULL keys
         ts = row.get("time_start", "")
         row[DATE_COL] = ts[:10] if len(ts) >= 10 else ""
+        row[CATEGORY_COL], unk = classify(row.get("model", ""))
+        unmapped.update(unk)
         rows.append(row)
+    if unmapped:
+        # New weapon piterfm added that we haven't taxonomized — it falls into
+        # "other" (still counted in combined totals); flag it so we extend the map.
+        print(
+            f"WARNING: {len(unmapped)} unmapped weapon token(s) → 'other': "
+            f"{sorted(unmapped)}. Add them to DRONE/CRUISE/BALLISTIC_MODELS.",
+            file=sys.stderr,
+        )
     return header, rows
 
 
@@ -186,7 +239,7 @@ def build(db_path: Path, header: list[str], rows: list[dict]) -> tuple[int, int,
         )
 
     key_cols = [c for c in KEY_COLS if c in header]
-    all_cols = header + [DATE_COL]
+    all_cols = header + [DATE_COL, CATEGORY_COL]
     value_cols = [c for c in all_cols if c not in key_cols]
 
     def col_type(c: str) -> str:
@@ -310,6 +363,15 @@ def _create_views(conn, key_cols, value_cols):
         f"       SUM(launched)  AS launched, "
         f"       SUM(destroyed) AS destroyed "
         f"FROM {TABLE}_latest GROUP BY {_ident(DATE_COL)}, model"
+    )
+    # Daily launched/intercepted per weapon category — the frontend's main source
+    # (drone / cruise / ballistic / other; combined = sum across categories).
+    conn.execute(
+        f"CREATE VIEW IF NOT EXISTS daily_by_category AS "
+        f"SELECT {_ident(DATE_COL)} AS date, {_ident(CATEGORY_COL)} AS category, "
+        f"       SUM(launched)  AS launched, "
+        f"       SUM(destroyed) AS destroyed "
+        f"FROM {TABLE}_latest GROUP BY {_ident(DATE_COL)}, {_ident(CATEGORY_COL)}"
     )
 
 

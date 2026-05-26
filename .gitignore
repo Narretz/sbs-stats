@@ -22,12 +22,15 @@ scripts/gsua/__pycache__
 data/ru-attacks-gsua.db
 data/ru-losses-gsua.db
 data/ru-mod-ad.db
+data/ru-air-attacks-gsua.db
 data/sbs-foosint.db
 
 # GSUA scraper local artifacts
 scripts/gsua/output/
 # RU losses ingest local artifacts
 scripts/ru_losses/output/
+# Missile-attacks ingest local artifacts
+scripts/missile_attacks/output/
 __pycache__/
 # Telegram session is a credential — never commit
 *.session

@@ -131,6 +131,52 @@ def test_duplicate_key_within_download_aborts(tmp_path):
         _build(tmp_path, csv_text)
 
 
+@pytest.mark.parametrize(
+    "model, expected",
+    [
+        ("Shahed-136/131", "drone"),
+        ("Orlan-10 and ZALA and Supercam", "drone"),
+        ("X-101/X-555", "cruise"),
+        ("X-101/X-555 and Kalibr", "cruise"),
+        ("Iskander-M", "ballistic"),
+        ("X-47 Kinzhal", "ballistic"),
+        ("Iskander-M and Iskander-K", "ballistic"),  # cruise+ballistic → ballistic
+        ("GBU", "other"),
+        ("Totally New Weapon", "other"),  # unmapped → other
+    ],
+)
+def test_classify(model, expected):
+    cat, _ = ingest.classify(model)
+    assert cat == expected
+
+
+def test_classify_reports_unmapped():
+    _, unk = ingest.classify("Shahed-136/131 and Mystery-9000")
+    assert unk == ["Mystery-9000"]
+
+
+def test_daily_by_category_view(tmp_path):
+    csv_text = "\n".join(
+        [
+            HEADER,
+            # one night: drones + cruise + ballistic, same window/source
+            "2025-01-10 20:00:00,2025-01-11 06:00:00,Shahed-136/131,100,80,south,Kyiv,kpszsu/posts/n",
+            "2025-01-10 20:00:00,2025-01-11 06:00:00,Kalibr,8,6,Black Sea,Kyiv,kpszsu/posts/n",
+            "2025-01-10 20:00:00,2025-01-11 06:00:00,Iskander-M,4,1,Kursk,Kyiv,kpszsu/posts/n",
+        ]
+    )
+    _build(tmp_path, csv_text)
+    conn = sqlite3.connect(tmp_path / "t.db")
+    got = dict(
+        (cat, (l, d))
+        for cat, l, d in conn.execute(
+            "SELECT category, launched, destroyed FROM daily_by_category WHERE date='2025-01-10'"
+        )
+    )
+    assert got == {"drone": (100, 80), "cruise": (8, 6), "ballistic": (4, 1)}
+    conn.close()
+
+
 def test_header_drift_aborts(tmp_path):
     bad = "time_start,model,launched\n2024-11-17 23:40:00,Shahed,120"  # no destroyed/time_end/source
     with pytest.raises(RuntimeError, match="missing required columns"):

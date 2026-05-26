@@ -7,6 +7,8 @@ import { RuLossesDatabaseProvider } from "@/context/RuLossesDatabaseContext";
 import { useRuLossesDatabaseContext } from "@/context/useRuLossesDatabaseContext";
 import { RuModDatabaseProvider } from "@/context/RuModDatabaseContext";
 import { useRuModDatabaseContext } from "@/context/useRuModDatabaseContext";
+import { RuAirAttacksDatabaseProvider } from "@/context/RuAirAttacksDatabaseContext";
+import { useRuAirAttacksDatabaseContext } from "@/context/useRuAirAttacksDatabaseContext";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -20,6 +22,8 @@ import { GsuaMonthlyPage } from "@/pages/GsuaMonthlyPage";
 import { RuLossesDailyPage } from "@/pages/RuLossesDailyPage";
 import { RuLossesMonthlyPage } from "@/pages/RuLossesMonthlyPage";
 import { RuModDailyPage } from "@/pages/RuModDailyPage";
+import { RuAirAttacksDailyPage } from "@/pages/RuAirAttacksDailyPage";
+import { RuAirAttacksMonthlyPage } from "@/pages/RuAirAttacksMonthlyPage";
 import { RuModMonthlyPage } from "@/pages/RuModMonthlyPage";
 import type { Page, Site } from "@/types";
 import { GLOBAL_CSS } from "@/theme";
@@ -130,6 +134,30 @@ function RuModRoot({
   );
 }
 
+function RuAirAttacksRoot({
+  page, pages, site, setSite, setPage,
+}: {
+  page: Page; pages: Page[]; site: Site;
+  setSite: (s: Site) => void; setPage: (p: Page) => void;
+}) {
+  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useRuAirAttacksDatabaseContext();
+  return (
+    <>
+      <SiteHeader
+        site={site} page={page} pages={pages}
+        onSiteChange={setSite} onPageChange={setPage}
+        lastRefreshed={lastRefreshed} refreshCount={refreshCount}
+        onRefresh={refresh} isLoading={loadState === "loading"}
+        refreshIntervalMs={refreshIntervalMs}
+      />
+      <PageShell>
+        {page === "daily"   && <RuAirAttacksDailyPage refreshKey={refreshCount} />}
+        {page === "monthly" && <RuAirAttacksMonthlyPage refreshKey={refreshCount} />}
+      </PageShell>
+    </>
+  );
+}
+
 function AppInner() {
   const { theme: t } = useTheme();
   const { site, setSite, page, setPage, pagesFor } = useAppRoute();
@@ -168,6 +196,13 @@ function AppInner() {
             <RuModDatabaseProvider>
               <RuModRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
             </RuModDatabaseProvider>
+          </ErrorBoundary>
+        )}
+        {site === "ru-air-attacks-gsua" && (
+          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
+            <RuAirAttacksDatabaseProvider>
+              <RuAirAttacksRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
+            </RuAirAttacksDatabaseProvider>
           </ErrorBoundary>
         )}
       </div>
