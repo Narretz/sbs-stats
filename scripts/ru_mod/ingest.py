@@ -314,8 +314,15 @@ def iter_web(channel: str, since_id: int, max_pages: int, sleep: float, backfill
 
 
 # ── telethon backend (backfill) ────────────────────────────────────────────────
-def iter_telethon(channel: str, min_id: int):
-    """Yield (post_id, posted_at_utc, text) via the Telegram API (needs creds)."""
+def iter_telethon(channel: str):
+    """Yield (post_id, posted_at_utc, text) NEWEST→OLDEST via the Telegram API.
+
+    A generator, so the caller's --since date break stops fetching early (used for
+    bounded historical backfill). Without --since it walks the full history.
+    Needs TELEGRAM_API_ID/HASH; the session (RU_MOD_SESSION, default
+    'ru_mod_session') is created on first run via an interactive login — point it
+    at an existing authorised session to skip that.
+    """
     api_id = os.environ.get("TELEGRAM_API_ID")
     api_hash = os.environ.get("TELEGRAM_API_HASH")
     if not api_id or not api_hash:
@@ -324,13 +331,11 @@ def iter_telethon(channel: str, min_id: int):
     from telethon.tl.types import Message
 
     session = os.environ.get("RU_MOD_SESSION", "ru_mod_session")
-    out: list = []
     with TelegramClient(session, int(api_id), api_hash) as client:
         client.flood_sleep_threshold = 60
-        for msg in client.iter_messages(channel, reverse=True, min_id=min_id):
+        for msg in client.iter_messages(channel):  # default: newest first
             if isinstance(msg, Message) and msg.text:
-                out.append((msg.id, msg.date.astimezone(timezone.utc), msg.text))
-    return out
+                yield msg.id, msg.date.astimezone(timezone.utc), msg.text
 
 
 # ── storage ─────────────────────────────────────────────────────────────────
@@ -406,12 +411,15 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
         # store() calls) get distinct version keys.
         scraped = datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
-        # Latest stored content per post, for change detection. A re-scrape that
-        # sees identical content adds nothing; an edit inserts a new version.
+        # Latest stored content per post, for change detection. We compare the
+        # PARSED fields (not raw_text) so the same report ingested via two sources
+        # — the web preview vs telethon, whose text normalization differs slightly
+        # — dedups instead of looking like an edit. A real edit changes one of
+        # these parsed values and so still inserts a new version.
         latest_ad = {
             row[0]: tuple(row[1:])
             for row in conn.execute(
-                "SELECT post_id, drones, window_start, window_end, window_kind, regions, raw_text "
+                "SELECT post_id, drones, window_start, window_end, window_kind, regions "
                 "FROM ad_latest"
             )
         }
@@ -426,7 +434,7 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
 
         inserted = 0
         for r in reports:
-            content = (r.drones, r.window_start, r.window_end, r.window_kind, r.regions, r.raw_text)
+            content = (r.drones, r.window_start, r.window_end, r.window_kind, r.regions)
             if latest_ad.get(r.post_id) == content:
                 continue  # unchanged — no new version
             conn.execute(
@@ -562,8 +570,9 @@ def main() -> int:
               f"(since={args.since or f'id>{since_id}'}, backfill={args.backfill})")
         src = iter_web(args.channel, since_id, args.max_pages, args.sleep, args.backfill or bool(args.since))
     else:
-        print(f"==> telethon @{args.channel} (min_id={max_stored_id(out)})")
-        src = iter_telethon(args.channel, max_stored_id(out))
+        print(f"==> telethon @{args.channel} (newest→oldest"
+              f"{f', until {args.since}' if args.since else ', full history'})")
+        src = iter_telethon(args.channel)
 
     scanned = 0
     for pid, posted, text in src:
