@@ -295,6 +295,30 @@ class TestBreakdown:
         assert r.region_count == 6
         assert sum(bd.values()) == 151          # per-region sums to the total
 
+    def test_itemized_wording_variants_sum_to_total(self):
+        # Real variants that the strict regex missed: a "Московским регионом"
+        # line (no "территорией"), a "в том числе N …, летевших на Москву"
+        # sub-clause (a subset, must NOT be counted), and a "– территорией X"
+        # line with "над" dropped. Capturing all real region lines (and only
+        # those) makes the breakdown sum back to the report total.
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "
+            "60 украинских беспилотных летательных аппаратов самолетного типа: "
+            "▫️ 34 – над территорией Брянской области, "
+            "▫️ 13 – над Московским регионом, в том числе 12 БПЛА, летевших на Москву, "
+            "▫️ 9 БПЛА – территорией Краснодарского края, "
+            "▫️ 4 – над акваторией Азовского моря.",
+            posted_utc="2026-03-16T05:00:00+00:00",
+        )
+        assert r.drones == 60
+        bd = dict(r.breakdown)
+        assert bd["Брянской области"] == 34
+        assert bd["Московским регионом"] == 13      # "регионом", no "территорией"
+        assert bd["Краснодарского края"] == 9       # "над" dropped
+        assert bd["Азовского моря"] == 4
+        assert "Москву" not in " ".join(bd)         # sub-clause not a region
+        assert sum(bd.values()) == 60               # sums to total (no double-count)
+
     def test_total_only_has_no_breakdown(self):
         r = _parse(
             "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "

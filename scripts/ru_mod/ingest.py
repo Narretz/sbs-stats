@@ -78,12 +78,22 @@ NIGHT_HOURS_RE = re.compile(r"с\s+(\d{1,2})[.:]\d{2}.*?до\s+(\d{1,2})[.:]\d{2
 REGION_RE = re.compile(r"над\s+территор\w+\s+(.*)", re.I)
 # Itemized per-region breakdown line, e.g. "42 – над территорией Саратовской
 # области," (dash may be -, –, —). The MoD uses this format on some days; on
-# others it gives only a total + a region list (no per-region counts). The count
-# is sometimes followed by the unit "БПЛА" before the dash (from ~Mar 2026:
-# "57 БПЛА – над территорией …"); the item may be over a territory ("территорией")
-# or a sea area ("акваторией Каспийского моря"), so accept both.
+# others it gives only a total + a region list (no per-region counts). The wording
+# drifts a lot between posts, so we capture loosely (a count, an optional "БПЛА"
+# unit, a dash, then the region phrase up to the next comma/bullet/number) and
+# normalise the phrase in parse_breakdown. Variants this must tolerate:
+#   "42 – над территорией Саратовской области"   (canonical)
+#   "57 БПЛА – над территорией Волгоградской …"    (БПЛА unit, ~Mar 2026)
+#   "9 БПЛА – над акваторией Каспийского моря"     (sea area, not a territory)
+#   "39 – над Московским регионом"                 (region, no "территорией")
+#   "1 – территорией Белгородской области"         ("над" dropped)
+# The "в том числе N БПЛА, летевших на Москву" sub-clause has no dash, so it is
+# correctly NOT matched (a subset of the Moscow line, not a separate region).
 REGION_ITEM_RE = re.compile(
-    r"(\d+)\s*(?:БПЛА\s*)?[-–—]\s*над\s+(?:территори\w+|акватори\w+)\s+([^,.;▫\d]+)", re.I)
+    r"(\d+)\s*(?:БПЛА\s*)?[-–—]\s*(?:над\s+)?([^,.;▫\d]+)", re.I)
+# Leading "территорией "/"акваторией " noun stripped off the captured phrase so
+# the region name itself remains (e.g. "Брянской области", "Азовского моря").
+_REGION_NOUN_RE = re.compile(r"^(?:территори\w+|акватори\w+)\s+", re.I)
 
 MAX_PLAUSIBLE = 5000  # guard against a runaway parse
 
@@ -220,8 +230,12 @@ def parse_breakdown(text: str) -> list[tuple[str, int]]:
 
     Returns [] for the total-only format. Requires ≥2 items (a single match in
     the total-only wording would be spurious)."""
-    items = [(re.sub(r"\s+", " ", name).strip(" .,"), int(n))
-             for n, name in REGION_ITEM_RE.findall(text)]
+    items = []
+    for n, name in REGION_ITEM_RE.findall(text):
+        name = _REGION_NOUN_RE.sub("", name)                # drop "территорией "/"акваторией "
+        name = re.sub(r"\s+", " ", name).strip(" .,")
+        if name:
+            items.append((name, int(n)))
     return items if len(items) >= 2 else []
 
 
