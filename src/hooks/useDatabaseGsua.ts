@@ -59,6 +59,21 @@ function getOrCreateWorker(): Promise<WorkerHttpvfs> {
 
 const METRIC_COLS = GSUA_METRIC_KEYS.map((k) => `MAX(${k}) AS ${k}`).join(", ");
 
+// `posts`/`directions` are edit-versioned: a post (source, source_id) can have
+// several rows, one per scrape that saw changed text, keyed by scraped_at. Reads
+// must use only the latest version per post. This "no newer version exists"
+// subquery is index-only (the PK covers it) and flattens in SQLite, so an outer
+// WHERE date>=… still pushes down — important over httpvfs. Substituted for the
+// `posts` table in every query; direction joins additionally match scraped_at.
+const LATEST_POSTS = `(
+  SELECT p.* FROM posts p
+  WHERE NOT EXISTS (
+    SELECT 1 FROM posts n
+    WHERE n.source = p.source AND n.source_id = p.source_id
+      AND n.scraped_at > p.scraped_at
+  )
+)`;
+
 // GSUA reports update only ~3×/day, so polling the 32 MB R2 DB every 10 min is
 // wasteful. Refresh hourly; the on-focus + manual refresh paths still apply.
 export const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
@@ -131,7 +146,7 @@ export function useDatabaseGsua() {
       const sql = `
         WITH per_date_source AS (
           SELECT date, source, MAX(snapshot_at) AS latest_snapshot, ${METRIC_COLS}
-          FROM posts
+          FROM ${LATEST_POSTS} posts
           WHERE date >= ${startDateSql} AND date <= '${endDateSql}'
           GROUP BY date, source, snapshot_at
         ),
@@ -179,7 +194,7 @@ export function useDatabaseGsua() {
 
       const sql = `
         SELECT date, source, snapshot_at, ${METRIC_COLS}
-        FROM posts
+        FROM ${LATEST_POSTS} posts
         WHERE date >= ${startDateSql} AND date <= '${endDateSql}'
           AND snapshot_at IS NOT NULL
         GROUP BY date, source, snapshot_at
@@ -210,7 +225,7 @@ export function useDatabaseGsua() {
       const sql = `
         WITH per_date_source AS (
           SELECT date, source, MAX(snapshot_at) AS latest_snapshot, ${METRIC_COLS}
-          FROM posts
+          FROM ${LATEST_POSTS} posts
           GROUP BY date, source, snapshot_at
         ),
         last_per_date_source AS (
@@ -253,7 +268,7 @@ export function useDatabaseGsua() {
     const sql = `
       WITH per_date_source AS (
         SELECT date, source, MAX(snapshot_at) AS latest_snapshot, ${METRIC_COLS}
-        FROM posts
+        FROM ${LATEST_POSTS} posts
         GROUP BY date, source, snapshot_at
       ),
       last_per_date_source AS (
@@ -331,7 +346,7 @@ export function useDatabaseGsua() {
     const todayStr = getKyivDateString();
     const sql = `
       SELECT date, snapshot_at, ${METRIC_COLS}
-      FROM posts
+      FROM ${LATEST_POSTS} posts
       WHERE date >= date('${todayStr}', '-90 days') AND snapshot_at IS NOT NULL
       GROUP BY date, snapshot_at
       ORDER BY date ASC, snapshot_at ASC
@@ -354,9 +369,11 @@ export function useDatabaseGsua() {
   const queryDirectionList = useCallback(async (): Promise<string[]> => {
     if (!worker) return [];
     const sql = `
-      SELECT direction, SUM(COALESCE(attacks, 0)) AS total
-      FROM directions
-      GROUP BY direction
+      SELECT d.direction, SUM(COALESCE(d.attacks, 0)) AS total
+      FROM directions d
+      INNER JOIN ${LATEST_POSTS} p
+        ON p.source = d.source AND p.source_id = d.source_id AND p.scraped_at = d.scraped_at
+      GROUP BY d.direction
       HAVING total > 0
       ORDER BY total DESC
     `;
@@ -379,9 +396,9 @@ export function useDatabaseGsua() {
           '${dirSafe}'       AS direction,
           MAX(d.attacks)     AS attacks,
           MAX(d.ongoing)     AS ongoing
-        FROM posts p
+        FROM ${LATEST_POSTS} p
         INNER JOIN directions d
-          ON p.source = d.source AND p.source_id = d.source_id
+          ON p.source = d.source AND p.source_id = d.source_id AND p.scraped_at = d.scraped_at
         WHERE d.direction = '${dirSafe}'
           AND p.date >= date('${endDateSql}', '-${days} days')
           AND p.date <= date('${endDateSql}')
@@ -421,9 +438,9 @@ export function useDatabaseGsua() {
         SELECT
           p.date, p.source, p.snapshot_at,
           d.direction, d.attacks, d.ongoing
-        FROM posts p
+        FROM ${LATEST_POSTS} p
         INNER JOIN directions d
-          ON p.source = d.source AND p.source_id = d.source_id
+          ON p.source = d.source AND p.source_id = d.source_id AND p.scraped_at = d.scraped_at
         WHERE d.direction = '${dirSafe}'
           AND p.date >= date('${endDateSql}', '-${days} days')
           AND p.date <= date('${endDateSql}')
