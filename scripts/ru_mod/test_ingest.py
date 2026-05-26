@@ -91,6 +91,80 @@ class TestWindows:
         assert r.window_start == "2026-05-21T07:00+03:00"
         assert r.window_end == "2026-05-21T15:00+03:00"
 
+    def test_night_dated_without_msk(self):
+        # msg 61912 — dated overnight range with NO "мск" after the times:
+        # "с 23.00 12 марта до 7.00 13 марта". Must read the explicit 23:00 start
+        # (not fall through to the 20:00 NIGHT_PHRASE default).
+        r = _parse(
+            "В течение прошедшей ночи в период с 23.00 12 марта до 7.00 13 марта дежурными "
+            "средствами ПВО перехвачены и уничтожены 176 украинских беспилотных летательных "
+            "аппаратов самолетного типа над территориями Брянской области.",
+            mid=61912, posted_utc="2026-03-13T05:25:18+00:00",
+        )
+        assert r.drones == 176
+        assert r.window_kind == "night"
+        assert r.window_start == "2026-03-12T23:00+03:00"   # explicit, not the 20:00 default
+        assert r.window_end == "2026-03-13T07:00+03:00"
+        assert r.report_date == "2026-03-13"
+
+    def test_night_phrase_early_morning_same_day(self):
+        # msg 63568 — "прошедшей ночи, в период с 0.00 до 7.00". A 00:00→07:00
+        # window does NOT cross midnight: it's the posted morning, not a 31-hour
+        # span back to the previous midnight.
+        r = _parse(
+            "В течение прошедшей ночи, в период с 0.00 до 7.00 дежурными средствами ПВО "
+            "перехвачены и уничтожены 27 украинских беспилотных летательных аппаратов "
+            "самолетного типа над территориями Брянской области.",
+            mid=63568, posted_utc="2026-05-12T05:11:01+00:00",
+        )
+        assert r.drones == 27
+        assert r.window_kind == "night"
+        assert r.window_start == "2026-05-12T00:00+03:00"
+        assert r.window_end == "2026-05-12T07:00+03:00"
+        assert r.report_date == "2026-05-12"
+
+    def test_night_dated_with_tg_suffix(self):
+        # msg 62087 — "с 23.00 мск 20 марта т.г. до 7.00 мск 21 марта т.г.".
+        # The "т.г." (текущего года) suffix breaks NIGHT_DATED_RE, so the explicit
+        # 23:00 must be recovered from the hours instead of defaulting to 20:00.
+        r = _parse(
+            "В течение прошедшей ночи в период с 23.00 мск 20 марта т.г. до 7.00 мск 21 марта "
+            "т.г. дежурными средствами ПВО перехвачены и уничтожены 283 украинских беспилотных "
+            "летательных аппарата самолетного типа над территориями Брянской области.",
+            mid=62087, posted_utc="2026-03-21T05:30:00+00:00",
+        )
+        assert r.drones == 283
+        assert r.window_start == "2026-03-20T23:00+03:00"   # not the 20:00 default
+        assert r.window_end == "2026-03-21T07:00+03:00"
+
+    def test_night_numeric_dates_in_parens(self):
+        # msg 63267 — "(с 21.00 мск 6.05 до 7.00 мск 7.05)". Numeric dates (no word
+        # month) break NIGHT_DATED_RE; recover the explicit 21:00 start.
+        r = _parse(
+            "В течение прошедшей ночи (с 21.00 мск 6.05 до 7.00 мск 7.05) дежурными средствами "
+            "ПВО перехвачены и уничтожены 347 украинских беспилотных летательных аппаратов "
+            "самолетного типа над территориями Белгородской области.",
+            mid=63267, posted_utc="2026-05-07T05:10:00+00:00",
+        )
+        assert r.drones == 347
+        assert r.window_start == "2026-05-06T21:00+03:00"   # not the 20:00 default
+        assert r.window_end == "2026-05-07T07:00+03:00"
+
+    def test_evening_report_posted_after_midnight_dates_to_prev_day(self):
+        # msg 61638 — "с 20.00 до 23.00 мск" published at 00:24 MSK (21:24 UTC the
+        # day before). The window is in the future relative to the post unless we
+        # recognise it describes the PREVIOUS evening → shift back a day.
+        r = _parse(
+            "В период с 20.00 до 23.00 мск дежурными средствами ПВО перехвачены и уничтожены "
+            "57 украинских беспилотных летательных аппаратов самолетного типа над "
+            "территориями Белгородской области.",
+            mid=61638, posted_utc="2026-03-01T21:24:58+00:00",   # = 2026-03-02T00:24 MSK
+        )
+        assert r.drones == 57
+        assert r.window_start == "2026-03-01T20:00+03:00"   # shifted back from Mar 2
+        assert r.window_end == "2026-03-01T23:00+03:00"
+        assert r.report_date == "2026-03-01"
+
     def test_early_morning_range_is_night(self):
         # "с 0.00 мск до 7.00 мск" → ends ≤07:00, so classified night.
         r = _parse(

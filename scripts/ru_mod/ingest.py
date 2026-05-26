@@ -59,13 +59,22 @@ MONTHS = {
 COUNT_RE = re.compile(r"(\d+)\s+украин\w+\s+беспилотн\w+\s+летательн\w+\s+аппарат", re.I)
 # Is this an air-defense intercept post at all?
 AD_GATE = re.compile(r"(противовоздушн|средствами\s+пво|перехвач\w+\s+и\s+уничтож)", re.I)
-# Explicit night range with dates: "с 20.00 мск 22 мая до 7.00 мск 23 мая"
+# Explicit night range with dates: "с 20.00 мск 22 мая до 7.00 мск 23 мая".
+# "мск" after each time is OPTIONAL — the channel often omits it on the dated
+# form, e.g. "с 23.00 12 марта до 7.00 13 марта". Without this the report falls
+# through to NIGHT_PHRASE_RE, which assumes a 20:00 start and so mis-records the
+# real (e.g. 23:00) window start.
 NIGHT_DATED_RE = re.compile(
-    r"с\s+(\d{1,2})[.:]\d{2}\s*мск\s+(\d{1,2})\s+(\w+)\s+до\s+(\d{1,2})[.:]\d{2}\s*мск\s+(\d{1,2})\s+(\w+)", re.I)
+    r"с\s+(\d{1,2})[.:]\d{2}\s*(?:мск\s+)?(\d{1,2})\s+(\w+)\s+до\s+(\d{1,2})[.:]\d{2}\s*(?:мск\s+)?(\d{1,2})\s+(\w+)", re.I)
 # Same-day range: "с 14.00 до 20.00 мск" and "с 7.00 мск до 15.00 мск"
 # (the channel sometimes repeats "мск" after the start time).
 DAY_RANGE_RE = re.compile(r"с\s+(\d{1,2})[.:]\d{2}\s*(?:мск\s*)?до\s+(\d{1,2})[.:]\d{2}\s*мск", re.I)
 NIGHT_PHRASE_RE = re.compile(r"прошедш\w+\s+ноч|в\s+течение\s+ноч|минувш\w+\s+ноч", re.I)
+# Explicit "с HH.MM … до HH.MM" hours within a night report, regardless of the
+# date format that follows (word month, numeric "6.05", a "т.г." suffix, or the
+# whole range in parentheses — all of which NIGHT_DATED_RE can't cover). Used to
+# recover the real start hour instead of assuming the 20:00 default.
+NIGHT_HOURS_RE = re.compile(r"с\s+(\d{1,2})[.:]\d{2}.*?до\s+(\d{1,2})[.:]\d{2}", re.I)
 REGION_RE = re.compile(r"над\s+территор\w+\s+(.*)", re.I)
 # Itemized per-region breakdown line, e.g. "42 – над территорией Саратовской
 # области," (dash may be -, –, —). The MoD uses this format on some days; on
@@ -126,6 +135,9 @@ def _strip_md(text: str) -> str:
 
 def _parse_window(text: str, posted_msk: datetime):
     """Return (start, end, kind) as MSK datetimes (or None) + kind string."""
+    start = end = None
+    kind = "other"
+
     m = NIGHT_DATED_RE.search(text)
     if m:
         h1, d1, mon1, h2, d2, mon2 = m.groups()
@@ -141,27 +153,52 @@ def _parse_window(text: str, posted_msk: datetime):
             # start is the prior boundary; roll the year back if it wraps Dec→Jan
             yr1 = yr - 1 if mo1 > mo2 else yr
             start = mk(yr1, mo1, d1, h1)
-            return start, end, "night"
-    if NIGHT_PHRASE_RE.search(text):
-        # standard undated night = 20:00 (prev day) → 07:00 (posted day)
-        end = posted_msk.replace(hour=7, minute=0, second=0, microsecond=0)
-        start = (end - timedelta(days=1)).replace(hour=20)
-        return start, end, "night"
-    m = DAY_RANGE_RE.search(text)
-    if m:
-        h1, h2 = int(m.group(1)), int(m.group(2))
-        base = posted_msk.replace(minute=0, second=0, microsecond=0)
+            kind = "night"
 
-        def at(hh: int) -> datetime:  # tolerate "24.00" → next-day 00:00
-            extra, hh = divmod(hh, 24)
-            return (base + timedelta(days=extra)).replace(hour=hh)
+    if start is None and NIGHT_PHRASE_RE.search(text):
+        # Overnight report ("during the past night"), ending the posted morning.
+        # Default boundary is 20:00 (prev day) → 07:00 (posted day), but the
+        # channel usually states explicit hours — read them when present so a
+        # late "с 23.00 … до 7.00" isn't recorded as the 20:00 default.
+        start_h, end_h = 20, 7
+        mh = NIGHT_HOURS_RE.search(text)
+        if mh:
+            start_h, end_h = int(mh.group(1)), int(mh.group(2))
+        midnight = posted_msk.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = midnight + timedelta(hours=end_h)               # posted-day morning
+        start = midnight + timedelta(hours=start_h)
+        if start >= end:        # crosses midnight (e.g. 20:00→07:00) → prev day
+            start -= timedelta(days=1)
+        kind = "night"
 
-        start, end = at(h1), at(h2)
-        if end <= start:  # crosses midnight
-            end += timedelta(days=1)
-        kind = "night" if h1 >= 18 or h2 <= 7 else "day"
-        return start, end, kind
-    return None, None, "other"
+    if start is None:
+        m = DAY_RANGE_RE.search(text)
+        if m:
+            h1, h2 = int(m.group(1)), int(m.group(2))
+            base = posted_msk.replace(minute=0, second=0, microsecond=0)
+
+            def at(hh: int) -> datetime:  # tolerate "24.00" → next-day 00:00
+                extra, hh = divmod(hh, 24)
+                return (base + timedelta(days=extra)).replace(hour=hh)
+
+            start, end = at(h1), at(h2)
+            if end <= start:  # crosses midnight
+                end += timedelta(days=1)
+            kind = "night" if h1 >= 18 or h2 <= 7 else "day"
+
+    if start is None:
+        return None, None, "other"
+
+    # A report always describes a window that has already happened. If we built a
+    # start that's after the post's own timestamp, we attached it to the wrong
+    # calendar day — e.g. an evening "с 20.00 до 23.00" update published just
+    # after midnight describes the PREVIOUS evening (the same-day regexes anchor
+    # on the post date). Shift the whole window back one day.
+    if start > posted_msk:
+        start -= timedelta(days=1)
+        end -= timedelta(days=1)
+
+    return start, end, kind
 
 
 def _parse_regions(text: str):
