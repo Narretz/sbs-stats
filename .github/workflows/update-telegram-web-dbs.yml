@@ -91,6 +91,10 @@ jobs:
     env:
       R2_BUCKET: russia-ukraine-war
       RU_MOD_DB_NAME: ru-mod-ad.db
+      # Re-scan this many days before the newest stored report each run, so edits
+      # to recent posts are re-checked (append-only: a new version is stored only
+      # when content changed).
+      RU_MOD_LOOKBACK_DAYS: "2"
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
@@ -101,8 +105,7 @@ jobs:
           python-version: "3.12"
 
       # continue-on-error so the very first run (object not yet in R2) still
-      # works — ingest is append-only (INSERT OR IGNORE by post id), so a normal
-      # run merges into the downloaded DB.
+      # works — append-only ingest then creates the DB and walks back ~max-pages.
       - name: Download current RU MoD DB from R2
         continue-on-error: true
         env:
@@ -115,11 +118,37 @@ jobs:
             --file "scripts/ru_mod/output/$RU_MOD_DB_NAME" \
             --remote
 
+      # Cutoff = newest stored report date minus lookback (so recent posts get
+      # re-checked for edits); a far-back fallback on first run = full backfill.
+      - name: Compute scrape cutoff
+        id: cutoff
+        env:
+          DB_PATH: scripts/ru_mod/output/${{ env.RU_MOD_DB_NAME }}
+        run: |
+          SINCE=$(python3 - <<'PY'
+          import os, sqlite3, datetime
+          c = sqlite3.connect(os.environ["DB_PATH"])
+          try:
+              row = c.execute("SELECT MAX(report_date) FROM ad_reports").fetchone()
+              latest = row[0] if row and row[0] else None
+          except sqlite3.OperationalError:
+              latest = None
+          lookback = int(os.environ.get("RU_MOD_LOOKBACK_DAYS", "2"))
+          if latest:
+              since = datetime.date.fromisoformat(latest) - datetime.timedelta(days=lookback)
+          else:  # first run: reach back across the web preview's window
+              since = datetime.date.today() - datetime.timedelta(days=45)
+          print(since.isoformat())
+          PY
+          )
+          echo "since=$SINCE" >> "$GITHUB_OUTPUT"
+          echo "Re-scanning since $SINCE"
+
       - name: Build RU MoD DB
         run: |
           mkdir -p scripts/ru_mod/output
           python3 scripts/ru_mod/ingest.py \
-            --source web --max-pages 40 \
+            --source web --since "${{ steps.cutoff.outputs.since }}" --max-pages 60 \
             --out "scripts/ru_mod/output/$RU_MOD_DB_NAME"
 
       - name: Upload RU MoD DB to R2
