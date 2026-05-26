@@ -51,15 +51,42 @@ already stored. Frontend reads the latest snapshot per date.
 
 ## 2. Ukrainian air defense — Russian aerial attacks launched vs intercepted (TOP INTEREST)
 
-### piterfm "Massive Missile Attacks on Ukraine" (Kaggle) — LIVE — RECOMMENDED
+### piterfm "Massive Missile Attacks on Ukraine" (Kaggle) — LIVE — ✅ BACKEND INTEGRATED
 - https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine
 - The only good machine-readable option. Solves the image-extraction problem (already digitized
   from the Air Force's posts).
 - Long-format CSV: one row per weapon model per attack with `launched` / `destroyed`, broken down
   by type (Shahed-136/131, Kh-101, Kalibr, Iskander, Kinzhal, S-300/400, etc.).
   Files: `missile_attacks_daily.csv` (~21 cols) + `missile_and_uav.csv` (weapon reference).
-- Since Oct 2022, still actively versioned (~v116+). License: attribution-required.
+- Since Oct 2022, still actively versioned (~v116+). License: attribution-required (credit
+  piterfm / UA Air Force on the view).
 - Parse: easy — pivot by date + model. Closest in spirit to our existing SBS/GSUA work.
+- **Pipeline:** scripts/missile_attacks/ingest.py → ru-air-attacks-gsua.db → R2
+  (workflow update-missile-attacks-db.yml; downloads current DB first, so it appends).
+  Named as the Ukrainian-side mirror of ru-mod-ad.db (ru-mod-ad = UA launches at RU + RU
+  intercepts; ru-air-attacks-gsua = RU launches at UA + UA intercepts). Frontend: TODO (site wiring
+  not yet done). DB is small → fetch whole via sql.js.
+- **Data access:** Kaggle-ONLY — no GitHub mirror (piterfm's GitHub dataset repo holds only the
+  losses JSON; his dashboard repo is stale since 2024-11). The Kaggle API gates downloads behind a
+  FREE account token: ingest.py pulls the dataset zip over HTTP Basic auth using the KAGGLE_USERNAME
+  / KAGGLE_KEY secrets (the two fields from kaggle.json). `--csv <path>` ingests a local file for
+  testing without credentials.
+- **Storage model:** APPEND-ONLY & versioned-on-edit (like ru_mod/ru_losses). Each row is one
+  report line, keyed by (time_start, time_end, model, launch_place, target, source, scraped_at).
+  `source` (the originating UA Air Force / regional-command post) is the disambiguator — same-day
+  reports of the same model+target from different commands differ only by source; without it the
+  natural key collides (verified against the live 3728-row file: 6 colliding keys → 0 once source
+  is added). NB the `model` column can BUNDLE types (e.g. "X-101/X-555 and Kalibr and Iskander-K"),
+  so daily_by_model groups by the bundled string; a true per-type breakdown would need to split on
+  " and " in the query layer.
+  piterfm edits historical rows in place across whole-file Kaggle versions, so each run re-downloads
+  the latest CSV and inserts a NEW row tagged `scraped_at` only when a value changed (or the key is
+  new). Nothing is overwritten; frontend reads the latest scraped_at per key. We use `scraped_at`,
+  NOT `snapshot_at` (which in the GSUA schema means the source's own "as of" timestamp).
+  Grain stays as-is; the filename says "daily" but it is NOT a daily aggregate — daily volume is
+  aggregated in the query layer (`daily_totals` / `daily_by_model` views, GROUP BY date(time_start),
+  so a cross-midnight overnight strike counts to its start date). Build aborts (skipping upload) on a
+  row-count floor (1000), a shrinking key set, or CSV header drift.
 
 ### Stale / not machine-readable
 - CSIS Russian Firepower Strike Tracker — STALE (only through 2024-11-30); just re-publishes piterfm.

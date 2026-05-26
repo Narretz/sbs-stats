@@ -1,0 +1,73 @@
+name: Update RU Missile Attacks Database
+
+# Russian missile/UAV strikes on Ukraine, from piterfm's Kaggle dataset
+# "Massive Missile Attacks on Ukraine" (digitized UA Air Force + General Staff
+# reports). Kaggle-only source: needs a free account's API token, stored as the
+# KAGGLE_USERNAME / KAGGLE_KEY secrets (the two fields from kaggle.json).
+
+on:
+  workflow_dispatch: # allow manual trigger from the GitHub UI
+  schedule:
+    # piterfm re-publishes ~weekly and back-edits historical rows; a daily run is
+    # cheap and catches new versions + corrections promptly (append-on-change, so
+    # an unchanged dataset inserts nothing).
+    - cron: "0 6 * * *"
+
+# Single source of truth for the bucket + DB filename.
+env:
+  R2_BUCKET: russia-ukraine-war
+  MISSILE_DB_NAME: ru-air-attacks-gsua.db
+
+jobs:
+  update-missile-attacks-db:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # Pull the current DB so the build APPENDS into it (versioned, never
+      # deletes) rather than starting empty — this preserves every prior
+      # `scraped_at` version of each attack row. `continue-on-error` so the very
+      # first run (object not yet in R2) still works: ingest creates it fresh.
+      - name: Download current Missile Attacks DB from R2
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          mkdir -p scripts/missile_attacks/output
+          npx --yes wrangler@4 r2 object get \
+            "$R2_BUCKET/$MISSILE_DB_NAME" \
+            --file "scripts/missile_attacks/output/$MISSILE_DB_NAME" \
+            --remote
+
+      # ingest.py downloads the latest Kaggle version, appends changed/new rows,
+      # and aborts WITHOUT writing if the download looks partial/broken (row-count
+      # floor; never fewer keys than already stored) or the CSV header drifted — so
+      # a bad fetch fails this step and the upload below is skipped, leaving R2
+      # untouched. stdlib only, so no pip install needed.
+      - name: Build Missile Attacks DB
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          mkdir -p scripts/missile_attacks/output
+          python3 scripts/missile_attacks/ingest.py \
+            --out "scripts/missile_attacks/output/$MISSILE_DB_NAME"
+
+      - name: Upload Missile Attacks DB to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/$MISSILE_DB_NAME" \
+            --file "scripts/missile_attacks/output/$MISSILE_DB_NAME" \
+            --content-type application/vnd.sqlite3 \
+            --remote
