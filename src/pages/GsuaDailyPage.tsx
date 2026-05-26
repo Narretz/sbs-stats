@@ -199,10 +199,10 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-            Daily Combat Stats {selectedDirection ? `— ${selectedDirection}` : ""}
+            Daily Combat Stats {selectedDirection ? `— ${selectedDirection}` : ""} - GSUA
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Source: Ukrainian General Staff daily reports · last snapshot per day · {new Date().toDateString()}
+            Last snapshot per day · {new Date().toDateString()}.  Via Telegram @GeneralStaffZSU.
           </p>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>

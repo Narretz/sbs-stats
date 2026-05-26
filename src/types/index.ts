@@ -106,7 +106,7 @@ export const SITE_LABELS: Record<Site, string> = {
   sbs: "SBS STATISTICS",
   "ru-attacks-gsua": "RU ATTACKS - GSUA",
   "ru-losses-gsua": "RU LOSSES - GSUA",
-  "ru-airdef-mod": "RU AIR DEFENSE - MoD",
+  "ru-airdef-mod": "RU AIR DEFENSE - RU MoD",
 };
 export type LoadState = "idle" | "loading" | "ready" | "error";
 

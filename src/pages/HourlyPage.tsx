@@ -156,10 +156,10 @@ export function HourlyPage({ refreshKey }: HourlyPageProps) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-            Hourly Statistics
+            SBS Hourly Statistics
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Each line = one day · X-axis = hour · MAX/MED based on all data · {new Date().toDateString()}
+            Each line = one day · X-axis = hour · MAX/MED based on all data · {new Date().toDateString()}. Via https://sbs-group.army/
                         <br/>
             <span style={{ color: t.textImportant, border: `2px solid ${t.borderImportant}`, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4}}>The hourly values are recorded exactly as they were at the time of collection, and may be inaccurate because of delayed scheduling. They are also not updated after the current day is over (especially the daily totals are often updated late in the day, or in the next day)</span>
           </p>

@@ -257,10 +257,10 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-            Hourly Combat Stats {selectedDirection ? `— ${selectedDirection}` : ""}
+            Hourly Combat Stats {selectedDirection ? `— ${selectedDirection}` : ""} - GSUA
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Each line = one day · X-axis = hour-of-snapshot · GS posts run cumulative totals throughout the day.
+            Each line = one day · X-axis = hour-of-snapshot · GS posts run cumulative totals throughout the day. Via Telegram @GeneralStaffZSU.
           </p>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>

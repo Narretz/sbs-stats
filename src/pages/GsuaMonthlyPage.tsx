@@ -53,10 +53,10 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-            Monthly Combat Stats
+            Monthly Combat Stats - GSUA
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Monthly sums of daily totals from Ukrainian General Staff reports. Current month shows end-of-month projection.
+            Monthly sums of daily totals from Ukrainian General Staff reports. Current month shows end-of-month projection.  Via Telegram @GeneralStaffZSU.
           </p>
         </div>
       </div>
