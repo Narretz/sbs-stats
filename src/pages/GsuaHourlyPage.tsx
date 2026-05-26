@@ -8,6 +8,7 @@ import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
+import { TooltipSortSelect } from "@/components/TooltipSortSelect";
 import { DAY_OPTIONS, type DayOption } from "@/utils/dayRange";
 import {
   GSUA_METRIC_KEYS,
@@ -290,20 +291,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
             ))}
           </select>
           <StatScopeToggle />
-          <select
-            value={tooltipSort}
-            onChange={(e) => updateSort(e.target.value as TooltipSortMode)}
-            style={{
-              background: t.bgAlt, color: t.textMuted,
-              border: `1px solid ${t.border}`,
-              borderRadius: 4, padding: "5px 8px",
-              fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
-            }}
-          >
-            {(["value", "date"] as const).map((mode) => (
-              <option key={mode} value={mode}>Tooltip Data Sort: {mode === "value" ? "Value" : "Date"}</option>
-            ))}
-          </select>
+          <TooltipSortSelect value={tooltipSort} onChange={updateSort} />
         </div>
       </div>
 

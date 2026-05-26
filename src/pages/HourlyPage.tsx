@@ -8,6 +8,7 @@ import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
+import { TooltipSortSelect } from "@/components/TooltipSortSelect";
 import { DAY_OPTIONS, type DayOption } from "@/utils/dayRange";
 import { buildMetrics } from "@/utils/metrics";
 import type { DailyRow, DailyDaySeries, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
@@ -174,23 +175,8 @@ export function HourlyPage({ refreshKey }: HourlyPageProps) {
             onChange={updateWeekdays}
             todayDow={todayDow}
           />
-          <select
-            value={tooltipSort}
-            onChange={e => updateSort(e.target.value as TooltipSortMode)}
-            style={{
-              background: t.bgAlt,
-              color: t.textMuted,
-              border: `1px solid ${t.border}`,
-              borderRadius: 4, padding: "5px 8px",
-              fontFamily: FONTS.mono, fontSize: 11,
-              cursor: "pointer", transition: "all 0.15s",
-            }}
-          >
-            {(["value", "date"] as const).map(mode => (
-              <option key={mode} value={mode}>Tooltip Data Sort: {mode === "value" ? "Value" : "Date"}</option>
-            ))}
-          </select>
           <StatScopeToggle />
+          <TooltipSortSelect value={tooltipSort} onChange={updateSort} />
         </div>
       </div>
       {loadState === "loading" && !hasData && <LoadingScreen />}
