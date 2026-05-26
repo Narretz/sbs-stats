@@ -314,7 +314,7 @@ def iter_web(channel: str, since_id: int, max_pages: int, sleep: float, backfill
 
 
 # ── telethon backend (backfill) ────────────────────────────────────────────────
-def iter_telethon(channel: str):
+def iter_telethon(channel: str, offset_date=None):
     """Yield (post_id, posted_at_utc, text) NEWEST→OLDEST via the Telegram API.
 
     A generator, so the caller's --since date break stops fetching early (used for
@@ -333,7 +333,7 @@ def iter_telethon(channel: str):
     session = os.environ.get("RU_MOD_SESSION", "ru_mod_session")
     with TelegramClient(session, int(api_id), api_hash) as client:
         client.flood_sleep_threshold = 60
-        for msg in client.iter_messages(channel):  # default: newest first
+        for msg in client.iter_messages(channel, offset_date=offset_date):  # newest first (from offset_date if given)
             if isinstance(msg, Message) and msg.text:
                 yield msg.id, msg.date.astimezone(timezone.utc), msg.text
 
@@ -546,17 +546,23 @@ def main() -> int:
     ap.add_argument("--backfill", action="store_true", help="web: ignore stored ids, walk max-pages")
     ap.add_argument(
         "--since", metavar="YYYY-MM-DD",
-        help="web: re-scan posts on/after this MSK date instead of stopping at the last stored "
-             "id. Lets edits to recent posts be re-checked (a new version is stored only when "
-             "content changed). Use latest-stored-date minus a couple days in CI.",
+        help="re-scan posts on/after this MSK date instead of stopping at the last stored id. "
+             "Lets edits to recent posts be re-checked (a new version is stored only when content "
+             "changed). Use latest-stored-date minus a couple days in CI; an older date for backfill.",
+    )
+    ap.add_argument(
+        "--until", metavar="YYYY-MM-DD",
+        help="only process posts on/before this MSK date — pair with --since for a bounded "
+             "backfill window (e.g. one month). telethon starts fetching at this date.",
     )
     ap.add_argument("--selftest", action="store_true", help="parse built-in samples, no network")
     args = ap.parse_args()
 
     if args.selftest:
         return selftest()
-    if args.since and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args.since):
-        ap.error("--since must be YYYY-MM-DD")
+    for name, val in (("--since", args.since), ("--until", args.until)):
+        if val and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", val):
+            ap.error(f"{name} must be YYYY-MM-DD")
 
     out = Path(args.out)
 
@@ -570,14 +576,20 @@ def main() -> int:
               f"(since={args.since or f'id>{since_id}'}, backfill={args.backfill})")
         src = iter_web(args.channel, since_id, args.max_pages, args.sleep, args.backfill or bool(args.since))
     else:
-        print(f"==> telethon @{args.channel} (newest→oldest"
-              f"{f', until {args.since}' if args.since else ', full history'})")
-        src = iter_telethon(args.channel)
+        # telethon can start at --until (newest-first from that date), so a window
+        # deep in history doesn't re-fetch everything more recent.
+        offset_date = datetime.fromisoformat(f"{args.until}T23:59:59+03:00") if args.until else None
+        print(f"==> telethon @{args.channel} (newest→oldest, "
+              f"window {args.since or 'start'}…{args.until or 'now'})")
+        src = iter_telethon(args.channel, offset_date=offset_date)
 
     scanned = 0
     for pid, posted, text in src:
-        # Date window (newest→oldest): stop once older than --since.
-        if args.since and posted.astimezone(MSK).date().isoformat() < args.since:
+        msk_date = posted.astimezone(MSK).date().isoformat()
+        # Date window (newest→oldest): skip newer than --until, stop past --since.
+        if args.until and msk_date > args.until:
+            continue
+        if args.since and msk_date < args.since:
             break
         scanned += 1
         r = parse_report(text, pid, posted)
