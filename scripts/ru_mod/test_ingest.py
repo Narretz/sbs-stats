@@ -240,6 +240,37 @@ class TestSummary:
         conn.close()
         assert row == ("svodka_weekly", "29 ноября – 5 декабря 2025")
 
+    def test_cross_source_summary_dedups(self, tmp_path):
+        # Same post via web (plain text) then telethon (Markdown bold + a link).
+        # Identical content, different formatting → must NOT create a 2nd version.
+        import sqlite3
+        db = tmp_path / "ad.db"
+        body = ("Сводка Министерства обороны Российской Федерации о ходе проведения специальной "
+                "военной операции с 1 по 7 мая 2026 г. Поражены пункты управления. См. часть 2")
+        web = _summary(body, mid=700)
+        telethon = _summary(
+            body.replace("Сводка", "**Сводка**").replace("См. часть 2", "[См. часть 2](https://t.me/mod_russia/701)"),
+            mid=700)
+        ig.store(db, [], [web])
+        ig.store(db, [], [telethon])
+        conn = sqlite3.connect(db)
+        n = conn.execute("SELECT COUNT(*) FROM summaries WHERE post_id=700").fetchone()[0]
+        conn.close()
+        assert n == 1
+
+    def test_summary_edit_adds_version(self, tmp_path):
+        # A genuine wording change still inserts a new version.
+        import sqlite3
+        db = tmp_path / "ad.db"
+        base = ("Сводка Министерства обороны Российской Федерации о ходе проведения специальной "
+                "военной операции с 1 по 7 мая 2026 г. ")
+        ig.store(db, [], [_summary(base + "Поражены цели.", mid=710)])
+        ig.store(db, [], [_summary(base + "Поражены ДВЕ цели.", mid=710)])
+        conn = sqlite3.connect(db)
+        n = conn.execute("SELECT COUNT(*) FROM summaries WHERE post_id=710").fetchone()[0]
+        conn.close()
+        assert n == 2
+
 
 # ── storage: append-only by post_id + daily_ad aggregation ────────────────────
 class TestStorage:

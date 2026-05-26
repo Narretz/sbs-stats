@@ -232,6 +232,20 @@ def parse_summary(text: str, post_id: int, posted_at_utc: datetime) -> Summary |
     )
 
 
+def _norm_summary(text: str) -> str:
+    """Source-agnostic form of a summary's text, for change detection.
+
+    Summaries are stored raw (unparsed), so unlike AD reports we have no parsed
+    fields to compare — we compare the text instead. But telethon keeps Markdown
+    (**bold**, [label](url) links) while the web preview returns plain text, so
+    the same post looks different per source. Strip that formatting (and collapse
+    whitespace) so web↔telethon dedups, while a genuine edit to the wording still
+    changes the normalized text and inserts a new version."""
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)  # [label](url) → label
+    text = text.replace("*", "").replace("_", "")          # markdown emphasis
+    return re.sub(r"\s+", " ", text).strip()
+
+
 # ── web backend (t.me/s preview) ───────────────────────────────────────────────
 class _TgParser(HTMLParser):
     def __init__(self):
@@ -424,7 +438,7 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
             )
         }
         latest_sum = {
-            row[0]: row[1]
+            row[0]: _norm_summary(row[1])
             for row in conn.execute(
                 "SELECT s.post_id, s.raw_text FROM summaries s "
                 "JOIN (SELECT post_id, MAX(scraped_at) AS ms FROM summaries GROUP BY post_id) l "
@@ -455,7 +469,7 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
 
         sum_inserted = 0
         for s in summaries:
-            if latest_sum.get(s.post_id) == s.raw_text:
+            if latest_sum.get(s.post_id) == _norm_summary(s.raw_text):
                 continue
             conn.execute(
                 "INSERT INTO summaries (post_id,scraped_at,posted_at,kind,period,raw_text) "
