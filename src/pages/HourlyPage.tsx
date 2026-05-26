@@ -167,13 +167,13 @@ export function HourlyPage({ refreshKey }: HourlyPageProps) {
           </p>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
+          <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
           <WeekdayMultiSelect
             selected={selectedWeekdays}
             onChange={updateWeekdays}
             todayDow={todayDow}
           />
-          <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
-          <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
           <select
             value={tooltipSort}
             onChange={e => updateSort(e.target.value as TooltipSortMode)}

@@ -14,6 +14,10 @@ interface Props {
 export function DateNav({ value, max, onChange, onShift, canGoNext }: Props) {
   const { theme: t } = useTheme();
   return (
+    <div style={{display: "flex", alignItems: "center", gap: 6}}>
+      <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
+        Date
+      </span>
     <div style={{ display: "flex", gap: "3px" }}>
       <button onClick={() => onShift(-1)} style={{
         background: t.bgAlt, color: t.textMuted,
@@ -43,6 +47,7 @@ export function DateNav({ value, max, onChange, onShift, canGoNext }: Props) {
         borderRadius: 4, padding: "5px 8px", height: "25px",
         cursor: canGoNext ? "pointer" : "not-allowed",
       }}>&gt;</button>
+    </div>
     </div>
   );
 }

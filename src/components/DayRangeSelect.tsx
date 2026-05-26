@@ -13,6 +13,10 @@ interface Props<T extends number> {
 export function DayRangeSelect<T extends number>({ options, value, onChange }: Props<T>) {
   const { theme: t } = useTheme();
   return (
+    <div style={{display: "flex", alignItems: "center", gap: 6}}>
+      <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
+        Time Window
+      </span>
     <select
       data-testid="day-range"
       value={value}
@@ -32,5 +36,6 @@ export function DayRangeSelect<T extends number>({ options, value, onChange }: P
         <option key={d} value={d}>{d}d</option>
       ))}
     </select>
+  </div>
   );
 }

@@ -39,7 +39,10 @@ export function WeekdayMultiSelect({ selected, onChange, todayDow }: WeekdayMult
   };
 
   return (
-    <div ref={wrapRef} style={{ position: "relative" }}>
+    <div ref={wrapRef} style={{ position: "relative", display: "flex", alignItems: "center", gap: 6 }}>
+      <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
+        Weekdays
+      </span>
       <button
         onClick={() => setOpen(o => !o)}
         style={{
@@ -53,7 +56,7 @@ export function WeekdayMultiSelect({ selected, onChange, todayDow }: WeekdayMult
           display: "inline-flex", alignItems: "center", gap: 6,
         }}
       >
-        <span>Weekdays: {summary}</span>
+        <span>{summary}</span>
         <span style={{ fontSize: 8, opacity: 0.7 }}>{open ? "▲" : "▼"}</span>
       </button>
       {open && (

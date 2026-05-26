@@ -208,7 +208,12 @@ export function GsuaDailyPage({ refreshKey }: Props) {
           </p>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
+          <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
           <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
+      <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
+        Direction
+      </span>
           <select
             data-testid="direction-picker"
             value={selectedDirection}
@@ -226,8 +231,6 @@ export function GsuaDailyPage({ refreshKey }: Props) {
               <option key={d} value={d}>{d}</option>
             ))}
           </select>
-          <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
-          <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
           <StatScopeToggle />
         </div>
       </div>

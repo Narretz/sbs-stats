@@ -1,5 +1,5 @@
 import { useTheme } from "@/hooks/useTheme";
-import { useStatScope } from "@/hooks/useStatScope";
+import { useStatScope, type StatScope } from "@/hooks/useStatScope";
 import { FONTS } from "@/theme";
 
 // Global MAX/MED scope control. Rendered among the per-page chart controls (day
@@ -8,36 +8,39 @@ import { FONTS } from "@/theme";
 export function StatScopeToggle() {
   const { theme: t } = useTheme();
   const { scope, setScope } = useStatScope();
+
+  const options: { value: StatScope; label: string }[] = [
+    { value: 'all', label: 'All data' },
+    { value: 'window', label: 'Window data' },
+  ];
+
   return (
     <div
       title="MAX/MED reference lines: computed over all data, or just the visible window"
       style={{ display: "flex", alignItems: "center", gap: 6 }}
     >
       <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
-        MAX/MED
+        MAX/MED Base
       </span>
-      <div style={{ display: "flex", border: `1px solid ${t.border}`, borderRadius: 4, overflow: "hidden" }}>
-        {(["all", "window"] as const).map((s) => (
-          <button
-            key={s}
-            data-testid={`statscope-${s}`}
-            onClick={() => setScope(s)}
-            style={{
-              background: scope === s ? t.primary : t.bgAlt,
-              color: scope === s ? "#ffffff" : t.textMuted,
-              border: "none",
-              padding: "5px 10px",
-              fontFamily: FONTS.mono,
-              fontSize: 11,
-              fontWeight: scope === s ? 700 : 400,
-              cursor: "pointer",
-              transition: "all 0.15s",
-            }}
-          >
-            {s === "all" ? "All" : "Window"}
-          </button>
+      <select
+        data-testid="stat-scope-select"
+        value={scope}
+        onChange={(e) => setScope(e.target.value as StatScope)}
+        style={{
+          background: t.bgAlt,
+          color: t.text,
+          border: `1px solid ${t.border}`,
+          borderRadius: 4,
+          padding: "5px 8px",
+          fontFamily: FONTS.mono,
+          fontSize: 11,
+          cursor: "pointer",
+        }}
+      >
+        {options.map((d) => (
+          <option key={d.value} value={d.value}>{d.label}</option>
         ))}
-      </div>
+      </select>
     </div>
   );
 }
