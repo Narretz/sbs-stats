@@ -1,4 +1,5 @@
 import { ThemeProvider, useTheme } from "@/hooks/useTheme";
+import { StatScopeProvider } from "@/hooks/useStatScope";
 import { DatabaseProvider } from "@/context/DatabaseContext";
 import { useDatabaseContext } from "@/context/useDatabaseContext";
 import { GsuaDatabaseProvider } from "@/context/GsuaDatabaseContext";
@@ -213,7 +214,9 @@ function AppInner() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AppInner />
+      <StatScopeProvider>
+        <AppInner />
+      </StatScopeProvider>
     </ThemeProvider>
   );
 }

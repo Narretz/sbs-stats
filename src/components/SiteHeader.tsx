@@ -1,4 +1,5 @@
 import { useTheme } from "@/hooks/useTheme";
+import { useStatScope } from "@/hooks/useStatScope";
 import { FONTS } from "@/theme";
 import { SITES, SITE_LABELS, type Page, type Site } from "@/types";
 import { RefreshIndicator } from "@/components/RefreshIndicator";
@@ -28,6 +29,9 @@ export function SiteHeader({
   lastRefreshed, refreshCount, onRefresh, isLoading, refreshIntervalMs,
 }: SiteHeaderProps) {
   const { mode, theme: t, toggle } = useTheme();
+  const { scope, setScope } = useStatScope();
+  // MAX/MED reference lines only appear on the daily & hourly line charts.
+  const showStatScope = page === "daily" || page === "hourly";
 
   const navBtn = (target: Page, label: string) => (
     <button
@@ -109,6 +113,38 @@ export function SiteHeader({
       {/* Nav + refresh + theme */}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         {pages.map((p) => navBtn(p, PAGE_LABEL[p]))}
+        {showStatScope && (
+          <div
+            title="MAX/MED reference lines: computed over all data, or just the visible window"
+            style={{ display: "flex", alignItems: "center", gap: 6 }}
+          >
+            <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
+              MAX/MED
+            </span>
+            <div style={{ display: "flex", border: `1px solid ${t.border}`, borderRadius: 4, overflow: "hidden" }}>
+              {(["all", "window"] as const).map((s) => (
+                <button
+                  key={s}
+                  data-testid={`statscope-${s}`}
+                  onClick={() => setScope(s)}
+                  style={{
+                    background: scope === s ? t.primary : "transparent",
+                    color: scope === s ? "#ffffff" : t.textMuted,
+                    border: "none",
+                    padding: "5px 9px",
+                    fontFamily: FONTS.mono,
+                    fontSize: 11,
+                    fontWeight: scope === s ? 700 : 400,
+                    cursor: "pointer",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {s === "all" ? "All" : "Window"}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <RefreshIndicator
           lastRefreshed={lastRefreshed}
           refreshCount={refreshCount}

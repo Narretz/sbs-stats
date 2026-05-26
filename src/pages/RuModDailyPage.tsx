@@ -179,8 +179,10 @@ export function RuModDailyPage({ refreshKey }: Props) {
           <DailyMultiLineChart
             title="By Reporting Window — Overnight vs Daytime"
             series={[
-              { key: "night", label: "Overnight", color: t.accent, data: makeDataset("night") },
-              { key: "day", label: "Daytime", color: t.primary, data: makeDataset("day") },
+              { key: "night", label: "Overnight", color: t.accent, data: makeDataset("night"),
+                globalMax: globalStats.night.max, globalMedian: globalStats.night.median },
+              { key: "day", label: "Daytime", color: t.primary, data: makeDataset("day"),
+                globalMax: globalStats.day.max, globalMedian: globalStats.day.median },
             ]}
             wfull
           />

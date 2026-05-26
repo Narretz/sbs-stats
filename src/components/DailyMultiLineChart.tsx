@@ -4,6 +4,7 @@ import {
 import { useMemo } from "react";
 import type { DailyDataPoint } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
+import { useStatScope } from "@/hooks/useStatScope";
 import { FONTS, type Theme } from "@/theme";
 
 // Reuse the hover-elevation class injected by DailyLineChart so an overflowing
@@ -21,6 +22,10 @@ export interface LineSeries {
   label: string;
   color: string;
   data: DailyDataPoint[];
+  // Whole-dataset max/median for this series; used when the MAX/MED scope is
+  // "all". Without them the chart falls back to window stats either way.
+  globalMax?: number;
+  globalMedian?: number;
 }
 
 interface Props {
@@ -78,6 +83,8 @@ function MultiTooltip({
 
 export function DailyMultiLineChart({ title, series, wfull = false }: Props) {
   const { theme: t } = useTheme();
+  const { scope } = useStatScope();
+  const allScope = scope === "all";
 
   const { rows, max } = useMemo(() => {
     const byDate = new Map<string, Row>();
@@ -97,9 +104,17 @@ export function DailyMultiLineChart({ title, series, wfull = false }: Props) {
   }, [series]);
 
   const legendStat = (s: LineSeries) => {
+    if (allScope && typeof s.globalMax === "number")
+      return { max: s.globalMax, med: s.globalMedian ?? 0 };
     const vals = s.data.map((p) => p.value).filter((v): v is number => typeof v === "number");
     return { max: vals.length ? Math.max(...vals) : 0, med: median(vals) };
   };
+
+  // In "all" scope, lift the y-axis ceiling to the largest series global max so
+  // this chart shares the main daily chart's scale; in "window" it fits the data.
+  const ceiling = allScope
+    ? Math.max(max, ...series.map((s) => s.globalMax ?? 0))
+    : max;
 
   return (
     <div className="daily-card" style={{
@@ -129,7 +144,7 @@ export function DailyMultiLineChart({ title, series, wfull = false }: Props) {
             tickFormatter={(v: string) => { const p = v.slice(5).split("-"); return `${p[1]}/${p[0]}`; }}
           />
           <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
-            domain={[0, (dataMax: number) => Math.max(dataMax, max)]} />
+            domain={[0, (dataMax: number) => Math.max(dataMax, ceiling)]} />
           <Tooltip
             allowEscapeViewBox={{ x: false, y: true }}
             wrapperStyle={{ zIndex: 9999 }}

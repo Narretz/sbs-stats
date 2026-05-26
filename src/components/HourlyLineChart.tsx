@@ -4,8 +4,11 @@ import {
 } from "recharts";
 import type { TooltipProps } from "recharts";
 import { Temporal } from "temporal-polyfill";
+import { useMemo } from "react";
 import type { DailyDaySeries, EodEstimate } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
+import { useStatScope } from "@/hooks/useStatScope";
+import { maxMedian } from "@/utils/windowStats";
 import type { Theme } from "@/theme";
 import { FONTS } from "@/theme";
 export type TooltipSortMode = "date" | "value";
@@ -153,6 +156,16 @@ if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
 }
 export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, tooltipSort = "date", highlight = false, selectedDate, eod }: Props) {
   const { theme: t } = useTheme();
+  const { scope } = useStatScope();
+  // "window" scopes MAX/MED to the days currently shown. Each day's value is its
+  // end-of-day total (max of its cumulative intraday points).
+  const win = scope === "window";
+  const winStat = useMemo(
+    () => maxMedian(data.map((s) => (s.points.length ? Math.max(...s.points.map((p) => p.value)) : null))),
+    [data]
+  );
+  const max = win ? winStat.max : globalMax;
+  const median = win ? winStat.median : globalMedian;
   const chartData = pivotData(data);
   // When a date is selected, highlight only the series for that exact date.
   // No fallback to the most-recent day: selecting a date with no data (e.g. a
@@ -183,8 +196,8 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 10, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ color: t.accent, fontWeight: 700 }}>{isToday ? 'TODAY' : selectedDate}</span>
         <span style={{ color: t.textMuted }}>{total} previous day{total !== 1 ? "s" : ""}</span>
-        <span style={{ color: t.accent }}>▲ MAX {globalMax.toLocaleString()}</span>
-        <span style={{ color: t.muted }}>~ MED {globalMedian.toLocaleString()}</span>
+        <span style={{ color: t.accent }}>▲ MAX {max.toLocaleString()}</span>
+        <span style={{ color: t.muted }}>~ MED {median.toLocaleString()}</span>
       </div>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
@@ -197,15 +210,15 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
             type="number"
             domain={[0, 24]}
           />
-          <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, globalMax)]} />
+          <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, max)]} />
           <Tooltip
             content={(props) => <CustomTooltip {...props} currentDate={primarySeries?.date} t={t} sortMode={tooltipSort} eod={isToday ? (eod ?? null) : null} />}
             allowEscapeViewBox={{ x: false, y: true }}
             wrapperStyle={{ zIndex: 9999 }}
           />
-          <ReferenceLine y={globalMax} stroke={t.accent} strokeDasharray="4 4" strokeOpacity={0.6}
+          <ReferenceLine y={max} stroke={t.accent} strokeDasharray="4 4" strokeOpacity={0.6}
             label={{ value: "MAX", position: "insideTopRight", fontSize: 9, fill: t.accent, fontFamily: FONTS.mono }} />
-          <ReferenceLine y={globalMedian} stroke={t.muted} strokeDasharray="4 4" strokeOpacity={0.5}
+          <ReferenceLine y={median} stroke={t.muted} strokeDasharray="4 4" strokeOpacity={0.5}
             label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: t.muted, fontFamily: FONTS.mono }} />
           {pastSeries.map((s, i) => (
             <Line key={s.date} type="monotone" dataKey={s.date}

@@ -5,6 +5,8 @@ import {
 import { useMemo } from "react";
 import type { DailyDataPoint, EodEstimate, PairMode } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
+import { useStatScope } from "@/hooks/useStatScope";
+import { maxMedian } from "@/utils/windowStats";
 import { FONTS, type Theme } from "@/theme";
 
 function linearRegression(data: DailyDataPoint[]): Array<number | null> {
@@ -186,8 +188,16 @@ export function DailyLineChart({
   eod, eod2,
 }: Props) {
   const { theme: t } = useTheme();
-  const max = globalMax;
-  const median = globalMedian;
+  const { scope } = useStatScope();
+  // "window" scopes the MAX/MED lines to the points currently shown; "all" uses
+  // the whole-dataset values passed in as props.
+  const win = scope === "window";
+  const primaryWin = useMemo(() => maxMedian(data.map((d) => d.value)), [data]);
+  const secondaryWin = useMemo(() => maxMedian((data2 ?? []).map((d) => d.value)), [data2]);
+  const max = win ? primaryWin.max : globalMax;
+  const median = win ? primaryWin.median : globalMedian;
+  const max2 = win ? secondaryWin.max : (globalMax2 ?? 0);
+  const median2 = win ? secondaryWin.median : (globalMedian2 ?? 0);
   const hasPair = !!data2;
   // Single-line charts use the accent (red). On paired charts the whole "Hit"
   // series (line + area) is blue so it stays distinguishable from the red
@@ -221,8 +231,8 @@ export function DailyLineChart({
   }, [data, data2, pairMode, eod, eod2]);
 
   const yMax = hasPair && pairMode === "sum"
-    ? Math.max(globalMax + (globalMax2 ?? 0), 0)
-    : globalMax;
+    ? Math.max(max + max2, 0)
+    : max;
 
   return (
     <div className="daily-card" style={{
@@ -244,8 +254,8 @@ export function DailyLineChart({
         {hasPair && (
           <>
             <span style={{ color: DESTROYED_COLOR, marginLeft: 8 }}>● {resolvedSecondaryLabel}</span>
-            <span style={{ color: DESTROYED_COLOR }}>▲ MAX {(globalMax2 ?? 0).toLocaleString()}</span>
-            <span style={{ color: DESTROYED_COLOR, opacity: 0.7 }}>~ MED {(globalMedian2 ?? 0).toLocaleString()}</span>
+            <span style={{ color: DESTROYED_COLOR }}>▲ MAX {max2.toLocaleString()}</span>
+            <span style={{ color: DESTROYED_COLOR, opacity: 0.7 }}>~ MED {median2.toLocaleString()}</span>
           </>
         )}
       </div>
@@ -294,7 +304,7 @@ export function DailyLineChart({
               tickFormatter={(v: string) => { const p = v.slice(5).split('-'); return `${p[1]}/${p[0]}`; }}
             />
             <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
-              domain={[0, (dataMax: number) => Math.max(dataMax, globalMax)]} />
+              domain={[0, (dataMax: number) => Math.max(dataMax, max)]} />
             <Tooltip
               allowEscapeViewBox={{ x: false, y: true }}
               wrapperStyle={{ zIndex: 9999 }}
