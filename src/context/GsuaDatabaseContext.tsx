@@ -1,9 +1,6 @@
-import { createContext, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import { GsuaDatabaseContext } from "@/context/useGsuaDatabaseContext";
 import { useDatabaseGsua } from "@/hooks/useDatabaseGsua";
-
-type GsuaDatabaseContextValue = ReturnType<typeof useDatabaseGsua>;
-
-export const GsuaDatabaseContext = createContext<GsuaDatabaseContextValue | null>(null);
 
 export function GsuaDatabaseProvider({ children }: { children: ReactNode }) {
   const db = useDatabaseGsua();

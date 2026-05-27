@@ -1,9 +1,6 @@
-import { createContext, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import { DatabaseContext } from "@/context/useDatabaseContext";
 import { useDatabase } from "@/hooks/useDatabase";
-
-type DatabaseContextValue = ReturnType<typeof useDatabase>;
-
-export const DatabaseContext = createContext<DatabaseContextValue | null>(null);
 
 export function DatabaseProvider({ children }: { children: ReactNode }) {
   const db = useDatabase();

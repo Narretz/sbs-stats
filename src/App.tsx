@@ -1,5 +1,6 @@
-import { ThemeProvider, useTheme } from "@/hooks/useTheme";
-import { StatScopeProvider } from "@/hooks/useStatScope";
+import { useTheme } from "@/hooks/useTheme";
+import { ThemeProvider } from "@/hooks/ThemeProvider";
+import { StatScopeProvider } from "@/hooks/StatScopeProvider";
 import { DatabaseProvider } from "@/context/DatabaseContext";
 import { useDatabaseContext } from "@/context/useDatabaseContext";
 import { GsuaDatabaseProvider } from "@/context/GsuaDatabaseContext";

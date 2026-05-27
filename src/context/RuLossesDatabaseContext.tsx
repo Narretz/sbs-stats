@@ -1,9 +1,6 @@
-import { createContext, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import { RuLossesDatabaseContext } from "@/context/useRuLossesDatabaseContext";
 import { useDatabaseRuLosses } from "@/hooks/useDatabaseRuLosses";
-
-type RuLossesDatabaseContextValue = ReturnType<typeof useDatabaseRuLosses>;
-
-export const RuLossesDatabaseContext = createContext<RuLossesDatabaseContextValue | null>(null);
 
 export function RuLossesDatabaseProvider({ children }: { children: ReactNode }) {
   const db = useDatabaseRuLosses();
