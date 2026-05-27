@@ -19,6 +19,9 @@ interface SiteHeaderProps {
   onRefresh: () => void;
   isLoading: boolean;
   refreshIntervalMs: number;
+  // Static views (e.g. the JSON-backed missiles prototype) have nothing to
+  // refresh — hide the auto-refresh indicator for them.
+  showRefresh?: boolean;
 }
 
 const PAGE_LABEL: Record<Page, string> = {
@@ -31,6 +34,7 @@ const PAGE_LABEL: Record<Page, string> = {
 export function SiteHeader({
   site, page, pages, onSiteChange, onPageChange, hideHome = false,
   lastRefreshed, refreshCount, onRefresh, isLoading, refreshIntervalMs,
+  showRefresh = true,
 }: SiteHeaderProps) {
   const { mode, theme: t, toggle } = useTheme();
   const { goHome } = useRoute();
@@ -127,13 +131,15 @@ export function SiteHeader({
       {/* Nav + refresh + theme */}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         {pages.map((p) => navBtn(p, PAGE_LABEL[p]))}
-        <RefreshIndicator
-          lastRefreshed={lastRefreshed}
-          refreshCount={refreshCount}
-          onRefresh={onRefresh}
-          isLoading={isLoading}
-          intervalMs={refreshIntervalMs}
-        />
+        {showRefresh && (
+          <RefreshIndicator
+            lastRefreshed={lastRefreshed}
+            refreshCount={refreshCount}
+            onRefresh={onRefresh}
+            isLoading={isLoading}
+            intervalMs={refreshIntervalMs}
+          />
+        )}
         <button
           onClick={toggle}
           title={`Switch to ${mode === "light" ? "dark" : "light"} mode`}

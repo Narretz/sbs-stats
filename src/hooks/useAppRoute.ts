@@ -14,6 +14,9 @@ const SBU_ALFA_PAGES: Page[] = ["monthly"];
 // Mediazona: the source publishes week-bucketed data. "weekly" is the native
 // granularity; "monthly" re-buckets weeks into calendar months in the frontend.
 const MEDIAZONA_PAGES: Page[] = ["weekly", "monthly"];
+// HUR missile-stock disclosures: a single page with its own Production/Stockpile
+// toggle, so no daily/monthly nav (App hides the page buttons for this site).
+const RU_MISSILES_PAGES: Page[] = ["daily"];
 
 function pagesFor(site: Site): Page[] {
   if (site === "ru-attacks-gsua") return GSUA_PAGES;
@@ -22,6 +25,7 @@ function pagesFor(site: Site): Page[] {
   if (site === "ru-air-attacks-gsua") return RU_AIR_ATTACKS_PAGES;
   if (site === "sbu-alfa") return SBU_ALFA_PAGES;
   if (site === "mediazona") return MEDIAZONA_PAGES;
+  if (site === "ru-missiles-hur") return RU_MISSILES_PAGES;
   return SBS_PAGES;
 }
 
@@ -40,6 +44,7 @@ function readUrl(): Route {
       : rawSite === "ru-air-attacks-gsua" ? "ru-air-attacks-gsua"
       : rawSite === "sbu-alfa" ? "sbu-alfa"
       : rawSite === "mediazona" ? "mediazona"
+      : rawSite === "ru-missiles-hur" ? "ru-missiles-hur"
       : "sbs";
   const rawPage = p.get("page");
   const pages = pagesFor(site);

@@ -356,6 +356,50 @@ GIS area-diffing on a periodic (not daily-scalar) cadence.
 
 ---
 
+## 9. Russian missile stockpiles & production (HUR/GUR)
+
+### HUR/GUR missile-stockpile disclosures — PROTOTYPE (branch `ru-missiles-hur`, not merged)
+- Hand-curated `scripts/missile_stockpile/reports.json`: irregular (~2×/yr) Ukrainian-intelligence
+  estimates of Russian missile **stockpiles + monthly production**. 8 disclosures Nov 2022 – Apr 2026
+  (HUR/GUR via RBC, NV, Defense Express, Euromaidan — each report keeps `source` + a `note`).
+- Read **directly from JSON** in the frontend (no DB/R2 — prototype). Site key `ru-missiles-hur`.
+  Views: per-type grid (bound-shaped dots, shared/fit y-axis) + stacked-by-type bars on a time axis.
+- **Shape:** each measurement carries a `bound` (up_to / at_least / approx / range / planned); a
+  figure that lumps several types is kept as a `combined` bucket, never silently split; `as_of`
+  (date the figures describe) is distinct from `reported_at` (date disclosed). Absent ≠ zero.
+- **Not productionized:** no ingest pipeline (hand-edited); `sources/` HTML dumps kept out of the repo.
+
+### TODO — reconcile with §2 attacks (piterfm) for a "consumption vs inventory" view
+Both track the **same rounds** (Kh-101, Kalibr, Iskander-M/K, Kinzhal, Oniks, Zircon, KN-23…), so
+attacks-`launched` (consumption) could be charted against stockpile/production (inventory). Checked
+against the live `ru-air-attacks-gsua.db` (2022-09 → 2026-05): of the 17 stockpile types, all but
+**Kh-55, Oreshnik, RM-48U** appear by name, and **~97% of *missile* launches map** — but only ~6% of
+*all* launches, because ~94% are **Shahed-type drones** (absent from the stockpile set). Steps to make
+the two joinable:
+
+1. **One shared canonical type set** — reuse `missile_types` from reports.json and map both sides onto
+   it. **Missiles only**: drones/UAVs and guided bombs (GBU/Aerial Bomb) have no stockpile counterpart,
+   so exclude them from the comparison.
+2. **Normalize names** — attacks uses Cyrillic-transliterated `X-` vs stockpile `Kh-`; alias the
+   variants (`X-31P`/`X-31PD` → Kh-31, `X-59MK2` → Kh-59). Add `Banderol` and generic
+   `Ballistic Missile`/ICBM (likely Oreshnik) to the canonical set or an explicit "unattributed" bucket.
+3. **Resolve the bundling mismatch (the hard part)** — inconsistent in BOTH directions:
+   - `X-101/X-555` fused in attacks but split (Kh-101 / Kh-555) in stockpile;
+   - `Kh-22/Kh-32` fused in stockpile but split (X-22 / X-32) in attacks;
+   - `Kh-29/31/35/58/59` fused in stockpile but split in attacks;
+   - many attacks rows are multi-type bundles ("X-101/X-555 and Kalibr and Iskander-K") with **one**
+     launched count.
+   → Compare at the coarsest shared grain (fused families) and treat attacks bundles as `combined`
+   buckets (same modelling already in reports.json); never fabricate a per-type split of a bundle's count.
+4. **Decide the S-300/400 mapping** — attacks files these as ballistic strikes (`C-300/C-400`);
+   stockpile separates the strike count (`rm48u`) from the AD pool (`s300_s400_ad`). Pick one
+   (likely attacks → `rm48u`, the strike use).
+5. **Surface the per-model attacks detail** — `daily_by_model` already exists in the attacks DB but is
+   unused by the app; the cross-reference is **frontend-only** (no pipeline change). Mind the bound
+   mismatch when overlaying: stockpile values are bounded *estimates*, attacks launches are *counts*.
+
+---
+
 ## Suggested integration order
 
 1. **russian-casualties.in.ua** — national GSUA totals. Lowest effort: pre-differenced daily

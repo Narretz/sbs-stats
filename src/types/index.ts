@@ -117,7 +117,7 @@ export interface Metric {
 
 // ─── App state ────────────────────────────────────────────────────────────────
 export type Page = "daily" | "hourly" | "monthly" | "weekly";
-export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa" | "mediazona";
+export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa" | "mediazona" | "ru-missiles-hur";
 export const SITE_LABELS: Record<Site, string> = {
   sbs: "UA SBS STATISTICS - SBS",
   "ru-attacks-gsua": "RU ATTACKS - GSUA",
@@ -126,6 +126,7 @@ export const SITE_LABELS: Record<Site, string> = {
   "sbu-alfa": "UA SBU ALFA MONTHLY RECAP - SBU",
   "ru-airdef-mod": "UA UAV ATTACKS - RU MoD",
   mediazona: "RU DEATHS - MEDIAZONA",
+  "ru-missiles-hur": "RU MISSILE STOCKS - HUR",
 };
 export const SITES: Site[] = Object.keys(SITE_LABELS) as Site[];
 export type LoadState = "idle" | "loading" | "ready" | "error";
@@ -491,3 +492,41 @@ export type MediazonaEstimateRow = {
   documented: number | null; // CSV `real`  — named/confirmed deaths
   estimate: number | null;   // CSV `rnd`   — probate-registry modelled total
 };
+
+// ─── RU Missile stocks (HUR/GUR disclosures → scripts/missile_stockpile/reports.json)
+// Hand-curated, irregular (~2×/yr) Ukrainian-intelligence estimates of Russian
+// missile stockpiles and monthly production. Read directly from JSON (prototype,
+// no DB). Mirrors the shape of reports.json — see that file's _doc block.
+export type MissileBound = "up_to" | "at_least" | "approx" | "exact" | "range" | "planned";
+
+export interface MissileMeasurement {
+  type?: string;        // single canonical key …
+  types?: string[];     // … or several, when one number lumps them (combined)
+  combined?: boolean;
+  raw_label: string;
+  value: number;        // for bound=range this is the LOW end
+  value_max?: number;   // high end when bound=range
+  bound: MissileBound;
+}
+
+export interface MissileTypeMeta {
+  name: string;
+  designation: string;
+  class: string;
+  launch: string;
+}
+
+export interface MissileReport {
+  as_of: string;        // date the figures describe
+  as_of_precision: "day" | "mid_month" | "month";
+  reported_at: string;  // date the estimate was disclosed
+  source: { org: string; via: string; url?: string; local_file?: string };
+  note?: string;
+  stockpile: MissileMeasurement[];
+  production_monthly: MissileMeasurement[];
+}
+
+export interface MissileDataset {
+  missile_types: Record<string, MissileTypeMeta>;
+  reports: MissileReport[];
+}

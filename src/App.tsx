@@ -35,6 +35,7 @@ import { SbsHourlyPage } from "@/pages/SbsHourlyPage";
 import { SbsMonthlyPage } from "@/pages/SbsMonthlyPage";
 import { MediazonaWeeklyPage } from "@/pages/MediazonaWeeklyPage";
 import { MediazonaMonthlyPage } from "@/pages/MediazonaMonthlyPage";
+import { MissilesPage } from "@/pages/MissilesPage";
 import { HomePage } from "@/pages/HomePage";
 import type { Page, Site } from "@/types";
 import { GLOBAL_CSS } from "@/theme";
@@ -214,6 +215,29 @@ function MediazonaRoot({
       </PageShell>
     </>
   );
+}      
+
+// JSON-backed prototype: no DB provider, no page nav (the page has its own
+// Production/Stockpile toggle), no refresh indicator.
+function MissilesRoot({
+  site, setSite, setPage,
+}: {
+  site: Site; setSite: (s: Site) => void; setPage: (p: Page) => void;
+}) {
+  return (
+    <>
+      <SiteHeader
+        site={site} page="daily" pages={[]}
+        onSiteChange={setSite} onPageChange={setPage}
+        lastRefreshed={null} refreshCount={0}
+        onRefresh={() => {}} isLoading={false}
+        refreshIntervalMs={0} showRefresh={false}
+      />
+      <PageShell>
+        <MissilesPage />
+      </PageShell>
+    </>
+  );
 }
 
 function AppInner() {
@@ -285,6 +309,11 @@ function AppInner() {
             </MediazonaDatabaseProvider>
           </ErrorBoundary>
         )}
+        {site === "ru-missiles-hur" && (
+          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
+            <MissilesRoot site={site} setSite={setSite} setPage={setPage} />
+          </ErrorBoundary>
+        )}        
       </div>
     </RouteProvider>
   );

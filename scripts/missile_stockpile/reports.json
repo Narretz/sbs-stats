@@ -1,0 +1,218 @@
+{
+  "_doc": {
+    "what": "Hand-curated snapshots of Russian missile/strike-weapon stockpiles and monthly production, as estimated by Ukrainian military intelligence (HUR/GUR) and occasionally the Ministry of Defence. These are irregular press disclosures (~twice a year), NOT a scrape — so this file is edited by hand and an ingest script normalises it into the DB.",
+    "fields": {
+      "as_of": "Date the figures describe (YYYY-MM-DD). See as_of_precision for how exact.",
+      "as_of_precision": "day | mid_month | month  — how to read as_of (mid-month dates are our placeholder for 'mid-May' etc.)",
+      "reported_at": "Date the estimate was published/disclosed.",
+      "source.org": "HUR (Defence Intelligence) | GUR | MoD — the issuing body.",
+      "source.via": "Outlet that published it.",
+      "stockpile[] / production_monthly[]": "measurements; production is units/month.",
+      "type": "single canonical key from missile_types.",
+      "types": "array of canonical keys when ONE number lumps several systems (combined=true).",
+      "combined": "true when a single reported number covers >1 canonical type (the 'not specified' case).",
+      "raw_label": "verbatim wording from the source, kept for audit.",
+      "value": "the number; for bound=range it is the LOW end and value_max the high end.",
+      "bound": "up_to (≤) | at_least (≥, 'more than'/'over'/'200+') | approx ('about'/'nearly'/'~') | exact | range | planned"
+    },
+    "known_issues": [
+      "Taxonomy drift: early reports lump Iskander (no M/K split) and Kh-101/Kh-55/Kh-35; later ones split them. Modelled via combined=true.",
+      "Two reports weeks apart can disagree (mid-May vs mid-June 2025). Both are kept verbatim.",
+      "The ~11,000 'S-300P/S-400 air-defence missiles' figure (Jun 2025) is the whole SAM pool, a different thing from the RM-48U strike count (~400-450). Keyed s300_s400_ad and flagged.",
+      "Nov 2022 (MoD) is a consumption ledger (pre-war / used / made / remaining); only the 'remaining' values are recorded here, so it is sparse.",
+      "Aug 2023 production figures were stated as monthly *plans*, not confirmed output (bound=planned).",
+      "Absent != zero: a type missing from a report was not disclosed that period, not counted as 0. Time-series charts must render a GAP, not a drop to zero. Some reports are partial (e.g. 2025-07-10 is ballistic-only).",
+      "The bound qualifier must drive rendering: floor-framed ('600','over 300') vs ceiling-framed ('up to 500') reports otherwise manufacture fake volatility. See the 2025-05 vs 2025-06 notes."
+    ]
+  },
+
+  "missile_types": {
+    "iskander_m":   { "name": "Iskander-M",        "designation": "9M723",          "class": "ballistic",            "launch": "ground" },
+    "iskander_k":   { "name": "Iskander-K",        "designation": "9M728/9M729",    "class": "cruise",               "launch": "ground" },
+    "kinzhal":      { "name": "Kinzhal",           "designation": "Kh-47M2",        "class": "aeroballistic (hyper)","launch": "air" },
+    "kalibr":       { "name": "Kalibr",            "designation": "3M-14",          "class": "cruise",               "launch": "sea" },
+    "oniks":        { "name": "Oniks / Onyx",      "designation": "P-800",          "class": "cruise (anti-ship)",   "launch": "sea/coastal" },
+    "zircon":       { "name": "Zircon",            "designation": "3M22",           "class": "hypersonic (anti-ship)","launch": "sea" },
+    "kh101":        { "name": "Kh-101",            "designation": "Kh-101",         "class": "cruise",               "launch": "air" },
+    "kh55":         { "name": "Kh-55",             "designation": "Kh-55",          "class": "cruise (legacy)",      "launch": "air" },
+    "kh555":        { "name": "Kh-555",            "designation": "Kh-555",         "class": "cruise (legacy)",      "launch": "air" },
+    "kh22_32":      { "name": "Kh-22 / Kh-32",     "designation": "Kh-22/Kh-32",    "class": "cruise (anti-ship)",   "launch": "air" },
+    "kn23":         { "name": "KN-23",             "designation": "KN-23 (DPRK)",   "class": "ballistic",            "launch": "ground" },
+    "rm48u":        { "name": "RM-48U",            "designation": "S-300PM/S-400 strike", "class": "SAM-derived strike", "launch": "ground" },
+    "kh69":         { "name": "Kh-69",             "designation": "Kh-69",          "class": "cruise",               "launch": "air" },
+    "kh35":         { "name": "Kh-35",             "designation": "Kh-35",          "class": "cruise (anti-ship)",   "launch": "air/multi" },
+    "kh_tactical":  { "name": "Kh-29/31/35/58/59", "designation": "Kh-29/31/35/58/59", "class": "tactical air-launched", "launch": "air" },
+    "oreshnik":     { "name": "Oreshnik",          "designation": "Oreshnik",       "class": "MRBM",                 "launch": "ground" },
+    "s300_s400_ad": { "name": "S-300P/S-400 (AD pool)", "designation": "48N6 family", "class": "air-defence",        "launch": "ground" }
+  },
+
+  "reports": [
+    {
+      "as_of": "2022-11-22", "as_of_precision": "day", "reported_at": "2022-11-22",
+      "source": { "org": "MoD", "via": "Reznikov (tweet)", "url": "" },
+      "note": "Consumption ledger; only 'remaining' values recorded, so sparse. Source says 'Iskander ballistic' -> mapped to Iskander-M (the ballistic 9M723); Iskander-K (cruise) not reported here.",
+      "stockpile": [
+        { "type": "iskander_m", "raw_label": "Iskander ballistic (remaining)", "value": 119, "bound": "approx" },
+        { "type": "kh101",  "raw_label": "Kh-101 (remaining)", "value": 144, "bound": "approx" },
+        { "type": "kh555",  "raw_label": "Kh-555 (remaining)", "value": 150, "bound": "approx" }
+      ],
+      "production_monthly": []
+    },
+    {
+      "as_of": "2023-08-15", "as_of_precision": "mid_month", "reported_at": "2023-08-28",
+      "source": { "org": "GUR", "via": "Skibitsky", "url": "" },
+      "note": "Iskander reported without M/K split. Production figures were stated as monthly PLANS, not confirmed output.",
+      "stockpile": [
+        { "types": ["iskander_m", "iskander_k"], "combined": true, "raw_label": "Iskander (ballistic + cruise)", "value": 270, "bound": "approx" },
+        { "type": "kalibr",  "raw_label": "Kalibr",  "value": 140, "bound": "approx" },
+        { "type": "kinzhal", "raw_label": "Kinzhal", "value": 75,  "bound": "approx" }
+      ],
+      "production_monthly": [
+        { "type": "iskander_m", "raw_label": "Iskander-M (planned)", "value": 30,    "bound": "planned" },
+        { "type": "iskander_k", "raw_label": "Iskander-K (planned)", "value": 12,    "bound": "planned" },
+        { "type": "kinzhal",    "raw_label": "Kinzhal (planned)",    "value": 6,     "bound": "planned" },
+        { "type": "kh101",      "raw_label": "Kh-101",               "value": 30,    "bound": "approx"  },
+        { "type": "kalibr",     "raw_label": "Kalibr",               "value": 15, "value_max": 20, "bound": "range" }
+      ]
+    },
+    {
+      "as_of": "2024-12-28", "as_of_precision": "day", "reported_at": "2024-12-28",
+      "source": { "org": "HUR", "via": "Yusov / Defense Express / RBC", "url": "" },
+      "note": "~1,400 long-range total. Source says 'Iskander ballistic' for the stockpile -> mapped to Iskander-M (ballistic 9M723); Iskander-K (cruise) not reported. Production was a bare 'Iskander' (unqualified) but read as Iskander-M to match the report's ballistic framing. Kh-101/Kh-55/Kh-35 lumped.",
+      "stockpile": [
+        { "type": "oniks",   "raw_label": "Oniks", "value": 500, "bound": "approx" },
+        { "types": ["kh101", "kh55", "kh35"], "combined": true, "raw_label": "Kh-101/Kh-55/Kh-35", "value": 400, "bound": "at_least" },
+        { "type": "kalibr",  "raw_label": "Kalibr", "value": 350, "bound": "approx" },
+        { "type": "iskander_m", "raw_label": "Iskander ballistic", "value": 130, "bound": "approx" },
+        { "type": "kinzhal", "raw_label": "Kinzhal", "value": 50, "bound": "exact" },
+        { "type": "kn23",    "raw_label": "KN-23", "value": 60, "bound": "approx" }
+      ],
+      "production_monthly": [
+        { "type": "iskander_m", "raw_label": "Iskander (reported unqualified; read as Iskander-M)", "value": 40, "value_max": 50, "bound": "range" },
+        { "type": "kalibr", "raw_label": "Kalibr", "value": 30, "value_max": 50, "bound": "range" },
+        { "type": "kh101",  "raw_label": "Kh-101", "value": 50, "bound": "approx" }
+      ]
+    },
+    {
+      "as_of": "2025-05-15", "as_of_precision": "mid_month", "reported_at": "2025-06-04",
+      "source": { "org": "HUR", "via": "Defense Express", "url": "https://en.defence-ua.com/news/ukraines_defense_intelligence_reveals_russias_long_range_strike_capacity_persists_with_numbers-14736.html" },
+      "note": "Oniks+Zircon given as one combined ~700. The ~11,000 S-300P/S-400 figure is the whole air-defence pool, not the RM-48U strike count. Figures framed as floors/points ('600', 'nearly 300', 'over 300') — read with bound direction when comparing to the ceiling-framed June report.",
+      "stockpile": [
+        { "type": "iskander_m", "raw_label": "Iskander-M", "value": 600, "bound": "approx" },
+        { "type": "iskander_k", "raw_label": "Iskander-K", "value": 300, "bound": "approx" },
+        { "type": "kinzhal",    "raw_label": "Kinzhal",    "value": 100, "bound": "at_least" },
+        { "type": "kh101",      "raw_label": "Kh-101",     "value": 300, "bound": "at_least" },
+        { "type": "kalibr",     "raw_label": "Kalibr",     "value": 400, "bound": "at_least" },
+        { "type": "kh22_32",    "raw_label": "Kh-22/Kh-32 (older)", "value": 300, "bound": "up_to" },
+        { "types": ["oniks", "zircon"], "combined": true, "raw_label": "Oniks + Zircon (anti-ship/hypersonic)", "value": 700, "bound": "approx" },
+        { "type": "kn23",       "raw_label": "KN-23", "value": 60, "bound": "approx" },
+        { "type": "s300_s400_ad","raw_label": "S-300P/S-400 air-defence missiles", "value": 11000, "bound": "approx" }
+      ],
+      "production_monthly": [
+        { "type": "iskander_m", "raw_label": "Iskander-M", "value": 60, "value_max": 70, "bound": "range" },
+        { "type": "kinzhal",    "raw_label": "Kinzhal",    "value": 10, "value_max": 15, "bound": "range" },
+        { "type": "iskander_k", "raw_label": "Iskander-K", "value": 20, "value_max": 30, "bound": "range" },
+        { "type": "kh101",      "raw_label": "Kh-101",     "value": 70, "bound": "up_to" },
+        { "type": "kalibr",     "raw_label": "Kalibr",     "value": 25, "value_max": 30, "bound": "range" },
+        { "types": ["zircon", "oniks"], "combined": true, "raw_label": "Zircon + Oniks", "value": 20, "value_max": 30, "bound": "range" }
+      ]
+    },
+    {
+      "as_of": "2025-06-15", "as_of_precision": "day", "reported_at": "2025-06-21",
+      "source": { "org": "HUR", "via": "RBC-Ukraine", "url": "https://newsukraine.rbc.ua/news/russia-s-weapons-stockpile-revealed-how-many-1750496990.html" },
+      "note": "Total stated as 'more than 1,950 strategic missiles'. Framed as ceilings ('up to ...'). vs the mid-May floor-framed report, most types are consistent once bound direction is honoured (Kalibr, Iskander-K, KN-23, Kh-22/32, Kinzhal); only Iskander-M (~600 -> <=500) and Kh-101 (>300 -> <=260) show a real decline, corroborated by the 2025-07-10 ballistic-only report.",
+      "stockpile": [
+        { "type": "iskander_m", "raw_label": "9M723 Iskander-M ballistic", "value": 500, "bound": "up_to" },
+        { "type": "iskander_k", "raw_label": "9M728/9M729 Iskander-K cruise", "value": 300, "bound": "up_to" },
+        { "type": "kh101",      "raw_label": "Kh-101 (Tu-95/Tu-160)", "value": 260, "bound": "up_to" },
+        { "type": "kh22_32",    "raw_label": "Kh-22/Kh-32 (Tu-22M3)", "value": 280, "bound": "up_to" },
+        { "type": "kalibr",     "raw_label": "3M-14 Kalibr", "value": 400, "bound": "at_least" },
+        { "type": "kinzhal",    "raw_label": "Kh-47M2 Kinzhal", "value": 150, "bound": "up_to" },
+        { "type": "kn23",       "raw_label": "KN-23 (DPRK)", "value": 60, "bound": "up_to" }
+      ],
+      "production_monthly": [
+        { "type": "iskander_m", "raw_label": "Iskander-M", "value": 60, "bound": "up_to" },
+        { "type": "iskander_k", "raw_label": "Iskander-K", "value": 20, "bound": "up_to" },
+        { "type": "kh101",      "raw_label": "Kh-101", "value": 60, "bound": "up_to" },
+        { "type": "kh22_32",    "raw_label": "Kh-22/Kh-32 (modernised)", "value": 10, "bound": "up_to" },
+        { "type": "kalibr",     "raw_label": "Kalibr", "value": 30, "bound": "up_to" },
+        { "type": "kinzhal",    "raw_label": "Kinzhal", "value": 15, "bound": "up_to" }
+      ]
+    },
+    {
+      "as_of": "2025-07-10", "as_of_precision": "month", "reported_at": "2025-07-13",
+      "source": { "org": "HUR", "via": "Euromaidan Press", "url": "https://euromaidanpress.com/2025/07/13/russias-advanced-iskanderm-kn23-missile-arsenal-shrinks-by-nearly-50-since-may-per-intel/" },
+      "note": "PARTIAL report — ballistic only (Iskander-M + KN-23); all other types absent (NOT zero — a gap, not a drop). Corroborates the May->June Iskander-M decline: HUR's mid-May ~580 ballistic fell to ~300 in six weeks.",
+      "stockpile": [
+        { "type": "iskander_m", "raw_label": "Iskander-M", "value": 250, "bound": "at_least" },
+        { "type": "kn23",       "raw_label": "KN-23 (DPRK)", "value": 50, "bound": "approx" }
+      ],
+      "production_monthly": []
+    },
+    {
+      "as_of": "2025-12-01", "as_of_precision": "day", "reported_at": "2025-12-12",
+      "source": { "org": "HUR", "via": "NV (The New Voice of Ukraine)", "url": "https://english.nv.ua/nation/hur-numbers-show-russia-s-missile-reserves-down-by-up-to-threefold-50568042.html", "local_file": "sources/HUR numbers show Russia’s missile reserves down by up to threefold _ The New Voice of Ukraine.htm" },
+      "note": "Stockpiles down vs mid-May 2025 (some types ~3x lower).",
+      "stockpile": [
+        { "type": "iskander_m", "raw_label": "Iskander-M ballistic", "value": 200, "bound": "at_least" },
+        { "type": "iskander_k", "raw_label": "Iskander-K cruise", "value": 100, "bound": "at_least" },
+        { "type": "kinzhal",    "raw_label": "Kinzhal hypersonic aero-ballistic", "value": 50, "bound": "at_least" },
+        { "type": "kalibr",     "raw_label": "Kalibr cruise", "value": 400, "bound": "at_least" },
+        { "type": "oniks",      "raw_label": "Oniks cruise", "value": 700, "bound": "approx" },
+        { "type": "kh101",      "raw_label": "Kh-101 cruise (Tu-160/Tu-95)", "value": 150, "bound": "approx" },
+        { "type": "kh22_32",    "raw_label": "Kh-22/32 cruise", "value": 300, "bound": "approx" },
+        { "type": "zircon",     "raw_label": "Zircon hypersonic anti-ship", "value": 200, "bound": "at_least" },
+        { "type": "kn23",       "raw_label": "KN-23 (DPRK)", "value": 50, "bound": "approx" },
+        { "type": "rm48u",      "raw_label": "RM-48U strike (S-300PM/S-400)", "value": 400, "bound": "at_least" },
+        { "type": "kh69",       "raw_label": "Kh-69 (Su-30MK/Su-34/Su-57)", "value": 20, "bound": "at_least" }
+      ],
+      "production_monthly": [
+        { "type": "iskander_m", "raw_label": "Iskander-M", "value": 50, "bound": "at_least" },
+        { "type": "iskander_k", "raw_label": "Iskander-K", "value": 20, "bound": "approx" },
+        { "type": "kinzhal",    "raw_label": "Kinzhal", "value": 10, "bound": "at_least" },
+        { "type": "kalibr",     "raw_label": "Kalibr", "value": 30, "bound": "approx" },
+        { "type": "kh101",      "raw_label": "Kh-101", "value": 50, "bound": "at_least" },
+        { "type": "kh22_32",    "raw_label": "Kh-32", "value": 10, "bound": "approx" },
+        { "type": "oniks",      "raw_label": "Oniks", "value": 20, "bound": "approx" },
+        { "type": "zircon",     "raw_label": "Zircon", "value": 10, "bound": "at_least" },
+        { "type": "kh35",       "raw_label": "Kh-35 guided air-launched", "value": 20, "bound": "approx" },
+        { "type": "kh69",       "raw_label": "Kh-69 guided air-launched", "value": 10, "bound": "approx" },
+        { "type": "rm48u",      "raw_label": "RM-48U strike", "value": 100, "bound": "at_least" }
+      ]
+    },
+    {
+      "as_of": "2026-04-15", "as_of_precision": "mid_month", "reported_at": "2026-05-05",
+      "source": { "org": "HUR", "via": "NV (The New Voice of Ukraine)", "url": "https://english.nv.ua/nation/may-9-parade-how-putin-might-strike-back-at-kyiv-in-response-to-potential-drone-attack-list-50605543.html", "local_file": "sources/May 9 Parade — How Putin Might Strike Back at Kyiv in Response to Potential Drone Attack_ List _ The New Voice of Ukraine.htm" },
+      "note": "First report to break out the Kh-29/31/35/58/59 tactical pool and Oreshnik.",
+      "stockpile": [
+        { "type": "iskander_m", "raw_label": "Iskander-M ballistic", "value": 200, "bound": "up_to" },
+        { "type": "iskander_k", "raw_label": "Iskander-K cruise", "value": 110, "bound": "up_to" },
+        { "type": "kinzhal",    "raw_label": "Kinzhal hypersonic", "value": 100, "bound": "up_to" },
+        { "type": "kalibr",     "raw_label": "Kalibr cruise", "value": 460, "bound": "up_to" },
+        { "type": "oniks",      "raw_label": "Onyx cruise", "value": 690, "bound": "up_to" },
+        { "type": "kh101",      "raw_label": "Kh-101", "value": 120, "bound": "up_to" },
+        { "type": "kh22_32",    "raw_label": "Kh-22/32", "value": 350, "bound": "up_to" },
+        { "type": "zircon",     "raw_label": "Zircon hypersonic", "value": 230, "bound": "up_to" },
+        { "type": "kn23",       "raw_label": "KN-23 (DPRK)", "value": 50, "bound": "up_to" },
+        { "type": "rm48u",      "raw_label": "RM-48U (S-300PM/S-400)", "value": 450, "bound": "up_to" },
+        { "type": "kh69",       "raw_label": "Kh-69", "value": 25, "bound": "up_to" },
+        { "type": "kh_tactical","raw_label": "Kh-29/31/35/58/59 air-launched", "value": 2600, "bound": "up_to", "combined": true },
+        { "type": "oreshnik",   "raw_label": "Oreshnik MRBM", "value": 10, "bound": "up_to" }
+      ],
+      "production_monthly": [
+        { "type": "iskander_m", "raw_label": "Iskander-M", "value": 60, "bound": "up_to" },
+        { "type": "iskander_k", "raw_label": "Iskander-K", "value": 10, "bound": "up_to" },
+        { "type": "kinzhal",    "raw_label": "Kinzhal", "value": 10, "bound": "up_to" },
+        { "type": "kalibr",     "raw_label": "Kalibr", "value": 25, "bound": "up_to" },
+        { "type": "kh101",      "raw_label": "Kh-101", "value": 70, "bound": "up_to" },
+        { "type": "kh22_32",    "raw_label": "Kh-32", "value": 8, "bound": "up_to" },
+        { "type": "oniks",      "raw_label": "Onyx", "value": 5, "bound": "up_to" },
+        { "type": "zircon",     "raw_label": "Zircon", "value": 3, "bound": "up_to" },
+        { "type": "kh35",       "raw_label": "Kh-35 guided air-launched", "value": 20, "bound": "approx" },
+        { "type": "kh69",       "raw_label": "Kh-69 guided air-launched", "value": 5, "bound": "up_to" },
+        { "type": "rm48u",      "raw_label": "RM-48U strike", "value": 40, "bound": "up_to" },
+        { "type": "kh_tactical","raw_label": "Kh-29/31/35/58/59", "value": 50, "bound": "up_to", "combined": true }
+      ]
+    }
+  ]
+}
