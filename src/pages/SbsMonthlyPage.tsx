@@ -112,10 +112,10 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-            SBS Monthly Statistics
+            UA SBS Monthly Statistics
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Monthly aggregates - current month shows end-of-month projection. Via https://sbs-group.army/
+            Syly bezpilotnykh system / Unmannend System Force (SBS/USF) · Monthly aggregates - current month shows end-of-month projection. · From <a href="noreferer nofollow">https://sbs-group.army/</a>
           </p>
         </div>
       </div>

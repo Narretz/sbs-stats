@@ -51,7 +51,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
             Monthly Russian Missile &amp; UAV Attacks
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Monthly launched totals by weapon category, per Ukrainian Air Force reports (source: piterfm / Kaggle). Current month shows an end-of-month projection.
+            Monthly launched totals by weapon category, per Ukrainian Air Force reports. Current month shows an end-of-month projection · source: piterfm / Kaggle <a href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week
           </p>
         </div>
       </div>

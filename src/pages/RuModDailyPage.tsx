@@ -112,7 +112,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
             Ukrainian UAVs Downed - RU MoD
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Russian MoD air-defense intercept claims · source: @mod_russia (Telegram) · per drone-day (MSK) · {new Date().toDateString()}
+            Russian MoD air-defense intercept claims · source: @mod_russia (Telegram) · per drone-day (MSK)
             <br />
             <span style={{ color: t.textImportant, border: `2px solid ${t.borderImportant}`, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4 }}>
               Russian MoD reports of UAVs intercepted/downed over Russia — a floor for the number launched, not a launch count. A day aggregates the overnight report (20:00 prev → 07:00) plus that day's daytime windows.

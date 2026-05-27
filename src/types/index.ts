@@ -103,14 +103,14 @@ export interface Metric {
 // ─── App state ────────────────────────────────────────────────────────────────
 export type Page = "daily" | "hourly" | "monthly";
 export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua";
-export const SITES: Site[] = ["sbs", "ru-attacks-gsua", "ru-losses-gsua", "ru-airdef-mod", "ru-air-attacks-gsua"];
 export const SITE_LABELS: Record<Site, string> = {
-  sbs: "SBS STATISTICS",
+  sbs: "UA SBS STATISTICS - SBS",
   "ru-attacks-gsua": "RU ATTACKS - GSUA",
   "ru-losses-gsua": "RU LOSSES - GSUA",
-  "ru-airdef-mod": "RU AIR DEFENSE - RU MoD",
   "ru-air-attacks-gsua": "RU MISSILE & UAV ATTACKS - GSUA",
+  "ru-airdef-mod": "UA UAV ATTACKS - RU MoD",
 };
+export const SITES: Site[] = Object.keys(SITE_LABELS) as Site[];
 export type LoadState = "idle" | "loading" | "ready" | "error";
 
 // ─── Global stats (max + median across all data) ──────────────────────────────

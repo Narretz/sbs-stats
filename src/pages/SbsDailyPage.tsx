@@ -142,10 +142,10 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-            SBS Daily Statistics
+            UA SBS Daily Statistics
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Latest reported value per day · MAX/MED based on all data · {new Date().toDateString()}. Via https://sbs-group.army/
+            Syly bezpilotnykh system / Unmannend System Force (SBS/USF) · Latest reported value per day · From <a href="noreferer nofollow">https://sbs-group.army/</a>
             <br/>
             <span style={{ color: t.textImportant, border: `2px solid ${t.borderImportant}`, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4}}>Since 2026-03-19, the daily values are the results of the "Previous day" endpoint if the current day has passed. Older daily values reflect the results of the latest request to the "Current day" endpoint. Results often adjusted hours or even a day later.</span>
           </p>
