@@ -2,6 +2,7 @@ import { useMemo, useEffect, useState } from "react";
 import { useDatabaseContext } from "@/context/useDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
+import { DataWindow } from "@/components/DataWindow";
 import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/components/MonthlyTargetPairChart";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { buildMetrics } from "@/utils/metrics";
@@ -15,7 +16,8 @@ interface MonthlyPageProps {
 
 export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryMonthly } = useDatabaseContext();
+  const { loadState, error, queryMonthly, queryDataWindow } = useDatabaseContext();
+  const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const [rows, setRows] = useState<MonthlyRow[]>([]);
   const [hasData, setHasData] = useState(false);
 
@@ -117,6 +119,7 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
             Syly bezpilotnykh system / Unmannend System Force (SBS/USF) · Monthly aggregates - current month shows end-of-month projection. · From <a href="noreferer nofollow">https://sbs-group.army/</a>
           </p>
+          <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="sbs" />
         </div>
       </div>
 

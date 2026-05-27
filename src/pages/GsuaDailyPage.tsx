@@ -3,6 +3,7 @@ import { Temporal } from "temporal-polyfill";
 import { useGsuaDatabaseContext } from "@/context/useGsuaDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
+import { DataWindow } from "@/components/DataWindow";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
@@ -64,8 +65,10 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
   const {
     loadState, error, queryDaily, queryGlobalStats, queryEodProjection,
-    queryDirectionList, queryDirectionDaily,
+    queryDirectionList, queryDirectionDaily, queryDataWindow,
   } = useGsuaDatabaseContext();
+  const [dataWindow, setDataWindow] = useState<{ minDate: string | null; maxDate: string | null; latestSnapshotAt: string | null }>({ minDate: null, maxDate: null, latestSnapshotAt: null });
+  useEffect(() => { queryDataWindow().then(setDataWindow); }, [queryDataWindow]);
 
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
@@ -204,8 +207,9 @@ export function GsuaDailyPage({ refreshKey }: Props) {
             Daily Combat Stats {selectedDirection ? `— ${selectedDirection}` : ""} - GSUA
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Last snapshot per day · {new Date().toDateString()}.  Via Telegram @GeneralStaffZSU.
+            Last snapshot per day · Via Telegram @GeneralStaffZSU.
           </p>
+          <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />

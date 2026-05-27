@@ -236,9 +236,20 @@ export function useDatabaseRuLosses() {
     });
   }, [db]);
 
+  // Full covered date range (first/last day across all snapshots), for the
+  // "Data … – …" freshness note in the page header.
+  const queryDataWindow = useCallback((): { minDate: string | null; maxDate: string | null } => {
+    if (!db) return { minDate: null, maxDate: null };
+    const rows = queryRows<{ minDate: string | null; maxDate: string | null }>(
+      db,
+      "SELECT MIN(date) AS minDate, MAX(date) AS maxDate FROM daily_losses"
+    );
+    return rows[0] ?? { minDate: null, maxDate: null };
+  }, [db]);
+
   return {
     loadState, error,
-    queryDaily, queryGlobalStats, queryMonthly,
+    queryDaily, queryGlobalStats, queryMonthly, queryDataWindow,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs: REFRESH_INTERVAL_MS,
   };

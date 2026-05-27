@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useGsuaDatabaseContext } from "@/context/useGsuaDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
+import { DataWindow } from "@/components/DataWindow";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import {
   GSUA_METRIC_KEYS,
@@ -18,7 +19,9 @@ interface Props {
 
 export function GsuaMonthlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryMonthly } = useGsuaDatabaseContext();
+  const { loadState, error, queryMonthly, queryDataWindow } = useGsuaDatabaseContext();
+  const [dataWindow, setDataWindow] = useState<{ minDate: string | null; maxDate: string | null; latestSnapshotAt: string | null }>({ minDate: null, maxDate: null, latestSnapshotAt: null });
+  useEffect(() => { queryDataWindow().then(setDataWindow); }, [queryDataWindow]);
   const [rows, setRows] = useState<GsuaMonthlyRow[]>([]);
   const [hasData, setHasData] = useState(false);
 
@@ -58,6 +61,7 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
             Monthly sums of daily totals from Ukrainian General Staff reports. Current month shows end-of-month projection.  Via Telegram @GeneralStaffZSU.
           </p>
+          <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
         </div>
       </div>
 

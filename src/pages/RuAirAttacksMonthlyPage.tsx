@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRuAirAttacksDatabaseContext } from "@/context/useRuAirAttacksDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
+import { DataWindow } from "@/components/DataWindow";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import {
   ATTACK_CATEGORY_KEYS,
@@ -18,7 +19,8 @@ interface Props {
 
 export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryMonthly } = useRuAirAttacksDatabaseContext();
+  const { loadState, error, queryMonthly, queryDataWindow } = useRuAirAttacksDatabaseContext();
+  const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const [rows, setRows] = useState<RuAirAttacksMonthlyRow[]>([]);
   const [hasData, setHasData] = useState(false);
 
@@ -53,6 +55,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
             Monthly launched totals by weapon category, per Ukrainian Air Force reports. Current month shows an end-of-month projection · source: piterfm / Kaggle <a href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week
           </p>
+          <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-air-attacks" />
         </div>
       </div>
 

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRuLossesDatabaseContext } from "@/context/useRuLossesDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
+import { DataWindow } from "@/components/DataWindow";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import {
   RU_LOSSES_METRIC_KEYS,
@@ -18,7 +19,8 @@ interface Props {
 
 export function RuLossesMonthlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryMonthly } = useRuLossesDatabaseContext();
+  const { loadState, error, queryMonthly, queryDataWindow } = useRuLossesDatabaseContext();
+  const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const [rows, setRows] = useState<RuLossesMonthlyRow[]>([]);
   const [hasData, setHasData] = useState(false);
 
@@ -53,6 +55,7 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
             Monthly sums of daily Russian losses reported by the Ukrainian General Staff · source: <a href="https://github.com/PetroIvaniuk/2022-Ukraine-Russia-War-Dataset" rel="nofollow external" target="_blank">PetroIvaniuk dataset</a>
           </p>
+          <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-losses" />
         </div>
       </div>
 

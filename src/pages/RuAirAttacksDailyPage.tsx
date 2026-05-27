@@ -3,6 +3,7 @@ import { Temporal } from "temporal-polyfill";
 import { useRuAirAttacksDatabaseContext } from "@/context/useRuAirAttacksDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
+import { DataWindow } from "@/components/DataWindow";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
@@ -60,7 +61,8 @@ interface Props {
 
 export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryDaily, queryGlobalStats } = useRuAirAttacksDatabaseContext();
+  const { loadState, error, queryDaily, queryGlobalStats, queryDataWindow } = useRuAirAttacksDatabaseContext();
+  const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
 
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
@@ -126,6 +128,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
             Launched vs intercepted, per Ukrainian Air Force reports · source: piterfm / Kaggle <a href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week
           </p>
+          <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-air-attacks" />
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />

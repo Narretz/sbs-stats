@@ -461,9 +461,33 @@ export function useDatabaseGsua() {
     [worker]
   );
 
+  // Full covered date range (first/last day) plus the newest snapshot on the last
+  // day, for the "Data … – …" freshness note in the page header — the latest
+  // snapshot's time tells a finished day (≥22:00 post in) from a partial one.
+  // Async like the other queries (httpvfs); MIN/MAX over idx_posts_date, an index
+  // seek rather than a full scan.
+  const queryDataWindow = useCallback(async (): Promise<{
+    minDate: string | null;
+    maxDate: string | null;
+    latestSnapshotAt: string | null;
+  }> => {
+    if (!worker) return { minDate: null, maxDate: null, latestSnapshotAt: null };
+    const rows = (await worker.db.query(
+      `SELECT MIN(date) AS minDate, MAX(date) AS maxDate,
+              (SELECT MAX(snapshot_at) FROM posts WHERE date = (SELECT MAX(date) FROM posts)) AS latestSnapshotAt
+       FROM posts`
+    )) as Record<string, unknown>[];
+    const r = rows[0] ?? {};
+    return {
+      minDate: (r.minDate as string) ?? null,
+      maxDate: (r.maxDate as string) ?? null,
+      latestSnapshotAt: (r.latestSnapshotAt as string) ?? null,
+    };
+  }, [worker]);
+
   return {
     loadState, error,
-    queryDaily, querySnapshots, queryGlobalStats, queryMonthly, queryEodProjection,
+    queryDaily, querySnapshots, queryGlobalStats, queryMonthly, queryEodProjection, queryDataWindow,
     queryDirectionList, queryDirectionDaily, queryDirectionSnapshots,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs: REFRESH_INTERVAL_MS,

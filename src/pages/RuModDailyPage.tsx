@@ -4,6 +4,7 @@ import { useRuModDatabaseContext } from "@/context/useRuModDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { DailyMultiLineChart } from "@/components/DailyMultiLineChart";
+import { DataWindow } from "@/components/DataWindow";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
@@ -51,7 +52,8 @@ interface Props {
 
 export function RuModDailyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryDaily, queryGlobalStats } = useRuModDatabaseContext();
+  const { loadState, error, queryDaily, queryGlobalStats, queryDataWindow } = useRuModDatabaseContext();
+  const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
 
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
@@ -118,6 +120,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
               Russian MoD reports of UAVs intercepted/downed over Russia — a floor for the number launched, not a launch count. A day aggregates the overnight report (20:00 prev → 07:00) plus that day's daytime windows.
             </span>
           </p>
+          <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-mod" />
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />

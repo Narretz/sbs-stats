@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRuModDatabaseContext } from "@/context/useRuModDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
+import { DataWindow } from "@/components/DataWindow";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import type { RuAdMonthlyRow, MonthlyDataPoint } from "@/types";
 import { FONTS } from "@/theme";
@@ -14,7 +15,8 @@ type MetricKey = "total" | "night" | "day";
 
 export function RuModMonthlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryMonthly } = useRuModDatabaseContext();
+  const { loadState, error, queryMonthly, queryDataWindow } = useRuModDatabaseContext();
+  const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const [rows, setRows] = useState<RuAdMonthlyRow[]>([]);
   const [hasData, setHasData] = useState(false);
 
@@ -56,6 +58,7 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
             Monthly sums of Russian MoD air-defense intercept claims (MSK drone-days). Current month shows an end-of-month projection. A dashed outline marks months containing a report whose window may overlap a neighbor (possible double-count) — see tooltip.
           </p>
+          <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-mod" />
         </div>
       </div>
 

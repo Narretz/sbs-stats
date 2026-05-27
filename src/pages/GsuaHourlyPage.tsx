@@ -3,6 +3,7 @@ import { Temporal } from "temporal-polyfill";
 import { useGsuaDatabaseContext } from "@/context/useGsuaDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { HourlyLineChart, type TooltipSortMode } from "@/components/HourlyLineChart";
+import { DataWindow } from "@/components/DataWindow";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
@@ -79,8 +80,10 @@ interface Props {
 export function GsuaHourlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
   const {
-    loadState, error, querySnapshots, queryDirectionList, queryDirectionSnapshots, queryEodProjection,
+    loadState, error, querySnapshots, queryDirectionList, queryDirectionSnapshots, queryEodProjection, queryDataWindow,
   } = useGsuaDatabaseContext();
+  const [dataWindow, setDataWindow] = useState<{ minDate: string | null; maxDate: string | null; latestSnapshotAt: string | null }>({ minDate: null, maxDate: null, latestSnapshotAt: null });
+  useEffect(() => { queryDataWindow().then(setDataWindow); }, [queryDataWindow]);
 
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
@@ -265,6 +268,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
             Each line = one day · X-axis = hour-of-snapshot · GS posts run cumulative totals throughout the day. Via Telegram @GeneralStaffZSU.
           </p>
+          <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />

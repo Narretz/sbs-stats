@@ -235,9 +235,20 @@ export function useDatabaseRuMod() {
     });
   }, [db]);
 
+  // Full covered date range (first/last report day, MSK), for the "Data … – …"
+  // freshness note in the page header.
+  const queryDataWindow = useCallback((): { minDate: string | null; maxDate: string | null } => {
+    if (!db) return { minDate: null, maxDate: null };
+    const rows = queryRows<{ minDate: string | null; maxDate: string | null }>(
+      db,
+      "SELECT MIN(report_date) AS minDate, MAX(report_date) AS maxDate FROM ad_reports"
+    );
+    return rows[0] ?? { minDate: null, maxDate: null };
+  }, [db]);
+
   return {
     loadState, error,
-    queryDaily, queryGlobalStats, queryMonthly,
+    queryDaily, queryGlobalStats, queryMonthly, queryDataWindow,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs: REFRESH_INTERVAL_MS,
   };

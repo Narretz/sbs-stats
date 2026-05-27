@@ -3,6 +3,7 @@ import { Temporal } from "temporal-polyfill";
 import { useDatabaseContext } from "@/context/useDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
+import { DataWindow } from "@/components/DataWindow";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
@@ -53,7 +54,8 @@ interface DailyPageProps {
 
 export function SbsDailyPage({ refreshKey }: DailyPageProps) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryDaily, queryGlobalStats, queryEodProjection } = useDatabaseContext();
+  const { loadState, error, queryDaily, queryGlobalStats, queryEodProjection, queryDataWindow } = useDatabaseContext();
+  const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>(initial.weekdays);
@@ -149,6 +151,7 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
             <br/>
             <span style={{ color: t.textImportant, border: `2px solid ${t.borderImportant}`, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4}}>Since 2026-03-19, the daily values are the results of the "Previous day" endpoint if the current day has passed. Older daily values reflect the results of the latest request to the "Current day" endpoint. Results often adjusted hours or even a day later.</span>
           </p>
+          <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="sbs" />
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
