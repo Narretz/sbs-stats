@@ -3,7 +3,7 @@ import { useTheme } from "@/hooks/useTheme";
 
 // One per dataset — drives the freshness wording + the timezone "today" is read
 // in (RU MoD reconciles to Moscow time; everything else to Kyiv).
-export type DataWindowMode = "sbs" | "gsua" | "ru-losses" | "ru-mod" | "ru-air-attacks";
+export type DataWindowMode = "sbs" | "gsua" | "ru-losses" | "ru-mod" | "ru-air-attacks" | "mediazona";
 
 const TZ: Record<DataWindowMode, string> = {
   sbs: "Europe/Kyiv",
@@ -11,6 +11,7 @@ const TZ: Record<DataWindowMode, string> = {
   "ru-losses": "Europe/Kyiv",
   "ru-air-attacks": "Europe/Kyiv",
   "ru-mod": "Europe/Moscow",
+  mediazona: "Europe/Kyiv",
 };
 
 function todayInTz(tz: string): string {
@@ -66,6 +67,11 @@ function freshness(
       // the normal weekly refresh window.
       if (behind <= 0) return { note: "up to date", stale: false };
       return { note: `${behindNote(behind)} — source refreshes ~weekly`, stale: behind > 8 };
+    case "mediazona":
+      // Weekly series. Recent weeks are incomplete BY DESIGN — named deaths are
+      // bucketed by date of death and take weeks/months to identify — so a lag
+      // here isn't staleness. Never flag; just explain.
+      return { note: "recent weeks are incomplete — named deaths are identified with a lag of weeks to months", stale: false };
   }
 }
 
