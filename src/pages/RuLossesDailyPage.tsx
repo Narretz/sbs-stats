@@ -124,7 +124,7 @@ export function RuLossesDailyPage({ refreshKey }: Props) {
             Daily Russian Losses - GSUA reports
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Daily Russian losses reported by the Ukrainian General Staff · source: <a href="https://russian-casualties.in.ua/" rel="nofollow external" target="_blank">russian-casualties.in.ua</a>
+            Daily Russian losses reported by the Ukrainian General Staff · source: <a href="https://github.com/PetroIvaniuk/2022-Ukraine-Russia-War-Dataset" rel="nofollow external" target="_blank">PetroIvaniuk dataset</a>
           </p>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>

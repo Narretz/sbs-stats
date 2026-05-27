@@ -20,7 +20,7 @@ scripts/gsua/__pycache__
 
 # DBs are fetched/scraped, served from R2 — not committed
 data/ru-attacks-gsua.db
-data/ru-losses-gsua.db
+data/ru-losses-gsua-petroivaniuk.db
 data/ru-mod-ad.db
 data/ru-air-attacks-gsua.db
 data/sbs-foosint.db

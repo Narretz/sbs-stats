@@ -3,14 +3,14 @@ name: Update RU Losses Database
 on:
   workflow_dispatch: # allow manual trigger from GitHub UI
   schedule:
-    # russian-casualties.in.ua publishes once a day; one run each morning (UTC)
-    # is plenty. Adjust or drive from the Cloudflare Worker if you prefer.
+    # The General Staff publishes once a day and PetroIvaniuk mirrors it within
+    # hours; one run each morning (UTC) is plenty.
     - cron: "30 9 * * *"
 
 # Single source of truth for the bucket + DB filename.
 env:
   R2_BUCKET: russia-ukraine-war
-  RU_LOSSES_DB_NAME: ru-losses-gsua.db
+  RU_LOSSES_DB_NAME: ru-losses-gsua-petroivaniuk.db
 
 jobs:
   update-ru-losses-db:
@@ -25,10 +25,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Pull the current DB so the build MERGES into it (upsert, never delete)
-      # rather than starting from empty — this preserves any dates the upstream
-      # API might later drop. `continue-on-error` so the very first run (object
-      # not yet in R2) still works: ingest then creates the DB fresh.
+      # Pull the current DB so the build appends into it (append-only, never
+      # delete) rather than starting from empty — this preserves any dates the
+      # source might later drop. `continue-on-error` so the first run (object not
+      # yet in R2 — true now, since the DB filename changed) still works: ingest
+      # then creates the DB fresh.
       - name: Download current RU losses DB from R2
         id: download
         continue-on-error: true

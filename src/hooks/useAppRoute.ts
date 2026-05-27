@@ -3,7 +3,7 @@ import type { Page, Site } from "@/types";
 
 const SBS_PAGES: Page[] = ["hourly", "daily", "monthly"];
 const GSUA_PAGES: Page[] = ["hourly", "daily", "monthly"];
-// russian-casualties.in.ua is daily-only (no hourly snapshots, no directions).
+// GS national totals are daily-only (no hourly snapshots, no directions).
 const RU_LOSSES_PAGES: Page[] = ["daily", "monthly"];
 // RU MoD air-defense: daily + monthly (no hourly — the MoD posts ~2–3×/day).
 const RU_AD_PAGES: Page[] = ["daily", "monthly"];

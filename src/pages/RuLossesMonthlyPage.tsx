@@ -51,7 +51,7 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
             Monthly Russian Losses - GSUA reports
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Monthly sums of daily Russian losses reported by the Ukrainian General Staff · source: <a href="https://russian-casualties.in.ua/" rel="nofollow external" target="_blank">russian-casualties.in.ua</a>
+            Monthly sums of daily Russian losses reported by the Ukrainian General Staff · source: <a href="https://github.com/PetroIvaniuk/2022-Ukraine-Russia-War-Dataset" rel="nofollow external" target="_blank">PetroIvaniuk dataset</a>
           </p>
         </div>
       </div>

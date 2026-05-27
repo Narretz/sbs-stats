@@ -11,7 +11,8 @@ import { RU_LOSSES_METRIC_KEYS } from "@/types";
 
 // Tiny DB (~100 KB) → fetch whole via sql.js, like the SBS loader (no httpvfs).
 const DB_URL =
-  import.meta.env.VITE_RU_LOSSES_DB_URL ?? `${import.meta.env.BASE_URL}data/ru-losses-gsua.db`;
+  import.meta.env.VITE_RU_LOSSES_DB_URL ??
+  `${import.meta.env.BASE_URL}data/ru-losses-gsua-petroivaniuk.db`;
 const SQL_JS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0";
 const SQL_WASM_URL = import.meta.env.DEV ? "/vendor/sql-wasm.wasm" : `${SQL_JS_CDN}/sql-wasm.wasm`;
 const SQL_JS_URL = import.meta.env.DEV ? "/vendor/sql-wasm.js" : `${SQL_JS_CDN}/sql-wasm.js`;
@@ -90,7 +91,7 @@ const LATEST_PER_DATE = `(
     ON d.date = l.date AND d.scraped_at = l.ms
 ) latest`;
 
-// russian-casualties.in.ua updates once a day (mornings), so hourly polling is
+// The General Staff publishes once a day (mornings), so hourly polling is
 // already generous. The on-focus + manual refresh paths still apply.
 export const REFRESH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 

@@ -11,41 +11,39 @@ off-the-shelf dataset, would need our own scraper.
 
 ## 1. National GSUA totals (personnel & equipment losses)
 
-### russian-casualties.in.ua — LIVE — ✅ INTEGRATED (site "ru-losses-gsua")
-Pipeline: scripts/ru_losses/ingest.py → ru-losses-gsua.db → R2 (workflow
+### PetroIvaniuk/2022-Ukraine-Russia-War-Dataset — LIVE — ✅ INTEGRATED (site "ru-losses-gsua")
+Pipeline: scripts/ru_losses/ingest.py → ru-losses-gsua-petroivaniuk.db → R2 (workflow
 update-ru-losses-db.yml; workflow downloads current DB first, so it appends).
 Frontend: snapshot-only, no API fallback; tiny DB fetched whole via sql.js
 (useDatabaseRuLosses). Views: Daily + Monthly.
 Storage model: APPEND-ONLY, like the GSUA `posts` table. `daily_losses` keyed by
-(date, snapshot_at); each run inserts a new row only when a date's values differ
-from the latest stored version (or it's a new date). Nothing is ever overwritten,
-so corrections are captured as fresh rows and bad values can't clobber good data.
-Build aborts (skipping upload) if the fetch is < 365 days or has fewer dates than
-already stored. Frontend reads the latest snapshot per date.
-- URL: https://russian-casualties.in.ua/ · docs: https://russian-casualties.in.ua/docs/export
-- Endpoints (JSON + CSV, three granularities):
-  - `https://russian-casualties.in.ua/api/v1/data/json/daily` (also `weekly`, `monthly`)
-  - `https://russian-casualties.in.ua/api/v1/data/csv/daily` (also `weekly`, `monthly`)
-- Tracks: personnel, captive, tanks, apv, artillery, mlrs, aaws, aircraft, helicopters, uav,
-  vehicles, boats, submarines, se (special equipment), missiles. Includes a `legend` map.
-- **Already DAILY increments** (not cumulative) — no diffing needed. Keyed by date
-  (`"2026.05.24": {personnel:1020, uav:1924, ...}`).
-- Recency: live through previous day (2026-05-24 at time of research).
-- **CORS: `access-control-allow-origin: *`** → can fetch directly from the browser, no R2 needed.
-  `cache-control: no-cache` (no CDN caching) → snapshot in CI if we want resilience.
-- Source: Ukrainian General Staff. License: none stated.
-- Parse difficulty: trivial. Monthly endpoint maps onto our existing GSUA monthly aggregation.
+(date, scraped_at); each run inserts a new row only when a date's values differ
+from the latest stored version (or it's a new date). Build aborts (skipping
+upload) if < 365 days parsed or fewer dates than already stored.
+- Repo: https://github.com/PetroIvaniuk/2022-Ukraine-Russia-War-Dataset · MIT · pushed daily.
+- No REST API — fetch two raw JSON files: `data/russia_losses_equipment.json` +
+  `data/russia_losses_personnel.json` (plus an Oryx-derived file + a documentary
+  correction file we do NOT apply). De-facto upstream standard (CSIS/ISW build on it).
+- **CUMULATIVE** war-to-date totals, one record/day → we diff consecutive days to per-day
+  increments. Corrections are already baked into the totals (they decrease on correction
+  dates), so diffing passes them through; the correction JSON is documentary only.
+- Tracks (mapped → our keys): personnel, tank→tanks, APC→apv, field artillery→artillery,
+  MRL→mlrs, anti-aircraft warfare→aaws, aircraft, helicopter→helicopters, drone→uav,
+  vehicles and fuel tanks→vehicles, naval ship→boats, special equipment→se,
+  cruise missiles→missiles, **ground robotic systems→ugs** (the reason for the switch,
+  cumulative from 2026-05-03), POW→captive (data only through 2022-04-27 — GS stopped
+  reporting POWs). Ignored: submarines (flat-zero), greatest losses direction (text),
+  early-war military auto / fuel tank / mobile SRBM system.
+- Date model: store `date` = loss day (report day − 1, matches old source) +
+  `reported_at` = GS report day. `check_drift` flags any unmapped source key in CI.
 
-### piterfm / PetroIvaniuk — LIVE — fallback
-- https://github.com/PetroIvaniuk/2022-Ukraine-Russia-War-Dataset · MIT-ish (no explicit license)
-- Cumulative JSON (`russia_losses_personnel.json`, `russia_losses_equipment.json`, plus an
-  Oryx-derived file + correction files). Daily = trivial diff. Pushed daily.
-- De-facto upstream standard (CSIS / ISIS build on it).
-
-### lod-db/orc-losses — LIVE — fallback
-- https://github.com/lod-db/orc-losses · MIT · pushed daily
-- Clean daily `russian-losses.json` with a real JSON schema. Source: Ukrainian MoD (same as above).
-- Pick ONE of these three for national totals — all share the same Ukrainian-govt upstream.
+> **Switched from russian-casualties.in.ua (2026-05).** That source never added the GS's
+> new unmanned-ground-systems category and is an anonymous site with no contact / no CDN
+> caching. PetroIvaniuk carries `ugs`, is a named MIT repo with 4y of history, and is a
+> strict superset of the columns we tracked. Cost of the switch: it's cumulative (we diff)
+> and labels dates one day later (we shift −1). Validated: 1517/1552 days identical to the
+> old source. **lod-db/orc-losses** (https://github.com/lod-db/orc-losses, MIT) remains a
+> clean daily-JSON fallback, but lacks the UGS column.
 
 ---
 

@@ -168,10 +168,11 @@ export type GsuaMonthlyRow = {
   projection_days_in_month: number | null;
 } & Record<GsuaMetricKey, number> & Partial<Record<`${GsuaMetricKey}_projected`, number>>;
 
-// ─── RU Losses (russian-casualties.in.ua → ru-losses-gsua.db) ─────────────────
+// ─── RU Losses (PetroIvaniuk dataset → ru-losses-gsua-petroivaniuk.db) ─────────
 // Daily Russian losses (personnel + equipment) as reported by the Ukrainian
-// General Staff. The source API already returns per-day increments, so each
-// `daily_losses` row is one day. Keys/order mirror scripts/ru_losses/ingest.py.
+// General Staff, via PetroIvaniuk's machine-readable mirror. The ingest diffs
+// the source's cumulative totals into per-day increments, so each `daily_losses`
+// row is one day. Keys/order mirror scripts/ru_losses/ingest.py.
 export const RU_LOSSES_METRIC_KEYS = [
   "personnel",
   "tanks",
@@ -186,6 +187,7 @@ export const RU_LOSSES_METRIC_KEYS = [
   "boats",
   "se",
   "missiles",
+  "ugs",
   "captive",
 ] as const;
 export type RuLossesMetricKey = (typeof RU_LOSSES_METRIC_KEYS)[number];
@@ -204,6 +206,7 @@ export const RU_LOSSES_METRIC_LABELS: Record<RuLossesMetricKey, string> = {
   boats: "Boats",
   se: "Special Equipment",
   missiles: "Cruise Missiles",
+  ugs: "Unmanned Ground Systems",
   captive: "POW (Captured)",
 };
 
