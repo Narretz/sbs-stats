@@ -13,6 +13,8 @@ import { RuAirAttacksDatabaseProvider } from "@/context/RuAirAttacksDatabaseCont
 import { useRuAirAttacksDatabaseContext } from "@/context/useRuAirAttacksDatabaseContext";
 import { SbuAlfaDatabaseProvider } from "@/context/SbuAlfaDatabaseContext";
 import { useSbuAlfaDatabaseContext } from "@/context/useSbuAlfaDatabaseContext";
+import { MediazonaDatabaseProvider } from "@/context/MediazonaDatabaseContext";
+import { useMediazonaDatabaseContext } from "@/context/useMediazonaDatabaseContext";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -30,6 +32,7 @@ import { SbuAlfaMonthlyPage } from "@/pages/SbuAlfaMonthlyPage";
 import { SbsDailyPage } from "@/pages/SbsDailyPage";
 import { SbsHourlyPage } from "@/pages/SbsHourlyPage";
 import { SbsMonthlyPage } from "@/pages/SbsMonthlyPage";
+import { MediazonaPage } from "@/pages/MediazonaPage";
 import { HomePage } from "@/pages/HomePage";
 import type { Page, Site } from "@/types";
 import { GLOBAL_CSS } from "@/theme";
@@ -187,6 +190,29 @@ function SbuAlfaRoot({
   );
 }
 
+function MediazonaRoot({
+  page, pages, site, setSite, setPage,
+}: {
+  page: Page; pages: Page[]; site: Site;
+  setSite: (s: Site) => void; setPage: (p: Page) => void;
+}) {
+  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useMediazonaDatabaseContext();
+  return (
+    <>
+      <SiteHeader
+        site={site} page={page} pages={pages}
+        onSiteChange={setSite} onPageChange={setPage}
+        lastRefreshed={lastRefreshed} refreshCount={refreshCount}
+        onRefresh={refresh} isLoading={loadState === "loading"}
+        refreshIntervalMs={refreshIntervalMs}
+      />
+      <PageShell>
+        <MediazonaPage refreshKey={refreshCount} />
+      </PageShell>
+    </>
+  );
+}
+
 function AppInner() {
   const { theme: t } = useTheme();
   const { route, goHome, goSite, setSite, setPage, pagesFor } = useAppRoute();
@@ -246,6 +272,13 @@ function AppInner() {
             <SbuAlfaDatabaseProvider>
               <SbuAlfaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} onHome={goHome} />
             </SbuAlfaDatabaseProvider>
+          </ErrorBoundary>
+        )}
+        {site === "mediazona" && (
+          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
+            <MediazonaDatabaseProvider>
+              <MediazonaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
+            </MediazonaDatabaseProvider>
           </ErrorBoundary>
         )}
       </div>

@@ -11,6 +11,8 @@ const RU_AD_PAGES: Page[] = ["daily", "monthly"];
 const RU_AIR_ATTACKS_PAGES: Page[] = ["daily", "monthly"];
 // SBU Alfa: monthly recap only (the source publishes one per month, no daily cadence).
 const SBU_ALFA_PAGES: Page[] = ["monthly"];
+// Mediazona: a single weekly view (two charts on one page); reuses the "daily" slug.
+const MEDIAZONA_PAGES: Page[] = ["daily"];
 
 function pagesFor(site: Site): Page[] {
   if (site === "ru-attacks-gsua") return GSUA_PAGES;
@@ -18,6 +20,7 @@ function pagesFor(site: Site): Page[] {
   if (site === "ru-airdef-mod") return RU_AD_PAGES;
   if (site === "ru-air-attacks-gsua") return RU_AIR_ATTACKS_PAGES;
   if (site === "sbu-alfa") return SBU_ALFA_PAGES;
+  if (site === "mediazona") return MEDIAZONA_PAGES;
   return SBS_PAGES;
 }
 
@@ -35,6 +38,7 @@ function readUrl(): Route {
       : rawSite === "ru-airdef-mod" ? "ru-airdef-mod"
       : rawSite === "ru-air-attacks-gsua" ? "ru-air-attacks-gsua"
       : rawSite === "sbu-alfa" ? "sbu-alfa"
+      : rawSite === "mediazona" ? "mediazona"
       : "sbs";
   const rawPage = p.get("page");
   const pages = pagesFor(site);

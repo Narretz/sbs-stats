@@ -105,7 +105,7 @@ export interface Metric {
 
 // ─── App state ────────────────────────────────────────────────────────────────
 export type Page = "daily" | "hourly" | "monthly";
-export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa";
+export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa" | "mediazona";
 export const SITE_LABELS: Record<Site, string> = {
   sbs: "UA SBS STATISTICS - SBS",
   "ru-attacks-gsua": "RU ATTACKS - GSUA",
@@ -113,6 +113,7 @@ export const SITE_LABELS: Record<Site, string> = {
   "ru-air-attacks-gsua": "RU MISSILE & UAV ATTACKS - GSUA",
   "sbu-alfa": "UA SBU ALFA MONTHLY RECAP - SBU",
   "ru-airdef-mod": "UA UAV ATTACKS - RU MoD",
+  mediazona: "RU DEATHS - MEDIAZONA",
 };
 export const SITES: Site[] = Object.keys(SITE_LABELS) as Site[];
 export type LoadState = "idle" | "loading" | "ready" | "error";
@@ -383,3 +384,48 @@ export interface SbuAlfaCounterRow {
   derived: boolean;
   derivation_note?: string;
 }
+
+// ─── Mediazona (confirmed named deaths + probate estimate → mediazona.db) ──────
+// Two independent weekly series; see scripts/mediazona/README.md.
+//  • weekly_roles    — confirmed, individually-NAMED deaths by branch/role,
+//    bucketed by date of death (so recent weeks are right-censored: not yet
+//    identified). The 21 source role columns are mutually exclusive and sum to
+//    `total`; we group them into the buckets below for a 100%-normalised
+//    composition chart. Grouping lives here so it can change without a re-ingest.
+//  • weekly_estimate — documented (named) vs the probate-registry modelled total.
+//    Two independent measures, NOT nested (estimate < documented in mid-2022).
+export const MEDIAZONA_ROLE_GROUP_KEYS = [
+  "infantry", "regular", "volunteers", "mobilized", "convicts", "pmc", "undetermined",
+] as const;
+export type MediazonaRoleGroupKey = (typeof MEDIAZONA_ROLE_GROUP_KEYS)[number];
+
+// label + stack colour + the raw weekly_roles columns summed into the group.
+// Order of MEDIAZONA_ROLE_GROUP_KEYS is the stack/legend order (bottom → top).
+export const MEDIAZONA_ROLE_GROUPS: Record<
+  MediazonaRoleGroupKey,
+  { label: string; color: string; cols: string[] }
+> = {
+  infantry:     { label: "Riflemen / infantry",     color: "#4878d0", cols: ["rifle"] },
+  regular:      { label: "Other regular forces",    color: "#55a868", cols: ["air", "marine", "special", "pilot", "tank", "art", "eng", "signal", "airdef", "chem", "seaman", "nguard", "groundavia", "fsb"] },
+  volunteers:   { label: "Volunteers",              color: "#c8a14b", cols: ["vol"] },
+  mobilized:    { label: "Mobilized",               color: "#dd8452", cols: ["mob"] },
+  convicts:     { label: "Convicts",                color: "#c44e52", cols: ["inmates"] },
+  pmc:          { label: "PMC (Wagner et al.)",     color: "#8172b3", cols: ["pmc"] },
+  undetermined: { label: "Undetermined / other",    color: "#8c8c8c", cols: ["nd", "other"] },
+};
+
+// All raw role columns the ingest stores (mirrors ROLE_COLS in scripts/mediazona),
+// minus `total`. Used to read + sum into groups.
+export const MEDIAZONA_ROLE_COLS = [
+  "nguard", "rifle", "air", "pilot", "seaman", "marine", "tank", "art", "eng",
+  "other", "nd", "special", "vol", "mob", "signal", "airdef", "chem", "pmc",
+  "fsb", "groundavia", "inmates",
+] as const;
+
+export type MediazonaRolesRow = { week: string; total: number } & Record<MediazonaRoleGroupKey, number>;
+
+export type MediazonaEstimateRow = {
+  week: string;            // YYYY-MM-DD (week start)
+  documented: number | null; // CSV `real`  — named/confirmed deaths
+  estimate: number | null;   // CSV `rnd`   — probate-registry modelled total
+};
