@@ -116,29 +116,6 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
     return rows.filter(row => selectedWeekdays.includes(new Date(row.date + "T12:00:00").getDay()));
   }, [rows, selectedWeekdays, selectedDate, days]);
 
-  const chartStats = useMemo<GlobalStats>(() => {
-    if (filteredRows.length === 0) return globalStats;
-    // Deduplicate to latest hour per date (mirrors queryGlobalStats logic)
-    const latest = new Map<string, DailyRow>();
-    for (const row of filteredRows) {
-      const existing = latest.get(row.date);
-      if (!existing || row.hour > existing.hour) latest.set(row.date, row);
-    }
-    const deduped = Array.from(latest.values());
-    const result = {} as GlobalStats;
-    for (const m of metrics) {
-      const vals = deduped
-        .map(r => r[m.key])
-        .filter((v): v is number => typeof v === "number")
-        .sort((a, b) => a - b);
-      result[m.key] = {
-        max: vals.length ? Math.max(...vals) : 0,
-        median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
-      };
-    }
-    return result;
-  }, [filteredRows, globalStats, metrics]);
-
   const makeDataset = (key: StatKey): DailyDaySeries[] => {
     const map = new Map<string, DailyDaySeries>();
     for (const row of filteredRows) {
@@ -191,8 +168,8 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
               key={m.key}
               title={m.label}
               data={makeDataset(m.key)}
-              globalMax={chartStats[m.key]?.max ?? 0}
-              globalMedian={chartStats[m.key]?.median ?? 0}
+              globalMax={globalStats[m.key]?.max ?? 0}
+              globalMedian={globalStats[m.key]?.median ?? 0}
               wfull={m.wfull ?? false}
               tooltipSort={tooltipSort}
               highlight={!!selectedDate}
