@@ -1,15 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useCallback } from "react";
 import { createDbWorker, type WorkerHttpvfs } from "sql.js-httpvfs";
 import type {
   GsuaDailyRow,
   GsuaDirectionRow,
   GsuaMetricKey,
   GsuaMonthlyRow,
-  LoadState,
   EodEstimate,
 } from "@/types";
 import { GSUA_METRIC_KEYS } from "@/types";
 import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
+import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 
 const DB_URL = import.meta.env.VITE_GSUA_DB_URL ?? `${import.meta.env.BASE_URL}data/ru-attacks-gsua.db`;
 const WORKER_URL = `${import.meta.env.BASE_URL}vendor/httpvfs/sqlite.worker.js`;
@@ -24,8 +24,6 @@ const MAX_BYTES = 50 * 1024 * 1024;
 function getKyivDateString(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
 }
-
-let workerPromise: Promise<WorkerHttpvfs> | null = null;
 
 async function loadWorker(): Promise<WorkerHttpvfs> {
   return createDbWorker(
@@ -52,10 +50,7 @@ async function loadWorker(): Promise<WorkerHttpvfs> {
   );
 }
 
-function getOrCreateWorker(): Promise<WorkerHttpvfs> {
-  if (!workerPromise) workerPromise = loadWorker();
-  return workerPromise;
-}
+const workerCache = makeResourceCache<WorkerHttpvfs>();
 
 const METRIC_COLS = GSUA_METRIC_KEYS.map((k) => `MAX(${k}) AS ${k}`).join(", ");
 
@@ -79,58 +74,12 @@ const LATEST_POSTS = `(
 export const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 
 export function useDatabaseGsua() {
-  const [worker, setWorker] = useState<WorkerHttpvfs | null>(null);
-  const [loadState, setLoadState] = useState<LoadState>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-  const lastRefreshedRef = useRef<Date | null>(null);
-  const [refreshCount, setRefreshCount] = useState(0);
-
-  const doLoad = useCallback(() => {
-    setLoadState("loading");
-    getOrCreateWorker()
-      .then((w) => {
-        setWorker(w);
-        setLoadState("ready");
-        const now = new Date();
-        setLastRefreshed(now);
-        lastRefreshedRef.current = now;
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
-        setLoadState("error");
-        workerPromise = null;
-      });
-  }, []);
-
-  const doRefresh = useCallback(() => {
-    workerPromise = null;
-    setWorker(null);
-    setRefreshCount((c) => c + 1);
-    doLoad();
-  }, [doLoad]);
-
-  useEffect(() => { doLoad(); }, [doLoad]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (document.hidden) return;
-      doRefresh();
-    }, REFRESH_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [doRefresh]);
-
-  useEffect(() => {
-    const handle = () => {
-      if (document.hidden) return;
-      const age = lastRefreshedRef.current ? Date.now() - lastRefreshedRef.current.getTime() : Infinity;
-      if (age >= REFRESH_INTERVAL_MS) doRefresh();
-    };
-    document.addEventListener("visibilitychange", handle);
-    return () => document.removeEventListener("visibilitychange", handle);
-  }, [doRefresh]);
-
-  const refresh = useCallback(() => { doRefresh(); }, [doRefresh]);
+  const { resource: worker, loadState, error, lastRefreshed, refresh, refreshCount, refreshIntervalMs } =
+    useRefreshableResource({
+      cache: workerCache,
+      load: loadWorker,
+      refreshIntervalMs: REFRESH_INTERVAL_MS,
+    });
 
   // ── Queries ─────────────────────────────────────────────────────────────────
   // Each query is async: the worker reads SQLite pages over HTTP range
@@ -490,6 +439,6 @@ export function useDatabaseGsua() {
     queryDaily, querySnapshots, queryGlobalStats, queryMonthly, queryEodProjection, queryDataWindow,
     queryDirectionList, queryDirectionDaily, queryDirectionSnapshots,
     refresh, lastRefreshed, refreshCount,
-    refreshIntervalMs: REFRESH_INTERVAL_MS,
+    refreshIntervalMs,
   };
 }

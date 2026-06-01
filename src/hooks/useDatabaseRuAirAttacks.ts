@@ -1,13 +1,13 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useCallback } from "react";
 import type { Database } from "sql.js";
 import type {
   RuAirAttacksDailyRow,
   RuAirAttacksGlobalStats,
   RuAirAttacksMonthlyRow,
   AttackCategoryKey,
-  LoadState,
 } from "@/types";
 import { ATTACK_CATEGORY_KEYS, ATTACK_DB_CATEGORIES } from "@/types";
+import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 
 // Small DB (~2 MB) → fetch whole via sql.js, like the RU-losses loader (no httpvfs).
 const DB_URL =
@@ -33,8 +33,6 @@ function loadSqlJsScript(): Promise<void> {
     document.head.appendChild(script);
   });
 }
-
-let dbPromise: Promise<Database> | null = null;
 
 async function loadDatabase(): Promise<Database> {
   await loadSqlJsScript();
@@ -62,10 +60,7 @@ async function loadDatabase(): Promise<Database> {
   return new SQL.Database(bytes);
 }
 
-function getOrCreateDbPromise(): Promise<Database> {
-  if (!dbPromise) dbPromise = loadDatabase();
-  return dbPromise;
-}
+const dbCache = makeResourceCache<Database>();
 
 function queryRows<T>(db: Database, sql: string): T[] {
   const results = db.exec(sql);
@@ -125,58 +120,12 @@ function maxMedian(values: Array<number | null>): { max: number; median: number 
 export const REFRESH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 export function useDatabaseRuAirAttacks() {
-  const [db, setDb] = useState<Database | null>(null);
-  const [loadState, setLoadState] = useState<LoadState>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-  const lastRefreshedRef = useRef<Date | null>(null);
-  const [refreshCount, setRefreshCount] = useState(0);
-
-  const doLoad = useCallback(() => {
-    setLoadState("loading");
-    getOrCreateDbPromise()
-      .then((database) => {
-        setDb(database);
-        setLoadState("ready");
-        const now = new Date();
-        setLastRefreshed(now);
-        lastRefreshedRef.current = now;
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
-        setLoadState("error");
-        dbPromise = null;
-      });
-  }, []);
-
-  const doRefresh = useCallback(() => {
-    dbPromise = null;
-    setDb(null);
-    setRefreshCount((c) => c + 1);
-    doLoad();
-  }, [doLoad]);
-
-  useEffect(() => { doLoad(); }, [doLoad]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (document.hidden) return;
-      doRefresh();
-    }, REFRESH_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [doRefresh]);
-
-  useEffect(() => {
-    const handle = () => {
-      if (document.hidden) return;
-      const age = lastRefreshedRef.current ? Date.now() - lastRefreshedRef.current.getTime() : Infinity;
-      if (age >= REFRESH_INTERVAL_MS) doRefresh();
-    };
-    document.addEventListener("visibilitychange", handle);
-    return () => document.removeEventListener("visibilitychange", handle);
-  }, [doRefresh]);
-
-  const refresh = useCallback(() => { doRefresh(); }, [doRefresh]);
+  const { resource: db, loadState, error, lastRefreshed, refresh, refreshCount, refreshIntervalMs } =
+    useRefreshableResource({
+      cache: dbCache,
+      load: loadDatabase,
+      refreshIntervalMs: REFRESH_INTERVAL_MS,
+    });
 
   // ── Daily: launched + intercepted per category, attributed to time_start date ─
   const queryDaily = useCallback(
@@ -282,6 +231,6 @@ export function useDatabaseRuAirAttacks() {
     loadState, error,
     queryDaily, queryGlobalStats, queryMonthly, queryDataWindow,
     refresh, lastRefreshed, refreshCount,
-    refreshIntervalMs: REFRESH_INTERVAL_MS,
+    refreshIntervalMs,
   };
 }

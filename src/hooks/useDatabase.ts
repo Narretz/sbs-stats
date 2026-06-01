@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useCallback } from "react";
 import type { Database } from "sql.js";
-import type { DailyRow, MonthlyRow, StatKey, LoadState, EodEstimate } from "@/types";
+import type { DailyRow, MonthlyRow, StatKey, EodEstimate } from "@/types";
 import { TARGET_IDS } from "@/types";
 import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
+import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 
 const DB_URL = import.meta.env.VITE_DB_URL ?? "/data/sbs.db";
 const SQL_JS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0";
@@ -27,8 +28,6 @@ function loadSqlJsScript(): Promise<void> {
     document.head.appendChild(script);
   });
 }
-
-let dbPromise: Promise<Database> | null = null;
 
 async function loadDatabase(): Promise<Database> {
   await loadSqlJsScript();
@@ -58,10 +57,7 @@ async function loadDatabase(): Promise<Database> {
   return new SQL.Database(bytes);
 }
 
-function getOrCreateDbPromise(): Promise<Database> {
-  if (!dbPromise) dbPromise = loadDatabase();
-  return dbPromise;
-}
+const dbCache = makeResourceCache<Database>();
 
 function getTableColumns(db: Database, table: string): string[] {
   const result = db.exec(`PRAGMA table_info(${table})`);
@@ -109,64 +105,12 @@ function buildStatColumns(availableCols: string[]): string {
 export const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
 export function useDatabase() {
-  const [db, setDb] = useState<Database | null>(null);
-  const [loadState, setLoadState] = useState<LoadState>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-  const lastRefreshedRef = useRef<Date | null>(null);
-  const [refreshCount, setRefreshCount] = useState(0);
-
-  const doLoad = useCallback(() => {
-    setLoadState("loading");
-    getOrCreateDbPromise()
-      .then((database) => {
-        setDb(database);
-        setLoadState("ready");
-        const now = new Date();
-        setLastRefreshed(now);
-        lastRefreshedRef.current = now;
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
-        setLoadState("error");
-        dbPromise = null;
-      });
-  }, []);
-
-  const doRefresh = useCallback(() => {
-    dbPromise = null;
-    setDb(null);
-    setRefreshCount((c) => c + 1);
-    doLoad();
-  }, [doLoad]);
-
-  // Initial load
-  useEffect(() => {
-    doLoad();
-  }, [doLoad]);
-
-  // Auto-refresh every REFRESH_INTERVAL_MS, but skip when page is hidden
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (document.hidden) return;
-      doRefresh();
-    }, REFRESH_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [doRefresh]);
-
-  // On visibility restore, refresh immediately if data is stale
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) return;
-      const age = lastRefreshedRef.current ? Date.now() - lastRefreshedRef.current.getTime() : Infinity;
-      if (age >= REFRESH_INTERVAL_MS) doRefresh();
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [doRefresh]);
-
-  // Manual refresh
-  const refresh = useCallback(() => { doRefresh(); }, [doRefresh]);
+  const { resource: db, loadState, error, lastRefreshed, refresh, refreshCount, refreshIntervalMs } =
+    useRefreshableResource({
+      cache: dbCache,
+      load: loadDatabase,
+      refreshIntervalMs: REFRESH_INTERVAL_MS,
+    });
 
   // ── Daily: one row per date (latest hour) ────────────────────────────────────
   const queryDaily = useCallback(
@@ -385,6 +329,6 @@ export function useDatabase() {
     loadState, error,
     queryDaily, queryHourly, queryMonthly, queryGlobalStats, queryEodProjection, queryDataWindow,
     refresh, lastRefreshed, refreshCount,
-    refreshIntervalMs: REFRESH_INTERVAL_MS,
+    refreshIntervalMs,
   };
 }
