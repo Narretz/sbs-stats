@@ -449,6 +449,19 @@ def _parse_combat_engagements(
             r"\s+противник\s+провів\s+(\d[\d\s]*\d|\d)\s+атак\w*",
             text,
         )
+        # 2d. May-2026 midday variant: "Від початку цієї доби окупаційні
+        #     війська N разів штурмували позиції наших захисників" (msg
+        #     39353). New subject ("окупаційні війська"), verb form
+        #     ("штурмували"), and suffix ("наших захисників") that none of
+        #     2/2b/2c match. Anchored on the day-marker at paragraph start
+        #     because per-direction sections reuse "штурмували"/"наших
+        #     захисників" prose ("На X напрямку … N разів штурмували …").
+        or _extract_int(
+            r"(?:^|\n)\s*(?:З|Від)\s+початку\s+(?:цієї\s+)?доби[^\w]*"
+            r"окупаційні\s+війська\s+(\d[\d\s]*\d|\d)\s+раз\w*\s+"
+            r"(?:штурмува\w*|атакува\w*)\s+позиц\w+\s+наших\s+захисників",
+            text,
+        )
         # 3. Midday: "окупанти (атакували|здійснили) N (раз(ів)|спроб)".
         or _extract_int(
             r"окупанти\s+(?:атакували|здійснили)\s+(\d[\d\s]*\d|\d)\s+"

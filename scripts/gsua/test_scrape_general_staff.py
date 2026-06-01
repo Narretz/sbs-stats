@@ -635,6 +635,33 @@ class TestCombatEngagements:
         s = self._parse(body)
         assert s.combat_engagements == 150
 
+    def test_midday_okupatsiyni_viyska_shturmuvaly(self):
+        # msg 39353: "Від початку цієї доби окупаційні війська 77 разів
+        # штурмували позиції наших захисників" — new subject ("окупаційні
+        # війська"), verb ("штурмували"), and suffix ("наших захисників")
+        # that branches 2/2b/2c don't cover. Branch 2d anchors on the
+        # day-marker preamble.
+        s = self._parse(
+            "Від початку цієї доби окупаційні війська 77 разів штурмували "
+            "позиції наших захисників.",
+            hour="16:00",
+        )
+        assert s.combat_engagements == 77
+
+    def test_midday_okupatsiyni_viyska_does_not_overmatch_per_direction(self):
+        # Per-direction prose can mention "штурмували" / "наших захисників"
+        # ("На X напрямку загарбники N разів штурмували …"). Branch 2d
+        # anchors on "З/Від початку доби" at paragraph start, so a
+        # per-direction line must not match — branch 4 picks up the global
+        # aggregate above.
+        body = (
+            "Загальна кількість бойових зіткнень станом на цей час складає 88.\n"
+            "На Покровському напрямку окупаційні війська 26 разів "
+            "штурмували позиції наших захисників."
+        )
+        s = self._parse(body)
+        assert s.combat_engagements == 88
+
     def test_midday_zbilshilasa_long_form(self):
         # msg 14631: "Кількість бойових зіткнень збільшилася до 12" —
         # long reflexive form (-ся) alongside the short -сь in branch 4.
