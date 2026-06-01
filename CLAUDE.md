@@ -66,5 +66,8 @@ pip install -r scripts/requirements.txt   # the devcontainer does this on create
   default paths run without them.
 - All dates are reconciled to **Kyiv** (GSUA/SBS) or **MSK** (RU MoD) local time —
   see the per-script date models. `scraped_at` is always UTC.
-- `data/*.db` are committed snapshots; don't pollute them with test rows
-  (`git checkout HEAD -- data/<file>.db` to restore).
+- Only `data/sbs.db` is a committed snapshot; the scraped DBs
+  (`ru-attacks-gsua.db`, `ru-mod-ad.db`, `ru-losses-gsua-petroivaniuk.db`,
+  `ru-air-attacks-gsua.db`) are gitignored and pulled from R2 by CI / locally.
+  Don't pollute `sbs.db` with test rows (`git checkout HEAD -- data/sbs.db` to
+  restore).

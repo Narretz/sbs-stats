@@ -55,8 +55,15 @@ MONTHS = {
     "июля": 7, "августа": 8, "сентября": 9, "октября": 10, "ноября": 11, "декабря": 12,
 }
 
-# Count of Ukrainian UAVs intercepted (the metric).
-COUNT_RE = re.compile(r"(\d+)\s+украин\w+\s+беспилотн\w+\s+летательн\w+\s+аппарат", re.I)
+# Count of Ukrainian UAVs intercepted (the metric). Anchored to "уничтожен\w+" so
+# the Cyrillic-word alternation can't snap onto a stray phrase before the count;
+# the token is digits OR a 1–2 word spelled-out numeral ("шесть", "двадцать три")
+# resolved via _count_to_int — low days (single-digit totals) use word form, e.g.
+# msg 63991 "уничтожены шесть украинских беспилотных…".
+COUNT_RE = re.compile(
+    r"уничтожен\w+\s+(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+)?)\s+украин\w+\s+беспилотн\w+\s+летательн\w+\s+аппарат",
+    re.I,
+)
 # Is this an air-defense intercept post at all?
 AD_GATE = re.compile(r"(противовоздушн|средствами\s+пво|перехвач\w+\s+и\s+уничтож)", re.I)
 # Explicit night range with dates: "с 20.00 мск 22 мая до 7.00 мск 23 мая".
@@ -296,8 +303,8 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
     cm = COUNT_RE.search(flat)
     if not cm:
         return None
-    drones = int(cm.group(1))
-    if drones > MAX_PLAUSIBLE:
+    drones = _count_to_int(cm.group(1))
+    if drones is None or drones > MAX_PLAUSIBLE:
         return None
     posted_msk = posted_at_utc.astimezone(MSK)
     start, end, kind = _parse_window(flat, posted_msk)
