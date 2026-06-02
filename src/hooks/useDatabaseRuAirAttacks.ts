@@ -162,12 +162,15 @@ export function useDatabaseRuAirAttacks() {
     return result;
   }, [db]);
 
-  // ── Monthly: launched sums per category, with current-month projection ────────
+  // ── Monthly: launched + intercepted sums per category, with current-month
+  // projection on both. Bare key holds launched (legacy); `*_intercepted` holds
+  // the destroyed sum so the page can render side-by-side bars + a % rate.
   const queryMonthly = useCallback((): RuAirAttacksMonthlyRow[] => {
     if (!db) return [];
-    const raw = queryRows<{ month: string; category: string; launched: number | null }>(
+    const raw = queryRows<{ month: string; category: string; launched: number | null; destroyed: number | null }>(
       db,
-      `SELECT substr(date, 1, 7) AS month, category, SUM(launched) AS launched
+      `SELECT substr(date, 1, 7) AS month, category,
+              SUM(launched) AS launched, SUM(destroyed) AS destroyed
        FROM daily_by_category
        GROUP BY month, category
        ORDER BY month ASC`
@@ -182,14 +185,20 @@ export function useDatabaseRuAirAttacks() {
           date: month, is_current_month: false,
           projection_day: null, projection_days_in_month: null,
         } as RuAirAttacksMonthlyRow;
-        for (const c of ATTACK_CATEGORY_KEYS) row[c] = 0;
+        for (const c of ATTACK_CATEGORY_KEYS) {
+          row[c] = 0;
+          row[`${c}_intercepted`] = 0;
+        }
         byMonth.set(month, row);
       }
       const l = num(r.launched);
+      const d = num(r.destroyed);
       row.all = (row.all as number) + l;
+      row.all_intercepted = (row.all_intercepted as number) + d;
       const cat = String(r.category) as (typeof ATTACK_DB_CATEGORIES)[number];
       if ((ATTACK_DB_CATEGORIES as readonly string[]).includes(cat)) {
         row[cat] = (row[cat] as number) + l;
+        row[`${cat}_intercepted`] = (row[`${cat}_intercepted`] as number) + d;
       }
     }
 
@@ -210,6 +219,8 @@ export function useDatabaseRuAirAttacks() {
           const mult = daysInMonth / dayOfMonth;
           for (const c of ATTACK_CATEGORY_KEYS) {
             row[`${c}_projected` as `${AttackCategoryKey}_projected`] = Math.round((row[c] as number) * mult);
+            row[`${c}_intercepted_projected` as `${AttackCategoryKey}_intercepted_projected`] =
+              Math.round((row[`${c}_intercepted`] as number) * mult);
           }
         }
         return row;

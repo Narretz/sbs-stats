@@ -257,13 +257,16 @@ export type RuAirAttacksGlobalStats = Record<
   { launched: { max: number; median: number }; intercepted: { max: number; median: number } }
 >;
 
-// Monthly = launched sums per category (interception is shown on the daily view).
+// Monthly = launched + intercepted sums per category. Bare category key holds
+// the launched sum (legacy); `${c}_intercepted` holds the destroyed sum.
 export type RuAirAttacksMonthlyRow = {
   date: string; // "YYYY-MM"
   is_current_month: boolean;
   projection_day: number | null;
   projection_days_in_month: number | null;
-} & Record<AttackCategoryKey, number> & Partial<Record<`${AttackCategoryKey}_projected`, number>>;
+} & Record<AttackCategoryKey, number>
+  & Record<`${AttackCategoryKey}_intercepted`, number>
+  & Partial<Record<`${AttackCategoryKey}_projected` | `${AttackCategoryKey}_intercepted_projected`, number>>;
 
 // ─── RU Air Defense (MoD Telegram → ru-mod-ad.db) ─────────────────────────────
 // Russian MoD claims of Ukrainian UAVs intercepted/downed over Russia, parsed
