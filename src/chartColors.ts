@@ -19,7 +19,7 @@ const COLOR_BAR_DEFAULT = '#509CCD';
 // Keeping destroyed at a constant red means the destroyed/damaged contrast
 // stays strong in dark mode (where t.accent becomes orange), and avoids
 // collision with the "current/today" accent that may share the same chart.
-export const COLOR_DESTROYED = "#DA4E4E";
+export const COLOR_DESTROYED = "#DE6666";
 
 export const COLOR_DESTROYED_CURRENT = "#C62121";
 
