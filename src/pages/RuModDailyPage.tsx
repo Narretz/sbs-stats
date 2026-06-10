@@ -13,6 +13,7 @@ import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption } from "@/utils/dayRange";
 import type { RuAdDailyRow, RuAdGlobalStats } from "@/types";
 import { FONTS } from "@/theme";
+import { chartColors } from "@/chartColors";
 
 
 function parseWeekdays(raw: string | null): number[] {
@@ -144,9 +145,9 @@ export function RuModDailyPage({ refreshKey }: Props) {
           <DailyMultiLineChart
             title="By Reporting Window — Overnight vs Daytime"
             series={[
-              { key: "night", label: "Overnight", color: t.accent, data: makeDataset("night"),
+              { key: "night", label: "Overnight", color: chartColors(t).overnight, data: makeDataset("night"),
                 globalMax: globalStats.night.max, globalMedian: globalStats.night.median },
-              { key: "day", label: "Daytime", color: t.primary, data: makeDataset("day"),
+              { key: "day", label: "Daytime", color: chartColors(t).daytime, data: makeDataset("day"),
                 globalMax: globalStats.day.max, globalMedian: globalStats.day.median },
             ]}
             wfull

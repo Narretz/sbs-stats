@@ -4,6 +4,7 @@ import {
 } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
+import { chartColors } from "@/chartColors";
 
 export interface MonthlyTargetPairDataPoint {
   date: string;
@@ -28,11 +29,12 @@ interface Props {
 }
 
 const MonthlyPairTooltip = ({
-  active, payload, t, primaryLabel, secondaryLabel, showRatio, ratioLabel,
+  active, payload, t, c, primaryLabel, secondaryLabel, showRatio, ratioLabel,
 }: {
   active?: boolean;
   payload?: Array<{ payload: MonthlyTargetPairDataPoint }>;
   t: ReturnType<typeof useTheme>["theme"];
+  c: ReturnType<typeof chartColors>;
   primaryLabel: string;
   secondaryLabel: string;
   showRatio: boolean;
@@ -49,13 +51,13 @@ const MonthlyPairTooltip = ({
       boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
     }}>
       <div style={{ color: t.textMuted, marginBottom: 6 }}>{d.date}</div>
-      <div style={{ color: t.primary }}>
+      <div style={{ color: c.damaged }}>
         {primaryLabel}: <span style={{ color: t.text, fontWeight: 700 }}>{d.hit_value?.toLocaleString()}</span>
         {d.hit_projected != null ? (
           <span style={{ color: t.textMuted }}> / {d.hit_projected.toLocaleString()} projected</span>
         ) : null}
       </div>
-      <div style={{ color: t.accent }}>
+      <div style={{ color: c.destroyed }}>
         {secondaryLabel}: <span style={{ color: t.text, fontWeight: 700 }}>{d.destroyed_value?.toLocaleString()}</span>
         {d.destroyed_projected != null ? (
           <span style={{ color: t.textMuted }}> / {d.destroyed_projected.toLocaleString()} projected</span>
@@ -87,9 +89,15 @@ export function MonthlyTargetPairChart({
   ratioLabel = "% destroyed",
 }: Props) {
   const { theme: t } = useTheme();
+  const c = chartColors(t);
   const lastIdx = data.length - 1;
-  const hitProjectedFill = t.primary + "55";
-  const destroyedProjectedFill = t.accent + "55";
+  // Historical note: this chart originally used t.accent for "destroyed", while
+  // DailyLineChart uses the static COLOR_DESTROYED. Routing both through
+  // c.damaged / c.destroyed unifies them. The visible change is small in light
+  // mode (#db2c18 → #dc2626) and larger in dark mode (orange → red), but the
+  // pair is more readable. Revert by pointing destroyed_value at c.barCurrent.
+  const hitProjectedFill = c.damagedProjected;
+  const destroyedProjectedFill = c.destroyedProjected;
 
   return (
     <div style={{
@@ -110,7 +118,7 @@ export function MonthlyTargetPairChart({
           margin={{ top: 8, right: 8, left: -10, bottom: 0 }}
           barGap={2}
         >
-          <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
+          <CartesianGrid strokeDasharray="2 4" stroke={c.grid} />
           <XAxis
             dataKey="date"
             tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
@@ -125,6 +133,7 @@ export function MonthlyTargetPairChart({
                 active={active}
                 payload={payload as unknown as Array<{ payload: MonthlyTargetPairDataPoint }>}
                 t={t}
+                c={c}
                 primaryLabel={primaryLabel}
                 secondaryLabel={secondaryLabel}
                 showRatio={showRatio}
@@ -136,7 +145,7 @@ export function MonthlyTargetPairChart({
 
           <Bar dataKey="hit_value" stackId="hit" name={primaryLabel}>
             {data.map((_, i) => (
-              <Cell key={`hit-val-${i}`} fill={t.primary} opacity={i === lastIdx ? 1 : 0.8} />
+              <Cell key={`hit-val-${i}`} fill={c.damaged} opacity={i === lastIdx ? 1 : 0.8} />
             ))}
           </Bar>
           <Bar dataKey="hit_gap" stackId="hit" name={`${primaryLabel} Projected`} radius={[3, 3, 0, 0]}>
@@ -147,7 +156,7 @@ export function MonthlyTargetPairChart({
 
           <Bar dataKey="destroyed_value" stackId="destroyed" name={secondaryLabel}>
             {data.map((_, i) => (
-              <Cell key={`des-val-${i}`} fill={t.accent} opacity={i === lastIdx ? 1 : 0.8} />
+              <Cell key={`des-val-${i}`} fill={c.destroyed} opacity={i === lastIdx ? 1 : 0.8} />
             ))}
           </Bar>
           <Bar dataKey="destroyed_gap" stackId="destroyed" name={`${secondaryLabel} Projected`} radius={[3, 3, 0, 0]}>

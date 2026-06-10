@@ -11,6 +11,7 @@ import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
 import type { Theme } from "@/theme";
 import { FONTS } from "@/theme";
+import { COLOR_HOURLY_PAST_DAY } from "@/chartColors";
 export type TooltipSortMode = "date" | "value";
 
 interface Props {
@@ -235,8 +236,8 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
             label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: t.muted, fontFamily: FONTS.mono }} />
           {pastSeries.map((s, i) => (
             <Line key={s.date} type="monotone" dataKey={s.date}
-              stroke="#9ca3af" strokeWidth={1} strokeOpacity={getOpacity(i)}
-              dot={false} activeDot={{ r: 3, fill: "#9ca3af", opacity: 0.6 }}
+              stroke={COLOR_HOURLY_PAST_DAY} strokeWidth={1} strokeOpacity={getOpacity(i)}
+              dot={false} activeDot={{ r: 3, fill: COLOR_HOURLY_PAST_DAY, opacity: 0.6 }}
               connectNulls isAnimationActive={false}
             />
           ))}

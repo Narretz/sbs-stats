@@ -15,6 +15,7 @@ import {
 } from "@/types";
 import { DEFAULT_YEAR_OPTION, getYearOptions, type YearOption } from "@/utils/yearRange";
 import { FONTS } from "@/theme";
+import { chartColors } from "@/chartColors";
 
 interface Props {
   refreshKey?: number;
@@ -112,8 +113,8 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
       </div>
 
       <div style={{ display: "flex", gap: 20, marginBottom: 20, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
-        <span style={{ color: t.primary }}>Launched</span>
-        <span style={{ color: t.accent }}>Intercepted</span>
+        <span style={{ color: chartColors(t).damaged }}>Launched</span>
+        <span style={{ color: chartColors(t).destroyed }}>Intercepted</span>
         <span style={{ color: t.textMuted }}>Lighter segment = current-month projection</span>
       </div>
 

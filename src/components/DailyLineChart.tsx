@@ -8,6 +8,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
 import { FONTS, type Theme } from "@/theme";
+import { COLOR_DESTROYED, COLOR_DESTROYED_TREND } from "@/chartColors";
 
 function linearRegression(data: DailyDataPoint[]): Array<number | null> {
   const points = data
@@ -46,8 +47,6 @@ interface Props {
   eod?: EodEstimate | null;
   eod2?: EodEstimate | null;
 }
-const DESTROYED_COLOR = "#dc2626";
-const DESTROYED_TREND_COLOR = "#fca5a5";
 
 function CustomDot(props: DotProps & { payload?: DailyDataPoint; accentColor: string; primaryColor: string; bgColor: string }) {
   const { cx, cy, payload, accentColor, primaryColor, bgColor } = props;
@@ -162,12 +161,12 @@ function PairedTooltip({
       <div style={{ color: t.textMuted, marginBottom: 4 }}>{formatDate(d.date)}</div>
       {pairMode === "sum" && tipRow(t.text, "Total", fmt(total))}
       {tipRow(primaryColor, primaryLabel, fmt(v))}
-      {tipRow(DESTROYED_COLOR, secondaryLabel, fmt(v2))}
+      {tipRow(COLOR_DESTROYED, secondaryLabel, fmt(v2))}
       {pct !== null && tipRow(t.textMuted, `% ${secondaryLabel}`, `${pct.toFixed(1)}%`)}
       {tipRow(t.muted, `Trend (${primaryLabel})`, fmt(tr1))}
-      {tipRow(DESTROYED_TREND_COLOR, `Trend (${secondaryLabel})`, fmt(tr2))}
+      {tipRow(COLOR_DESTROYED_TREND, `Trend (${secondaryLabel})`, fmt(tr2))}
       {d.is_today && d.eod && eodRow(primaryColor, primaryLabel, d.eod)}
-      {d.is_today && d.eod2 && eodRow(DESTROYED_COLOR, secondaryLabel, d.eod2)}
+      {d.is_today && d.eod2 && eodRow(COLOR_DESTROYED, secondaryLabel, d.eod2)}
     </div>
   );
 }
@@ -253,9 +252,9 @@ export function DailyLineChart({
         <span style={{ color: t.muted }}>~ MED {median.toLocaleString()}</span>
         {hasPair && (
           <>
-            <span style={{ color: DESTROYED_COLOR, marginLeft: 8 }}>● {resolvedSecondaryLabel}</span>
-            <span style={{ color: DESTROYED_COLOR }}>▲ MAX {max2.toLocaleString()}</span>
-            <span style={{ color: DESTROYED_COLOR, opacity: 0.7 }}>~ MED {median2.toLocaleString()}</span>
+            <span style={{ color: COLOR_DESTROYED, marginLeft: 8 }}>● {resolvedSecondaryLabel}</span>
+            <span style={{ color: COLOR_DESTROYED }}>▲ MAX {max2.toLocaleString()}</span>
+            <span style={{ color: COLOR_DESTROYED, opacity: 0.7 }}>~ MED {median2.toLocaleString()}</span>
           </>
         )}
       </div>
@@ -291,7 +290,7 @@ export function DailyLineChart({
             <ReferenceLine y={median} stroke={t.muted} strokeDasharray="4 4" strokeOpacity={0.5}
               label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: t.muted, fontFamily: FONTS.mono }} />
             <Area type="monotone" dataKey="value2" name={resolvedSecondaryLabel} stackId="1"
-              stroke={DESTROYED_COLOR} strokeWidth={1.5} fill={DESTROYED_COLOR} fillOpacity={0.55} isAnimationActive={false} />
+              stroke={COLOR_DESTROYED} strokeWidth={1.5} fill={COLOR_DESTROYED} fillOpacity={0.55} isAnimationActive={false} />
             <Area type="monotone" dataKey="valueDiff" name={resolvedPrimaryLabel} stackId="1"
               stroke={hitFill} strokeWidth={1.5} fill={hitFill} fillOpacity={0.35} isAnimationActive={false} />
           </ComposedChart>

@@ -5,6 +5,7 @@ import {
 import type { MonthlyDataPoint } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
+import { chartColors } from "@/chartColors";
 
 interface Props {
   title: string;
@@ -53,10 +54,12 @@ const MonthlyTooltip = ({
 
 export function MonthlyBarChart({ title, data, wfull }: Props) {
   const { theme: t } = useTheme();
+  const c = chartColors(t);
   const lastIdx = data.length - 1;
 
-  // Projected gap color with transparency
-  const projectedFill = t.accent + "55";
+  // Projected segment (current month's forecast) uses the alpha-suffixed
+  // current-bar color — see chartColors.ts.
+  const projectedFill = c.barCurrentProjected;
 
   return (
     <div style={{
@@ -73,7 +76,7 @@ export function MonthlyBarChart({ title, data, wfull }: Props) {
       </div>
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
+          <CartesianGrid strokeDasharray="2 4" stroke={c.grid} />
           <XAxis dataKey="date"
             tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
             tickLine={false} axisLine={false}
@@ -94,9 +97,9 @@ export function MonthlyBarChart({ title, data, wfull }: Props) {
             {data.map((d, i) => (
               <Cell
                 key={`val-${i}`}
-                fill={i === lastIdx ? t.accent : t.primary}
+                fill={i === lastIdx ? c.barCurrent : c.barDefault}
                 opacity={i === lastIdx ? 1 : 0.8}
-                stroke={d.note ? t.textImportant : undefined}
+                stroke={d.note ? c.noteText : undefined}
                 strokeWidth={d.note ? 1.5 : undefined}
                 strokeDasharray={d.note ? "3 2" : undefined}
               />
