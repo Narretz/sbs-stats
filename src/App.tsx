@@ -11,6 +11,8 @@ import { RuModDatabaseProvider } from "@/context/RuModDatabaseContext";
 import { useRuModDatabaseContext } from "@/context/useRuModDatabaseContext";
 import { RuAirAttacksDatabaseProvider } from "@/context/RuAirAttacksDatabaseContext";
 import { useRuAirAttacksDatabaseContext } from "@/context/useRuAirAttacksDatabaseContext";
+import { SbuAlfaDatabaseProvider } from "@/context/SbuAlfaDatabaseContext";
+import { useSbuAlfaDatabaseContext } from "@/context/useSbuAlfaDatabaseContext";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -24,6 +26,7 @@ import { RuModDailyPage } from "@/pages/RuModDailyPage";
 import { RuAirAttacksDailyPage } from "@/pages/RuAirAttacksDailyPage";
 import { RuAirAttacksMonthlyPage } from "@/pages/RuAirAttacksMonthlyPage";
 import { RuModMonthlyPage } from "@/pages/RuModMonthlyPage";
+import { SbuAlfaMonthlyPage } from "@/pages/SbuAlfaMonthlyPage";
 import { SbsDailyPage } from "@/pages/SbsDailyPage";
 import { SbsHourlyPage } from "@/pages/SbsHourlyPage";
 import { SbsMonthlyPage } from "@/pages/SbsMonthlyPage";
@@ -160,6 +163,29 @@ function RuAirAttacksRoot({
   );
 }
 
+function SbuAlfaRoot({
+  page, pages, site, setSite, setPage,
+}: {
+  page: Page; pages: Page[]; site: Site;
+  setSite: (s: Site) => void; setPage: (p: Page) => void;
+}) {
+  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useSbuAlfaDatabaseContext();
+  return (
+    <>
+      <SiteHeader
+        site={site} page={page} pages={pages}
+        onSiteChange={setSite} onPageChange={setPage}
+        lastRefreshed={lastRefreshed} refreshCount={refreshCount}
+        onRefresh={refresh} isLoading={loadState === "loading"}
+        refreshIntervalMs={refreshIntervalMs}
+      />
+      <PageShell>
+        {page === "monthly" && <SbuAlfaMonthlyPage refreshKey={refreshCount} />}
+      </PageShell>
+    </>
+  );
+}
+
 function AppInner() {
   const { theme: t } = useTheme();
   const { site, setSite, page, setPage, pagesFor } = useAppRoute();
@@ -205,6 +231,13 @@ function AppInner() {
             <RuAirAttacksDatabaseProvider>
               <RuAirAttacksRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
             </RuAirAttacksDatabaseProvider>
+          </ErrorBoundary>
+        )}
+        {site === "sbu-alfa" && (
+          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
+            <SbuAlfaDatabaseProvider>
+              <SbuAlfaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
+            </SbuAlfaDatabaseProvider>
           </ErrorBoundary>
         )}
       </div>

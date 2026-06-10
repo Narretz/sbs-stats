@@ -1,0 +1,143 @@
+import { useEffect, useMemo, useState } from "react";
+import { useSbuAlfaDatabaseContext } from "@/context/useSbuAlfaDatabaseContext";
+import { useTheme } from "@/hooks/useTheme";
+import { MonthlyBarChart } from "@/components/MonthlyBarChart";
+import { SbuAlfaTargetsStackedChart, type TargetsStackPoint } from "@/components/SbuAlfaTargetsStackedChart";
+import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import {
+  SBU_ALFA_CATEGORY_KEYS,
+  SBU_ALFA_CATEGORY_LABELS,
+  type MonthlyDataPoint,
+  type SbuAlfaCategoryKey,
+  type SbuAlfaCounterRow,
+} from "@/types";
+import { FONTS } from "@/theme";
+
+interface Props {
+  refreshKey?: number;
+}
+
+// Counter rows → one MonthlyDataPoint per period present, in ascending order.
+// The bound qualifier becomes a chart tooltip "note" so the reader sees that
+// "понад 8 000" means the value is a floor ("≥") rather than a precise count.
+function toDataset(
+  rows: SbuAlfaCounterRow[],
+  category: SbuAlfaCategoryKey,
+  periods: string[]
+): MonthlyDataPoint[] {
+  const byPeriod = new Map(rows.filter((r) => r.category === category).map((r) => [r.period, r]));
+  return periods.map((period) => {
+    const r = byPeriod.get(period);
+    const value = r ? r.value : null;
+    let note: string | undefined;
+    if (r) {
+      if (r.derived) {
+        note = r.derivation_note ?? "Derived from other counters (not stated by SBU).";
+      } else if (r.bound === "at_least") {
+        note = `Self-reported floor (понад / "over") — actual may be higher. Source phrasing: "${r.raw_label ?? ""}"`;
+      } else if (r.bound === "approx") {
+        note = `Approximate ("близько / приблизно ~"). Source phrasing: "${r.raw_label ?? ""}"`;
+      } else if (r.bound === "up_to") {
+        note = `Ceiling ("до" / "up to"). Source phrasing: "${r.raw_label ?? ""}"`;
+      }
+    }
+    return { date: period, value, note };
+  });
+}
+
+export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
+  const { theme: t } = useTheme();
+  const { loadState, error, queryCounters, queryDataWindow } = useSbuAlfaDatabaseContext();
+  const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
+  const [rows, setRows] = useState<SbuAlfaCounterRow[]>([]);
+  const [hasData, setHasData] = useState(false);
+
+  useEffect(() => {
+    if (loadState === "ready") {
+      setRows(queryCounters());
+      setHasData(true);
+    }
+  }, [loadState, queryCounters, refreshKey]);
+
+  // Distinct periods (months) in ascending order — drives the x-axis of every
+  // chart so months align even when categories are sparse (e.g. air_defense
+  // missing in March).
+  const periods = useMemo(() => {
+    const set = new Set(rows.map((r) => r.period));
+    return Array.from(set).sort();
+  }, [rows]);
+
+  // Only render charts for categories that have at least one observation —
+  // skip the empty ones so the page isn't cluttered with blank cards. The
+  // three targets_* categories are folded into one stacked chart below, so
+  // exclude them from the per-category grid.
+  const presentCategories = useMemo(() => {
+    const seen = new Set(rows.map((r) => r.category));
+    return SBU_ALFA_CATEGORY_KEYS.filter(
+      (k) => seen.has(k) && k !== "targets_total" && k !== "targets_destroyed" && k !== "targets_damaged"
+    );
+  }, [rows]);
+
+  // Build the destroyed/damaged stack. `total` is included for the tooltip;
+  // by SBU's own phrasing total = destroyed + damaged, so the bar height also
+  // shows the total.
+  const targetsStack: TargetsStackPoint[] = useMemo(() => {
+    const get = (period: string, cat: SbuAlfaCategoryKey): number | null => {
+      const r = rows.find((x) => x.period === period && x.category === cat);
+      return r ? r.value : null;
+    };
+    return periods.map((period) => ({
+      date: period,
+      destroyed: get(period, "targets_destroyed"),
+      damaged: get(period, "targets_damaged"),
+      total: get(period, "targets_total"),
+    }));
+  }, [rows, periods]);
+  const hasTargetsData = targetsStack.some((p) => p.destroyed != null || p.damaged != null);
+
+  return (
+    <div>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
+          SBU «Альфа» — Monthly Recap
+        </h1>
+        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3, maxWidth: 900, lineHeight: 1.55 }}>
+          Targets the Centre of Special Operations «А» (SBU «Альфа») reports having struck each month, from their
+          {" "}
+          <a href="https://ssu.gov.ua/novyny" rel="nofollow external">SBU press releases</a>.
+          {" "}
+          KIA is always given as a floor ("понад N") — see the tooltip "Self-reported floor" note. All other counters are bare numbers.
+          {" "}
+          <span style={{ color: t.textImportant }}>These are self-reported claims by one party</span>, not verified counts.
+        </p>
+        {dataWindow.minPeriod && dataWindow.maxPeriod && (
+          <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6 }}>
+            Data {dataWindow.minPeriod} – {dataWindow.maxPeriod} · {periods.length} month{periods.length === 1 ? "" : "s"}
+          </p>
+        )}
+      </div>
+
+      {loadState === "loading" && !hasData && <LoadingScreen message="Loading SBU Alfa database…" />}
+      {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
+      {(loadState === "ready" || hasData) && (
+        <ChartGrid>
+          {hasTargetsData && (
+            <SbuAlfaTargetsStackedChart
+              title="Other targets — destroyed + damaged"
+              data={targetsStack}
+              wfull
+            />
+          )}
+          {presentCategories.map((k) => (
+            <MonthlyBarChart
+              key={k}
+              title={SBU_ALFA_CATEGORY_LABELS[k]}
+              data={toDataset(rows, k, periods)}
+              wfull={false}
+            />
+          ))}
+        </ChartGrid>
+      )}
+    </div>
+  );
+}

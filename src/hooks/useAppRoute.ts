@@ -9,12 +9,15 @@ const RU_LOSSES_PAGES: Page[] = ["daily", "monthly"];
 const RU_AD_PAGES: Page[] = ["daily", "monthly"];
 // piterfm missile attacks: daily + monthly (no intraday snapshots).
 const RU_AIR_ATTACKS_PAGES: Page[] = ["daily", "monthly"];
+// SBU Alfa: monthly recap only (the source publishes one per month, no daily cadence).
+const SBU_ALFA_PAGES: Page[] = ["monthly"];
 
 function pagesFor(site: Site): Page[] {
   if (site === "ru-attacks-gsua") return GSUA_PAGES;
   if (site === "ru-losses-gsua") return RU_LOSSES_PAGES;
   if (site === "ru-airdef-mod") return RU_AD_PAGES;
   if (site === "ru-air-attacks-gsua") return RU_AIR_ATTACKS_PAGES;
+  if (site === "sbu-alfa") return SBU_ALFA_PAGES;
   return SBS_PAGES;
 }
 
@@ -26,6 +29,7 @@ function readUrl(): { site: Site; page: Page } {
       : rawSite === "ru-losses-gsua" ? "ru-losses-gsua"
       : rawSite === "ru-airdef-mod" ? "ru-airdef-mod"
       : rawSite === "ru-air-attacks-gsua" ? "ru-air-attacks-gsua"
+      : rawSite === "sbu-alfa" ? "sbu-alfa"
       : "sbs";
   const rawPage = p.get("page");
   const pages = pagesFor(site);

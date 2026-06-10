@@ -9,6 +9,10 @@ on:
       - "vite.config.ts"
       - "package.json"
       - ".env.production"
+      # Manually-maintained committed snapshots are bundled into the build by
+      # scripts/setup-dev.cjs — push a new month's data and the deploy runs.
+      - "data/sbu-alfa.db"
+      - "scripts/setup-dev.cjs"
   workflow_dispatch:
 
 permissions:

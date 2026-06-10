@@ -102,13 +102,14 @@ export interface Metric {
 
 // ─── App state ────────────────────────────────────────────────────────────────
 export type Page = "daily" | "hourly" | "monthly";
-export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua";
+export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa";
 export const SITE_LABELS: Record<Site, string> = {
   sbs: "UA SBS STATISTICS - SBS",
   "ru-attacks-gsua": "RU ATTACKS - GSUA",
   "ru-losses-gsua": "RU LOSSES - GSUA",
   "ru-air-attacks-gsua": "RU MISSILE & UAV ATTACKS - GSUA",
   "ru-airdef-mod": "UA UAV ATTACKS - RU MoD",
+  "sbu-alfa": "UA SBU ALFA — MONTHLY RECAP",
 };
 export const SITES: Site[] = Object.keys(SITE_LABELS) as Site[];
 export type LoadState = "idle" | "loading" | "ready" | "error";
@@ -299,3 +300,82 @@ export type RuAdMonthlyRow = {
   // double-count) — see ad_reports.notes / scripts/ru_mod.
   overlap_reports: number;
 } & Partial<Record<"total_projected" | "night_projected" | "day_projected", number>>;
+
+// ─── SBU Alfa (ssu.gov.ua monthly recap → sbu-alfa.db) ─────────────────────────
+// SBU's "TOP-1 серед підрозділів Сил оборони" monthly recap (running since
+// 2026-03). Numbers are unit self-reports — destroyed/damaged enemy assets — so
+// frame them in the UI as claims, not verified counts. KIA is always phrased as
+// "понад N" (at_least); other counters are bare numbers (exact). See
+// scripts/sbu_alfa/parse.py for the bound model (mirrors HUR's reports.json).
+export const SBU_ALFA_CATEGORY_KEYS = [
+  "enemy_kia",
+  "targets_total",
+  "targets_destroyed",
+  "targets_damaged",
+  "drones",
+  "comms",
+  "fortifications",
+  "vehicles_auto_total",
+  "vehicles_light",
+  "vehicles_moto",
+  "vehicles_trucks",
+  "artillery",
+  "armored_total",
+  "tanks",
+  "ifvs",
+  "air_defense",
+  "radar",
+  "mlrs",
+  "aircraft",
+  "watercraft",
+  "depots",
+] as const;
+export type SbuAlfaCategoryKey = (typeof SBU_ALFA_CATEGORY_KEYS)[number];
+
+export const SBU_ALFA_CATEGORY_LABELS: Record<SbuAlfaCategoryKey, string> = {
+  enemy_kia: "Enemy KIA",
+  targets_total: "Other targets — total",
+  targets_destroyed: "Other targets — destroyed",
+  targets_damaged: "Other targets — damaged",
+  drones: "Drones (UAVs)",
+  comms: "Comms / surveillance",
+  fortifications: "Fortifications / engineering",
+  vehicles_auto_total: "Vehicles (combined)",
+  vehicles_light: "Vehicles — light",
+  vehicles_moto: "Vehicles — motorcycles",
+  vehicles_trucks: "Vehicles — trucks",
+  artillery: "Artillery / SPGs",
+  armored_total: "Armored vehicles (total)",
+  tanks: "Tanks",
+  ifvs: "IFVs / combat armored",
+  air_defense: "Air defense systems",
+  radar: "Radars",
+  mlrs: "MLRS",
+  aircraft: "Aircraft",
+  watercraft: "Watercraft",
+  depots: "Ammo / supply depots",
+};
+
+export type SbuAlfaBound = "exact" | "at_least" | "approx" | "up_to" | "range";
+
+// One row per (period, category) — what the chart consumes. `period` is YYYY-MM
+// for monthly recaps. `bound` lets the UI prefix "≥" for at_least, "~" for
+// approx, etc., and `raw_label` carries the verbatim Ukrainian phrasing for the
+// tooltip (audit / credibility).
+//
+// `derived` is true for rows the hook computes from other rows (e.g. summing
+// vehicles_light + vehicles_moto + vehicles_trucks into vehicles_auto_total
+// for months SBU's press release split into three buckets). The page uses
+// this to flag the value in the tooltip — it's our arithmetic, not SBU's.
+export interface SbuAlfaCounterRow {
+  period: string;
+  category: SbuAlfaCategoryKey;
+  value: number;
+  value_max: number | null;
+  bound: SbuAlfaBound;
+  raw_label: string | null;
+  url: string;
+  published_at: string | null;
+  derived: boolean;
+  derivation_note?: string;
+}

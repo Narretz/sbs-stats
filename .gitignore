@@ -43,4 +43,8 @@ playwright-report/
 scripts/ru_mod/output/
 .pytest_cache/
 
+# SBU Alfa: article HTMLs are mirror copies, re-fetchable via ingest.py — too
+# large + re-downloadable, so kept out of git. Tests use them locally.
+scripts/sbu_alfa/fixtures/
+
 .claude/worktrees
