@@ -108,7 +108,6 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
           {" "}
           KIA is always given as a floor ("понад N") — see the tooltip "Self-reported floor" note. All other counters are bare numbers.
           {" "}
-          <span style={{ color: t.textImportant }}>These are self-reported claims by one party</span>, not verified counts.
         </p>
         {dataWindow.minPeriod && dataWindow.maxPeriod && (
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6 }}>

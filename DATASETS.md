@@ -52,7 +52,7 @@ upload) if < 365 days parsed or fewer dates than already stored.
 ### piterfm "Massive Missile Attacks on Ukraine" (Kaggle) — LIVE — ✅ BACKEND INTEGRATED
 - https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine
 - The only good machine-readable option. Solves the image-extraction problem (already digitized
-  from the Air Force's posts).
+  from the Air Force's posts at Telegram channel "kpszsu").
 - Long-format CSV: one row per weapon model per attack with `launched` / `destroyed`, broken down
   by type (Shahed-136/131, Kh-101, Kalibr, Iskander, Kinzhal, S-300/400, etc.).
   Files: `missile_attacks_daily.csv` (~21 cols) + `missile_and_uav.csv` (weapon reference).
