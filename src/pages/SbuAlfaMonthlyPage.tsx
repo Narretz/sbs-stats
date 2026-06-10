@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSbuAlfaDatabaseContext } from "@/context/useSbuAlfaDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
-import { SbuAlfaTargetsStackedChart, type TargetsStackPoint } from "@/components/SbuAlfaTargetsStackedChart";
+import { TargetsStackedChart, type TargetsStackPoint } from "@/components/TargetsStackedChart";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import {
   SBU_ALFA_CATEGORY_KEYS,
@@ -122,7 +122,7 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
       {(loadState === "ready" || hasData) && (
         <ChartGrid>
           {hasTargetsData && (
-            <SbuAlfaTargetsStackedChart
+            <TargetsStackedChart
               title="Other targets — destroyed + damaged"
               data={targetsStack}
               wfull
