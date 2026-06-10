@@ -103,12 +103,12 @@ export function SbuAlfaTargetsStackedChart({ title, data, wfull }: Props) {
           />
           <Bar dataKey="destroyed" stackId="a" name="Destroyed">
             {data.map((_, i) => (
-              <Cell key={`d-${i}`} fill={c.destroyed} opacity={i === lastIdx ? 1 : 0.85} />
+              <Cell key={`d-${i}`} fill={i === lastIdx ? c.destroyedCurrent : c.destroyed} />
             ))}
           </Bar>
           <Bar dataKey="damaged" stackId="a" name="Damaged" radius={[3, 3, 0, 0]}>
             {data.map((_, i) => (
-              <Cell key={`m-${i}`} fill={c.damaged} opacity={i === lastIdx ? 1 : 0.85} />
+              <Cell key={`m-${i}`} fill={i === lastIdx ? c.barCurrent : c.damaged} />
             ))}
           </Bar>
         </BarChart>

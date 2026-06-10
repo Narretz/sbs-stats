@@ -8,7 +8,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
 import { FONTS, type Theme } from "@/theme";
-import { COLOR_DESTROYED, COLOR_DESTROYED_TREND } from "@/chartColors";
+import { AREA_FILL_OPACITY, COLOR_DESTROYED, COLOR_DESTROYED_TREND } from "@/chartColors";
 
 function linearRegression(data: DailyDataPoint[]): Array<number | null> {
   const points = data
@@ -290,9 +290,9 @@ export function DailyLineChart({
             <ReferenceLine y={median} stroke={t.muted} strokeDasharray="4 4" strokeOpacity={0.5}
               label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: t.muted, fontFamily: FONTS.mono }} />
             <Area type="monotone" dataKey="value2" name={resolvedSecondaryLabel} stackId="1"
-              stroke={COLOR_DESTROYED} strokeWidth={1.5} fill={COLOR_DESTROYED} fillOpacity={0.55} isAnimationActive={false} />
+              stroke={COLOR_DESTROYED} strokeWidth={1.5} fill={COLOR_DESTROYED} fillOpacity={AREA_FILL_OPACITY.destroyed} isAnimationActive={false} />
             <Area type="monotone" dataKey="valueDiff" name={resolvedPrimaryLabel} stackId="1"
-              stroke={hitFill} strokeWidth={1.5} fill={hitFill} fillOpacity={0.35} isAnimationActive={false} />
+              stroke={hitFill} strokeWidth={1.5} fill={hitFill} fillOpacity={AREA_FILL_OPACITY.damaged} isAnimationActive={false} />
           </ComposedChart>
         ) : (
           <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>

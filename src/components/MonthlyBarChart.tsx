@@ -98,7 +98,6 @@ export function MonthlyBarChart({ title, data, wfull }: Props) {
               <Cell
                 key={`val-${i}`}
                 fill={i === lastIdx ? c.barCurrent : c.barDefault}
-                opacity={i === lastIdx ? 1 : 0.8}
                 stroke={d.note ? c.noteText : undefined}
                 strokeWidth={d.note ? 1.5 : undefined}
                 strokeDasharray={d.note ? "3 2" : undefined}

@@ -145,7 +145,7 @@ export function MonthlyTargetPairChart({
 
           <Bar dataKey="hit_value" stackId="hit" name={primaryLabel}>
             {data.map((_, i) => (
-              <Cell key={`hit-val-${i}`} fill={c.damaged} opacity={i === lastIdx ? 1 : 0.8} />
+              <Cell key={`hit-val-${i}`} fill={i === lastIdx ? c.barCurrent : c.damaged} />
             ))}
           </Bar>
           <Bar dataKey="hit_gap" stackId="hit" name={`${primaryLabel} Projected`} radius={[3, 3, 0, 0]}>
@@ -156,7 +156,7 @@ export function MonthlyTargetPairChart({
 
           <Bar dataKey="destroyed_value" stackId="destroyed" name={secondaryLabel}>
             {data.map((_, i) => (
-              <Cell key={`des-val-${i}`} fill={c.destroyed} opacity={i === lastIdx ? 1 : 0.8} />
+              <Cell key={`des-val-${i}`} fill={i === lastIdx ? c.destroyedCurrent : c.destroyed} />
             ))}
           </Bar>
           <Bar dataKey="destroyed_gap" stackId="destroyed" name={`${secondaryLabel} Projected`} radius={[3, 3, 0, 0]}>
