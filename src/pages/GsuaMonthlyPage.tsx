@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useGsuaDatabaseContext } from "@/context/useGsuaDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
+import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
+import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import {
   GSUA_METRIC_KEYS,
@@ -22,8 +24,10 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
   const { loadState, error, queryMonthly, queryDataWindow } = useGsuaDatabaseContext();
   const [dataWindow, setDataWindow] = useState<{ minDate: string | null; maxDate: string | null; latestSnapshotAt: string | null }>({ minDate: null, maxDate: null, latestSnapshotAt: null });
   useEffect(() => { queryDataWindow().then(setDataWindow); }, [queryDataWindow]);
-  const [rows, setRows] = useState<GsuaMonthlyRow[]>([]);
+  const [allRows, setAllRows] = useState<GsuaMonthlyRow[]>([]);
   const [hasData, setHasData] = useState(false);
+  const yr = useMonthlyYearRange(allRows.length);
+  const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
 
   useEffect(() => {
     if (loadState !== "ready") return;
@@ -31,7 +35,7 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
     (async () => {
       const monthly = await queryMonthly();
       if (cancelled) return;
-      setRows(monthly);
+      setAllRows(monthly);
       setHasData(true);
     })();
     return () => { cancelled = true; };
@@ -53,16 +57,19 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-            Monthly Combat Stats - GSUA
-          </h1>
-          <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Monthly sums of daily totals from Ukrainian General Staff reports. Current month shows end-of-month projection.  Via Telegram @GeneralStaffZSU.
-          </p>
-          <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
-        </div>
+      <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 28 }}>
+        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
+          Monthly Combat Stats - GSUA
+        </h1>
+        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
+          Monthly sums of daily totals from Ukrainian General Staff reports. Current month shows end-of-month projection.  Via Telegram @GeneralStaffZSU.
+        </p>
+        <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
+        {!yr.hidden && (
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
+          </div>
+        )}
       </div>
 
       {loadState === "loading" && !hasData && <LoadingScreen message="Loading GSUA database…" />}

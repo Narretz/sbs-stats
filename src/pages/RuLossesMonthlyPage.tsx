@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRuLossesDatabaseContext } from "@/context/useRuLossesDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
+import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
+import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import {
   RU_LOSSES_METRIC_KEYS,
@@ -21,12 +23,14 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
   const { loadState, error, queryMonthly, queryDataWindow } = useRuLossesDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
-  const [rows, setRows] = useState<RuLossesMonthlyRow[]>([]);
+  const [allRows, setAllRows] = useState<RuLossesMonthlyRow[]>([]);
   const [hasData, setHasData] = useState(false);
+  const yr = useMonthlyYearRange(allRows.length);
+  const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
 
   useEffect(() => {
     if (loadState === "ready") {
-      setRows(queryMonthly());
+      setAllRows(queryMonthly());
       setHasData(true);
     }
   }, [loadState, queryMonthly, refreshKey]);
@@ -47,8 +51,7 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
-        <div>
+      <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 28 }}>
           <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
             Monthly Russian Losses - GSUA reports
           </h1>
@@ -56,7 +59,11 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
             Monthly sums of daily Russian losses reported by the Ukrainian General Staff · source: <a href="https://github.com/PetroIvaniuk/2022-Ukraine-Russia-War-Dataset" rel="nofollow external" target="_blank">PetroIvaniuk dataset</a>
           </p>
           <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-losses" />
-        </div>
+        {!yr.hidden && (
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
+          </div>
+        )}
       </div>
 
       {loadState === "loading" && !hasData && <LoadingScreen message="Loading RU losses database…" />}

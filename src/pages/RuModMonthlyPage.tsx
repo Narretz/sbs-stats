@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRuModDatabaseContext } from "@/context/useRuModDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
+import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
+import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import type { RuAdMonthlyRow, MonthlyDataPoint } from "@/types";
 import { FONTS } from "@/theme";
@@ -17,12 +19,14 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
   const { loadState, error, queryMonthly, queryDataWindow } = useRuModDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
-  const [rows, setRows] = useState<RuAdMonthlyRow[]>([]);
+  const [allRows, setAllRows] = useState<RuAdMonthlyRow[]>([]);
   const [hasData, setHasData] = useState(false);
+  const yr = useMonthlyYearRange(allRows.length);
+  const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
 
   useEffect(() => {
     if (loadState === "ready") {
-      setRows(queryMonthly());
+      setAllRows(queryMonthly());
       setHasData(true);
     }
   }, [loadState, queryMonthly, refreshKey]);
@@ -50,8 +54,7 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
-        <div>
+<div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 28 }}>
           <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
             Monthly Ukrainian UAVs Downed - RU MoD
           </h1>
@@ -59,7 +62,11 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
             Monthly sums of Russian MoD air-defense intercept claims (MSK drone-days). Current month shows an end-of-month projection. A dashed outline marks months containing a report whose window may overlap a neighbor (possible double-count) — see tooltip.
           </p>
           <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-mod" />
-        </div>
+        {!yr.hidden && (
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
+          </div>
+        )}
       </div>
 
       {loadState === "loading" && !hasData && <LoadingScreen message="Loading RU air-defense database…" />}

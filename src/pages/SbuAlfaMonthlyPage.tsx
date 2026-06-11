@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSbuAlfaDatabaseContext } from "@/context/useSbuAlfaDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
+import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { TargetsStackedChart, type TargetsStackPoint } from "@/components/TargetsStackedChart";
+import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import {
   SBU_ALFA_CATEGORY_KEYS,
@@ -62,28 +64,39 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
   // Distinct periods (months) in ascending order — drives the x-axis of every
   // chart so months align even when categories are sparse (e.g. air_defense
   // missing in March).
-  const periods = useMemo(() => {
+  const allPeriods = useMemo(() => {
     const set = new Set(rows.map((r) => r.period));
     return Array.from(set).sort();
   }, [rows]);
 
-  // Only render charts for categories that have at least one observation —
-  // skip the empty ones so the page isn't cluttered with blank cards. The
-  // three targets_* categories are folded into one stacked chart below, so
-  // exclude them from the per-category grid.
+  // Time-window picker. The hook auto-hides when there are ≤12 periods, so this
+  // is a no-op today (3 months) and the picker appears automatically once SBU
+  // has published 13+ monthly recaps.
+  const yr = useMonthlyYearRange(allPeriods.length);
+  const periods = useMemo(() => yr.slice(allPeriods), [allPeriods, yr]);
+  const visibleRows = useMemo(() => {
+    if (yr.hidden) return rows;
+    const keep = new Set(periods);
+    return rows.filter((r) => keep.has(r.period));
+  }, [rows, periods, yr.hidden]);
+
+  // Only render charts for categories that have at least one observation in the
+  // visible window — skip the empty ones so the page isn't cluttered with blank
+  // cards. The three targets_* categories are folded into one stacked chart
+  // below, so exclude them from the per-category grid.
   const presentCategories = useMemo(() => {
-    const seen = new Set(rows.map((r) => r.category));
+    const seen = new Set(visibleRows.map((r) => r.category));
     return SBU_ALFA_CATEGORY_KEYS.filter(
       (k) => seen.has(k) && k !== "targets_total" && k !== "targets_destroyed" && k !== "targets_damaged"
     );
-  }, [rows]);
+  }, [visibleRows]);
 
   // Build the destroyed/damaged stack. `total` is included for the tooltip;
   // by SBU's own phrasing total = destroyed + damaged, so the bar height also
   // shows the total.
   const targetsStack: TargetsStackPoint[] = useMemo(() => {
     const get = (period: string, cat: SbuAlfaCategoryKey): number | null => {
-      const r = rows.find((x) => x.period === period && x.category === cat);
+      const r = visibleRows.find((x) => x.period === period && x.category === cat);
       return r ? r.value : null;
     };
     return periods.map((period) => ({
@@ -92,12 +105,12 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
       damaged: get(period, "targets_damaged"),
       total: get(period, "targets_total"),
     }));
-  }, [rows, periods]);
+  }, [visibleRows, periods]);
   const hasTargetsData = targetsStack.some((p) => p.destroyed != null || p.damaged != null);
 
   return (
     <div>
-      <div style={{ marginBottom: 28 }}>
+<div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 28 }}>
         <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
           SBU «Альфа» — Monthly Recap
         </h1>
@@ -111,8 +124,13 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
         </p>
         {dataWindow.minPeriod && dataWindow.maxPeriod && (
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6 }}>
-            Data {dataWindow.minPeriod} – {dataWindow.maxPeriod} · {periods.length} month{periods.length === 1 ? "" : "s"}
+            Data Availability: {dataWindow.minPeriod} – {dataWindow.maxPeriod} · {allPeriods.length} month{allPeriods.length === 1 ? "" : "s"}
           </p>
+        )}
+        {!yr.hidden && (
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
+          </div>
         )}
       </div>
 
@@ -131,7 +149,7 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
             <MonthlyBarChart
               key={k}
               title={SBU_ALFA_CATEGORY_LABELS[k]}
-              data={toDataset(rows, k, periods)}
+              data={toDataset(visibleRows, k, periods)}
               wfull={false}
             />
           ))}

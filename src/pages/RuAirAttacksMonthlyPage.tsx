@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRuAirAttacksDatabaseContext } from "@/context/useRuAirAttacksDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
+import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/components/MonthlyTargetPairChart";
 import { DataWindow } from "@/components/DataWindow";
@@ -13,7 +14,6 @@ import {
   type RuAirAttacksMonthlyRow,
   type MonthlyDataPoint,
 } from "@/types";
-import { DEFAULT_YEAR_OPTION, getYearOptions, type YearOption } from "@/utils/yearRange";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 
@@ -21,27 +21,13 @@ interface Props {
   refreshKey?: number;
 }
 
-function parseYearsParam(raw: string | null, allowed: readonly YearOption[]): YearOption {
-  const n = Number(raw);
-  return (allowed as readonly number[]).includes(n) ? (n as YearOption) : DEFAULT_YEAR_OPTION;
-}
-
-function setYearsParam(years: YearOption) {
-  const p = new URLSearchParams(window.location.search);
-  p.set("years", String(years));
-  window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
-}
-
 export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
   const { loadState, error, queryMonthly, queryDataWindow } = useRuAirAttacksDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
-  const yearOptions = useMemo(() => getYearOptions(), []);
-  const [years, setYears] = useState<YearOption>(() =>
-    parseYearsParam(new URLSearchParams(window.location.search).get("years"), yearOptions)
-  );
   const [allRows, setAllRows] = useState<RuAirAttacksMonthlyRow[]>([]);
   const [hasData, setHasData] = useState(false);
+  const yr = useMonthlyYearRange(allRows.length);
 
   useEffect(() => {
     if (loadState === "ready") {
@@ -50,14 +36,9 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
     }
   }, [loadState, queryMonthly, refreshKey]);
 
-  const updateYears = (y: YearOption) => { setYears(y); setYearsParam(y); };
-
   // Slice to the last N*12 months (including the current/projected month at
   // the tail). The query returns the full history sorted ascending.
-  const rows = useMemo(() => {
-    const want = years * 12;
-    return allRows.length > want ? allRows.slice(allRows.length - want) : allRows;
-  }, [allRows, years]);
+  const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
 
   const makeDataset = (key: AttackCategoryKey): MonthlyDataPoint[] =>
     rows.map((d) => {
@@ -97,8 +78,8 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
-        <div>
+<div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 28 }}>
+
           <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
             Monthly Russian Missile &amp; UAV Attacks
           </h1>
@@ -106,16 +87,17 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
             Monthly launched vs intercepted totals by weapon category, per Ukrainian Air Force reports. Current month shows an end-of-month projection · source: piterfm / Kaggle <a href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week
           </p>
           <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-air-attacks" />
+        <div style={{ display: "flex", gap: 20, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
+          <span style={{ color: chartColors(t).damaged }}>Launched</span>
+          <span style={{ color: chartColors(t).destroyed }}>Intercepted</span>
+          <span style={{ color: t.textMuted }}>Lighter segment = current-month projection</span>
         </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <YearRangeSelect options={yearOptions} value={years} onChange={updateYears} />
-        </div>
-      </div>
+        {!yr.hidden && (
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
+          </div>
+        )}
 
-      <div style={{ display: "flex", gap: 20, marginBottom: 20, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
-        <span style={{ color: chartColors(t).damaged }}>Launched</span>
-        <span style={{ color: chartColors(t).destroyed }}>Intercepted</span>
-        <span style={{ color: t.textMuted }}>Lighter segment = current-month projection</span>
       </div>
 
       {loadState === "loading" && !hasData && <LoadingScreen message="Loading RU air-attacks database…" />}

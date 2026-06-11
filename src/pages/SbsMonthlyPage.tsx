@@ -1,9 +1,11 @@
 import { useMemo, useEffect, useState } from "react";
 import { useDatabaseContext } from "@/context/useDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
+import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/components/MonthlyTargetPairChart";
+import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { buildMetrics } from "@/utils/metrics";
 import { TARGET_IDS, TARGET_LABELS } from "@/types";
@@ -18,11 +20,13 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
   const { theme: t } = useTheme();
   const { loadState, error, queryMonthly, queryDataWindow } = useDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
-  const [rows, setRows] = useState<MonthlyRow[]>([]);
+  const [allRows, setAllRows] = useState<MonthlyRow[]>([]);
   const [hasData, setHasData] = useState(false);
+  const yr = useMonthlyYearRange(allRows.length);
+  const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
 
   useEffect(() => {
-    if (loadState === "ready") { setRows(queryMonthly()); setHasData(true); }
+    if (loadState === "ready") { setAllRows(queryMonthly()); setHasData(true); }
   }, [loadState, queryMonthly, refreshKey]);
 
   const metrics = useMemo<Metric[]>(() => buildMetrics(), []);
@@ -111,8 +115,7 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
-        <div>
+      <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 28 }}>
           <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
             UA SBS Monthly Statistics
           </h1>
@@ -120,13 +123,16 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
             Syly bezpilotnykh system / Unmannend System Force (SBS/USF) · Monthly aggregates - current month shows end-of-month projection. · From <a href="noreferer nofollow">https://sbs-group.army/</a>
           </p>
           <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="sbs" />
+        <div style={{ display: "flex", gap: 20, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
+          <span style={{ color: t.primary }}>Hit</span>
+          <span style={{ color: t.accent }}>Destroyed</span>
+          <span style={{ color: t.textMuted }}>Lighter segment = current-month projection</span>
         </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 20, marginBottom: 20, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
-        <span style={{ color: t.primary }}>Hit</span>
-        <span style={{ color: t.accent }}>Destroyed</span>
-        <span style={{ color: t.textMuted }}>Lighter segment = current-month projection</span>
+        {!yr.hidden && (
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
+          </div>
+        )}
       </div>
 
       {loadState === "loading" && !hasData && <LoadingScreen />}
