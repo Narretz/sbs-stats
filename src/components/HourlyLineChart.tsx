@@ -201,8 +201,6 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
         {title}
       </div>
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ color: t.accent, fontWeight: 700 }}>{isToday ? 'TODAY' : selectedDate}</span>
-        <span style={{ color: t.textMuted }}>{total} previous day{total !== 1 ? "s" : ""}</span>
         <span style={{ color: t.accent }}>▲ MAX {max.toLocaleString()}</span>
         <span style={{ color: t.muted }}>~ MED {median.toLocaleString()}</span>
         <span style={{ color: t.textMuted }}>Σ TOTAL {windowTotal.toLocaleString()}</span>
