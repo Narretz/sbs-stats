@@ -119,7 +119,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
             Daily Russian Missile &amp; UAV Attacks
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Launched vs intercepted, per Ukrainian Air Force reports · source: piterfm / Kaggle <a href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week
+            Launched vs intercepted, per Ukrainian Air Force reports · source: piterfm / Kaggle <a target="_blank" href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week
           </p>
           <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-air-attacks" />
         </div>
