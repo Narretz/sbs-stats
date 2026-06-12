@@ -10,7 +10,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { TooltipSortSelect } from "@/components/TooltipSortSelect";
-import { DAY_OPTIONS, type DayOption, windowStartDate } from "@/utils/dayRange";
+import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam } from "@/utils/dayRange";
 import { buildMetrics } from "@/utils/metrics";
 import type { DailyRow, DailyDaySeries, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
 import { FONTS } from "@/theme";
@@ -28,10 +28,9 @@ function parseDate(raw: string | null): string {
 
 function getUrlParams() {
   const p = new URLSearchParams(window.location.search);
-  const d = Number(p.get("days"));
   const s = p.get("sort");
   return {
-    days: (DAY_OPTIONS as readonly number[]).includes(d) ? (d as DayOption) : 30,
+    days: parseDaysParam(p.get("days")),
     sort: (SORT_OPTIONS.includes(s as TooltipSortMode) ? s : "value") as TooltipSortMode,
     weekdays: parseWeekdays(p.get("weekdays")),
     date: parseDate(p.get("date")),

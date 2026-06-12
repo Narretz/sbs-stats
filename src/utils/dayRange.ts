@@ -2,7 +2,15 @@
 // so the picker is identical everywhere. 150d/180d are less meaningful for the
 // hourly views (lots of overlaid days), but we keep one list for consistency.
 export const DAY_OPTIONS = [7, 14, 30, 60, 90, 120, 150, 180] as const;
-export type DayOption = (typeof DAY_OPTIONS)[number];
+// `days` is any positive integer; presets above are just shortcuts in the picker.
+export type DayOption = number;
+export const DEFAULT_DAYS = 30;
+
+// Parse a `days` URL param into a positive integer; falls back to DEFAULT_DAYS.
+export function parseDaysParam(raw: string | null): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : DEFAULT_DAYS;
+}
 
 // Window semantics: a "30 day" window covers 30 inclusive calendar dates ending
 // at `endDate` (so the offset back is days-1, not days). Both helpers encode
