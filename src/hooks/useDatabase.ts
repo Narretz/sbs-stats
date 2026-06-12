@@ -4,6 +4,7 @@ import type { DailyRow, MonthlyRow, StatKey, EodEstimate } from "@/types";
 import { TARGET_IDS } from "@/types";
 import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
+import { windowStartSql } from "@/utils/dayRange";
 
 const DB_URL = import.meta.env.VITE_DB_URL ?? "/data/sbs.db";
 const SQL_JS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0";
@@ -128,7 +129,7 @@ export function useDatabase() {
           CASE WHEN date = '${todayStr}' THEN 1 ELSE 0 END AS is_today,
           ${statCols}
         FROM daily_stats
-        WHERE date >= date('${endDateSql}', '-${days} days')
+        WHERE date >= ${windowStartSql(endDateSql, days)}
           AND date <= date('${endDateSql}')
         ORDER BY date ASC, hour DESC
       `;
@@ -163,7 +164,7 @@ export function useDatabase() {
           CASE WHEN date = '${todayStr}' THEN 1 ELSE 0 END AS is_today,
           ${statCols}
         FROM daily_stats
-        WHERE date >= date('${endDateSql}', '-${days} days')
+        WHERE date >= ${windowStartSql(endDateSql, days)}
           AND date <= date('${endDateSql}')
           AND hour < 24
         ORDER BY date ASC, hour ASC

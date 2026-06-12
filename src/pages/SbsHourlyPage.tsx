@@ -10,7 +10,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { TooltipSortSelect } from "@/components/TooltipSortSelect";
-import { DAY_OPTIONS, type DayOption } from "@/utils/dayRange";
+import { DAY_OPTIONS, type DayOption, windowStartDate } from "@/utils/dayRange";
 import { buildMetrics } from "@/utils/metrics";
 import type { DailyRow, DailyDaySeries, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
 import { FONTS } from "@/theme";
@@ -24,12 +24,6 @@ function parseWeekdays(raw: string | null): number[] {
 
 function parseDate(raw: string | null): string {
   return raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
-}
-
-function shiftDate(dateStr: string, days: number): string {
-  const d = new Date(`${dateStr}T12:00:00`);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
 }
 
 function getUrlParams() {
@@ -109,7 +103,7 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
 
   const filteredRows = useMemo(() => {
     if (selectedDate) {
-      const startDate = shiftDate(selectedDate, -days);
+      const startDate = windowStartDate(selectedDate, days);
       return rows.filter(row => row.date >= startDate && row.date <= selectedDate);
     }
     if (selectedWeekdays.length === 0) return rows;

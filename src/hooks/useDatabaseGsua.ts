@@ -10,6 +10,7 @@ import type {
 import { GSUA_METRIC_KEYS } from "@/types";
 import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
+import { windowStartSql } from "@/utils/dayRange";
 
 const DB_URL = import.meta.env.VITE_GSUA_DB_URL ?? `${import.meta.env.BASE_URL}data/ru-attacks-gsua.db`;
 const WORKER_URL = `${import.meta.env.BASE_URL}vendor/httpvfs/sqlite.worker.js`;
@@ -90,7 +91,7 @@ export function useDatabaseGsua() {
       if (!worker) return [];
       const todayStr = getKyivDateString();
       const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
-      const startDateSql = `date('${endDateSql}', '-${days} days')`;
+      const startDateSql = windowStartSql(endDateSql, days);
 
       const sql = `
         WITH per_date_source AS (
@@ -139,7 +140,7 @@ export function useDatabaseGsua() {
       if (!worker) return [];
       const todayStr = getKyivDateString();
       const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
-      const startDateSql = `date('${endDateSql}', '-${days} days')`;
+      const startDateSql = windowStartSql(endDateSql, days);
 
       const sql = `
         SELECT date, source, snapshot_at, ${METRIC_COLS}
@@ -349,7 +350,7 @@ export function useDatabaseGsua() {
         INNER JOIN directions d
           ON p.source = d.source AND p.source_id = d.source_id AND p.scraped_at = d.scraped_at
         WHERE d.direction = '${dirSafe}'
-          AND p.date >= date('${endDateSql}', '-${days} days')
+          AND p.date >= ${windowStartSql(endDateSql, days)}
           AND p.date <= date('${endDateSql}')
         GROUP BY p.date, p.source
         ORDER BY p.date ASC,
@@ -391,7 +392,7 @@ export function useDatabaseGsua() {
         INNER JOIN directions d
           ON p.source = d.source AND p.source_id = d.source_id AND p.scraped_at = d.scraped_at
         WHERE d.direction = '${dirSafe}'
-          AND p.date >= date('${endDateSql}', '-${days} days')
+          AND p.date >= ${windowStartSql(endDateSql, days)}
           AND p.date <= date('${endDateSql}')
           AND p.snapshot_at IS NOT NULL
         ORDER BY p.date ASC, p.snapshot_at ASC,

@@ -8,6 +8,7 @@ import type {
 } from "@/types";
 import { RU_LOSSES_METRIC_KEYS } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
+import { windowStartSql } from "@/utils/dayRange";
 
 // Tiny DB (~100 KB) → fetch whole via sql.js, like the SBS loader (no httpvfs).
 const DB_URL =
@@ -108,7 +109,7 @@ export function useDatabaseRuLosses() {
         SELECT date, ${METRIC_COLS},
                CASE WHEN date = '${todayStr}' THEN 1 ELSE 0 END AS is_today
         FROM ${LATEST_PER_DATE}
-        WHERE date >= date('${endDateSql}', '-${days} days')
+        WHERE date >= ${windowStartSql(endDateSql, days)}
           AND date <= date('${endDateSql}')
         ORDER BY date ASC
       `;

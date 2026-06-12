@@ -9,7 +9,7 @@ import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
-import { DAY_OPTIONS, type DayOption } from "@/utils/dayRange";
+import { DAY_OPTIONS, type DayOption, windowStartDate } from "@/utils/dayRange";
 import {
   GSUA_METRIC_KEYS,
   GSUA_METRIC_LABELS,
@@ -29,12 +29,6 @@ function parseWeekdays(raw: string | null): number[] {
 
 function parseDate(raw: string | null): string {
   return raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
-}
-
-function shiftDate(dateStr: string, days: number): string {
-  const d = new Date(`${dateStr}T12:00:00`);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
 }
 
 function getUrlParams() {
@@ -142,7 +136,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   const filteredRows = useMemo(() => {
     let r = rows;
     if (selectedDate) {
-      const startDate = shiftDate(selectedDate, -days);
+      const startDate = windowStartDate(selectedDate, days);
       r = r.filter((row) => row.date >= startDate && row.date <= selectedDate);
     } else if (selectedWeekdays.length > 0) {
       r = r.filter((row) => selectedWeekdays.includes(new Date(row.date + "T12:00:00").getDay()));
@@ -153,7 +147,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   const filteredDirectionRows = useMemo(() => {
     let r = directionRows;
     if (selectedDate) {
-      const startDate = shiftDate(selectedDate, -days);
+      const startDate = windowStartDate(selectedDate, days);
       r = r.filter((row) => row.date >= startDate && row.date <= selectedDate);
     } else if (selectedWeekdays.length > 0) {
       r = r.filter((row) => selectedWeekdays.includes(new Date(row.date + "T12:00:00").getDay()));

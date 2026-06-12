@@ -8,6 +8,7 @@ import type {
 } from "@/types";
 import { ATTACK_CATEGORY_KEYS, ATTACK_DB_CATEGORIES } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
+import { windowStartSql } from "@/utils/dayRange";
 
 // Small DB (~2 MB) → fetch whole via sql.js, like the RU-losses loader (no httpvfs).
 const DB_URL =
@@ -136,7 +137,7 @@ export function useDatabaseRuAirAttacks() {
       const sql = `
         SELECT date, category, launched, destroyed
         FROM daily_by_category
-        WHERE date >= date('${endDateSql}', '-${days} days')
+        WHERE date >= ${windowStartSql(endDateSql, days)}
           AND date <= date('${endDateSql}')
         ORDER BY date ASC
       `;

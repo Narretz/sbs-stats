@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { Database } from "sql.js";
 import type { RuAdDailyRow, RuAdGlobalStats, RuAdMonthlyRow, RuAdStat } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
+import { windowStartSql } from "@/utils/dayRange";
 
 // Tiny DB → fetch whole via sql.js, like the SBS / RU-losses loaders (no httpvfs).
 const DB_URL =
@@ -111,7 +112,7 @@ export function useDatabaseRuMod() {
       const todayStr = getMskDateString();
       const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
       const sql = `${DAILY_SELECT}
-        WHERE report_date >= date('${endDateSql}', '-${days} days')
+        WHERE report_date >= ${windowStartSql(endDateSql, days)}
           AND report_date <= date('${endDateSql}')
         GROUP BY report_date
         ORDER BY report_date ASC`;
