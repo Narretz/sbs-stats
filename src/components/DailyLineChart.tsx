@@ -197,6 +197,9 @@ export function DailyLineChart({
   const median = win ? primaryWin.median : globalMedian;
   const max2 = win ? secondaryWin.max : (globalMax2 ?? 0);
   const median2 = win ? secondaryWin.median : (globalMedian2 ?? 0);
+  // TOTAL is always window-scoped: the sum across the currently-visible points.
+  const total = primaryWin.total;
+  const total2 = secondaryWin.total;
   const hasPair = !!data2;
   // Single-line charts use the accent (red). On paired charts the whole "Hit"
   // series (line + area) is blue so it stays distinguishable from the red
@@ -250,11 +253,13 @@ export function DailyLineChart({
         {hasPair && <span style={{ color: hitFill }}>● {resolvedPrimaryLabel}</span>}
         <span style={{ color: t.accent }}>▲ MAX {max.toLocaleString()}</span>
         <span style={{ color: t.muted }}>~ MED {median.toLocaleString()}</span>
+        <span style={{ color: t.textMuted }}>Σ TOTAL {total.toLocaleString()}</span>
         {hasPair && (
           <>
             <span style={{ color: COLOR_DESTROYED, marginLeft: 8 }}>● {resolvedSecondaryLabel}</span>
             <span style={{ color: COLOR_DESTROYED }}>▲ MAX {max2.toLocaleString()}</span>
             <span style={{ color: COLOR_DESTROYED, opacity: 0.7 }}>~ MED {median2.toLocaleString()}</span>
+            <span style={{ color: COLOR_DESTROYED, opacity: 0.7 }}>Σ TOTAL {total2.toLocaleString()}</span>
           </>
         )}
       </div>

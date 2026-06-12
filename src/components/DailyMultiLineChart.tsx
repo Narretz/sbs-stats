@@ -104,10 +104,12 @@ export function DailyMultiLineChart({ title, series, wfull = false }: Props) {
   }, [series]);
 
   const legendStat = (s: LineSeries) => {
-    if (allScope && typeof s.globalMax === "number")
-      return { max: s.globalMax, med: s.globalMedian ?? 0 };
+    // TOTAL is always window-scoped (sum of currently-visible points).
     const vals = s.data.map((p) => p.value).filter((v): v is number => typeof v === "number");
-    return { max: vals.length ? Math.max(...vals) : 0, med: median(vals) };
+    const total = vals.reduce((acc, n) => acc + n, 0);
+    if (allScope && typeof s.globalMax === "number")
+      return { max: s.globalMax, med: s.globalMedian ?? 0, total };
+    return { max: vals.length ? Math.max(...vals) : 0, med: median(vals), total };
   };
 
   // In "all" scope, lift the y-axis ceiling to the largest series global max so
@@ -130,7 +132,7 @@ export function DailyMultiLineChart({ title, series, wfull = false }: Props) {
           const st = legendStat(s);
           return (
             <span key={s.key} style={{ color: s.color }}>
-              ● {s.label} <span style={{ opacity: 0.8 }}>· MAX {st.max.toLocaleString()} · MED {st.med.toLocaleString()}</span>
+              ● {s.label} <span style={{ opacity: 0.8 }}>· MAX {st.max.toLocaleString()} · MED {st.med.toLocaleString()} · Σ {st.total.toLocaleString()}</span>
             </span>
           );
         })}

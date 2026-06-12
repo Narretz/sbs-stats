@@ -170,6 +170,9 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
   );
   const max = win ? winStat.max : globalMax;
   const median = win ? winStat.median : globalMedian;
+  // TOTAL sums each visible day's end-of-day value (the max of its cumulative
+  // intraday points), so it represents the cumulative count across the window.
+  const windowTotal = winStat.total;
   const chartData = pivotData(data);
   // When a date is selected, highlight only the series for that exact date.
   // No fallback to the most-recent day: selecting a date with no data (e.g. a
@@ -202,6 +205,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
         <span style={{ color: t.textMuted }}>{total} previous day{total !== 1 ? "s" : ""}</span>
         <span style={{ color: t.accent }}>▲ MAX {max.toLocaleString()}</span>
         <span style={{ color: t.muted }}>~ MED {median.toLocaleString()}</span>
+        <span style={{ color: t.textMuted }}>Σ TOTAL {windowTotal.toLocaleString()}</span>
       </div>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
