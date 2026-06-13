@@ -834,8 +834,84 @@ class TestMetrics:
         assert s.kamikaze_drones == 10221
 
     def test_shellings(self):
-        s = self._parse("Здійснив 3379 обстрілів населених пунктів.")
+        s = self._parse(
+            "Загарбники застосували 6000 дронів-камікадзе та здійснили "
+            "3379 обстрілів населених пунктів."
+        )
         assert s.shellings == 3379
+
+    def test_shellings_singular_nominative(self):
+        # msg 38468 — bare "обстріл" for numbers ending in 1 except 11
+        s = self._parse(
+            "Противник залучив для ураження 5000 дронів-камікадзе та "
+            "здійснив 1541 обстріл населених пунктів і позицій."
+        )
+        assert s.shellings == 1541
+
+    def test_shellings_does_not_match_verb_stem(self):
+        # "обстрілювали" / "обстрілювати" share the stem; the negative
+        # lookahead keeps the regex from grabbing the count before such a verb.
+        s = self._parse(
+            "Противник застосував 100 дронів-камікадзе. "
+            "Окупанти 5 разів обстрілювали Харків."
+        )
+        assert s.shellings is None
+
+    def test_shellings_rejects_per_direction_kab_line(self):
+        # msg 38560 — per-direction sentence with KAB before "31 обстріл"
+        # must not be picked up as the global shellings count.
+        s = self._parse(
+            "Оперативна інформація.\n\n"
+            "Від початку доби кількість атак агресора становить 57.\n\n"
+            "На Північно-Слобожанському і Курському напрямках ворог завдав "
+            "трьох авіаційних ударів, застосувавши дев'ять КАБ, здійснив 31 "
+            "обстріл населених пунктів та позицій наших військ."
+        )
+        assert s.shellings is None
+
+    def test_shellings_rejects_per_direction_inverted_phrasing(self):
+        # msg 25890 — per-direction sentence that mentions napramk BEFORE the
+        # KAB/shellings pair (sentence flips subject and direction).
+        s = self._parse(
+            "Оперативна інформація.\n\n"
+            "Чотири з п'яти ворожих атак сьогодні відбили українські "
+            "захисники на Північно-Слобожанському і Курському напрямках, "
+            "на даний час точиться бій. Також противник завдав двох "
+            "авіаударів, скинувши при цьому чотири КАБ, здійснив 81 "
+            "обстріл, зокрема п'ять – із реактивних систем."
+        )
+        assert s.shellings is None
+
+    def test_shellings_rejects_kursk_operation_section(self):
+        # msg 22276 — the "В операційній зоні на Курщині" sub-section has its
+        # own KAB+shellings tally that must not be picked up as the global.
+        s = self._parse(
+            "Оперативна інформація.\n\n"
+            "Загалом від початку доби відбулося 74 бойових зіткнення.\n\n"
+            "В операційній зоні на Курщині підрозділи Сил оборони України "
+            "відбили чотири атаки. Противник завдав п'ять авіаційних "
+            "ударів, скинувши при цьому п'ять КАБ, здійснив понад 181 "
+            "обстріл, зокрема п'ять із реактивних систем."
+        )
+        assert s.shellings is None
+
+    def test_shellings_rejects_mlrs_subset(self):
+        # msg 14633 — "51 обстріл з реактивних систем" is the MLRS subset,
+        # not the global shellings count (which is missing from this post).
+        s = self._parse(
+            "Загалом, ворог завдав 6 ракетних та 64 авіаційних удари, "
+            "здійснив 51 обстріл з реактивних систем залпового вогню."
+        )
+        assert s.shellings is None
+
+    def test_shellings_legacy_kab_aggregate(self):
+        # msg 15148 — pre-kamikaze form: KAB in same aggregate sentence
+        s = self._parse(
+            "За уточненою інформацією, за минулу добу ворог завдав 39 "
+            "авіаударів із застосуванням 63 КАБів, понад 2500 обстрілів з "
+            "різних типів озброєння."
+        )
+        assert s.shellings == 2500
 
 
 # ---------------------------------------------------------------------------

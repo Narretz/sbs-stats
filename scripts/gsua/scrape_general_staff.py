@@ -603,9 +603,33 @@ def parse_summary(text: str, msg: Message) -> DailySummary | None:
     )
 
     # --- Shellings (artillery, mortar) ---
-    # "2315 обстрілів" / "здійснив 2315 обстрілів"
+    # Anchored on the daily-aggregate paragraph: same line as a КАБ or
+    # камікадзе mention, paragraph not led by "На X напрямк…" (per-direction
+    # sections mention KABs and per-direction shellings too — msg 38560 etc.).
+    # Forms covered:
+    #   "2315 обстрілів" (genitive plural, ≥5)
+    #   "3 обстріли"     (nominative plural, 2-4)
+    #   "1541 обстріл"   (msg 38468 — nominative singular, ends in 1, not 11)
+    # The negative lookahead keeps verbal forms like "обстрілювали" from
+    # matching the bare stem.
+    # Anchor on a paragraph that isn't a per-direction or sub-section block.
+    # Per-direction paragraphs contain "напрямк" before the count; the Kursk
+    # operation sub-section says "Курщ"/"операц"; inverted per-direction
+    # phrasings (msg 25890 etc.) still mention "напрямк" before the shellings
+    # count. Excluding any of those substrings in the gap rejects all three.
+    # Note: don't anchor on "На " at paragraph start — legit aggregates also
+    # use "На даний час за поточну добу…" leads (msg 16781 etc.).
+    # Also exclude the MLRS-subset phrasing — when a count is immediately
+    # followed by "з/із реактивних…" / "з РСЗВ", it's the MLRS sub-count
+    # masquerading as the total (msg 14633: "здійснив 51 обстріл з
+    # реактивних систем").
     s.shellings = _extract_int(
-        r"(\d[\d\s]*\d|\d)\s*обстріл(?:ів|и|ами)", text
+        r"(?:^|\n)\s*"
+        r"(?:(?!напрямк|Курщ|операц)[^\n]){0,500}?"
+        r"(\d[\d\s]*\d|\d)\s+обстріл(?:ів|и|ами)?"
+        r"(?![\w'ʼ’])"
+        r"(?!\s+(?:з|із)\s+(?:реактивних|РСЗВ))",
+        text,
     )
 
     # --- MLRS ---
