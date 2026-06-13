@@ -141,6 +141,7 @@ export function useDatabaseRuLosses() {
       result[key] = {
         max: vals.length ? vals[vals.length - 1] : 0,
         median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
+        total: vals.reduce((s, n) => s + n, 0),
       };
     }
     return result;

@@ -36,12 +36,14 @@ interface Props {
   data: DailyDataPoint[];
   globalMax: number;
   globalMedian: number;
+  globalTotal?: number;
   wfull: boolean;
   data2?: DailyDataPoint[];
   primaryLabel?: string;
   label2?: string;
   globalMax2?: number;
   globalMedian2?: number;
+  globalTotal2?: number;
   pairMode?: PairMode;
   // End-of-day estimate for the "today" point (primary / paired series).
   eod?: EodEstimate | null;
@@ -182,14 +184,14 @@ if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
 }
 
 export function DailyLineChart({
-  title, data, globalMax, globalMedian, wfull,
-  data2, primaryLabel, label2, globalMax2, globalMedian2, pairMode = "subset",
+  title, data, globalMax, globalMedian, globalTotal, wfull,
+  data2, primaryLabel, label2, globalMax2, globalMedian2, globalTotal2, pairMode = "subset",
   eod, eod2,
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
-  // "window" scopes the MAX/MED lines to the points currently shown; "all" uses
-  // the whole-dataset values passed in as props.
+  // "window" scopes the MAX / MED / TOTAL lines to the points currently shown;
+  // "all" uses the whole-dataset values passed in as props.
   const win = scope === "window";
   const primaryWin = useMemo(() => maxMedian(data.map((d) => d.value)), [data]);
   const secondaryWin = useMemo(() => maxMedian((data2 ?? []).map((d) => d.value)), [data2]);
@@ -197,9 +199,8 @@ export function DailyLineChart({
   const median = win ? primaryWin.median : globalMedian;
   const max2 = win ? secondaryWin.max : (globalMax2 ?? 0);
   const median2 = win ? secondaryWin.median : (globalMedian2 ?? 0);
-  // TOTAL is always window-scoped: the sum across the currently-visible points.
-  const total = primaryWin.total;
-  const total2 = secondaryWin.total;
+  const total = win ? primaryWin.total : (globalTotal ?? 0);
+  const total2 = win ? secondaryWin.total : (globalTotal2 ?? 0);
   const hasPair = !!data2;
   // Single-line charts use the accent (red). On paired charts the whole "Hit"
   // series (line + area) is blue so it stays distinguishable from the red

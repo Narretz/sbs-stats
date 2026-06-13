@@ -173,6 +173,7 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
                 data={makeDataset(m.key)}
                 globalMax={globalStats[m.key]?.max ?? 0}
                 globalMedian={globalStats[m.key]?.median ?? 0}
+                globalTotal={globalStats[m.key]?.total ?? 0}
                 wfull={m.wfull ?? false}
                 tooltipSort={tooltipSort}
                 highlight={!!selectedDate}

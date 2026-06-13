@@ -109,11 +109,12 @@ function pivotDaily(raw: CategoryRow[], todayStr: string): RuAirAttacksDailyRow[
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function maxMedian(values: Array<number | null>): { max: number; median: number } {
+function maxMedian(values: Array<number | null>): { max: number; median: number; total: number } {
   const vals = values.filter((v): v is number => typeof v === "number").sort((a, b) => a - b);
   return {
     max: vals.length ? vals[vals.length - 1] : 0,
     median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
+    total: vals.reduce((s, n) => s + n, 0),
   };
 }
 

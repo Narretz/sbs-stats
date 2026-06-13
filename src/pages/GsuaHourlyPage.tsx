@@ -178,7 +178,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
   };
 
   const chartStats = useMemo(() => {
-    const result = {} as Record<GsuaMetricKey, { max: number; median: number }>;
+    const result = {} as Record<GsuaMetricKey, { max: number; median: number; total: number }>;
     // Use the daily-final values (last snapshot per date) to size the y-axis.
     const lastByDate = new Map<string, GsuaDailyRow>();
     for (const row of filteredRows) {
@@ -194,6 +194,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
       result[key] = {
         max: vals.length ? vals[vals.length - 1] : 0,
         median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
+        total: vals.reduce((s, n) => s + n, 0),
       };
     }
     return result;
@@ -242,6 +243,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
       return {
         max: xs.length ? xs[xs.length - 1] : 0,
         median: xs.length ? xs[Math.floor(xs.length / 2)] : 0,
+        total: xs.reduce((s, n) => s + n, 0),
       };
     };
     const peaks = Array.from(peakByDate.values());
@@ -303,6 +305,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
               data={makeDataset(k)}
               globalMax={chartStats[k]?.max ?? 0}
               globalMedian={chartStats[k]?.median ?? 0}
+              globalTotal={chartStats[k]?.total ?? 0}
               wfull={k === "combat_engagements"}
               tooltipSort={tooltipSort}
               highlight={!!selectedDate}
@@ -319,6 +322,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
             data={directionSeries("attacks")}
             globalMax={directionStats.attacks.max}
             globalMedian={directionStats.attacks.median}
+            globalTotal={directionStats.attacks.total}
             wfull={false}
             tooltipSort={tooltipSort}
             highlight={!!selectedDate}
@@ -329,6 +333,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
             data={directionSeries("ongoing")}
             globalMax={directionStats.ongoing.max}
             globalMedian={directionStats.ongoing.median}
+            globalTotal={directionStats.ongoing.total}
             wfull={false}
             tooltipSort={tooltipSort}
             highlight={!!selectedDate}

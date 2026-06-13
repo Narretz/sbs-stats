@@ -56,8 +56,10 @@ export function RuModDailyPage({ refreshKey }: Props) {
   const [selectedDate, setSelectedDate] = useState<string>(initial.date);
 
   const [rows, setRows] = useState<RuAdDailyRow[]>([]);
-  const [globalStats, setGlobalStats] = useState<RuAdGlobalStats>(
-    { total: { max: 0, median: 0 }, night: { max: 0, median: 0 }, day: { max: 0, median: 0 } });
+  const [globalStats, setGlobalStats] = useState<RuAdGlobalStats>(() => {
+    const zero = { max: 0, median: 0, total: 0 };
+    return { total: zero, night: zero, day: zero };
+  });
   const [hasData, setHasData] = useState(false);
 
   const updateDays = (d: DayOption) => { setDays(d); setUrlParams({ days: String(d) }); };
@@ -134,15 +136,16 @@ export function RuModDailyPage({ refreshKey }: Props) {
             data={makeDataset("total")}
             globalMax={globalStats.total.max}
             globalMedian={globalStats.total.median}
+            globalTotal={globalStats.total.total}
             wfull
           />
           <DailyMultiLineChart
             title="By Reporting Window — Overnight vs Daytime"
             series={[
               { key: "night", label: "Overnight", color: chartColors(t).overnight, data: makeDataset("night"),
-                globalMax: globalStats.night.max, globalMedian: globalStats.night.median },
+                globalMax: globalStats.night.max, globalMedian: globalStats.night.median, globalTotal: globalStats.night.total },
               { key: "day", label: "Daytime", color: chartColors(t).daytime, data: makeDataset("day"),
-                globalMax: globalStats.day.max, globalMedian: globalStats.day.median },
+                globalMax: globalStats.day.max, globalMedian: globalStats.day.median, globalTotal: globalStats.day.total },
             ]}
             wfull
           />

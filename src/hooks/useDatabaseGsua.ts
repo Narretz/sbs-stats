@@ -3,6 +3,7 @@ import { createDbWorker, type WorkerHttpvfs } from "sql.js-httpvfs";
 import type {
   GsuaDailyRow,
   GsuaDirectionRow,
+  GsuaGlobalStats,
   GsuaMetricKey,
   GsuaMonthlyRow,
   EodEstimate,
@@ -169,8 +170,8 @@ export function useDatabaseGsua() {
   );
 
   const queryGlobalStats = useCallback(
-    async (): Promise<Record<GsuaMetricKey, { max: number; median: number }>> => {
-      if (!worker) return {} as Record<GsuaMetricKey, { max: number; median: number }>;
+    async (): Promise<GsuaGlobalStats> => {
+      if (!worker) return {} as GsuaGlobalStats;
 
       const sql = `
         WITH per_date_source AS (
@@ -200,12 +201,13 @@ export function useDatabaseGsua() {
         deduped.push(row);
       }
 
-      const result = {} as Record<GsuaMetricKey, { max: number; median: number }>;
+      const result = {} as GsuaGlobalStats;
       for (const key of GSUA_METRIC_KEYS) {
         const vals = deduped.map((r) => r[key]).filter((v): v is number => typeof v === "number").sort((a, b) => a - b);
         result[key] = {
           max: vals.length ? vals[vals.length - 1] : 0,
           median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
+          total: vals.reduce((s, n) => s + n, 0),
         };
       }
       return result;

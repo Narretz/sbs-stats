@@ -22,10 +22,11 @@ export interface LineSeries {
   label: string;
   color: string;
   data: DailyDataPoint[];
-  // Whole-dataset max/median for this series; used when the MAX/MED scope is
+  // Whole-dataset max/median/total for this series; used when the scope is
   // "all". Without them the chart falls back to window stats either way.
   globalMax?: number;
   globalMedian?: number;
+  globalTotal?: number;
 }
 
 interface Props {
@@ -104,12 +105,11 @@ export function DailyMultiLineChart({ title, series, wfull = false }: Props) {
   }, [series]);
 
   const legendStat = (s: LineSeries) => {
-    // TOTAL is always window-scoped (sum of currently-visible points).
     const vals = s.data.map((p) => p.value).filter((v): v is number => typeof v === "number");
-    const total = vals.reduce((acc, n) => acc + n, 0);
+    const windowTotal = vals.reduce((acc, n) => acc + n, 0);
     if (allScope && typeof s.globalMax === "number")
-      return { max: s.globalMax, med: s.globalMedian ?? 0, total };
-    return { max: vals.length ? Math.max(...vals) : 0, med: median(vals), total };
+      return { max: s.globalMax, med: s.globalMedian ?? 0, total: s.globalTotal ?? 0 };
+    return { max: vals.length ? Math.max(...vals) : 0, med: median(vals), total: windowTotal };
   };
 
   // In "all" scope, lift the y-axis ceiling to the largest series global max so

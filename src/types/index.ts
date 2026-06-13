@@ -114,8 +114,9 @@ export const SITE_LABELS: Record<Site, string> = {
 export const SITES: Site[] = Object.keys(SITE_LABELS) as Site[];
 export type LoadState = "idle" | "loading" | "ready" | "error";
 
-// ─── Global stats (max + median across all data) ──────────────────────────────
-export type GlobalStats = Record<StatKey, { max: number; median: number }>;
+// ─── Global stats (max + median + total across all data) ─────────────────────
+export type Stat = { max: number; median: number; total: number };
+export type GlobalStats = Record<StatKey, Stat>;
 
 // ─── GSUA (General Staff UA) ──────────────────────────────────────────────────
 // Schema mirrors scripts/gsua/schema.sql. `posts` carries the aggregate
@@ -160,7 +161,7 @@ export interface GsuaDirectionRow {
   is_today: boolean;
 }
 
-export type GsuaGlobalStats = Record<GsuaMetricKey, { max: number; median: number }>;
+export type GsuaGlobalStats = Record<GsuaMetricKey, Stat>;
 
 export type GsuaMonthlyRow = {
   date: string; // "YYYY-MM"
@@ -216,7 +217,7 @@ export type RuLossesDailyRow = {
   is_today: boolean;
 } & Record<RuLossesMetricKey, number | null>;
 
-export type RuLossesGlobalStats = Record<RuLossesMetricKey, { max: number; median: number }>;
+export type RuLossesGlobalStats = Record<RuLossesMetricKey, Stat>;
 
 export type RuLossesMonthlyRow = {
   date: string; // "YYYY-MM"
@@ -255,7 +256,7 @@ export type RuAirAttacksDailyRow = {
 
 export type RuAirAttacksGlobalStats = Record<
   AttackCategoryKey,
-  { launched: { max: number; median: number }; intercepted: { max: number; median: number } }
+  { launched: Stat; intercepted: Stat }
 >;
 
 // Monthly = launched + intercepted sums per category. Bare category key holds
@@ -275,7 +276,7 @@ export type RuAirAttacksMonthlyRow = {
 // post; we aggregate per "drone-day" (MSK date of the report window's end), and
 // split by reporting window: overnight vs daytime. Unverified claims; "downed"
 // is a floor for "launched". Stats mirror the {max, median} shape used elsewhere.
-export type RuAdStat = { max: number; median: number };
+export type RuAdStat = Stat;
 
 export type RuAdDailyRow = {
   date: string;        // YYYY-MM-DD (MSK drone-day)

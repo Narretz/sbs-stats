@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import type { Database } from "sql.js";
-import type { DailyRow, MonthlyRow, StatKey, EodEstimate } from "@/types";
+import type { DailyRow, MonthlyRow, StatKey, EodEstimate, GlobalStats } from "@/types";
 import { TARGET_IDS } from "@/types";
 import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
@@ -181,8 +181,8 @@ export function useDatabase() {
   );
 
   // ── Global stats: max + median across ALL daily_stats (ignores day range) ────
-  const queryGlobalStats = useCallback((): Record<StatKey, { max: number; median: number }> => {
-    if (!db) return {} as Record<StatKey, { max: number; median: number }>;
+  const queryGlobalStats = useCallback((): GlobalStats => {
+    if (!db) return {} as GlobalStats;
 
     const availableCols = getTableColumns(db, "daily_stats");
     const allStatKeys: StatKey[] = [
@@ -212,12 +212,13 @@ export function useDatabase() {
       if (!seen.has(d)) { seen.add(d); rows.push(row); }
     }
 
-    const result = {} as Record<StatKey, { max: number; median: number }>;
+    const result = {} as GlobalStats;
     for (const key of allStatKeys) {
       const vals = rows.map((r) => (r[key] as number) ?? 0).sort((a, b) => a - b);
       result[key] = {
-        max: vals.length ? Math.max(...vals) : 0,
+        max: vals.length ? vals[vals.length - 1] : 0,
         median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
+        total: vals.reduce((s, n) => s + n, 0),
       };
     }
     return result;

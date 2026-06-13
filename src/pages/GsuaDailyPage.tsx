@@ -15,6 +15,7 @@ import {
   GSUA_METRIC_LABELS,
   type GsuaDailyRow,
   type GsuaDirectionRow,
+  type GsuaGlobalStats,
   type GsuaMetricKey,
   type EodEstimate,
 } from "@/types";
@@ -70,9 +71,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   const [selectedDirection, setSelectedDirection] = useState<string>(initial.direction);
 
   const [rows, setRows] = useState<GsuaDailyRow[]>([]);
-  const [globalStats, setGlobalStats] = useState<Record<GsuaMetricKey, { max: number; median: number }>>(
-    {} as Record<GsuaMetricKey, { max: number; median: number }>
-  );
+  const [globalStats, setGlobalStats] = useState<GsuaGlobalStats>({} as GsuaGlobalStats);
   const [directionList, setDirectionList] = useState<string[]>([]);
   const [directionRows, setDirectionRows] = useState<GsuaDirectionRow[]>([]);
   const [eod, setEod] = useState<Partial<Record<GsuaMetricKey, EodEstimate>>>({});
@@ -179,6 +178,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
     return {
       max: vals.length ? vals[vals.length - 1] : 0,
       median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
+      total: vals.reduce((s, n) => s + n, 0),
     };
   }, [directionAttacksDataset]);
   const directionOngoingStats = useMemo(() => {
@@ -189,6 +189,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
     return {
       max: vals.length ? vals[vals.length - 1] : 0,
       median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
+      total: vals.reduce((s, n) => s + n, 0),
     };
   }, [directionOngoingDataset]);
 
@@ -243,6 +244,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
               data={makeDataset(k)}
               globalMax={globalStats[k]?.max ?? 0}
               globalMedian={globalStats[k]?.median ?? 0}
+              globalTotal={globalStats[k]?.total ?? 0}
               wfull={k === "combat_engagements"}
               eod={eod[k] ?? null}
             />
@@ -256,6 +258,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
             data={directionAttacksDataset}
             globalMax={directionAttacksStats.max}
             globalMedian={directionAttacksStats.median}
+            globalTotal={directionAttacksStats.total}
             wfull={false}
           />
           <DailyLineChart
@@ -263,6 +266,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
             data={directionOngoingDataset}
             globalMax={directionOngoingStats.max}
             globalMedian={directionOngoingStats.median}
+            globalTotal={directionOngoingStats.total}
             wfull={false}
           />
         </ChartGrid>

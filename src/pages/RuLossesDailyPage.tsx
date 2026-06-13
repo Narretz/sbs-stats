@@ -142,6 +142,7 @@ export function RuLossesDailyPage({ refreshKey }: Props) {
               data={makeDataset(k)}
               globalMax={globalStats[k]?.max ?? 0}
               globalMedian={globalStats[k]?.median ?? 0}
+              globalTotal={globalStats[k]?.total ?? 0}
               wfull={k === "personnel"}
             />
           ))}

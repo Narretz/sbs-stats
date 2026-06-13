@@ -147,12 +147,14 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
               data={makeDataset(m.key)}
               globalMax={globalStats[m.key]?.max ?? 0}
               globalMedian={globalStats[m.key]?.median ?? 0}
+              globalTotal={globalStats[m.key]?.total ?? 0}
               wfull={m.wfull ?? false}
               data2={m.pairedKey ? makeDataset(m.pairedKey) : undefined}
               primaryLabel={m.primaryLabel}
               label2={m.pairedLabel}
               globalMax2={m.pairedKey ? globalStats[m.pairedKey]?.max ?? 0 : undefined}
               globalMedian2={m.pairedKey ? globalStats[m.pairedKey]?.median ?? 0 : undefined}
+              globalTotal2={m.pairedKey ? globalStats[m.pairedKey]?.total ?? 0 : undefined}
               pairMode={m.pairMode}
               eod={eod[m.key] ?? null}
               eod2={m.pairedKey ? (eod[m.pairedKey] ?? null) : undefined}

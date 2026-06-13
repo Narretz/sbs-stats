@@ -92,7 +92,11 @@ const DAILY_SELECT = `
 
 const stat = (vals: number[]): RuAdStat => {
   const s = [...vals].filter((v) => typeof v === "number").sort((a, b) => a - b);
-  return { max: s.length ? s[s.length - 1] : 0, median: s.length ? s[Math.floor(s.length / 2)] : 0 };
+  return {
+    max: s.length ? s[s.length - 1] : 0,
+    median: s.length ? s[Math.floor(s.length / 2)] : 0,
+    total: s.reduce((acc, n) => acc + n, 0),
+  };
 };
 
 // MoD posts ~2–3×/day; hourly refresh is plenty.
@@ -129,7 +133,8 @@ export function useDatabaseRuMod() {
   );
 
   const queryGlobalStats = useCallback((): RuAdGlobalStats => {
-    if (!db) return { total: { max: 0, median: 0 }, night: { max: 0, median: 0 }, day: { max: 0, median: 0 } };
+    const zero: RuAdStat = { max: 0, median: 0, total: 0 };
+    if (!db) return { total: zero, night: zero, day: zero };
     const rows = queryRows<Record<string, number>>(db, `${DAILY_SELECT} GROUP BY report_date`);
     return {
       total: stat(rows.map((r) => r.total)),

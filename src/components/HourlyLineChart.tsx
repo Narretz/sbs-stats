@@ -19,6 +19,7 @@ interface Props {
   data: DailyDaySeries[];
   globalMax: number;
   globalMedian: number;
+  globalTotal?: number;
   wfull: boolean;
   tooltipSort?: TooltipSortMode;
   highlight?: boolean;
@@ -160,7 +161,7 @@ if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
   s.textContent = `.hourly-card { position: relative; z-index: 1; } .hourly-card:hover { z-index: 100; }`;
   document.head.appendChild(s);
 }
-export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, tooltipSort = "date", highlight = false, selectedDate, eod, pairedData, pairedGlobalMax }: Props) {
+export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTotal, wfull, tooltipSort = "date", highlight = false, selectedDate, eod, pairedData, pairedGlobalMax }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
   // "window" scopes MAX/MED to the days currently shown. Each day's value is its
@@ -178,14 +179,12 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
   );
   const max = win ? winStat.max : globalMax;
   const median = win ? winStat.median : globalMedian;
+  const windowTotal = win ? winStat.total : (globalTotal ?? 0);
   // Y-axis upper bound: own scale, but lifted to a paired sibling's scale when
   // provided so e.g. a destroyed chart shares its hit counterpart's scale.
   const yScaleMax = win
     ? Math.max(max, pairedWinMax)
     : Math.max(max, pairedGlobalMax ?? 0);
-  // TOTAL sums each visible day's end-of-day value (the max of its cumulative
-  // intraday points), so it represents the cumulative count across the window.
-  const windowTotal = winStat.total;
   const chartData = pivotData(data);
   // When a date is selected, highlight only the series for that exact date.
   // No fallback to the most-recent day: selecting a date with no data (e.g. a
