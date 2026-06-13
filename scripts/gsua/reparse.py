@@ -74,6 +74,12 @@ def _reparse_one(conn: sqlite3.Connection, row, dry_run: bool) -> str:
     if summary is None:
         return f"{tag}: parse_summary returned None (unexpected)"
     directions = gs.parse_directions(text, msg, summary.date)
+    # Mirror the scrape path: the sanity check catches branch-1a fallbacks
+    # where the global combat_engagements got a per-direction value (impossible
+    # because the global must be ≥ any individual direction). It runs inside
+    # upsert_report on fresh scrapes; reparse calls it explicitly so the
+    # reparsed row matches what a fresh scrape would store.
+    gs._sanity_check(summary, directions, text)
 
     # Diff against the row being processed. Used both for dry-run reporting
     # and to short-circuit a no-op live update.
@@ -88,15 +94,29 @@ def _reparse_one(conn: sqlite3.Connection, row, dry_run: bool) -> str:
         "WHERE source = ? AND source_id = ? AND scraped_at = ?",
         (src, sid, row["scraped_at"]),
     ).fetchall()
-    existing_set = {(d[0], d[1], d[2]) for d in existing_dirs}
-    new_set = {(d.direction, d.attacks, d.ongoing) for d in directions}
-    if existing_set != new_set:
-        diffs.append(f"dirs={len(existing_set)} → {len(new_set)}")
+    old_map = {d[0]: (d[1], d[2]) for d in existing_dirs}
+    new_map = {d.direction: (d.attacks, d.ongoing) for d in directions}
+    dir_changes = []
+    for k in sorted(set(old_map) | set(new_map)):
+        if k not in new_map:
+            oa, oo = old_map[k]
+            dir_changes.append(f"-{k} ({_fmt(oa)}/{_fmt(oo)})")
+        elif k not in old_map:
+            na, no = new_map[k]
+            dir_changes.append(f"+{k} ({_fmt(na)}/{_fmt(no)})")
+        elif old_map[k] != new_map[k]:
+            oa, oo = old_map[k]
+            na, no = new_map[k]
+            dir_changes.append(
+                f"{k} {_fmt(oa)}/{_fmt(oo)} → {_fmt(na)}/{_fmt(no)}"
+            )
+    if dir_changes:
+        diffs.append(f"dirs[{'; '.join(dir_changes)}]")
 
     if not diffs:
         return f"{tag}: no changes (date={summary.date})"
     if dry_run:
-        return f"{tag}: {', '.join(diffs)} (date={summary.date})"
+        return f"{tag}: {', '.join(diffs)} (date={summary.date}, snapshot={summary.snapshot_at})"
 
     # Update the latest stored version in place: the text is unchanged (by
     # definition — we're re-parsing it), so a parser-only reprocess shouldn't
