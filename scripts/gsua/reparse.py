@@ -118,14 +118,11 @@ def _reparse_one(conn: sqlite3.Connection, row, dry_run: bool) -> str:
     if dry_run:
         return f"{tag}: {', '.join(diffs)} (date={summary.date}, snapshot={summary.snapshot_at})"
 
-    # Update the latest stored version in place: the text is unchanged (by
-    # definition — we're re-parsing it), so a parser-only reprocess shouldn't
-    # spawn a new edit version. `upsert_report` short-circuits on identical
-    # text and can't help here.
-    latest_at = conn.execute(
-        "SELECT MAX(scraped_at) FROM posts WHERE source = ? AND source_id = ?",
-        (src, sid),
-    ).fetchone()[0]
+    # Update this row in place. `_select_rows` only returns the latest
+    # edit-version per (source, source_id), so the row's own scraped_at is
+    # already the right target. (Text is unchanged on a parser-only reprocess
+    # — `upsert_report` short-circuits on identical text and can't help here.)
+    latest_at = row["scraped_at"]
     conn.execute(
         """
         UPDATE posts SET
@@ -159,10 +156,21 @@ def _reparse_one(conn: sqlite3.Connection, row, dry_run: bool) -> str:
 
 
 def _select_rows(conn: sqlite3.Connection, args) -> list:
-    """Pick the rows to reparse based on CLI arguments."""
+    """Pick the rows to reparse based on CLI arguments.
+
+    Only the latest edit-version per (source, source_id) is returned. Older
+    versions are immutable historical record (the dashboard reads via
+    LATEST_POSTS), so reprocessing them serves no purpose and would just
+    re-write the same correction to the latest row repeatedly.
+    """
     base_cols = (
         "source, source_id, message_date, text, url, scraped_at, "
         + ", ".join(_PARSER_COLS)
+    )
+    latest_filter = (
+        "NOT EXISTS (SELECT 1 FROM posts n "
+        "WHERE n.source = p.source AND n.source_id = p.source_id "
+        "AND n.scraped_at > p.scraped_at)"
     )
 
     if args.message_ids:
@@ -172,14 +180,16 @@ def _select_rows(conn: sqlite3.Connection, args) -> list:
         params = [str(x) for x in args.message_ids]
         if args.source:
             sql = (
-                f"SELECT {base_cols} FROM posts "
+                f"SELECT {base_cols} FROM posts p "
                 f"WHERE source = ? AND source_id IN ({placeholders}) "
+                f"AND {latest_filter} "
                 f"ORDER BY source_id"
             )
             return conn.execute(sql, [args.source] + params).fetchall()
         sql = (
-            f"SELECT {base_cols} FROM posts "
+            f"SELECT {base_cols} FROM posts p "
             f"WHERE source_id IN ({placeholders}) "
+            f"AND {latest_filter} "
             f"ORDER BY source, source_id"
         )
         return conn.execute(sql, params).fetchall()
@@ -196,9 +206,8 @@ def _select_rows(conn: sqlite3.Connection, args) -> list:
     if args.until:
         where.append("date <= ?")
         params.append(args.until)
-    sql = f"SELECT {base_cols} FROM posts"
-    if where:
-        sql += " WHERE " + " AND ".join(where)
+    where.append(latest_filter)
+    sql = f"SELECT {base_cols} FROM posts p WHERE " + " AND ".join(where)
     sql += " ORDER BY source, source_id"
     return conn.execute(sql, params).fetchall()
 
