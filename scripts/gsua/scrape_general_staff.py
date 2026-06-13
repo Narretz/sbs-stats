@@ -588,14 +588,16 @@ def parse_summary(text: str, msg: Message) -> DailySummary | None:
     # --- Kamikaze drones ---
     # "4130 ударів дронами-камікадзе"
     # "дронів-камікадзе — 4130"
-    # Accept both ASCII '-' and U+2013 '–' between "дрон" and "камікадзе".
+    # "10221 дрон-камікадзе" (msg 39486, singular nominative — no суфікс)
+    # Accept both ASCII '-' and U+2013 '–' between "дрон" and "камікадзе"; the
+    # suffix is optional because the post sometimes uses bare "дрон".
     s.kamikaze_drones = (
         _extract_int(
-            r"(\d[\d\s]*\d|\d)\s*(?:ударів\s*)?дрон(?:ів|ами|и)[\-–—]камікадзе",
+            r"(\d[\d\s]*\d|\d)\s*(?:ударів\s*)?дрон(?:ів|ами|и)?[\-–—]камікадзе",
             text,
         )
         or _extract_int(
-            r"дрон(?:ів|ами|и)[\-–—]камікадзе\s*[\-–—:]\s*(\d[\d\s]*\d|\d)",
+            r"дрон(?:ів|ами|и)?[\-–—]камікадзе\s*[\-–—:]\s*(\d[\d\s]*\d|\d)",
             text,
         )
     )
@@ -607,11 +609,13 @@ def parse_summary(text: str, msg: Message) -> DailySummary | None:
     )
 
     # --- MLRS ---
-    # "у тому числі 8 — з РСЗВ" / "зокрема 42 – із реактивних систем"
-    # Accept ASCII '-', en-dash U+2013, em-dash U+2014, minus U+2212, plus "із".
+    # "у тому числі 8 — з РСЗВ"
+    # "зокрема 42 – із реактивних систем"
+    # "із яких 45 обстрілів відбулися з реактивних систем" (msg 39635 —
+    # noun + verb between the count and "з реактивних"; allow any short
+    # non-digit gap so the connector isn't anchored to a dash/preposition).
     s.mlrs_shellings = _extract_int(
-        r"(\d[\d\s]*\d|\d)\s*(?:[\-–—−]\s*)?(?:із|з)?\s*"
-        r"(?:РСЗВ|реактивних\s*систем)",
+        r"(\d[\d\s]*\d|\d)\s*[^\d]{0,40}?(?:РСЗВ|реактивних\s*систем)",
         text,
     )
 

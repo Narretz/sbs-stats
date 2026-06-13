@@ -790,6 +790,14 @@ class TestMetrics:
         s = self._parse("У тому числі 8 — з РСЗВ.")
         assert s.mlrs_shellings == 8
 
+    def test_mlrs_with_obstrily_vidbulysia(self):
+        # msg 39635 — noun + verb between the count and "з реактивних systems"
+        s = self._parse(
+            "Здійснили 3204 обстріли позицій наших військ, із яких 45 "
+            "обстрілів відбулися з реактивних систем залпового вогню."
+        )
+        assert s.mlrs_shellings == 45
+
     def test_air_strikes_genitive_singular(self):
         # msg 38719
         s = self._parse("Противник завдав 51 авіаційного удару.")
@@ -819,6 +827,11 @@ class TestMetrics:
     def test_kamikaze_drones_ascii_hyphen(self):
         s = self._parse("Застосував 9976 дронів-камікадзе.")
         assert s.kamikaze_drones == 9976
+
+    def test_kamikaze_drones_singular_nominative(self):
+        # msg 39486 — bare "дрон-камікадзе" with no plural suffix
+        s = self._parse("Загарбники застосували 10221 дрон-камікадзе.")
+        assert s.kamikaze_drones == 10221
 
     def test_shellings(self):
         s = self._parse("Здійснив 3379 обстрілів населених пунктів.")
