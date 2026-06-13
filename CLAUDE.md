@@ -15,7 +15,7 @@ via sql.js / sql.js-httpvfs.
 | RU LOSSES — GSUA | `ru-losses-gsua` | Ukrainian General Staff national totals (PetroIvaniuk dataset) | [`scripts/ru_losses/`](scripts/ru_losses/README.md) → `ru-losses-gsua-petroivaniuk.db` |
 | RU AIR DEFENSE — RU MoD | `ru-airdef-mod` | Russian MoD air-defense claims (Telegram) | [`scripts/ru_mod/`](scripts/ru_mod/README.md) → `ru-mod-ad.db` |
 | RU MISSILE & UAV ATTACKS — GSUA | `ru-air-attacks-gsua` | UA Air Force Command + General Staff strike reports (piterfm / Kaggle) | [`scripts/missile_attacks/`](scripts/missile_attacks/README.md) → `ru-air-attacks-gsua.db` |
-| UA SBU ALFA — MONTHLY RECAP | `sbu-alfa` | SBU press releases (Centre of Special Operations «А» monthly TOP-1 recap) | [`scripts/sbu_alfa/`](scripts/sbu_alfa/README.md) → `sbu-alfa.db` (committed, manual ingest) |
+| UA SBU ALFA — MONTHLY RECAP | `sbu-alfa` | SBU press releases (Centre of Special Operations «А» monthly TOP-1 recap) | [`scripts/sbu_alfa/`](scripts/sbu_alfa/README.md) → `sbu-alfa.db` (manual ingest) |
 
 [`DATASETS.md`](DATASETS.md) tracks source research, recency, and candidate
 datasets for future views.
@@ -67,10 +67,8 @@ pip install -r scripts/requirements.txt   # the devcontainer does this on create
   default paths run without them.
 - All dates are reconciled to **Kyiv** (GSUA/SBS) or **MSK** (RU MoD) local time —
   see the per-script date models. `scraped_at` is always UTC.
-- `data/sbs.db` and `data/sbu-alfa.db` are committed snapshots
-  (`scripts/setup-dev.cjs` copies them into `public/data/` so vite serves them
-  in dev and bundles them in production). The scraped DBs
-  (`ru-attacks-gsua.db`, `ru-mod-ad.db`, `ru-losses-gsua-petroivaniuk.db`,
-  `ru-air-attacks-gsua.db`) are gitignored and pulled from R2 by CI / locally.
-  Don't pollute `sbs.db` with test rows (`git checkout HEAD -- data/sbs.db` to
-  restore).
+- All DBs under `data/` are gitignored and pulled from R2 (see
+  `scripts/fetch_prod_dbs.sh`, which reads URLs from `.env.production`).
+  `scripts/setup-dev.cjs` copies `sbs.db` and `sbu-alfa.db` from `data/` into
+  `public/data/` so vite serves them in dev and bundles them in production;
+  the rest are range-fetched from R2 at runtime via sql.js-httpvfs.
