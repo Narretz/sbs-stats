@@ -13,6 +13,14 @@ import { TooltipSortSelect } from "@/components/TooltipSortSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam } from "@/utils/dayRange";
 import { buildMetrics } from "@/utils/metrics";
 import type { DailyRow, DailyDaySeries, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
+
+// A destroyed chart borrows its hit counterpart's scale so the two are
+// visually comparable (destroyed is always a subset of hit).
+function scaleSourceKey(key: StatKey): StatKey | null {
+  if (key === "total_targets_destroyed") return "total_targets_hit";
+  if (key.startsWith("destroyed_")) return ("hit_" + key.slice("destroyed_".length)) as StatKey;
+  return null;
+}
 import { FONTS } from "@/theme";
 
 const SORT_OPTIONS: TooltipSortMode[] = ["value", "date"];
@@ -156,20 +164,25 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
       {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
       {(loadState === "ready" || hasData) && (
         <ChartGrid>
-          {metrics.map((m: Metric) => (
-            <HourlyLineChart
-              key={m.key}
-              title={m.label}
-              data={makeDataset(m.key)}
-              globalMax={globalStats[m.key]?.max ?? 0}
-              globalMedian={globalStats[m.key]?.median ?? 0}
-              wfull={m.wfull ?? false}
-              tooltipSort={tooltipSort}
-              highlight={!!selectedDate}
-              selectedDate={selectedDate}
-              eod={eod[m.key] ?? null}
-            />
-          ))}
+          {metrics.map((m: Metric) => {
+            const srcKey = scaleSourceKey(m.key);
+            return (
+              <HourlyLineChart
+                key={m.key}
+                title={m.label}
+                data={makeDataset(m.key)}
+                globalMax={globalStats[m.key]?.max ?? 0}
+                globalMedian={globalStats[m.key]?.median ?? 0}
+                wfull={m.wfull ?? false}
+                tooltipSort={tooltipSort}
+                highlight={!!selectedDate}
+                selectedDate={selectedDate}
+                eod={eod[m.key] ?? null}
+                pairedData={srcKey ? makeDataset(srcKey) : undefined}
+                pairedGlobalMax={srcKey ? globalStats[srcKey]?.max ?? 0 : undefined}
+              />
+            );
+          })}
         </ChartGrid>
       )}
     </div>

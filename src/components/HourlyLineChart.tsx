@@ -25,6 +25,11 @@ interface Props {
   selectedDate?: string;
   // End-of-day estimate for today's (in-progress) series.
   eod?: EodEstimate | null;
+  // Optional sibling data used to extend the Y-axis upper bound so paired
+  // charts (e.g. destroyed alongside hit) share a visual scale. The chart's
+  // own MAX/MED labels and reference lines are unaffected.
+  pairedData?: DailyDaySeries[];
+  pairedGlobalMax?: number;
 }
 function pivotData(series: DailyDaySeries[]): Record<string, number | null>[] {
   // X-axis runs 0–24. Hour 0 is always 0 (day start anchor).
@@ -155,21 +160,29 @@ if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
   s.textContent = `.hourly-card { position: relative; z-index: 1; } .hourly-card:hover { z-index: 100; }`;
   document.head.appendChild(s);
 }
-export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, tooltipSort = "date", highlight = false, selectedDate, eod }: Props) {
+export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, tooltipSort = "date", highlight = false, selectedDate, eod, pairedData, pairedGlobalMax }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
   // "window" scopes MAX/MED to the days currently shown. Each day's value is its
   // end-of-day total (max of its cumulative intraday points).
   const win = scope === "window";
-  const winStat = useMemo(
-    () => maxMedian(data.map((s) => {
+  const dayEodValues = (series: DailyDaySeries[]) =>
+    series.map((s) => {
       const vals = s.points.map((p) => p.value).filter((v): v is number => typeof v === "number");
       return vals.length ? Math.max(...vals) : null;
-    })),
-    [data]
+    });
+  const winStat = useMemo(() => maxMedian(dayEodValues(data)), [data]);
+  const pairedWinMax = useMemo(
+    () => (pairedData ? maxMedian(dayEodValues(pairedData)).max : 0),
+    [pairedData]
   );
   const max = win ? winStat.max : globalMax;
   const median = win ? winStat.median : globalMedian;
+  // Y-axis upper bound: own scale, but lifted to a paired sibling's scale when
+  // provided so e.g. a destroyed chart shares its hit counterpart's scale.
+  const yScaleMax = win
+    ? Math.max(max, pairedWinMax)
+    : Math.max(max, pairedGlobalMax ?? 0);
   // TOTAL sums each visible day's end-of-day value (the max of its cumulative
   // intraday points), so it represents the cumulative count across the window.
   const windowTotal = winStat.total;
@@ -216,7 +229,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, wfull, t
             type="number"
             domain={[0, 24]}
           />
-          <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, max)]} />
+          <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, yScaleMax)]} />
           <Tooltip
             content={({ active, payload, label }) => (
               <CustomTooltip
