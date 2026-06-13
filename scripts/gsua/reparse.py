@@ -22,6 +22,18 @@ from types import SimpleNamespace
 import scrape_general_staff as gs
 
 
+# Columns produced by the parser that the dry-run diff compares.
+_PARSER_COLS = (
+    "combat_engagements", "missile_strikes", "missiles_used", "air_strikes",
+    "kabs_dropped", "kamikaze_drones", "shellings", "mlrs_shellings",
+    "notes", "part",
+)
+
+
+def _fmt(v) -> str:
+    return "∅" if v is None else str(v)
+
+
 def _build_msg(row):
     """Build a source-agnostic Message-like stand-in from a DB row.
 
@@ -63,23 +75,75 @@ def _reparse_one(conn: sqlite3.Connection, row, dry_run: bool) -> str:
         return f"{tag}: parse_summary returned None (unexpected)"
     directions = gs.parse_directions(text, msg, summary.date)
 
+    # Diff against the row being processed. Used both for dry-run reporting
+    # and to short-circuit a no-op live update.
+    diffs = []
+    for col in _PARSER_COLS:
+        old = row[col]
+        new = getattr(summary, col)
+        if old != new:
+            diffs.append(f"{col}={_fmt(old)} → {_fmt(new)}")
+    existing_dirs = conn.execute(
+        "SELECT direction, attacks, ongoing FROM directions "
+        "WHERE source = ? AND source_id = ? AND scraped_at = ?",
+        (src, sid, row["scraped_at"]),
+    ).fetchall()
+    existing_set = {(d[0], d[1], d[2]) for d in existing_dirs}
+    new_set = {(d.direction, d.attacks, d.ongoing) for d in directions}
+    if existing_set != new_set:
+        diffs.append(f"dirs={len(existing_set)} → {len(new_set)}")
+
+    if not diffs:
+        return f"{tag}: no changes (date={summary.date})"
     if dry_run:
-        return (
-            f"{tag}: would update "
-            f"(date={summary.date}, combat={summary.combat_engagements}, "
-            f"dirs={len(directions)})"
-        )
-    gs.upsert_report(conn, summary, directions, text, row["url"])
-    return (
-        f"{tag}: updated "
-        f"(date={summary.date}, combat={summary.combat_engagements}, "
-        f"dirs={len(directions)})"
+        return f"{tag}: {', '.join(diffs)} (date={summary.date})"
+
+    # Update the latest stored version in place: the text is unchanged (by
+    # definition — we're re-parsing it), so a parser-only reprocess shouldn't
+    # spawn a new edit version. `upsert_report` short-circuits on identical
+    # text and can't help here.
+    latest_at = conn.execute(
+        "SELECT MAX(scraped_at) FROM posts WHERE source = ? AND source_id = ?",
+        (src, sid),
+    ).fetchone()[0]
+    conn.execute(
+        """
+        UPDATE posts SET
+            combat_engagements = ?, missile_strikes = ?, missiles_used = ?,
+            air_strikes = ?, kabs_dropped = ?, kamikaze_drones = ?,
+            shellings = ?, mlrs_shellings = ?, notes = ?, part = ?
+        WHERE source = ? AND source_id = ? AND scraped_at = ?
+        """,
+        (
+            summary.combat_engagements, summary.missile_strikes,
+            summary.missiles_used, summary.air_strikes,
+            summary.kabs_dropped, summary.kamikaze_drones,
+            summary.shellings, summary.mlrs_shellings,
+            summary.notes, summary.part,
+            src, sid, latest_at,
+        ),
     )
+    conn.execute(
+        "DELETE FROM directions WHERE source = ? AND source_id = ? AND scraped_at = ?",
+        (src, sid, latest_at),
+    )
+    if directions:
+        conn.executemany(
+            """
+            INSERT INTO directions (source, source_id, scraped_at, direction, attacks, ongoing)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [(src, sid, latest_at, d.direction, d.attacks, d.ongoing) for d in directions],
+        )
+    return f"{tag}: updated [{', '.join(diffs)}] (date={summary.date})"
 
 
 def _select_rows(conn: sqlite3.Connection, args) -> list:
     """Pick the rows to reparse based on CLI arguments."""
-    base_cols = "source, source_id, message_date, text, url"
+    base_cols = (
+        "source, source_id, message_date, text, url, scraped_at, "
+        + ", ".join(_PARSER_COLS)
+    )
 
     if args.message_ids:
         # Specific IDs — match against source_id (TEXT). When --source is given
