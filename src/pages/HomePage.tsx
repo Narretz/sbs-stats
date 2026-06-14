@@ -5,7 +5,7 @@ import { useDatabaseGsua } from "@/hooks/useDatabaseGsua";
 import { useDatabaseRuLosses } from "@/hooks/useDatabaseRuLosses";
 import { useDatabaseRuMod } from "@/hooks/useDatabaseRuMod";
 import { useDatabaseRuAirAttacks } from "@/hooks/useDatabaseRuAirAttacks";
-import { DailyMultiLineChart, type LineSeries } from "@/components/DailyMultiLineChart";
+import { DailyMultiLineChart, type LineSeries, type YAxisMode } from "@/components/DailyMultiLineChart";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DateNav } from "@/components/DateNav";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
@@ -29,6 +29,10 @@ function parseDate(raw: string | null): string {
   return raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
 }
 
+function parseYMode(raw: string | null): YAxisMode {
+  return raw === "log" || raw === "normalized" ? raw : "linear";
+}
+
 function parseMetrics(raw: string | null): string[] {
   if (!raw) return [];
   return raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0 && findMetric(s) != null);
@@ -40,6 +44,7 @@ function getUrlParams() {
     days: parseDaysParam(p.get("days")),
     date: parseDate(p.get("date")),
     metrics: parseMetrics(p.get("metrics")),
+    yMode: parseYMode(p.get("y")),
   };
 }
 
@@ -65,6 +70,7 @@ export function HomePage({ onGoToSite }: Props) {
   const [days, setDays] = useState<DayOption>(initial.days);
   const [selectedDate, setSelectedDate] = useState<string>(initial.date);
   const [selectedIds, setSelectedIds] = useState<string[]>(initial.metrics);
+  const [yMode, setYMode] = useState<YAxisMode>(initial.yMode);
 
   const metrics = useMemo(
     () => selectedIds.map((id) => findMetric(id)).filter((m): m is CombinedMetric => !!m),
@@ -153,6 +159,11 @@ export function HomePage({ onGoToSite }: Props) {
     setSelectedIds(next);
     setUrlParams({ metrics: next.join(",") });
   };
+  const updateYMode = (m: YAxisMode) => {
+    setYMode(m);
+    // Linear is the default — keep the URL clean.
+    setUrlParams({ y: m === "linear" ? "" : m });
+  };
 
   const maxSelectableDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
   const shiftSelectedDate = (delta: number) => {
@@ -212,7 +223,7 @@ export function HomePage({ onGoToSite }: Props) {
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: t.accent, animation: "blink 2s infinite" }} />
           <span style={{ fontFamily: FONTS.display, fontSize: 13, fontWeight: 700, color: t.text, letterSpacing: "0.06em" }}>
-            UA / RU WAR STATISTICS
+            RU-UA WAR STATISTICS
           </span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -259,6 +270,20 @@ export function HomePage({ onGoToSite }: Props) {
           <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
           <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
           <StatScopeToggle />
+          <select
+            value={yMode}
+            onChange={(e) => updateYMode(e.target.value as YAxisMode)}
+            title="Y-axis transform"
+            style={{
+              background: t.bgAlt, color: t.text, border: `1px solid ${t.border}`,
+              borderRadius: 4, padding: "5px 8px",
+              fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
+            }}
+          >
+            <option value="linear">Y: linear</option>
+            <option value="log">Y: log</option>
+            <option value="normalized">Y: normalized (0–100%)</option>
+          </select>
           <MetricPicker selected={selectedIds} onChange={updateMetrics} view="daily" />
           {loadingSources.length > 0 && (
             <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted }}>
@@ -286,6 +311,7 @@ export function HomePage({ onGoToSite }: Props) {
             title={metrics.length === 1 ? metrics[0].label : "Combined daily metrics"}
             series={series}
             wfull
+            yMode={yMode}
           />
         )}
       </main>

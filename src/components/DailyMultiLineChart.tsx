@@ -29,10 +29,16 @@ export interface LineSeries {
   globalTotal?: number;
 }
 
+export type YAxisMode = "linear" | "log" | "normalized";
+
 interface Props {
   title: string;
   series: LineSeries[];
   wfull?: boolean;
+  // Y-axis transform. "linear" (default) plots raw values; "log" uses a base-10
+  // log scale (skips zeros / nulls); "normalized" scales each series to [0, 1]
+  // by its own visible max so shape is comparable across magnitudes.
+  yMode?: YAxisMode;
 }
 
 type Row = { date: string; is_today: boolean } & Record<string, number | null | string | boolean>;
@@ -73,26 +79,51 @@ function MultiTooltip({
       boxShadow: "0 2px 8px rgba(0,0,0,0.12)", minWidth: 170,
     }}>
       <div style={{ color: t.textMuted, marginBottom: 4 }}>{formatDate(row.date)}</div>
-      {series.map((s) => (
-        <div key={s.key} style={{ display: "flex", justifyContent: "space-between", gap: 12, color: s.color }}>
-          <span>{s.label}</span><span>{fmt(row[s.key] as number | null)}</span>
-        </div>
-      ))}
+      {series.map((s) => {
+        // Always show raw absolute values in the tooltip — even in normalized
+        // mode, the user wants to know "what is the actual number today?"
+        const raw = row[`${s.key}__raw`];
+        return (
+          <div key={s.key} style={{ display: "flex", justifyContent: "space-between", gap: 12, color: s.color }}>
+            <span>{s.label}</span><span>{fmt(raw as number | null)}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-export function DailyMultiLineChart({ title, series, wfull = false }: Props) {
+export function DailyMultiLineChart({ title, series, wfull = false, yMode = "linear" }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
   const allScope = scope === "all";
 
   const { rows, max } = useMemo(() => {
+    // Per-series window max — used to normalize each series to [0, 1] when
+    // yMode === "normalized". Zero-max series stay at 0 (no division-by-zero).
+    const perSeriesMax = new Map<string, number>();
+    for (const s of series) {
+      let m = 0;
+      for (const p of s.data) if (typeof p.value === "number" && p.value > m) m = p.value;
+      perSeriesMax.set(s.key, m);
+    }
     const byDate = new Map<string, Row>();
     for (const s of series) {
+      const sMax = perSeriesMax.get(s.key) ?? 0;
       for (const p of s.data) {
         const r = byDate.get(p.date) ?? ({ date: p.date, is_today: p.is_today } as Row);
-        r[s.key] = p.value;
+        // Raw absolute value preserved for the tooltip regardless of yMode.
+        r[`${s.key}__raw`] = p.value;
+        // Plotted value depends on mode. For "log" we drop zeros / nulls (log
+        // is undefined there) and let recharts skip — `connectNulls` keeps the
+        // line continuous around the gap.
+        let plotted: number | null = p.value;
+        if (yMode === "normalized") {
+          plotted = typeof p.value === "number" && sMax > 0 ? p.value / sMax : null;
+        } else if (yMode === "log") {
+          plotted = typeof p.value === "number" && p.value > 0 ? p.value : null;
+        }
+        r[s.key] = plotted;
         if (p.is_today) r.is_today = true;
         byDate.set(p.date, r);
       }
@@ -102,7 +133,7 @@ export function DailyMultiLineChart({ title, series, wfull = false }: Props) {
     for (const s of series)
       for (const p of s.data) if (typeof p.value === "number" && p.value > max) max = p.value;
     return { rows, max };
-  }, [series]);
+  }, [series, yMode]);
 
   const legendStat = (s: LineSeries) => {
     const vals = s.data.map((p) => p.value).filter((v): v is number => typeof v === "number");
@@ -113,7 +144,9 @@ export function DailyMultiLineChart({ title, series, wfull = false }: Props) {
   };
 
   // In "all" scope, lift the y-axis ceiling to the largest series global max so
-  // this chart shares the main daily chart's scale; in "window" it fits the data.
+  // this chart shares the main daily chart's scale; in "window" it fits the
+  // data. Only relevant for "linear" — "log" lets recharts auto-fit on a base-10
+  // ladder, and "normalized" is locked to [0, 1].
   const ceiling = allScope
     ? Math.max(max, ...series.map((s) => s.globalMax ?? 0))
     : max;
@@ -145,8 +178,28 @@ export function DailyMultiLineChart({ title, series, wfull = false }: Props) {
             tickLine={false} axisLine={false}
             tickFormatter={(v: string) => { const p = v.slice(5).split("-"); return `${p[1]}/${p[0]}`; }}
           />
-          <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
-            domain={[0, (dataMax: number) => Math.max(dataMax, ceiling)]} />
+          {yMode === "log" ? (
+            <YAxis
+              tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+              tickLine={false} axisLine={false}
+              scale="log"
+              domain={["auto", "auto"]}
+              allowDataOverflow
+            />
+          ) : yMode === "normalized" ? (
+            <YAxis
+              tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+              tickLine={false} axisLine={false}
+              domain={[0, 1]}
+              tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
+            />
+          ) : (
+            <YAxis
+              tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+              tickLine={false} axisLine={false}
+              domain={[0, (dataMax: number) => Math.max(dataMax, ceiling)]}
+            />
+          )}
           <Tooltip
             allowEscapeViewBox={{ x: false, y: true }}
             wrapperStyle={{ zIndex: 9999 }}
