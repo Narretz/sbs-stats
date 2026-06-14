@@ -10,10 +10,16 @@
 import type {
   DailyDataPoint,
   DailyRow,
+  GlobalStats,
   GsuaDailyRow,
+  GsuaGlobalStats,
+  RuAdGlobalStats,
   RuAdDailyRow,
   RuAirAttacksDailyRow,
+  RuAirAttacksGlobalStats,
   RuLossesDailyRow,
+  RuLossesGlobalStats,
+  Stat,
 } from "@/types";
 import type { CombinedMetric, MetricSource } from "@/utils/combinedMetrics";
 
@@ -23,6 +29,22 @@ export interface CombinedQueries {
   ruLosses?: (days: number, endDate?: string) => RuLossesDailyRow[];
   ruMod?: (days: number, endDate?: string) => RuAdDailyRow[];
   ruAir?: (days: number, endDate?: string) => RuAirAttacksDailyRow[];
+}
+
+export interface CombinedGlobalQueries {
+  sbs?: () => GlobalStats;
+  gsua?: () => Promise<GsuaGlobalStats>;
+  ruLosses?: () => RuLossesGlobalStats;
+  ruMod?: () => RuAdGlobalStats;
+  ruAir?: () => RuAirAttacksGlobalStats;
+}
+
+export interface GlobalStatsBundle {
+  sbs?: GlobalStats;
+  gsua?: GsuaGlobalStats;
+  ruLosses?: RuLossesGlobalStats;
+  ruMod?: RuAdGlobalStats;
+  ruAir?: RuAirAttacksGlobalStats;
 }
 
 function project(
@@ -66,3 +88,48 @@ export async function fetchCombinedDaily(
   }
   return result;
 }
+
+export async function fetchCombinedGlobalStats(
+  needed: Set<MetricSource>,
+  queries: CombinedGlobalQueries,
+): Promise<GlobalStatsBundle> {
+  const bundle: GlobalStatsBundle = {};
+  if (needed.has("sbs") && queries.sbs) bundle.sbs = queries.sbs();
+  if (needed.has("ru-losses") && queries.ruLosses) bundle.ruLosses = queries.ruLosses();
+  if (needed.has("ru-airdef-mod") && queries.ruMod) bundle.ruMod = queries.ruMod();
+  if (needed.has("ru-air-attacks") && queries.ruAir) bundle.ruAir = queries.ruAir();
+  if (needed.has("gsua") && queries.gsua) bundle.gsua = await queries.gsua();
+  return bundle;
+}
+
+// Extract per-metric whole-dataset stats from a bundle. Returns null when the
+// source isn't loaded yet — caller leaves globalMax/median/total undefined so
+// the chart falls back to window scope.
+export function statsForMetric(
+  m: CombinedMetric,
+  bundle: GlobalStatsBundle,
+): Stat | null {
+  switch (m.source) {
+    case "sbs":
+      return bundle.sbs?.[m.key as keyof GlobalStats] ?? null;
+    case "gsua":
+      return bundle.gsua?.[m.key as keyof GsuaGlobalStats] ?? null;
+    case "ru-losses":
+      return bundle.ruLosses?.[m.key as keyof RuLossesGlobalStats] ?? null;
+    case "ru-airdef-mod":
+      return (bundle.ruMod as Record<string, Stat> | undefined)?.[m.key] ?? null;
+    case "ru-air-attacks": {
+      // m.key is "<category>_launched" or "<category>_intercepted"; split.
+      if (!bundle.ruAir) return null;
+      const i = m.key.lastIndexOf("_");
+      if (i < 0) return null;
+      const cat = m.key.slice(0, i);
+      const dir = m.key.slice(i + 1) as "launched" | "intercepted";
+      const catStats = bundle.ruAir[cat as keyof RuAirAttacksGlobalStats];
+      return catStats?.[dir] ?? null;
+    }
+    default:
+      return null;
+  }
+}
+

@@ -12,7 +12,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MetricPicker } from "@/components/MetricPicker";
 import { DAY_OPTIONS, type DayOption, parseDaysParam } from "@/utils/dayRange";
 import { findMetric, type CombinedMetric, type MetricSource } from "@/utils/combinedMetrics";
-import { fetchCombinedDaily } from "@/utils/combinedQuery";
+import { fetchCombinedDaily, fetchCombinedGlobalStats, statsForMetric, type GlobalStatsBundle } from "@/utils/combinedQuery";
 import type { DailyDataPoint, Site } from "@/types";
 import { SITES, SITE_LABELS } from "@/types";
 import { FONTS } from "@/theme";
@@ -88,6 +88,7 @@ export function HomePage({ onGoToSite }: Props) {
   const ruAir = useDatabaseRuAirAttacks({ enabled: needed.has("ru-air-attacks") });
 
   const [seriesData, setSeriesData] = useState<Record<string, DailyDataPoint[]>>({});
+  const [globalStats, setGlobalStats] = useState<GlobalStatsBundle>({});
 
   // Refetch when selection / window changes and every selected source is ready.
   useEffect(() => {
@@ -117,6 +118,35 @@ export function HomePage({ onGoToSite }: Props) {
     return () => { cancelled = true; };
   }, [metrics, days, selectedDate, needed, sbs.loadState, sbs.queryDaily, gsua.loadState, gsua.queryDaily, ruLosses.loadState, ruLosses.queryDaily, ruMod.loadState, ruMod.queryDaily, ruAir.loadState, ruAir.queryDaily]);
 
+  // Refetch whole-dataset stats whenever the set of needed sources grows. The
+  // bundle is keyed by source so adding a metric from an already-loaded source
+  // doesn't refetch.
+  useEffect(() => {
+    const sourcesReady: Record<MetricSource, boolean> = {
+      "sbs": needed.has("sbs") && sbs.loadState === "ready",
+      "gsua": needed.has("gsua") && gsua.loadState === "ready",
+      "ru-losses": needed.has("ru-losses") && ruLosses.loadState === "ready",
+      "ru-airdef-mod": needed.has("ru-airdef-mod") && ruMod.loadState === "ready",
+      "ru-air-attacks": needed.has("ru-air-attacks") && ruAir.loadState === "ready",
+      "sbu-alfa": false,
+    };
+    const readySet = new Set<MetricSource>(
+      (Object.keys(sourcesReady) as MetricSource[]).filter((k) => sourcesReady[k]),
+    );
+    if (readySet.size === 0) return;
+    let cancelled = false;
+    fetchCombinedGlobalStats(readySet, {
+      sbs: sourcesReady.sbs ? sbs.queryGlobalStats : undefined,
+      gsua: sourcesReady.gsua ? gsua.queryGlobalStats : undefined,
+      ruLosses: sourcesReady["ru-losses"] ? ruLosses.queryGlobalStats : undefined,
+      ruMod: sourcesReady["ru-airdef-mod"] ? ruMod.queryGlobalStats : undefined,
+      ruAir: sourcesReady["ru-air-attacks"] ? ruAir.queryGlobalStats : undefined,
+    }).then((bundle) => {
+      if (!cancelled) setGlobalStats((prev) => ({ ...prev, ...bundle }));
+    });
+    return () => { cancelled = true; };
+  }, [needed, sbs.loadState, sbs.queryGlobalStats, gsua.loadState, gsua.queryGlobalStats, ruLosses.loadState, ruLosses.queryGlobalStats, ruMod.loadState, ruMod.queryGlobalStats, ruAir.loadState, ruAir.queryGlobalStats]);
+
   const updateDays = (d: DayOption) => { setDays(d); setUrlParams({ days: String(d) }); };
   const updateDate = (d: string) => { setSelectedDate(d); setUrlParams({ date: d }); };
   const updateMetrics = (next: string[]) => {
@@ -136,13 +166,19 @@ export function HomePage({ onGoToSite }: Props) {
   const canGoNext = selectedDate !== "" && selectedDate < maxSelectableDate;
 
   const series: LineSeries[] = useMemo(() => {
-    return metrics.map((m, i) => ({
-      key: m.id,
-      label: m.label,
-      color: PALETTE[i % PALETTE.length],
-      data: seriesData[m.id] ?? [],
-    }));
-  }, [metrics, seriesData]);
+    return metrics.map((m, i) => {
+      const stat = statsForMetric(m, globalStats);
+      return {
+        key: m.id,
+        label: m.label,
+        color: PALETTE[i % PALETTE.length],
+        data: seriesData[m.id] ?? [],
+        globalMax: stat?.max,
+        globalMedian: stat?.median,
+        globalTotal: stat?.total,
+      };
+    });
+  }, [metrics, seriesData, globalStats]);
 
   const loadingSources = useMemo(() => {
     const states: Array<[MetricSource, string]> = [
