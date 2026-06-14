@@ -422,6 +422,22 @@ function ChartCard({
   onRename, onMetricsChange, onRemove,
 }: ChartCardProps) {
   const { theme: t } = useTheme();
+
+  // Local buffer for the chart-name input. Typing only updates this; the
+  // upstream commit (which triggers a re-render of the chart + a URL write)
+  // happens on blur, Enter, or after a short idle. Keeps the input snappy
+  // even when the chart underneath is heavy.
+  const [draftName, setDraftName] = useState(config.name);
+  useEffect(() => { setDraftName(config.name); }, [config.name]);
+  const commitName = useCallback(() => {
+    if (draftName !== config.name) onRename(draftName);
+  }, [draftName, config.name, onRename]);
+  useEffect(() => {
+    if (draftName === config.name) return;
+    const tid = setTimeout(commitName, 400);
+    return () => clearTimeout(tid);
+  }, [draftName, config.name, commitName]);
+
   const metrics = useMemo(
     () => config.metricIds.map((id) => findMetric(id)).filter((m): m is CombinedMetric => !!m),
     [config.metricIds]
@@ -448,14 +464,19 @@ function ChartCard({
           {indexLabel}
         </span>
         <input
-          value={config.name}
-          onChange={(e) => onRename(e.target.value)}
+          value={draftName}
+          onChange={(e) => setDraftName(e.target.value)}
+          onBlur={commitName}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.currentTarget.blur(); }
+            else if (e.key === "Escape") { setDraftName(config.name); e.currentTarget.blur(); }
+          }}
           placeholder="Chart name"
           style={{
             background: t.bgAlt, color: t.text, border: `1px solid ${t.border}`,
             borderRadius: 4, padding: "5px 8px",
-            fontFamily: FONTS.display, fontSize: 13, fontWeight: 600,
-            minWidth: 200,
+            fontFamily: FONTS.mono, fontSize: 12, fontWeight: 400,
+            minWidth: 220,
           }}
         />
         <MetricPicker selected={config.metricIds} onChange={onMetricsChange} view="daily" />
