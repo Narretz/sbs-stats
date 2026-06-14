@@ -35,9 +35,14 @@ export function MetricPicker({ selected, onChange, view }: Props) {
   );
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return available;
-    return available.filter((m) => m.label.toLowerCase().includes(q));
+    const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return available;
+    // Token-AND match: every whitespace-separated token must appear somewhere
+    // in the haystack. Means "sbs person" matches "SBS · Personnel Killed".
+    return available.filter((m) => {
+      const haystack = `${m.label} ${m.source} ${m.key}`.toLowerCase();
+      return tokens.every((tok) => haystack.includes(tok));
+    });
   }, [available, query]);
 
   const grouped = useMemo(() => {
