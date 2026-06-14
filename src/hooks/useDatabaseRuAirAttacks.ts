@@ -121,12 +121,13 @@ function maxMedian(values: Array<number | null>): { max: number; median: number;
 // piterfm re-publishes the Kaggle dataset roughly weekly; hourly polling is plenty.
 export const REFRESH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
-export function useDatabaseRuAirAttacks() {
+export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean } = {}) {
   const { resource: db, loadState, error, lastRefreshed, refresh, refreshCount, refreshIntervalMs } =
     useRefreshableResource({
       cache: dbCache,
       load: loadDatabase,
       refreshIntervalMs: REFRESH_INTERVAL_MS,
+      enabled,
     });
 
   // ── Daily: launched + intercepted per category, attributed to time_start date ─

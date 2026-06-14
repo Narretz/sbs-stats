@@ -91,12 +91,13 @@ const LATEST_PER_DATE = `(
 // already generous. The on-focus + manual refresh paths still apply.
 export const REFRESH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
-export function useDatabaseRuLosses() {
+export function useDatabaseRuLosses({ enabled = true }: { enabled?: boolean } = {}) {
   const { resource: db, loadState, error, lastRefreshed, refresh, refreshCount, refreshIntervalMs } =
     useRefreshableResource({
       cache: dbCache,
       load: loadDatabase,
       refreshIntervalMs: REFRESH_INTERVAL_MS,
+      enabled,
     });
 
   // ── Daily: latest snapshot per date ───────────────────────────────────────────

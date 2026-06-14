@@ -110,12 +110,13 @@ function deriveVehiclesCombined(rows: SbuAlfaCounterRow[]): SbuAlfaCounterRow[] 
   );
 }
 
-export function useDatabaseSbuAlfa() {
+export function useDatabaseSbuAlfa({ enabled = true }: { enabled?: boolean } = {}) {
   const { resource: db, loadState, error, lastRefreshed, refresh, refreshCount, refreshIntervalMs } =
     useRefreshableResource({
       cache: dbCache,
       load: loadDatabase,
       refreshIntervalMs: REFRESH_INTERVAL_MS,
+      enabled,
     });
 
   // Long-table rows: one per (period, category). Frontend pivots/filters by

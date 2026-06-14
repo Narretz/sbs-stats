@@ -75,12 +75,13 @@ const LATEST_POSTS = `(
 // wasteful. Refresh hourly; the on-focus + manual refresh paths still apply.
 export const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 
-export function useDatabaseGsua() {
+export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) {
   const { resource: worker, loadState, error, lastRefreshed, refresh, refreshCount, refreshIntervalMs } =
     useRefreshableResource({
       cache: workerCache,
       load: loadWorker,
       refreshIntervalMs: REFRESH_INTERVAL_MS,
+      enabled,
     });
 
   // ── Queries ─────────────────────────────────────────────────────────────────

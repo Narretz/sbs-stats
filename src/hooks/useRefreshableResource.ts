@@ -42,10 +42,16 @@ export function useRefreshableResource<T>({
   cache,
   load,
   refreshIntervalMs,
+  enabled = true,
 }: {
   cache: ResourceCache<T>;
   load: () => Promise<T>;
   refreshIntervalMs: number;
+  // When false, the hook stays inert: no load, no auto-refresh, no
+  // visibility-restore refresh. Used by the homepage to keep a DB hook
+  // mounted (Rules of Hooks) but skip its fetch until a metric from its
+  // source is actually selected.
+  enabled?: boolean;
 }): {
   resource: T | null;
   loadState: LoadState;
@@ -95,24 +101,27 @@ export function useRefreshableResource<T>({
   // Initial load. If the cached resource is older than the refresh
   // interval (view re-mounted after being away), force a refresh.
   useEffect(() => {
+    if (!enabled) return;
     if (cache.createdAt !== null && Date.now() - cache.createdAt >= refreshIntervalMs) {
       doRefresh();
     } else {
       doLoad();
     }
-  }, [cache, refreshIntervalMs, doLoad, doRefresh]);
+  }, [cache, refreshIntervalMs, doLoad, doRefresh, enabled]);
 
   // Auto-refresh while visible.
   useEffect(() => {
+    if (!enabled) return;
     const interval = setInterval(() => {
       if (document.hidden) return;
       doRefresh();
     }, refreshIntervalMs);
     return () => clearInterval(interval);
-  }, [doRefresh, refreshIntervalMs]);
+  }, [doRefresh, refreshIntervalMs, enabled]);
 
   // On visibility restore, refresh immediately if stale.
   useEffect(() => {
+    if (!enabled) return;
     const handle = () => {
       if (document.hidden) return;
       const age = lastRefreshedRef.current ? Date.now() - lastRefreshedRef.current.getTime() : Infinity;
@@ -120,7 +129,7 @@ export function useRefreshableResource<T>({
     };
     document.addEventListener("visibilitychange", handle);
     return () => document.removeEventListener("visibilitychange", handle);
-  }, [doRefresh, refreshIntervalMs]);
+  }, [doRefresh, refreshIntervalMs, enabled]);
 
   const refresh = useCallback(() => { doRefresh(); }, [doRefresh]);
 

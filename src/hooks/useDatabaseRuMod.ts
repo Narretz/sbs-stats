@@ -102,12 +102,13 @@ const stat = (vals: number[]): RuAdStat => {
 // MoD posts ~2–3×/day; hourly refresh is plenty.
 export const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 
-export function useDatabaseRuMod() {
+export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {}) {
   const { resource: db, loadState, error, lastRefreshed, refresh, refreshCount, refreshIntervalMs } =
     useRefreshableResource({
       cache: dbCache,
       load: loadDatabase,
       refreshIntervalMs: REFRESH_INTERVAL_MS,
+      enabled,
     });
 
   const queryDaily = useCallback(

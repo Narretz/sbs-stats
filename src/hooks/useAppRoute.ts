@@ -21,9 +21,14 @@ function pagesFor(site: Site): Page[] {
   return SBS_PAGES;
 }
 
-function readUrl(): { site: Site; page: Page } {
+export type Route =
+  | { kind: "home" }
+  | { kind: "site"; site: Site; page: Page };
+
+function readUrl(): Route {
   const p = new URLSearchParams(window.location.search);
   const rawSite = p.get("site");
+  if (rawSite === null) return { kind: "home" };
   const site: Site =
     rawSite === "ru-attacks-gsua" ? "ru-attacks-gsua"
       : rawSite === "ru-losses-gsua" ? "ru-losses-gsua"
@@ -34,33 +39,54 @@ function readUrl(): { site: Site; page: Page } {
   const rawPage = p.get("page");
   const pages = pagesFor(site);
   const page: Page = pages.includes(rawPage as Page) ? (rawPage as Page) : pages[0];
-  return { site, page };
+  return { kind: "site", site, page };
 }
 
-function writeUrl(next: { site?: Site; page?: Page }) {
+function writeSite(next: { site?: Site; page?: Page }) {
   const p = new URLSearchParams(window.location.search);
   if (next.site !== undefined) p.set("site", next.site);
   if (next.page !== undefined) p.set("page", next.page);
   window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
 }
 
+// Clear site/page params; homepage owns its own params (metrics, days, …)
+// and we don't want stale site/page hanging around when we navigate home.
+function writeHome() {
+  const p = new URLSearchParams(window.location.search);
+  p.delete("site");
+  p.delete("page");
+  const qs = p.toString();
+  window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+}
+
 export function useAppRoute() {
-  const initial = readUrl();
-  const [site, setSiteState] = useState<Site>(initial.site);
-  const [page, setPageState] = useState<Page>(initial.page);
+  const [route, setRouteState] = useState<Route>(readUrl);
+
+  const goHome = () => {
+    writeHome();
+    setRouteState({ kind: "home" });
+  };
+
+  const goSite = (site: Site, page?: Page) => {
+    const pages = pagesFor(site);
+    const safePage: Page = page && pages.includes(page) ? page : pages[0];
+    writeSite({ site, page: safePage });
+    setRouteState({ kind: "site", site, page: safePage });
+  };
 
   const setSite = (s: Site) => {
+    if (route.kind !== "site") return goSite(s);
     const pages = pagesFor(s);
-    const safePage: Page = pages.includes(page) ? page : pages[0];
-    setSiteState(s);
-    if (safePage !== page) setPageState(safePage);
-    writeUrl({ site: s, page: safePage });
+    const safePage: Page = pages.includes(route.page) ? route.page : pages[0];
+    writeSite({ site: s, page: safePage });
+    setRouteState({ kind: "site", site: s, page: safePage });
   };
 
   const setPage = (p: Page) => {
-    setPageState(p);
-    writeUrl({ page: p });
+    if (route.kind !== "site") return;
+    writeSite({ page: p });
+    setRouteState({ kind: "site", site: route.site, page: p });
   };
 
-  return { site, setSite, page, setPage, pagesFor };
+  return { route, goHome, goSite, setSite, setPage, pagesFor };
 }

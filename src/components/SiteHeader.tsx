@@ -9,6 +9,7 @@ interface SiteHeaderProps {
   pages: Page[];
   onSiteChange: (site: Site) => void;
   onPageChange: (page: Page) => void;
+  onHome?: () => void;
   // Refresh / loading state from active DB context
   lastRefreshed: Date | null;
   refreshCount: number;
@@ -24,7 +25,7 @@ const PAGE_LABEL: Record<Page, string> = {
 };
 
 export function SiteHeader({
-  site, page, pages, onSiteChange, onPageChange,
+  site, page, pages, onSiteChange, onPageChange, onHome,
   lastRefreshed, refreshCount, onRefresh, isLoading, refreshIntervalMs,
 }: SiteHeaderProps) {
   const { mode, theme: t, toggle } = useTheme();
@@ -70,19 +71,31 @@ export function SiteHeader({
     >
       {/* Brand + site picker */}
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <div style={{ width: 8, height: 8, borderRadius: "50%", background: t.accent, animation: "blink 2s infinite" }} />
-        <span
+        <button
+          onClick={onHome}
+          disabled={!onHome}
+          title={onHome ? "Home" : undefined}
           style={{
-            fontFamily: FONTS.display,
-            fontSize: 13,
-            fontWeight: 700,
-            color: t.text,
-            letterSpacing: "0.06em",
-            minWidth: 140,
+            display: "flex", alignItems: "center", gap: 14,
+            background: "transparent", border: "none", padding: 0,
+            cursor: onHome ? "pointer" : "default",
           }}
         >
-          {SITE_LABELS[site]}
-        </span>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: t.accent, animation: "blink 2s infinite" }} />
+          <span
+            style={{
+              fontFamily: FONTS.display,
+              fontSize: 13,
+              fontWeight: 700,
+              color: t.text,
+              letterSpacing: "0.06em",
+              minWidth: 140,
+              textAlign: "left",
+            }}
+          >
+            {SITE_LABELS[site]}
+          </span>
+        </button>
         <select
           data-testid="site-picker"
           value={site}
