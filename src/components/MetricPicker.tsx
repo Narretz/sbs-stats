@@ -29,7 +29,11 @@ const POPOVER_ID = "metric-picker-popover";
 // Minimal local types — React 18's JSX types don't include the popover
 // attributes yet. We pass them through as data on the element and rely on the
 // browser to wire up popover behavior.
-type PopoverProps = { popover?: "auto" | "manual"; popoverTarget?: string };
+type PopoverProps = {
+  popover?: "auto" | "manual";
+  popoverTarget?: string;
+  popoverTargetAction?: "show" | "hide" | "toggle";
+};
 
 export function MetricPicker({ selected, onChange, view }: Props) {
   const { theme: t } = useTheme();
@@ -102,6 +106,18 @@ export function MetricPicker({ selected, onChange, view }: Props) {
 
   const triggerProps: PopoverProps = { popoverTarget: POPOVER_ID };
   const popoverProps: PopoverProps = { popover: "auto" };
+  const closeProps: PopoverProps = { popoverTarget: POPOVER_ID, popoverTargetAction: "hide" };
+
+  const btnStyle = {
+    background: t.bgAlt,
+    color: t.text,
+    border: `1px solid ${t.border}`,
+    borderRadius: 4,
+    padding: "5px 10px",
+    fontFamily: FONTS.mono,
+    fontSize: 11,
+    cursor: "pointer",
+  } as const;
 
   return (
     <>
@@ -161,6 +177,18 @@ export function MetricPicker({ selected, onChange, view }: Props) {
             marginBottom: 8,
           }}
         />
+        <div style={{ display: "flex", gap: 6, justifyContent: 'space-between', marginBottom: 8 }}>
+          <button
+            onClick={() => onChange([])}
+            disabled={selected.length === 0}
+            style={{ ...btnStyle, fontSize: 10, opacity: selected.length === 0 ? 0.45 : 1 }}
+          >
+            Clear all
+          </button>
+          <button {...closeProps} style={{...btnStyle, fontSize: 10}}>
+            Close
+          </button>
+        </div>
         {grouped.length === 0 && (
           <div style={{ color: t.textMuted, fontFamily: FONTS.mono, fontSize: 11, padding: 6 }}>
             No matches.
