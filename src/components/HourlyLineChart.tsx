@@ -158,7 +158,7 @@ const STYLE_ID = "hourly-chart-hover-style";
 if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
   const s = document.createElement("style");
   s.id = STYLE_ID;
-  s.textContent = `.hourly-card { position: relative; z-index: 1; } .hourly-card:hover { z-index: 100; }`;
+  s.textContent = `.hourly-card { position: relative; z-index: 1; } .hourly-card:hover { z-index: 2; }`;
   document.head.appendChild(s);
 }
 export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTotal, wfull, tooltipSort = "date", highlight = false, selectedDate, eod, pairedData, pairedGlobalMax }: Props) {

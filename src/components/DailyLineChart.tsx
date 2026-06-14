@@ -179,7 +179,7 @@ const STYLE_ID = "daily-chart-hover-style";
 if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
   const s = document.createElement("style");
   s.id = STYLE_ID;
-  s.textContent = `.daily-card { position: relative; z-index: 1; } .daily-card:hover { z-index: 100; }`;
+  s.textContent = `.daily-card { position: relative; z-index: 1; } .daily-card:hover { z-index: 2; }`;
   document.head.appendChild(s);
 }
 
