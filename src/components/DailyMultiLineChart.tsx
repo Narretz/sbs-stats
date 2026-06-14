@@ -39,6 +39,11 @@ interface Props {
   // log scale (skips zeros / nulls); "normalized" scales each series to [0, 1]
   // by its own visible max so shape is comparable across magnitudes.
   yMode?: YAxisMode;
+  // Hint that the values being plotted are running cumulative sums (so the
+  // legend collapses to just Σ — MAX and MED of a monotonic series aren't
+  // informative). The transform itself happens upstream; this only affects
+  // how the legend is rendered.
+  cumulative?: boolean;
 }
 
 type Row = { date: string; is_today: boolean } & Record<string, number | null | string | boolean>;
@@ -93,7 +98,7 @@ function MultiTooltip({
   );
 }
 
-export function DailyMultiLineChart({ title, series, wfull = false, yMode = "linear" }: Props) {
+export function DailyMultiLineChart({ title, series, wfull = false, yMode = "linear", cumulative = false }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
   const allScope = scope === "all";
@@ -137,6 +142,12 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
 
   const legendStat = (s: LineSeries) => {
     const vals = s.data.map((p) => p.value).filter((v): v is number => typeof v === "number");
+    // In cumulative mode the upstream has already replaced each point's value
+    // with the running sum, so Σ is the final non-null point — not the sum
+    // of cumulative values, which would be triangular and meaningless.
+    if (cumulative) {
+      return { max: 0, med: 0, total: vals.length ? vals[vals.length - 1] : 0 };
+    }
     const windowTotal = vals.reduce((acc, n) => acc + n, 0);
     if (allScope && typeof s.globalMax === "number")
       return { max: s.globalMax, med: s.globalMedian ?? 0, total: s.globalTotal ?? 0 };
@@ -146,8 +157,10 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
   // In "all" scope, lift the y-axis ceiling to the largest series global max so
   // this chart shares the main daily chart's scale; in "window" it fits the
   // data. Only relevant for "linear" — "log" lets recharts auto-fit on a base-10
-  // ladder, and "normalized" is locked to [0, 1].
-  const ceiling = allScope
+  // ladder, and "normalized" is locked to [0, 1]. In cumulative mode the
+  // globalMax represents a daily peak, not a cumulative one, so we always
+  // fit to the visible data.
+  const ceiling = (!cumulative && allScope)
     ? Math.max(max, ...series.map((s) => s.globalMax ?? 0))
     : max;
 
@@ -165,7 +178,12 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
           const st = legendStat(s);
           return (
             <span key={s.key} style={{ color: s.color }}>
-              ● {s.label} <span style={{ opacity: 0.8 }}>· MAX {st.max.toLocaleString()} · MED {st.med.toLocaleString()} · Σ {st.total.toLocaleString()}</span>
+              ● {s.label}{" "}
+              {cumulative ? (
+                <span style={{ opacity: 0.8 }}>· Σ {st.total.toLocaleString()}</span>
+              ) : (
+                <span style={{ opacity: 0.8 }}>· MAX {st.max.toLocaleString()} · MED {st.med.toLocaleString()} · Σ {st.total.toLocaleString()}</span>
+              )}
             </span>
           );
         })}

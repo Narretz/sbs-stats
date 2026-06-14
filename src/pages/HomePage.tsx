@@ -44,6 +44,10 @@ function parseYMode(raw: string | null): YAxisMode {
   return raw === "log" || raw === "normalized" ? raw : "linear";
 }
 
+function parseCumulative(raw: string | null): boolean {
+  return raw === "1";
+}
+
 // URL encoding for `charts=`:
 //   <encName>:<id>,<id>;<encName>:<id>;...
 // - name is encodeURIComponent'd so it can contain anything safely
@@ -107,6 +111,7 @@ function getUrlParams() {
     days: parseDaysParam(p.get("days")),
     date: parseDate(p.get("date")),
     yMode: parseYMode(p.get("y")),
+    cumulative: parseCumulative(p.get("cum")),
     charts: parseCharts(p.get("charts"), legacyMetrics),
   };
 }
@@ -133,6 +138,7 @@ export function HomePage({ onGoToSite }: Props) {
   const [days, setDays] = useState<DayOption>(initial.days);
   const [selectedDate, setSelectedDate] = useState<string>(initial.date);
   const [yMode, setYMode] = useState<YAxisMode>(initial.yMode);
+  const [cumulative, setCumulative] = useState<boolean>(initial.cumulative);
   const [charts, setCharts] = useState<ChartConfig[]>(initial.charts);
 
   // Clear the old `metrics=` param once on mount if we migrated from it.
@@ -251,6 +257,10 @@ export function HomePage({ onGoToSite }: Props) {
     // Linear is the default — keep the URL clean.
     setUrlParams({ y: m === "linear" ? "" : m });
   };
+  const updateCumulative = (c: boolean) => {
+    setCumulative(c);
+    setUrlParams({ cum: c ? "1" : "" });
+  };
 
   const updateChart = (uid: string, patch: Partial<ChartConfig>) => {
     updateCharts(charts.map((c) => (c.uid === uid ? { ...c, ...patch } : c)));
@@ -365,6 +375,19 @@ export function HomePage({ onGoToSite }: Props) {
             <option value="log">Y: log</option>
             <option value="normalized">Y: normalized (0–100%)</option>
           </select>
+          <select
+            value={cumulative ? "cumulative" : "daily"}
+            onChange={(e) => updateCumulative(e.target.value === "cumulative")}
+            title="Daily values vs running cumulative sum within the window"
+            style={{
+              background: t.bgAlt, color: t.text, border: `1px solid ${t.border}`,
+              borderRadius: 4, padding: "5px 8px",
+              fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
+            }}
+          >
+            <option value="daily">Display: daily</option>
+            <option value="cumulative">Display: cumulative</option>
+          </select>
           {loadingSources.length > 0 && (
             <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted }}>
               Loading: {loadingSources.join(", ")}…
@@ -380,6 +403,7 @@ export function HomePage({ onGoToSite }: Props) {
               isOnlyChart={charts.length === 1}
               indexLabel={`Chart ${i + 1} of ${charts.length}`}
               yMode={yMode}
+              cumulative={cumulative}
               seriesData={seriesData}
               globalStats={globalStats}
               onRename={(name) => updateChart(c.uid, { name })}
@@ -410,6 +434,7 @@ interface ChartCardProps {
   isOnlyChart: boolean;
   indexLabel: string;
   yMode: YAxisMode;
+  cumulative: boolean;
   seriesData: Record<string, DailyDataPoint[]>;
   globalStats: GlobalStatsBundle;
   onRename: (name: string) => void;
@@ -417,8 +442,19 @@ interface ChartCardProps {
   onRemove: () => void;
 }
 
+// Window-relative running sum. Each point's value becomes the cumulative
+// total up to and including that point. Nulls don't add but the line keeps
+// the prior running total so a missing day doesn't open a gap.
+function toCumulative(points: DailyDataPoint[]): DailyDataPoint[] {
+  let sum = 0;
+  return points.map((p) => {
+    if (typeof p.value === "number") sum += p.value;
+    return { ...p, value: sum };
+  });
+}
+
 function ChartCard({
-  config, isOnlyChart, indexLabel, yMode, seriesData, globalStats,
+  config, isOnlyChart, indexLabel, yMode, cumulative, seriesData, globalStats,
   onRename, onMetricsChange, onRemove,
 }: ChartCardProps) {
   const { theme: t } = useTheme();
@@ -445,17 +481,19 @@ function ChartCard({
   const series: LineSeries[] = useMemo(() => {
     return metrics.map((m, i) => {
       const stat = statsForMetric(m, globalStats);
+      const raw = seriesData[m.id] ?? [];
+      const data = cumulative ? toCumulative(raw) : raw;
       return {
         key: m.id,
         label: m.label,
         color: PALETTE[i % PALETTE.length],
-        data: seriesData[m.id] ?? [],
+        data,
         globalMax: stat?.max,
         globalMedian: stat?.median,
         globalTotal: stat?.total,
       };
     });
-  }, [metrics, seriesData, globalStats]);
+  }, [metrics, seriesData, globalStats, cumulative]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -512,6 +550,7 @@ function ChartCard({
           series={series}
           wfull
           yMode={yMode}
+          cumulative={cumulative}
         />
       )}
     </div>
