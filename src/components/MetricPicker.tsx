@@ -44,10 +44,14 @@ export function MetricPicker({ selected, onChange, view }: Props) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Position the popover under (and right-aligned to) the trigger button when
-  // it opens. Popovers default to the top layer at fixed 0,0, so we own
-  // placement ourselves — anchor positioning would be cleaner but is still
-  // patchy across browsers in 2026.
+  // Position the popover relative to the trigger button when it opens.
+  // Popovers default to the top layer at fixed 0,0, so we own placement
+  // ourselves — anchor positioning would be cleaner but is still patchy
+  // across browsers in 2026.
+  //
+  // Flip above the trigger when the chart is near the bottom of the viewport
+  // and there's more room above than below; cap max-height to whatever space
+  // is actually available so the picker never gets clipped off-screen.
   useEffect(() => {
     const pop = popoverRef.current;
     if (!pop) return;
@@ -58,13 +62,27 @@ export function MetricPicker({ selected, onChange, view }: Props) {
       if (!btn) return;
       const rect = btn.getBoundingClientRect();
       const popWidth = 360;
+      const popHeightPref = 480;
       const margin = 8;
+      const gap = 4;
+      // Horizontal: right-align to the trigger, clamped to viewport edges.
       let left = rect.right - popWidth;
       if (left < margin) left = margin;
       const maxLeft = window.innerWidth - popWidth - margin;
       if (left > maxLeft) left = maxLeft;
-      pop.style.top = `${Math.round(rect.bottom + 4)}px`;
+      // Vertical: prefer below; flip above when below is too cramped and
+      // above has more room. Always cap maxHeight to the available space.
+      const spaceBelow = window.innerHeight - rect.bottom - gap - margin;
+      const spaceAbove = rect.top - gap - margin;
+      const placeAbove = spaceBelow < Math.min(popHeightPref, 280) && spaceAbove > spaceBelow;
+      const available = placeAbove ? spaceAbove : spaceBelow;
+      const height = Math.max(160, Math.min(popHeightPref, available));
+      const top = placeAbove
+        ? Math.max(margin, rect.top - gap - height)
+        : Math.round(rect.bottom + gap);
       pop.style.left = `${Math.round(left)}px`;
+      pop.style.top = `${Math.round(top)}px`;
+      pop.style.maxHeight = `${Math.round(height)}px`;
       // Light-dismiss focus behavior: focus the search input on open.
       setTimeout(() => searchRef.current?.focus(), 0);
     };
@@ -155,7 +173,8 @@ export function MetricPicker({ selected, onChange, view }: Props) {
           borderRadius: 6,
           padding: 8,
           width: 360,
-          maxHeight: 480,
+          // maxHeight is set dynamically on open so the picker is never
+          // clipped by the viewport edge — see the toggle effect above.
           overflowY: "auto",
           boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
           color: t.text,
