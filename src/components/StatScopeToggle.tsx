@@ -20,7 +20,7 @@ export function StatScopeToggle() {
       style={{ display: "flex", alignItems: "center", gap: 6 }}
     >
       <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
-        MAX/MED Base
+        MAX/MED/TOTAL Base
       </span>
       <select
         data-testid="stat-scope-select"
