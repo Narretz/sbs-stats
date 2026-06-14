@@ -81,7 +81,6 @@ export function SiteHeader({
             cursor: onHome ? "pointer" : "default",
           }}
         >
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: t.accent, animation: "blink 2s infinite" }} />
           <span
             style={{
               fontFamily: FONTS.display,
@@ -93,7 +92,7 @@ export function SiteHeader({
               textAlign: "left",
             }}
           >
-            {SITE_LABELS[site]}
+            RU-UA WAR STATISTICS
           </span>
         </button>
         <select

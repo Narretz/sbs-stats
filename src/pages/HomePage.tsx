@@ -221,12 +221,9 @@ export function HomePage({ onGoToSite }: Props) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: t.accent, animation: "blink 2s infinite" }} />
           <span style={{ fontFamily: FONTS.display, fontSize: 13, fontWeight: 700, color: t.text, letterSpacing: "0.06em" }}>
             RU-UA WAR STATISTICS
           </span>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <select
             value=""
             onChange={onSitePick}
@@ -241,6 +238,8 @@ export function HomePage({ onGoToSite }: Props) {
               <option key={s} value={s}>{SITE_LABELS[s]}</option>
             ))}
           </select>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button
             onClick={toggle}
             title={`Switch to ${mode === "light" ? "dark" : "light"} mode`}
@@ -257,12 +256,10 @@ export function HomePage({ onGoToSite }: Props) {
       <main style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 20px 64px" }}>
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 26, color: t.text, margin: 0 }}>
-            Combined daily chart
+            Custom daily charts
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6, maxWidth: 720 }}>
-            Pick any combination of daily metrics across the data sources. Sources are loaded only when one of their
-            metrics is selected. Single shared Y-axis — magnitudes vary widely between metrics, so expect smaller series
-            to look flat next to large ones.
+            Pick any combination of daily metrics across the data sources.
           </p>
         </div>
 
