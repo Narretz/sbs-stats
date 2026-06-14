@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
 import {
@@ -24,8 +24,6 @@ const SOURCE_ORDER: MetricSource[] = [
   "sbu-alfa",
 ];
 
-const POPOVER_ID = "metric-picker-popover";
-
 // Minimal local types — React 18's JSX types don't include the popover
 // attributes yet. We pass them through as data on the element and rely on the
 // browser to wire up popover behavior.
@@ -37,6 +35,10 @@ type PopoverProps = {
 
 export function MetricPicker({ selected, onChange, view }: Props) {
   const { theme: t } = useTheme();
+  // Per-instance ID — useId() guarantees uniqueness when multiple pickers
+  // render on the same page (one per chart on the homepage).
+  const reactId = useId();
+  const popoverId = `metric-picker-${reactId.replace(/:/g, "-")}`;
   const [query, setQuery] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -104,9 +106,9 @@ export function MetricPicker({ selected, onChange, view }: Props) {
     else onChange([...selected, id]);
   };
 
-  const triggerProps: PopoverProps = { popoverTarget: POPOVER_ID };
+  const triggerProps: PopoverProps = { popoverTarget: popoverId };
   const popoverProps: PopoverProps = { popover: "auto" };
-  const closeProps: PopoverProps = { popoverTarget: POPOVER_ID, popoverTargetAction: "hide" };
+  const closeProps: PopoverProps = { popoverTarget: popoverId, popoverTargetAction: "hide" };
 
   const btnStyle = {
     background: t.bgAlt,
@@ -139,7 +141,7 @@ export function MetricPicker({ selected, onChange, view }: Props) {
       </button>
       <div
         ref={popoverRef}
-        id={POPOVER_ID}
+        id={popoverId}
         {...popoverProps}
         style={{
           // The popover API places this in the top layer; we just provide our
