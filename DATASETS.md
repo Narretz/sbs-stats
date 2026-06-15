@@ -146,6 +146,34 @@ The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:
   equipment from those; (c) pin down exactly when personnel reporting stopped (looks pre-2025 already);
   (d) compare equipment trend against the GSUA RU-LOSSES series. Deep history needs the telethon backend.
 
+### NedSnow2019 Google Sheet — LIVE — CANDIDATE (third-party aggregator of RU MoD claims)
+- https://docs.google.com/spreadsheets/d/1U1kZiRglakIO_rfyYaR2cNaD2DUNCGKWv60iDPspgFs/
+  · maintainer https://x.com/NedSnow2019 · publicly readable, CSV-exportable
+  (`?format=csv&gid=0`).
+- Hand-maintained tracker compiled from the RU MoD Telegram channel + TASS reposts —
+  effectively a digitization of what we'd otherwise scrape ourselves for the "stream 1"
+  cumulative Ukrainian-losses claims described above. ~1,700 daily rows from 2022-02-24,
+  ~285 columns with model-level granularity across tanks/IFVs/APCs (Leopard-2, Abrams,
+  Challenger, Bradley, Marder, BMP-1/2, …), artillery (M777, Caesar, AHS Krab, …),
+  MRLs (HIMARS, M270, BM-21, …), AA (Patriot, NASAMS, Iris-T, S-300, …), aircraft
+  (Su-25/27, MiG-29, F-16, …), helicopters, UAVs (incl. LR OWA), plus a daily
+  "servicemen killed/wounded" personnel column. Both cumulative and per-day delta
+  columns are present per category.
+- Complements our existing `ru-mod-ad` (which is stream 2 — air-defense intercepts of
+  inbound RU MoD claims). Mirror of the GSUA RU-LOSSES series from the RU side.
+- **Caveats before ingestion:**
+  - Single hand-maintained sheet by an external person; no documented methodology, no
+    edit history, sheet could be restructured or revoked at any time.
+  - Column order is not stable across edits — parse by row-5 **header text**, not column
+    index, and store long-format `(date, metric, value)` so the schema survives added/
+    renamed columns. Build should abort on unrecognised headers (drift check) rather
+    than silently dropping them.
+  - Confirm license / attribution with the maintainer before publishing.
+- **Pipeline shape if pursued:** daily CI snapshot of the CSV → header-driven long-format
+  SQLite → R2, append-only/versioned-on-edit like our other ingest scripts. Treat as a
+  **bootstrap** for stream 1 — the long-term authoritative path is still our own scraper
+  of mil.ru / @mod_russia (per the REVISIT above).
+
 ---
 
 ## 4. Ukrainian strikes INTO Russia (drones launched at Russian territory)
