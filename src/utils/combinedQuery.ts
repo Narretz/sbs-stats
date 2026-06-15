@@ -13,15 +13,21 @@ import type {
   GlobalStats,
   GsuaDailyRow,
   GsuaGlobalStats,
+  GsuaMonthlyRow,
+  MonthlyRow,
   RuAdGlobalStats,
   RuAdDailyRow,
+  RuAdMonthlyRow,
   RuAirAttacksDailyRow,
   RuAirAttacksGlobalStats,
+  RuAirAttacksMonthlyRow,
   RuLossesDailyRow,
   RuLossesGlobalStats,
+  RuLossesMonthlyRow,
   Stat,
 } from "@/types";
 import type { CombinedMetric, MetricSource } from "@/utils/combinedMetrics";
+import { type MonthOption, monthOf, windowStartMonth } from "@/utils/monthRange";
 
 export interface CombinedQueries {
   sbs?: (days: number, endDate?: string) => DailyRow[];
@@ -59,6 +65,64 @@ function project(
       is_today: r.is_today === true,
     };
   });
+}
+
+export interface CombinedMonthlyQueries {
+  sbs?: () => MonthlyRow[];
+  gsua?: () => Promise<GsuaMonthlyRow[]>;
+  ruLosses?: () => RuLossesMonthlyRow[];
+  ruMod?: () => RuAdMonthlyRow[];
+  ruAir?: () => RuAirAttacksMonthlyRow[];
+}
+
+function projectMonthly(
+  rows: Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>,
+  key: string,
+  startMonth: string,
+  endMonth: string,
+): DailyDataPoint[] {
+  // Inclusive window on the YYYY-MM string sort. Map MonthlyRow → the chart's
+  // shared DailyDataPoint shape, carrying `is_current_month` through `is_today`
+  // so the chart's "partial last period" dot logic works unchanged.
+  return rows
+    .filter((r) => r.date >= startMonth && r.date <= endMonth)
+    .map((r) => {
+      const raw = r[key];
+      return {
+        date: r.date,
+        value: typeof raw === "number" ? raw : null,
+        is_today: r.is_current_month === true,
+      };
+    });
+}
+
+export async function fetchCombinedMonthly(
+  metrics: CombinedMetric[],
+  months: MonthOption,
+  endDate: string | undefined,
+  queries: CombinedMonthlyQueries,
+): Promise<Record<string, DailyDataPoint[]>> {
+  const sources = new Set<MetricSource>(metrics.map((m) => m.source));
+  const result: Record<string, DailyDataPoint[]> = {};
+
+  const endMonth = monthOf(endDate ?? "");
+  const startMonth = windowStartMonth(endMonth, months);
+
+  const sbsRows = sources.has("sbs") && queries.sbs ? queries.sbs() : null;
+  const ruLossesRows = sources.has("ru-losses") && queries.ruLosses ? queries.ruLosses() : null;
+  const ruModRows = sources.has("ru-airdef-mod") && queries.ruMod ? queries.ruMod() : null;
+  const ruAirRows = sources.has("ru-air-attacks") && queries.ruAir ? queries.ruAir() : null;
+  const gsuaRows = sources.has("gsua") && queries.gsua ? await queries.gsua() : null;
+
+  for (const m of metrics) {
+    if (m.source === "sbs" && sbsRows) result[m.id] = projectMonthly(sbsRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
+    else if (m.source === "gsua" && gsuaRows) result[m.id] = projectMonthly(gsuaRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
+    else if (m.source === "ru-losses" && ruLossesRows) result[m.id] = projectMonthly(ruLossesRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
+    else if (m.source === "ru-airdef-mod" && ruModRows) result[m.id] = projectMonthly(ruModRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
+    else if (m.source === "ru-air-attacks" && ruAirRows) result[m.id] = projectMonthly(ruAirRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
+    else result[m.id] = [];
+  }
+  return result;
 }
 
 export async function fetchCombinedDaily(

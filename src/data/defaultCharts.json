@@ -1,19 +1,23 @@
 {
   "days": 60,
+  "months": 12,
   "scope": "window",
   "yMode": "linear",
   "cumulative": false,
   "charts": [
     {
       "name": "RU vs UA UAV Attacks",
+      "granularity": "daily",
       "metricIds": ["ru-airdef-mod.total", "ru-air-attacks.drone_launched"]
     },
     {
       "name": "RU Vehicle losses",
+      "granularity": "daily",
       "metricIds": ["sbs.hit_7", "ru-losses.vehicles"]
     },
     {
       "name": "RU Personnel Losses",
+      "granularity": "daily",
       "metricIds": ["sbs.total_personnel_casualties", "ru-losses.personnel"]
     }
   ]

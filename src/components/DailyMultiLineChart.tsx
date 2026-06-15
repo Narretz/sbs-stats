@@ -31,6 +31,8 @@ export interface LineSeries {
 
 export type YAxisMode = "linear" | "log" | "normalized";
 
+export type ChartGranularity = "daily" | "monthly";
+
 interface Props {
   title: string;
   series: LineSeries[];
@@ -44,6 +46,10 @@ interface Props {
   // informative). The transform itself happens upstream; this only affects
   // how the legend is rendered.
   cumulative?: boolean;
+  // X-axis grain. "daily" expects YYYY-MM-DD `date` keys; "monthly" expects
+  // YYYY-MM and switches the tick + tooltip formatters accordingly. Both modes
+  // share the same `DailyDataPoint` shape — only the date string differs.
+  granularity?: ChartGranularity;
 }
 
 type Row = { date: string; is_today: boolean } & Record<string, number | null | string | boolean>;
@@ -54,6 +60,17 @@ function fmt(n: number | null | undefined): string {
 function formatDate(v: string): string {
   const [y, m, d] = v.split("-");
   return `${d}.${m}.${y}`;
+}
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function formatMonth(v: string): string {
+  const [y, m] = v.split("-");
+  const idx = Number(m) - 1;
+  return `${MONTH_NAMES[idx] ?? m} ${y}`;
+}
+function formatMonthTick(v: string): string {
+  const [y, m] = v.split("-");
+  const idx = Number(m) - 1;
+  return `${MONTH_NAMES[idx] ?? m} ${y.slice(2)}`;
 }
 function median(vals: number[]): number {
   const s = [...vals].sort((a, b) => a - b);
@@ -68,12 +85,13 @@ function Dot(props: DotProps & { payload?: Row; color: string; bg: string }) {
 }
 
 function MultiTooltip({
-  active, payload, t, series,
+  active, payload, t, series, granularity,
 }: {
   active?: boolean;
   payload?: { payload?: Row }[];
   t: Theme;
   series: LineSeries[];
+  granularity: ChartGranularity;
 }) {
   if (!active || !payload?.length || !payload[0].payload) return null;
   const row = payload[0].payload;
@@ -83,7 +101,9 @@ function MultiTooltip({
       padding: "8px 10px", fontFamily: FONTS.mono, fontSize: 12,
       boxShadow: "0 2px 8px rgba(0,0,0,0.12)", minWidth: 170,
     }}>
-      <div style={{ color: t.textMuted, marginBottom: 4 }}>{formatDate(row.date)}</div>
+      <div style={{ color: t.textMuted, marginBottom: 4 }}>
+        {granularity === "monthly" ? formatMonth(row.date) : formatDate(row.date)}
+      </div>
       {series.map((s) => {
         // Always show raw absolute values in the tooltip — even in normalized
         // mode, the user wants to know "what is the actual number today?"
@@ -98,7 +118,7 @@ function MultiTooltip({
   );
 }
 
-export function DailyMultiLineChart({ title, series, wfull = false, yMode = "linear", cumulative = false }: Props) {
+export function DailyMultiLineChart({ title, series, wfull = false, yMode = "linear", cumulative = false, granularity = "daily" }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
   const allScope = scope === "all";
@@ -194,7 +214,9 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
           <XAxis dataKey="date"
             tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
             tickLine={false} axisLine={false}
-            tickFormatter={(v: string) => { const p = v.slice(5).split("-"); return `${p[1]}/${p[0]}`; }}
+            tickFormatter={granularity === "monthly"
+              ? formatMonthTick
+              : (v: string) => { const p = v.slice(5).split("-"); return `${p[1]}/${p[0]}`; }}
           />
           {yMode === "log" ? (
             <YAxis
@@ -223,7 +245,7 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
             wrapperStyle={{ zIndex: 9999 }}
             cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
             content={(props) => (
-              <MultiTooltip active={props.active} payload={props.payload as { payload?: Row }[] | undefined} t={t} series={series} />
+              <MultiTooltip active={props.active} payload={props.payload as { payload?: Row }[] | undefined} t={t} series={series} granularity={granularity} />
             )}
           />
           {series.map((s) => (
