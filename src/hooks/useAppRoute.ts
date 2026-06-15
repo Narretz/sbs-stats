@@ -11,9 +11,9 @@ const RU_AD_PAGES: Page[] = ["daily", "monthly"];
 const RU_AIR_ATTACKS_PAGES: Page[] = ["daily", "monthly"];
 // SBU Alfa: monthly recap only (the source publishes one per month, no daily cadence).
 const SBU_ALFA_PAGES: Page[] = ["monthly"];
-// Mediazona: a single weekly view (two charts on one page) — the source publishes
-// week-bucketed data, so "weekly" is the only granularity that makes sense here.
-const MEDIAZONA_PAGES: Page[] = ["weekly"];
+// Mediazona: the source publishes week-bucketed data. "weekly" is the native
+// granularity; "monthly" re-buckets weeks into calendar months in the frontend.
+const MEDIAZONA_PAGES: Page[] = ["weekly", "monthly"];
 
 function pagesFor(site: Site): Page[] {
   if (site === "ru-attacks-gsua") return GSUA_PAGES;

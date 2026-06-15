@@ -188,6 +188,48 @@ export function useDatabaseMediazona() {
     }));
   }, [db]);
 
+  // ── Monthly buckets: sum weekly values by the start-date's calendar month ─────
+  // A week's value is assigned entirely to the month its start date falls in
+  // (no proportional split for week 0/53 straddling month boundaries — the
+  // smearing is small and matches how Mediazona itself labels weeks).
+  const queryRolesMonthly = useCallback((): MediazonaRolesRow[] => {
+    const weekly = queryRoles();
+    const buckets = new Map<string, MediazonaRolesRow>();
+    for (const r of weekly) {
+      const month = r.week.slice(0, 7) + "-01";
+      let bucket = buckets.get(month);
+      if (!bucket) {
+        const empty = MEDIAZONA_ROLE_GROUP_KEYS.reduce(
+          (acc, k) => { acc[k] = 0; return acc; },
+          {} as Record<MediazonaRoleGroupKey, number>,
+        );
+        bucket = { week: month, total: 0, ...empty };
+        buckets.set(month, bucket);
+      }
+      bucket.total += r.total;
+      for (const k of MEDIAZONA_ROLE_GROUP_KEYS) bucket[k] += r[k];
+    }
+    return [...buckets.values()].sort((a, b) => a.week.localeCompare(b.week));
+  }, [queryRoles]);
+
+  const queryEstimateMonthly = useCallback((): MediazonaEstimateRow[] => {
+    const weekly = queryEstimate();
+    const buckets = new Map<string, { documented: number | null; estimate: number | null }>();
+    for (const r of weekly) {
+      const month = r.week.slice(0, 7) + "-01";
+      let bucket = buckets.get(month);
+      if (!bucket) {
+        bucket = { documented: null, estimate: null };
+        buckets.set(month, bucket);
+      }
+      if (typeof r.documented === "number") bucket.documented = (bucket.documented ?? 0) + r.documented;
+      if (typeof r.estimate === "number") bucket.estimate = (bucket.estimate ?? 0) + r.estimate;
+    }
+    return [...buckets.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([week, v]) => ({ week, documented: v.documented, estimate: v.estimate }));
+  }, [queryEstimate]);
+
   // Covered week range across BOTH series (min start, max end), for the
   // "Data … – …" freshness note in the page header.
   const queryDataWindow = useCallback((): { minDate: string | null; maxDate: string | null } => {
@@ -203,7 +245,9 @@ export function useDatabaseMediazona() {
 
   return {
     loadState, error,
-    queryRoles, queryEstimate, queryDataWindow,
+    queryRoles, queryEstimate,
+    queryRolesMonthly, queryEstimateMonthly,
+    queryDataWindow,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs: REFRESH_INTERVAL_MS,
   };

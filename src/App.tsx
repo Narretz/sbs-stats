@@ -33,6 +33,7 @@ import { SbsDailyPage } from "@/pages/SbsDailyPage";
 import { SbsHourlyPage } from "@/pages/SbsHourlyPage";
 import { SbsMonthlyPage } from "@/pages/SbsMonthlyPage";
 import { MediazonaPage } from "@/pages/MediazonaPage";
+import { MediazonaMonthlyPage } from "@/pages/MediazonaMonthlyPage";
 import { HomePage } from "@/pages/HomePage";
 import type { Page, Site } from "@/types";
 import { GLOBAL_CSS } from "@/theme";
@@ -208,6 +209,7 @@ function MediazonaRoot({
       />
       <PageShell>
         {page === "weekly" && <MediazonaPage refreshKey={refreshCount} />}
+        {page === "monthly" && <MediazonaMonthlyPage refreshKey={refreshCount} />}
       </PageShell>
     </>
   );

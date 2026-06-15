@@ -14,6 +14,11 @@ import {
 // visible in the total line collapsing, and called out in the caption, so we
 // don't shade a provisional window on this chart.
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 function fmtDate(v: string): string {
   const [y, m] = v.split("-");
   return `${m}/${y.slice(2)}`;
@@ -22,17 +27,25 @@ function fmtFullDate(v: string): string {
   const [y, m, d] = v.split("-");
   return `${d}.${m}.${y}`;
 }
+function fmtMonthYear(v: string): string {
+  const [y, m] = v.split("-");
+  return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
+}
 
 function CompositionTooltip({
-  active, payload, t,
+  active, payload, t, bucket,
 }: {
   active?: boolean;
   payload?: { payload?: MediazonaRolesRow }[];
   t: Theme;
+  bucket: "weekly" | "monthly";
 }) {
   if (!active || !payload?.length || !payload[0].payload) return null;
   const row = payload[0].payload;
   const total = row.total || 1;
+  const header = bucket === "monthly"
+    ? `Month of ${fmtMonthYear(row.week)}`
+    : `Week of ${fmtFullDate(row.week)}`;
   return (
     <div style={{
       background: t.surface, border: `1px solid ${t.border}`, borderRadius: 6,
@@ -40,7 +53,7 @@ function CompositionTooltip({
       boxShadow: "0 2px 8px rgba(0,0,0,0.12)", minWidth: 210,
     }}>
       <div style={{ color: t.textMuted, marginBottom: 4 }}>
-        Week of {fmtFullDate(row.week)} · {row.total.toLocaleString()} named
+        {header} · {row.total.toLocaleString()} named
       </div>
       {[...MEDIAZONA_ROLE_GROUP_KEYS].reverse().map((k) => {
         const v = row[k] ?? 0;
@@ -56,10 +69,17 @@ function CompositionTooltip({
   );
 }
 
-export function RoleCompositionChart({ rows }: { rows: MediazonaRolesRow[] }) {
+export function RoleCompositionChart({
+  rows,
+  bucket = "weekly",
+}: {
+  rows: MediazonaRolesRow[];
+  bucket?: "weekly" | "monthly";
+}) {
   const { theme: t } = useTheme();
 
   const totalSum = useMemo(() => rows.reduce((s, r) => s + (r.total ?? 0), 0), [rows]);
+  const totalLabel = bucket === "monthly" ? "Monthly total" : "Weekly total";
 
   return (
     <div className="daily-card" style={{
@@ -71,7 +91,7 @@ export function RoleCompositionChart({ rows }: { rows: MediazonaRolesRow[] }) {
         Composition of confirmed deaths — share by force type
       </div>
       <div style={{ display: "flex", gap: 14, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
-        <span style={{ color: t.text }}>━ Weekly total <span style={{ opacity: 0.7 }}>· {totalSum.toLocaleString()} cum.</span></span>
+        <span style={{ color: t.text }}>━ {totalLabel} <span style={{ opacity: 0.7 }}>· {totalSum.toLocaleString()} cum.</span></span>
         {MEDIAZONA_ROLE_GROUP_KEYS.map((k) => (
           <span key={k} style={{ color: MEDIAZONA_ROLE_GROUPS[k].color }}>● {MEDIAZONA_ROLE_GROUPS[k].label}</span>
         ))}
@@ -91,7 +111,7 @@ export function RoleCompositionChart({ rows }: { rows: MediazonaRolesRow[] }) {
           <Tooltip
             cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
             content={(props) => (
-              <CompositionTooltip active={props.active} payload={props.payload as { payload?: MediazonaRolesRow }[] | undefined} t={t} />
+              <CompositionTooltip active={props.active} payload={props.payload as { payload?: MediazonaRolesRow }[] | undefined} t={t} bucket={bucket} />
             )}
           />
           {MEDIAZONA_ROLE_GROUP_KEYS.map((k: MediazonaRoleGroupKey) => (

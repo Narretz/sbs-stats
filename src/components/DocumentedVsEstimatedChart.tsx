@@ -11,9 +11,15 @@ import type { MediazonaEstimateRow } from "@/types";
 // partly model-based, and the recorded-names count is still being filled in.
 // We shade that window and explain it in the caption.
 const PROVISIONAL_WEEKS = 26; // ~6 months
+const PROVISIONAL_MONTHS = 6;
 
 const NAMES = "#3f9b52";    // recorded names count (probate file `real`) — green, per Mediazona
 const ESTIMATE = "#c44e52"; // estimate of actual losses (`rnd`) — the all-in topline
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
 
 type Row = {
   week: string;
@@ -30,27 +36,35 @@ function fmtFullDate(v: string): string {
   const [y, m, d] = v.split("-");
   return `${d}.${m}.${y}`;
 }
+function fmtMonthYear(v: string): string {
+  const [y, m] = v.split("-");
+  return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
+}
 function fmt(n: number | null | undefined): string {
   return typeof n === "number" ? Math.round(n).toLocaleString() : "—";
 }
 
 function BandTooltip({
-  active, payload, t,
+  active, payload, t, bucket,
 }: {
   active?: boolean;
   payload?: { payload?: Row }[];
   t: Theme;
+  bucket: "weekly" | "monthly";
 }) {
   if (!active || !payload?.length || !payload[0].payload) return null;
   const row = payload[0].payload;
   const mult = row.documented && row.estimate ? row.estimate / row.documented : null;
+  const header = bucket === "monthly"
+    ? `Month of ${fmtMonthYear(row.week)}`
+    : `Week of ${fmtFullDate(row.week)}`;
   return (
     <div style={{
       background: t.surface, border: `1px solid ${t.border}`, borderRadius: 6,
       padding: "8px 10px", fontFamily: FONTS.mono, fontSize: 12,
       boxShadow: "0 2px 8px rgba(0,0,0,0.12)", minWidth: 200,
     }}>
-      <div style={{ color: t.textMuted, marginBottom: 4 }}>Week of {fmtFullDate(row.week)}</div>
+      <div style={{ color: t.textMuted, marginBottom: 4 }}>{header}</div>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, color: ESTIMATE }}>
         <span>Estimated losses</span><span>{fmt(row.estimate)}</span>
       </div>
@@ -66,7 +80,13 @@ function BandTooltip({
   );
 }
 
-export function DocumentedVsEstimatedChart({ rows }: { rows: MediazonaEstimateRow[] }) {
+export function DocumentedVsEstimatedChart({
+  rows,
+  bucket = "weekly",
+}: {
+  rows: MediazonaEstimateRow[];
+  bucket?: "weekly" | "monthly";
+}) {
   const { theme: t } = useTheme();
 
   const { data, totDoc, totEst } = useMemo(() => {
@@ -81,7 +101,8 @@ export function DocumentedVsEstimatedChart({ rows }: { rows: MediazonaEstimateRo
     return { data, totDoc, totEst };
   }, [rows]);
 
-  const provisionalFrom = data.length > PROVISIONAL_WEEKS ? data[data.length - PROVISIONAL_WEEKS].week : null;
+  const provisionalSpan = bucket === "monthly" ? PROVISIONAL_MONTHS : PROVISIONAL_WEEKS;
+  const provisionalFrom = data.length > provisionalSpan ? data[data.length - provisionalSpan].week : null;
   const lastWeek = data.length ? data[data.length - 1].week : null;
 
   return (
@@ -109,7 +130,7 @@ export function DocumentedVsEstimatedChart({ rows }: { rows: MediazonaEstimateRo
           <Tooltip
             cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
             content={(props) => (
-              <BandTooltip active={props.active} payload={props.payload as { payload?: Row }[] | undefined} t={t} />
+              <BandTooltip active={props.active} payload={props.payload as { payload?: Row }[] | undefined} t={t} bucket={bucket} />
             )}
           />
           {provisionalFrom && lastWeek && (
