@@ -4,7 +4,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { DataWindow } from "@/components/DataWindow";
 import { RoleCompositionChart } from "@/components/RoleCompositionChart";
 import { DocumentedVsEstimatedChart } from "@/components/DocumentedVsEstimatedChart";
-import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { LoadingScreen, ErrorScreen } from "@/components/Layout";
 import type { MediazonaRolesRow, MediazonaEstimateRow } from "@/types";
 import { FONTS, type Theme } from "@/theme";
 
@@ -68,7 +68,7 @@ export function MediazonaPage({ refreshKey }: Props) {
     <div>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-          Russian war dead — Mediazona &amp; Meduza
+          Weekly Russian war dead — Mediazona &amp; Meduza
         </h1>
         <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
           Confirmed, individually-named deaths and the probate-registry statistical estimate · source: Mediazona / Meduza{" "}

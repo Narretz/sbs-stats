@@ -207,7 +207,7 @@ function MediazonaRoot({
         refreshIntervalMs={refreshIntervalMs}
       />
       <PageShell>
-        <MediazonaPage refreshKey={refreshCount} />
+        {page === "weekly" && <MediazonaPage refreshKey={refreshCount} />}
       </PageShell>
     </>
   );

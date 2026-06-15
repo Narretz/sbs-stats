@@ -22,6 +22,7 @@ const PAGE_LABEL: Record<Page, string> = {
   daily: "DAILY",
   hourly: "HOURLY",
   monthly: "MONTHLY",
+  weekly: "WEEKLY",
 };
 
 export function SiteHeader({
@@ -40,7 +41,7 @@ export function SiteHeader({
         color: page === target ? "#ffffff" : t.textMuted,
         border: `1px solid ${page === target ? t.primary : t.border}`,
         borderRadius: 4,
-        padding: "5px 14px",
+        padding: "5px 8px",
         fontFamily: FONTS.display,
         fontSize: 12,
         fontWeight: page === target ? 700 : 400,

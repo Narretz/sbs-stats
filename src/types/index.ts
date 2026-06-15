@@ -104,7 +104,7 @@ export interface Metric {
 }
 
 // ─── App state ────────────────────────────────────────────────────────────────
-export type Page = "daily" | "hourly" | "monthly";
+export type Page = "daily" | "hourly" | "monthly" | "weekly";
 export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa" | "mediazona";
 export const SITE_LABELS: Record<Site, string> = {
   sbs: "UA SBS STATISTICS - SBS",
