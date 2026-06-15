@@ -236,7 +236,14 @@ export function useDatabaseMediazona({ enabled = true }: { enabled?: boolean } =
     }
     return [...buckets.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([week, v]) => ({ week, documented: v.documented, estimate: v.estimate }));
+      .map(([week, v]) => ({
+        week,
+        documented: v.documented,
+        // `estimate` is a modelled real number — keeping the decimals in the
+        // bucket sum is noise, so round here once and every consumer gets a
+        // clean integer.
+        estimate: v.estimate == null ? null : Math.round(v.estimate),
+      }));
   }, [queryEstimate]);
 
   // Covered week range across BOTH series (min start, max end), for the
