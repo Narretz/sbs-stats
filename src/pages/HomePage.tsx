@@ -11,6 +11,7 @@ import { DateNav } from "@/components/DateNav";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MetricPicker } from "@/components/MetricPicker";
 import { DAY_OPTIONS, type DayOption, parseDaysParam } from "@/utils/dayRange";
+import { useStatScope, type StatScope } from "@/hooks/useStatScope";
 import { findMetric, type CombinedMetric, type MetricSource } from "@/utils/combinedMetrics";
 import { fetchCombinedDaily, fetchCombinedGlobalStats, statsForMetric, type GlobalStatsBundle } from "@/utils/combinedQuery";
 import type { DailyDataPoint, Site } from "@/types";
@@ -18,19 +19,30 @@ import { SITES, SITE_LABELS } from "@/types";
 import { FONTS } from "@/theme";
 import defaultChartsConfig from "@/data/defaultCharts.json";
 
-// Curated default charts shown to first-time visitors and after "Reset to
-// defaults". Editable in src/data/defaultCharts.json. Filter through findMetric
+// Curated homepage defaults — shown to first-time visitors. Editable in
+// src/data/defaultCharts.json. Per-chart specs are filtered through findMetric
 // at load time so renames or removals in the metric registry fail gracefully.
+// Global settings (days / scope / yMode / cumulative) live at the JSON root
+// and apply to the whole homepage; they're not per-chart.
 interface DefaultChartSpec { name: string; metricIds: string[] }
-const DEFAULT_CHART_SPECS: DefaultChartSpec[] = (defaultChartsConfig.charts as DefaultChartSpec[]).map((c) => ({
+interface DefaultsFile {
+  days?: number;
+  scope?: StatScope;
+  yMode?: YAxisMode;
+  cumulative?: boolean;
+  charts: DefaultChartSpec[];
+}
+const RAW_DEFAULTS = defaultChartsConfig as DefaultsFile;
+const DEFAULT_DAYS = (typeof RAW_DEFAULTS.days === "number" && RAW_DEFAULTS.days > 0)
+  ? RAW_DEFAULTS.days : 30;
+const DEFAULT_SCOPE: StatScope = RAW_DEFAULTS.scope === "all" ? "all" : "window";
+const DEFAULT_Y_MODE: YAxisMode = RAW_DEFAULTS.yMode === "log" || RAW_DEFAULTS.yMode === "normalized"
+  ? RAW_DEFAULTS.yMode : "linear";
+const DEFAULT_CUMULATIVE = RAW_DEFAULTS.cumulative === true;
+const DEFAULT_CHART_SPECS: DefaultChartSpec[] = RAW_DEFAULTS.charts.map((c) => ({
   name: c.name,
   metricIds: c.metricIds.filter((id) => findMetric(id) != null),
 }));
-
-// Homepage-only override of the global day-range default; the curated charts
-// look better with a 60-day window than the 30-day site-page default. Per-site
-// pages still use parseDaysParam's DEFAULT_DAYS unchanged.
-const HOME_DEFAULT_DAYS = 60;
 
 // Stable color palette; metrics are assigned colors by selection order within
 // a chart. Picked for distinguishability on both light and dark themes.
@@ -141,13 +153,13 @@ function getUrlParams() {
   const legacyMetrics = parseMetricsLegacy(p.get("metrics"));
   const rawDays = p.get("days");
   return {
-    // When the URL has no `days`, use the homepage's curated default so the
-    // first impression matches the JSON config. URL-supplied values keep
-    // flowing through parseDaysParam for validation.
-    days: rawDays != null ? parseDaysParam(rawDays) : HOME_DEFAULT_DAYS,
+    // For each globally-defaulted param: URL value wins; missing falls back to
+    // the JSON-curated default. parseDaysParam still runs validation, but its
+    // built-in fallback is bypassed so we honor the JSON value.
+    days: rawDays != null ? parseDaysParam(rawDays) : DEFAULT_DAYS,
     date: parseDate(p.get("date")),
-    yMode: parseYMode(p.get("y")),
-    cumulative: parseCumulative(p.get("cum")),
+    yMode: p.get("y") != null ? parseYMode(p.get("y")) : DEFAULT_Y_MODE,
+    cumulative: p.get("cum") != null ? parseCumulative(p.get("cum")) : DEFAULT_CUMULATIVE,
     charts: parseCharts(p.get("charts"), legacyMetrics),
   };
 }
@@ -176,6 +188,32 @@ export function HomePage({ onGoToSite }: Props) {
   const [yMode, setYMode] = useState<YAxisMode>(initial.yMode);
   const [cumulative, setCumulative] = useState<boolean>(initial.cumulative);
   const [charts, setCharts] = useState<ChartConfig[]>(initial.charts);
+
+  // StatScope lives in a global localStorage-backed context so it can be
+  // shared with per-site pages. On homepage mount, apply the JSON-default
+  // scope unless the URL carries an explicit `?scope=` override. Later
+  // toggles flow through the existing StatScopeToggle as usual.
+  const { scope, setScope } = useStatScope();
+  useEffect(() => {
+    const urlScope = new URLSearchParams(window.location.search).get("scope");
+    const desired: StatScope = urlScope === "all" || urlScope === "window"
+      ? urlScope
+      : DEFAULT_SCOPE;
+    if (desired !== scope) setScope(desired);
+    // intentionally on mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Are all four global settings + the chart list at their JSON defaults?
+  // Used by the homepage's "showing curated defaults" notice. `scope` is
+  // included because it's part of the JSON spec even though it doesn't
+  // roundtrip through the URL.
+  const showingDefaults =
+    days === DEFAULT_DAYS &&
+    scope === DEFAULT_SCOPE &&
+    yMode === DEFAULT_Y_MODE &&
+    cumulative === DEFAULT_CUMULATIVE &&
+    isDefaultCharts(charts);
 
   // Clear the old `metrics=` param once on mount if we migrated from it.
   useEffect(() => {
@@ -280,7 +318,7 @@ export function HomePage({ onGoToSite }: Props) {
   }, [needed, sbs.loadState, sbs.queryGlobalStats, gsua.loadState, gsua.queryGlobalStats, ruLosses.loadState, ruLosses.queryGlobalStats, ruMod.loadState, ruMod.queryGlobalStats, ruAir.loadState, ruAir.queryGlobalStats]);
 
   // Single chart-config mutator. Persists to URL, omitting the `charts=` param
-  // when the state matches the default (one empty chart) so "/" stays clean.
+  // when the chart list matches the curated JSON defaults so "/" stays clean.
   const updateCharts = (next: ChartConfig[]) => {
     setCharts(next);
     setUrlParams({ charts: isDefaultCharts(next) ? "" : serializeCharts(next) });
@@ -389,7 +427,7 @@ export function HomePage({ onGoToSite }: Props) {
             Custom daily charts
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6, maxWidth: 720 }}>
-            Pick any combination of daily metrics across the data sources. Add more charts below to compare side by side.
+            {showingDefaults && "Currently showing the default charts. "}Pick any combination of daily metrics across the data sources. Add more charts below to compare side by side.
           </p>
         </div>
 

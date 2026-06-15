@@ -1,4 +1,8 @@
 {
+  "days": 60,
+  "scope": "window",
+  "yMode": "linear",
+  "cumulative": false,
   "charts": [
     {
       "name": "RU vs UA UAV Attacks",
