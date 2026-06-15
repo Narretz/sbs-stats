@@ -1,0 +1,16 @@
+{
+  "charts": [
+    {
+      "name": "RU vs UA UAV Attacks",
+      "metricIds": ["ru-airdef-mod.total", "ru-air-attacks.drone_launched"]
+    },
+    {
+      "name": "RU Vehicle losses",
+      "metricIds": ["sbs.hit_7", "ru-losses.vehicles"]
+    },
+    {
+      "name": "RU Personnel Losses",
+      "metricIds": ["sbs.total_personnel_casualties", "ru-losses.personnel"]
+    }
+  ]
+}

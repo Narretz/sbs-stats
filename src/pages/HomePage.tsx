@@ -16,6 +16,21 @@ import { fetchCombinedDaily, fetchCombinedGlobalStats, statsForMetric, type Glob
 import type { DailyDataPoint, Site } from "@/types";
 import { SITES, SITE_LABELS } from "@/types";
 import { FONTS } from "@/theme";
+import defaultChartsConfig from "@/data/defaultCharts.json";
+
+// Curated default charts shown to first-time visitors and after "Reset to
+// defaults". Editable in src/data/defaultCharts.json. Filter through findMetric
+// at load time so renames or removals in the metric registry fail gracefully.
+interface DefaultChartSpec { name: string; metricIds: string[] }
+const DEFAULT_CHART_SPECS: DefaultChartSpec[] = (defaultChartsConfig.charts as DefaultChartSpec[]).map((c) => ({
+  name: c.name,
+  metricIds: c.metricIds.filter((id) => findMetric(id) != null),
+}));
+
+// Homepage-only override of the global day-range default; the curated charts
+// look better with a 60-day window than the 30-day site-page default. Per-site
+// pages still use parseDaysParam's DEFAULT_DAYS unchanged.
+const HOME_DEFAULT_DAYS = 60;
 
 // Stable color palette; metrics are assigned colors by selection order within
 // a chart. Picked for distinguishability on both light and dark themes.
@@ -48,6 +63,14 @@ function parseCumulative(raw: string | null): boolean {
   return raw === "1";
 }
 
+function makeDefaultCharts(): ChartConfig[] {
+  return DEFAULT_CHART_SPECS.map((c) => ({
+    uid: newChartUid(),
+    name: c.name,
+    metricIds: [...c.metricIds],
+  }));
+}
+
 // URL encoding for `charts=`:
 //   <encName>:<id>,<id>;<encName>:<id>;...
 // - name is encodeURIComponent'd so it can contain anything safely
@@ -59,11 +82,12 @@ function parseCharts(raw: string | null, legacyMetrics: string[]): ChartConfig[]
       // shared links still render the user's selection.
       return [{ uid: newChartUid(), name: defaultChartName(1), metricIds: legacyMetrics }];
     }
-    return [{ uid: newChartUid(), name: defaultChartName(1), metricIds: [] }];
+    // No URL state — fall back to the curated defaults from JSON.
+    return makeDefaultCharts();
   }
   const chunks = raw.split(";").filter((c) => c.length > 0);
   if (chunks.length === 0) {
-    return [{ uid: newChartUid(), name: defaultChartName(1), metricIds: [] }];
+    return makeDefaultCharts();
   }
   return chunks.map((chunk, idx) => {
     const colon = chunk.indexOf(":");
@@ -90,13 +114,21 @@ function serializeCharts(charts: ChartConfig[]): string {
     .join(";");
 }
 
-// Default state = one empty chart with the default name and no metrics.
-// We omit the `charts=` URL param while the state matches this default so
-// "/" stays clean for a fresh visitor.
+// State matches the curated JSON defaults? When true we omit the `charts=`
+// URL param so "/" stays clean — and so changes to defaultCharts.json reach
+// every clean visitor without their bookmarks freezing the old defaults.
 function isDefaultCharts(charts: ChartConfig[]): boolean {
-  if (charts.length !== 1) return false;
-  const only = charts[0];
-  return only.metricIds.length === 0 && only.name === defaultChartName(1);
+  if (charts.length !== DEFAULT_CHART_SPECS.length) return false;
+  for (let i = 0; i < charts.length; i++) {
+    const c = charts[i];
+    const spec = DEFAULT_CHART_SPECS[i];
+    if (c.name !== spec.name) return false;
+    if (c.metricIds.length !== spec.metricIds.length) return false;
+    for (let j = 0; j < spec.metricIds.length; j++) {
+      if (c.metricIds[j] !== spec.metricIds[j]) return false;
+    }
+  }
+  return true;
 }
 
 function parseMetricsLegacy(raw: string | null): string[] {
@@ -107,8 +139,12 @@ function parseMetricsLegacy(raw: string | null): string[] {
 function getUrlParams() {
   const p = new URLSearchParams(window.location.search);
   const legacyMetrics = parseMetricsLegacy(p.get("metrics"));
+  const rawDays = p.get("days");
   return {
-    days: parseDaysParam(p.get("days")),
+    // When the URL has no `days`, use the homepage's curated default so the
+    // first impression matches the JSON config. URL-supplied values keep
+    // flowing through parseDaysParam for validation.
+    days: rawDays != null ? parseDaysParam(rawDays) : HOME_DEFAULT_DAYS,
     date: parseDate(p.get("date")),
     yMode: parseYMode(p.get("y")),
     cumulative: parseCumulative(p.get("cum")),
