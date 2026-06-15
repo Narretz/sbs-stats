@@ -83,10 +83,6 @@ export interface CombinedMonthlyQueries {
   mediazonaEstimate?: () => MediazonaEstimateRow[];
 }
 
-// Mediazona role keys live on the roles row; documented/estimate live on the
-// estimate row. Used by the fetcher to pick the right query per metric.
-const MEDIAZONA_ESTIMATE_KEYS = new Set(["documented", "estimate"]);
-
 // SBU Alfa long-table → DailyDataPoint[] for one metric. Filters by category
 // and groups by period (one row per period normally; latest wins if duplicated
 // because of the derive step). Inclusive YYYY-MM window.
@@ -170,16 +166,8 @@ export async function fetchCombinedMonthly(
   const ruModRows = sources.has("ru-airdef-mod") && queries.ruMod ? queries.ruMod() : null;
   const ruAirRows = sources.has("ru-air-attacks") && queries.ruAir ? queries.ruAir() : null;
   const sbuAlfaRows = sources.has("sbu-alfa") && queries.sbuAlfa ? queries.sbuAlfa() : null;
-
-  // Mediazona has two queries; only call the ones whose metrics are present.
-  const needsMediazonaRoles = sources.has("mediazona") && metrics.some((m) =>
-    m.source === "mediazona" && !MEDIAZONA_ESTIMATE_KEYS.has(m.key)
-  );
-  const needsMediazonaEstimate = sources.has("mediazona") && metrics.some((m) =>
-    m.source === "mediazona" && MEDIAZONA_ESTIMATE_KEYS.has(m.key)
-  );
-  const mediazonaRolesRows = needsMediazonaRoles && queries.mediazonaRoles ? queries.mediazonaRoles() : null;
-  const mediazonaEstimateRows = needsMediazonaEstimate && queries.mediazonaEstimate ? queries.mediazonaEstimate() : null;
+  const mediazonaRolesRows = sources.has("mediazona-roles") && queries.mediazonaRoles ? queries.mediazonaRoles() : null;
+  const mediazonaEstimateRows = sources.has("mediazona-estimate") && queries.mediazonaEstimate ? queries.mediazonaEstimate() : null;
 
   const gsuaRows = sources.has("gsua") && queries.gsua ? await queries.gsua() : null;
 
@@ -190,15 +178,8 @@ export async function fetchCombinedMonthly(
     else if (m.source === "ru-airdef-mod" && ruModRows) result[m.id] = projectMonthly(ruModRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "ru-air-attacks" && ruAirRows) result[m.id] = projectMonthly(ruAirRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "sbu-alfa" && sbuAlfaRows) result[m.id] = pivotSbuAlfa(sbuAlfaRows, m.key, startMonth, endMonth);
-    else if (m.source === "mediazona") {
-      if (MEDIAZONA_ESTIMATE_KEYS.has(m.key) && mediazonaEstimateRows) {
-        result[m.id] = projectMediazona(mediazonaEstimateRows as unknown as Array<{ week: string } & Record<string, unknown>>, m.key, startMonth, endMonth);
-      } else if (mediazonaRolesRows) {
-        result[m.id] = projectMediazona(mediazonaRolesRows as unknown as Array<{ week: string } & Record<string, unknown>>, m.key, startMonth, endMonth);
-      } else {
-        result[m.id] = [];
-      }
-    }
+    else if (m.source === "mediazona-roles" && mediazonaRolesRows) result[m.id] = projectMediazona(mediazonaRolesRows as unknown as Array<{ week: string } & Record<string, unknown>>, m.key, startMonth, endMonth);
+    else if (m.source === "mediazona-estimate" && mediazonaEstimateRows) result[m.id] = projectMediazona(mediazonaEstimateRows as unknown as Array<{ week: string } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else result[m.id] = [];
   }
   return result;

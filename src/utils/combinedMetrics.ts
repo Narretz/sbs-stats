@@ -27,7 +27,36 @@ export type MetricSource =
   | "ru-airdef-mod"
   | "ru-air-attacks"
   | "sbu-alfa"
+  // Mediazona's two underlying tables are released on different cadences —
+  // role composition runs weekly through "now", the probate-registry estimate
+  // series only refreshes when Meduza/Mediazona publish a new modelling
+  // update (so it lags ~6 months). They're split here so the MetricPicker
+  // groups them separately, making the gap visible in the UI.
+  | "mediazona-roles"
+  | "mediazona-estimate";
+
+// Which underlying DB hook each source talks to. Two MetricSource values can
+// share the same hook (Mediazona today). Used by HomePage to decide which
+// `useDatabase*` hook needs to be `enabled` for a given source set.
+export type MetricDbHook =
+  | "sbs"
+  | "gsua"
+  | "ru-losses"
+  | "ru-airdef-mod"
+  | "ru-air-attacks"
+  | "sbu-alfa"
   | "mediazona";
+
+export const SOURCE_TO_DB: Record<MetricSource, MetricDbHook> = {
+  "sbs": "sbs",
+  "gsua": "gsua",
+  "ru-losses": "ru-losses",
+  "ru-airdef-mod": "ru-airdef-mod",
+  "ru-air-attacks": "ru-air-attacks",
+  "sbu-alfa": "sbu-alfa",
+  "mediazona-roles": "mediazona",
+  "mediazona-estimate": "mediazona",
+};
 
 export type MetricView = "daily" | "monthly";
 
@@ -51,7 +80,8 @@ export const SOURCE_LABELS: Record<MetricSource, string> = {
   "ru-airdef-mod": "RU MoD AD",
   "ru-air-attacks": "RU Strikes",
   "sbu-alfa": "SBU Alfa",
-  "mediazona": "Mediazona",
+  "mediazona-roles": "Mediazona — Roles",
+  "mediazona-estimate": "Mediazona — Estimate",
 };
 
 function make(
@@ -120,17 +150,16 @@ const SBU_ALFA_METRICS: CombinedMetric[] = SBU_ALFA_CATEGORY_KEYS.map((k) =>
   make("sbu-alfa", k, SBU_ALFA_CATEGORY_LABELS[k], MONTHLY_ONLY),
 );
 
-// Mediazona — monthly only. Two underlying queries:
-//   - role composition (`total` + 7 role groups), keyed by group name
-//   - estimate series (`documented`, `estimate`)
-// All ten land in one source group; the fetcher routes by key.
+// Mediazona — monthly only. Two underlying tables published on different
+// cadences (the estimate series lags by ~6 months) — modelled as two separate
+// sources so the picker groups them apart and the cadence gap is visible.
 const MEDIAZONA_METRICS: CombinedMetric[] = [
-  make("mediazona", "total", "Confirmed Deaths (Total)", MONTHLY_ONLY),
+  make("mediazona-roles", "total", "Confirmed Deaths (Total)", MONTHLY_ONLY),
   ...MEDIAZONA_ROLE_GROUP_KEYS.map((k) =>
-    make("mediazona", k, MEDIAZONA_ROLE_GROUPS[k].label, MONTHLY_ONLY),
+    make("mediazona-roles", k, MEDIAZONA_ROLE_GROUPS[k].label, MONTHLY_ONLY),
   ),
-  make("mediazona", "documented", "Documented (Named) Deaths", MONTHLY_ONLY),
-  make("mediazona", "estimate", "Probate-Registry Estimate", MONTHLY_ONLY),
+  make("mediazona-estimate", "documented", "Documented (Named) Deaths", MONTHLY_ONLY),
+  make("mediazona-estimate", "estimate", "Probate-Registry Estimate", MONTHLY_ONLY),
 ];
 
 export const COMBINED_METRICS: CombinedMetric[] = [

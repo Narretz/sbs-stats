@@ -351,7 +351,9 @@ export function HomePage({ onGoToSite }: Props) {
   const ruMod = useDatabaseRuMod({ enabled: needed.has("ru-airdef-mod") });
   const ruAir = useDatabaseRuAirAttacks({ enabled: needed.has("ru-air-attacks") });
   const sbuAlfa = useDatabaseSbuAlfa({ enabled: needed.has("sbu-alfa") });
-  const mediazona = useDatabaseMediazona({ enabled: needed.has("mediazona") });
+  // Mediazona's two MetricSource values share one underlying DB hook.
+  const mediazonaNeeded = needed.has("mediazona-roles") || needed.has("mediazona-estimate");
+  const mediazona = useDatabaseMediazona({ enabled: mediazonaNeeded });
 
   // Per-chart series data — each chart has its own window so they can't share
   // a fetch. Keyed by chartUid → { metricId → points[] }.
@@ -388,7 +390,7 @@ export function HomePage({ onGoToSite }: Props) {
       [needed.has("ru-airdef-mod"), ruMod.loadState],
       [needed.has("ru-air-attacks"), ruAir.loadState],
       [needed.has("sbu-alfa"), sbuAlfa.loadState],
-      [needed.has("mediazona"), mediazona.loadState],
+      [mediazonaNeeded, mediazona.loadState],
     ].every(([n, s]) => !n || s === "ready");
     if (!allReady) return;
 
@@ -425,8 +427,8 @@ export function HomePage({ onGoToSite }: Props) {
             ruMod: needed.has("ru-airdef-mod") ? ruMod.queryMonthly : undefined,
             ruAir: needed.has("ru-air-attacks") ? ruAir.queryMonthly : undefined,
             sbuAlfa: needed.has("sbu-alfa") ? sbuAlfa.queryCounters : undefined,
-            mediazonaRoles: needed.has("mediazona") ? mediazona.queryRolesMonthly : undefined,
-            mediazonaEstimate: needed.has("mediazona") ? mediazona.queryEstimateMonthly : undefined,
+            mediazonaRoles: needed.has("mediazona-roles") ? mediazona.queryRolesMonthly : undefined,
+            mediazonaEstimate: needed.has("mediazona-estimate") ? mediazona.queryEstimateMonthly : undefined,
           })
         : fetchCombinedDaily(metrics, c.window as DayOption, selectedDate || undefined, {
             sbs: needed.has("sbs") ? sbs.queryDaily : undefined,
@@ -442,7 +444,7 @@ export function HomePage({ onGoToSite }: Props) {
       });
     }
     return () => { cancelled = true; };
-  }, [charts, chartFetchKeys, selectedDate, needed,
+  }, [charts, chartFetchKeys, selectedDate, needed, mediazonaNeeded,
       sbs.loadState, sbs.queryDaily, sbs.queryMonthly,
       gsua.loadState, gsua.queryDaily, gsua.queryMonthly,
       ruLosses.loadState, ruLosses.queryDaily, ruLosses.queryMonthly,
@@ -462,9 +464,10 @@ export function HomePage({ onGoToSite }: Props) {
       "ru-airdef-mod": needed.has("ru-airdef-mod") && ruMod.loadState === "ready",
       "ru-air-attacks": needed.has("ru-air-attacks") && ruAir.loadState === "ready",
       // SBU Alfa + Mediazona are monthly-only; the daily global-stats bundle
-      // doesn't carry them. Their chart fall back to window stats either way.
+      // doesn't carry them. Their charts fall back to window stats either way.
       "sbu-alfa": false,
-      "mediazona": false,
+      "mediazona-roles": false,
+      "mediazona-estimate": false,
     };
     const readySet = new Set<MetricSource>(
       (Object.keys(sourcesReady) as MetricSource[]).filter((k) => sourcesReady[k]),
@@ -559,17 +562,19 @@ export function HomePage({ onGoToSite }: Props) {
   const canGoNext = selectedDate !== "" && selectedDate < maxSelectableDate;
 
   const loadingSources = useMemo(() => {
-    const states: Array<[MetricSource, string]> = [
-      ["sbs", sbs.loadState],
-      ["gsua", gsua.loadState],
-      ["ru-losses", ruLosses.loadState],
-      ["ru-airdef-mod", ruMod.loadState],
-      ["ru-air-attacks", ruAir.loadState],
-      ["sbu-alfa", sbuAlfa.loadState],
-      ["mediazona", mediazona.loadState],
+    const states: Array<[string, string, boolean]> = [
+      ["sbs", sbs.loadState, needed.has("sbs")],
+      ["gsua", gsua.loadState, needed.has("gsua")],
+      ["ru-losses", ruLosses.loadState, needed.has("ru-losses")],
+      ["ru-airdef-mod", ruMod.loadState, needed.has("ru-airdef-mod")],
+      ["ru-air-attacks", ruAir.loadState, needed.has("ru-air-attacks")],
+      ["sbu-alfa", sbuAlfa.loadState, needed.has("sbu-alfa")],
+      // Both Mediazona sources share one underlying DB hook — collapse to a
+      // single "mediazona" label so we don't double-report.
+      ["mediazona", mediazona.loadState, mediazonaNeeded],
     ];
-    return states.filter(([s, st]) => needed.has(s) && st === "loading").map(([s]) => s);
-  }, [needed, sbs.loadState, gsua.loadState, ruLosses.loadState, ruMod.loadState, ruAir.loadState, sbuAlfa.loadState, mediazona.loadState]);
+    return states.filter(([, st, isNeeded]) => isNeeded && st === "loading").map(([s]) => s);
+  }, [needed, mediazonaNeeded, sbs.loadState, gsua.loadState, ruLosses.loadState, ruMod.loadState, ruAir.loadState, sbuAlfa.loadState, mediazona.loadState]);
 
   const onSitePick = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     const v = e.target.value;

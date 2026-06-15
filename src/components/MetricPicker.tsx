@@ -22,7 +22,8 @@ const SOURCE_ORDER: MetricSource[] = [
   "ru-airdef-mod",
   "ru-air-attacks",
   "sbu-alfa",
-  "mediazona",
+  "mediazona-roles",
+  "mediazona-estimate",
 ];
 
 // Minimal local types — React 18's JSX types don't include the popover
