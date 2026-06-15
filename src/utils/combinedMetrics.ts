@@ -154,12 +154,12 @@ const SBU_ALFA_METRICS: CombinedMetric[] = SBU_ALFA_CATEGORY_KEYS.map((k) =>
 // cadences (the estimate series lags by ~6 months) — modelled as two separate
 // sources so the picker groups them apart and the cadence gap is visible.
 const MEDIAZONA_METRICS: CombinedMetric[] = [
-  make("mediazona-roles", "total", "Confirmed Deaths (Total)", MONTHLY_ONLY),
+  make("mediazona-roles", "total", "Personnel Confirmed Deaths (Total)", MONTHLY_ONLY),
   ...MEDIAZONA_ROLE_GROUP_KEYS.map((k) =>
     make("mediazona-roles", k, MEDIAZONA_ROLE_GROUPS[k].label, MONTHLY_ONLY),
   ),
-  make("mediazona-estimate", "documented", "Documented (Named) Deaths", MONTHLY_ONLY),
-  make("mediazona-estimate", "estimate", "Probate-Registry Estimate", MONTHLY_ONLY),
+  make("mediazona-estimate", "documented", "Personnel Documented Deaths (Total)", MONTHLY_ONLY),
+  make("mediazona-estimate", "estimate", "Personnel Probate-Registry Deaths Estimate", MONTHLY_ONLY),
 ];
 
 export const COMBINED_METRICS: CombinedMetric[] = [

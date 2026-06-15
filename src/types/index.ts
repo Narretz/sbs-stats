@@ -338,7 +338,7 @@ export const SBU_ALFA_CATEGORY_KEYS = [
 export type SbuAlfaCategoryKey = (typeof SBU_ALFA_CATEGORY_KEYS)[number];
 
 export const SBU_ALFA_CATEGORY_LABELS: Record<SbuAlfaCategoryKey, string> = {
-  enemy_kia: "Enemy KIA",
+  enemy_kia: "Personnel Killed",
   targets_total: "Other targets — total",
   targets_destroyed: "Other targets — destroyed",
   targets_damaged: "Other targets — damaged",
