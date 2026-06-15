@@ -177,6 +177,23 @@ def test_daily_by_category_view(tmp_path):
     conn.close()
 
 
+def test_model_casing_is_canonicalized(tmp_path):
+    # piterfm sometimes flips casing on a known model; the natural key must stay
+    # stable so a re-ingest doesn't create an orphan row.
+    canonical = "\n".join([HEADER,
+        "2025-03-01 02:00:00,2025-03-01 03:00:00,Intercontinental Ballistic Missile,1,0,Kapustin Yar,Kyiv,kpszsu/posts/x"])
+    flipped = "\n".join([HEADER,
+        "2025-03-01 02:00:00,2025-03-01 03:00:00,intercontinental ballistic MISSILE,1,0,Kapustin Yar,Kyiv,kpszsu/posts/x"])
+    inserted1, distinct1, _ = _build(tmp_path, canonical)
+    inserted2, distinct2, _ = _build(tmp_path, flipped)
+    assert (inserted1, distinct1) == (1, 1)
+    assert (inserted2, distinct2) == (0, 1)  # same key after normalization
+    conn = sqlite3.connect(tmp_path / "t.db")
+    models = [r[0] for r in conn.execute("SELECT model FROM missile_attacks")]
+    assert models == ["Intercontinental Ballistic Missile"]
+    conn.close()
+
+
 def test_header_drift_aborts(tmp_path):
     bad = "time_start,model,launched\n2024-11-17 23:40:00,Shahed,120"  # no destroyed/time_end/source
     with pytest.raises(RuntimeError, match="missing required columns"):
@@ -185,6 +202,19 @@ def test_header_drift_aborts(tmp_path):
 
 def test_shrink_guard_aborts(tmp_path):
     _build(tmp_path, CSV_V1)
-    shrunk = "\n".join(CSV_V1.splitlines()[:2])  # header + 1 row
+    shrunk = "\n".join(CSV_V1.splitlines()[:2])  # header + 1 row (2 keys gone, tol 1)
     with pytest.raises(RuntimeError, match="shrinking dataset"):
         _build(tmp_path, shrunk)
+
+
+def test_small_shrink_within_tolerance_warns(tmp_path, monkeypatch, capsys):
+    # A 1-key drop on a large stored set is within tolerance (e.g. upstream
+    # normalized casing of a key column) — should warn and proceed.
+    monkeypatch.setattr(ingest, "SHRINK_TOLERANCE_ABS", 20)
+    monkeypatch.setattr(ingest, "SHRINK_TOLERANCE_FRAC", 0.5)  # tiny fixture
+    _build(tmp_path, CSV_V1)
+    shrunk = "\n".join(CSV_V1.splitlines()[:3])  # header + 2 rows (1 key gone)
+    inserted, distinct, _ = _build(tmp_path, shrunk)
+    assert inserted == 0  # nothing new
+    assert distinct == 3  # orphan remains in DB
+    assert "within tolerance" in capsys.readouterr().err

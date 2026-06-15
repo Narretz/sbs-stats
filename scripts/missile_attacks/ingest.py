@@ -40,9 +40,10 @@ The natural key is (time_start, time_end, model, launch_place, target, source) �
 `source` (the originating UA Air Force / regional-command post) is what makes a
 row unique: same-day reports of the same model+target from different commands
 differ only by source. A header-drift guard aborts the build (so the R2 upload is
-skipped) if any essential column is missing; a row-count floor, a "never fewer
-keys than already stored" guard, and an in-download key-uniqueness guard refuse a
-partial/broken or unexpectedly-shaped download.
+skipped) if any essential column is missing; a row-count floor, a bounded
+"shrink" guard (small upstream cleanups warn-and-proceed; large drops abort),
+and an in-download key-uniqueness guard refuse a partial/broken or
+unexpectedly-shaped download.
 """
 from __future__ import annotations
 
@@ -101,12 +102,24 @@ CRUISE_MODELS = {
 BALLISTIC_MODELS = {
     "Iskander-M", "Iskander-M/KN-23", "KN-23", "X-47 Kinzhal",  # Kinzhal = aeroballistic
     "Ballistic Missile", "Intercontinental Ballistic Missile",
-    "Intercontinental ballistic missile", "C-300", "C-400", "C-300/C-400",
+    "C-300", "C-400", "C-300/C-400",
 }
 # Known but uncategorizable (guided/aerial bombs, unattributed) — classified as
 # "other" WITHOUT a warning. Genuinely new/unknown tokens still warn.
 OTHER_MODELS = {"GBU", "Aerial Bomb", "Unknown Missile"}
 _KNOWN = DRONE_MODELS | CRUISE_MODELS | BALLISTIC_MODELS | OTHER_MODELS
+# Case-insensitive lookup → canonical token. piterfm sometimes republishes a row
+# with the model casing flipped ("Intercontinental ballistic missile" →
+# "Intercontinental Ballistic Missile"), and since `model` is in the natural
+# key, an unnormalized casing flip orphans the prior key in our append-only DB.
+# Normalize known tokens to the canonical form here; unknown tokens pass through
+# unchanged so the "unmapped tokens" warning still surfaces genuinely new models.
+_CANONICAL_BY_CASEFOLD = {m.casefold(): m for m in _KNOWN}
+
+
+def normalize_model(model: str) -> str:
+    tokens = [t.strip() for t in model.split(" and ")]
+    return " and ".join(_CANONICAL_BY_CASEFOLD.get(t.casefold(), t) for t in tokens)
 
 
 def classify(model: str) -> tuple[str, list[str]]:
@@ -126,6 +139,14 @@ def classify(model: str) -> tuple[str, list[str]]:
 # Absolute floor: the dataset spans Oct 2022→now at one row per model per attack,
 # i.e. thousands of rows. Anything tiny means a broken/partial download.
 MIN_ROWS_FLOOR = int(os.environ.get("MISSILE_MIN_ROWS", "1000"))
+
+# Shrink tolerance: piterfm occasionally normalizes a key-column value (model
+# casing, time window, target spelling), which under our append-only model
+# orphans the previous key in the DB and looks like "one fewer key upstream".
+# Tolerate small shrinkages (warn but proceed); abort only when a meaningful
+# fraction disappears, which would still catch a truncated/broken download.
+SHRINK_TOLERANCE_FRAC = float(os.environ.get("MISSILE_SHRINK_TOL_FRAC", "0.01"))
+SHRINK_TOLERANCE_ABS = int(os.environ.get("MISSILE_SHRINK_TOL_ABS", "20"))
 
 KAGGLE_DOWNLOAD = "https://www.kaggle.com/api/v1/datasets/download/{slug}"
 
@@ -207,6 +228,8 @@ def parse_rows(text: str) -> tuple[list[str], list[dict]]:
         row = {c: (raw.get(c) or "").strip() for c in header}
         for c in key_cols:
             row[c] = row.get(c, "")  # already '' if empty — keep non-NULL keys
+        if "model" in row:
+            row["model"] = normalize_model(row["model"])
         ts = row.get("time_start", "")
         row[DATE_COL] = ts[:10] if len(ts) >= 10 else ""
         row[CATEGORY_COL], unk = classify(row.get("model", ""))
@@ -271,12 +294,26 @@ def build(db_path: Path, header: list[str], rows: list[dict]) -> tuple[int, int,
             n = len(key_cols)
             stored[tuple(r[:n])] = tuple(r[n:])
 
-        # Guard 2: never accept a dataset with fewer distinct keys than stored.
+        # Guard 2: tolerate small shrinkages (upstream key-column normalizations
+        # leave orphans in our append-only DB); abort only on a meaningful drop.
         fetched_keys = {tuple(row[c] for c in key_cols) for row in rows}
-        if len(fetched_keys) < len(stored):
-            raise RuntimeError(
-                f"download has {len(fetched_keys)} distinct keys but DB already has "
-                f"{len(stored)} — refusing to write a shrinking dataset into {db_path}."
+        shrink = len(stored) - len(fetched_keys)
+        if shrink > 0:
+            tolerance = min(
+                SHRINK_TOLERANCE_ABS,
+                max(1, int(len(stored) * SHRINK_TOLERANCE_FRAC)),
+            )
+            if shrink > tolerance:
+                raise RuntimeError(
+                    f"download has {len(fetched_keys)} distinct keys but DB already has "
+                    f"{len(stored)} ({shrink} missing, tolerance {tolerance}) — refusing "
+                    f"to write a shrinking dataset into {db_path}."
+                )
+            print(
+                f"WARNING: {shrink} stored key(s) missing from this download "
+                f"(within tolerance {tolerance}) — likely an upstream key-column "
+                f"normalization; the prior version remains in the DB as an orphan.",
+                file=sys.stderr,
             )
 
         # Guard 3: keys must be unique WITHIN one download — every row in a run
