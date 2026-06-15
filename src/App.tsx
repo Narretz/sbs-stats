@@ -16,6 +16,7 @@ import { useSbuAlfaDatabaseContext } from "@/context/useSbuAlfaDatabaseContext";
 import { MediazonaDatabaseProvider } from "@/context/MediazonaDatabaseContext";
 import { useMediazonaDatabaseContext } from "@/context/useMediazonaDatabaseContext";
 import { useAppRoute } from "@/hooks/useAppRoute";
+import { RouteProvider } from "@/hooks/RouteContext";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorScreen } from "@/components/Layout";
@@ -47,17 +48,17 @@ function PageShell({ children }: { children: React.ReactNode }) {
 }
 
 function SbsRoot({
-  page, pages, site, setSite, setPage, onHome,
+  page, pages, site, setSite, setPage,
 }: {
   page: Page; pages: Page[]; site: Site;
-  setSite: (s: Site) => void; setPage: (p: Page) => void; onHome: () => void;
+  setSite: (s: Site) => void; setPage: (p: Page) => void;
 }) {
   const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useDatabaseContext();
   return (
     <>
       <SiteHeader
         site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage} onHome={onHome}
+        onSiteChange={setSite} onPageChange={setPage}
         lastRefreshed={lastRefreshed} refreshCount={refreshCount}
         onRefresh={refresh} isLoading={loadState === "loading"}
         refreshIntervalMs={refreshIntervalMs}
@@ -72,17 +73,17 @@ function SbsRoot({
 }
 
 function GsuaRoot({
-  page, pages, site, setSite, setPage, onHome,
+  page, pages, site, setSite, setPage,
 }: {
   page: Page; pages: Page[]; site: Site;
-  setSite: (s: Site) => void; setPage: (p: Page) => void; onHome: () => void;
+  setSite: (s: Site) => void; setPage: (p: Page) => void;
 }) {
   const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useGsuaDatabaseContext();
   return (
     <>
       <SiteHeader
         site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage} onHome={onHome}
+        onSiteChange={setSite} onPageChange={setPage}
         lastRefreshed={lastRefreshed} refreshCount={refreshCount}
         onRefresh={refresh} isLoading={loadState === "loading"}
         refreshIntervalMs={refreshIntervalMs}
@@ -97,17 +98,17 @@ function GsuaRoot({
 }
 
 function RuLossesRoot({
-  page, pages, site, setSite, setPage, onHome,
+  page, pages, site, setSite, setPage,
 }: {
   page: Page; pages: Page[]; site: Site;
-  setSite: (s: Site) => void; setPage: (p: Page) => void; onHome: () => void;
+  setSite: (s: Site) => void; setPage: (p: Page) => void;
 }) {
   const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useRuLossesDatabaseContext();
   return (
     <>
       <SiteHeader
         site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage} onHome={onHome}
+        onSiteChange={setSite} onPageChange={setPage}
         lastRefreshed={lastRefreshed} refreshCount={refreshCount}
         onRefresh={refresh} isLoading={loadState === "loading"}
         refreshIntervalMs={refreshIntervalMs}
@@ -121,17 +122,17 @@ function RuLossesRoot({
 }
 
 function RuModRoot({
-  page, pages, site, setSite, setPage, onHome,
+  page, pages, site, setSite, setPage,
 }: {
   page: Page; pages: Page[]; site: Site;
-  setSite: (s: Site) => void; setPage: (p: Page) => void; onHome: () => void;
+  setSite: (s: Site) => void; setPage: (p: Page) => void;
 }) {
   const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useRuModDatabaseContext();
   return (
     <>
       <SiteHeader
         site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage} onHome={onHome}
+        onSiteChange={setSite} onPageChange={setPage}
         lastRefreshed={lastRefreshed} refreshCount={refreshCount}
         onRefresh={refresh} isLoading={loadState === "loading"}
         refreshIntervalMs={refreshIntervalMs}
@@ -145,17 +146,17 @@ function RuModRoot({
 }
 
 function RuAirAttacksRoot({
-  page, pages, site, setSite, setPage, onHome,
+  page, pages, site, setSite, setPage,
 }: {
   page: Page; pages: Page[]; site: Site;
-  setSite: (s: Site) => void; setPage: (p: Page) => void; onHome: () => void;
+  setSite: (s: Site) => void; setPage: (p: Page) => void;
 }) {
   const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useRuAirAttacksDatabaseContext();
   return (
     <>
       <SiteHeader
         site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage} onHome={onHome}
+        onSiteChange={setSite} onPageChange={setPage}
         lastRefreshed={lastRefreshed} refreshCount={refreshCount}
         onRefresh={refresh} isLoading={loadState === "loading"}
         refreshIntervalMs={refreshIntervalMs}
@@ -169,17 +170,17 @@ function RuAirAttacksRoot({
 }
 
 function SbuAlfaRoot({
-  page, pages, site, setSite, setPage, onHome,
+  page, pages, site, setSite, setPage,
 }: {
   page: Page; pages: Page[]; site: Site;
-  setSite: (s: Site) => void; setPage: (p: Page) => void; onHome: () => void;
+  setSite: (s: Site) => void; setPage: (p: Page) => void;
 }) {
   const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useSbuAlfaDatabaseContext();
   return (
     <>
       <SiteHeader
         site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage} onHome={onHome}
+        onSiteChange={setSite} onPageChange={setPage}
         lastRefreshed={lastRefreshed} refreshCount={refreshCount}
         onRefresh={refresh} isLoading={loadState === "loading"}
         refreshIntervalMs={refreshIntervalMs}
@@ -192,17 +193,17 @@ function SbuAlfaRoot({
 }
 
 function MediazonaRoot({
-  page, pages, site, setSite, setPage, onHome,
+  page, pages, site, setSite, setPage,
 }: {
   page: Page; pages: Page[]; site: Site;
-  setSite: (s: Site) => void; setPage: (p: Page) => void; onHome: () => void;
+  setSite: (s: Site) => void; setPage: (p: Page) => void;
 }) {
   const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useMediazonaDatabaseContext();
   return (
     <>
       <SiteHeader
         site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage} onHome={onHome}
+        onSiteChange={setSite} onPageChange={setPage}
         lastRefreshed={lastRefreshed} refreshCount={refreshCount}
         onRefresh={refresh} isLoading={loadState === "loading"}
         refreshIntervalMs={refreshIntervalMs}
@@ -217,13 +218,14 @@ function MediazonaRoot({
 
 function AppInner() {
   const { theme: t } = useTheme();
-  const { route, goHome, goSite, setSite, setPage, pagesFor } = useAppRoute();
+  const routeValue = useAppRoute();
+  const { route, goSite, setSite, setPage, pagesFor } = routeValue;
   const site = route.kind === "site" ? route.site : "sbs";
   const page = route.kind === "site" ? route.page : "daily";
   const pages = pagesFor(site);
 
   return (
-    <>
+    <RouteProvider value={routeValue}>
       <style>
         {GLOBAL_CSS(t)}
         {`@keyframes spin { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -${2 * Math.PI * 11}px; } }`}
@@ -237,54 +239,54 @@ function AppInner() {
         {route.kind === "site" && route.site === "sbs" && (
           <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
             <DatabaseProvider>
-              <SbsRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} onHome={goHome} />
+              <SbsRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
             </DatabaseProvider>
           </ErrorBoundary>
         )}
         {route.kind === "site" && route.site === "ru-attacks-gsua" && (
           <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
             <GsuaDatabaseProvider>
-              <GsuaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} onHome={goHome} />
+              <GsuaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
             </GsuaDatabaseProvider>
           </ErrorBoundary>
         )}
         {route.kind === "site" && route.site === "ru-losses-gsua" && (
           <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
             <RuLossesDatabaseProvider>
-              <RuLossesRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} onHome={goHome} />
+              <RuLossesRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
             </RuLossesDatabaseProvider>
           </ErrorBoundary>
         )}
         {route.kind === "site" && route.site === "ru-airdef-mod" && (
           <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
             <RuModDatabaseProvider>
-              <RuModRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} onHome={goHome} />
+              <RuModRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
             </RuModDatabaseProvider>
           </ErrorBoundary>
         )}
         {route.kind === "site" && route.site === "ru-air-attacks-gsua" && (
           <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
             <RuAirAttacksDatabaseProvider>
-              <RuAirAttacksRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} onHome={goHome} />
+              <RuAirAttacksRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
             </RuAirAttacksDatabaseProvider>
           </ErrorBoundary>
         )}
         {route.kind === "site" && route.site === "sbu-alfa" && (
           <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
             <SbuAlfaDatabaseProvider>
-              <SbuAlfaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} onHome={goHome} />
+              <SbuAlfaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
             </SbuAlfaDatabaseProvider>
           </ErrorBoundary>
         )}
         {site === "mediazona" && (
           <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
             <MediazonaDatabaseProvider>
-              <MediazonaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} onHome={goHome} />
+              <MediazonaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
             </MediazonaDatabaseProvider>
           </ErrorBoundary>
         )}
       </div>
-    </>
+    </RouteProvider>
   );
 }
 

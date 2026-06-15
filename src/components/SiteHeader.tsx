@@ -1,4 +1,5 @@
 import { useTheme } from "@/hooks/useTheme";
+import { useRoute } from "@/hooks/RouteContext";
 import { FONTS } from "@/theme";
 import { SITES, SITE_LABELS, type Page, type Site } from "@/types";
 import { RefreshIndicator } from "@/components/RefreshIndicator";
@@ -9,7 +10,9 @@ interface SiteHeaderProps {
   pages: Page[];
   onSiteChange: (site: Site) => void;
   onPageChange: (page: Page) => void;
-  onHome?: () => void;
+  // The home link is wired through RouteContext, so site Roots don't need to
+  // pass it. Set `hideHome` to opt out (rarely needed).
+  hideHome?: boolean;
   // Refresh / loading state from active DB context
   lastRefreshed: Date | null;
   refreshCount: number;
@@ -26,10 +29,12 @@ const PAGE_LABEL: Record<Page, string> = {
 };
 
 export function SiteHeader({
-  site, page, pages, onSiteChange, onPageChange, onHome,
+  site, page, pages, onSiteChange, onPageChange, hideHome = false,
   lastRefreshed, refreshCount, onRefresh, isLoading, refreshIntervalMs,
 }: SiteHeaderProps) {
   const { mode, theme: t, toggle } = useTheme();
+  const { goHome } = useRoute();
+  const homeHandler = hideHome ? undefined : goHome;
 
   const navBtn = (target: Page, label: string) => (
     <button
@@ -73,13 +78,13 @@ export function SiteHeader({
       {/* Brand + site picker */}
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <button
-          onClick={onHome}
-          disabled={!onHome}
-          title={onHome ? "Home" : undefined}
+          onClick={homeHandler}
+          disabled={!homeHandler}
+          title={homeHandler ? "Home" : undefined}
           style={{
             display: "flex", alignItems: "center", gap: 14,
             background: "transparent", border: "none", padding: 0,
-            cursor: onHome ? "pointer" : "default",
+            cursor: homeHandler ? "pointer" : "default",
           }}
         >
           <span
