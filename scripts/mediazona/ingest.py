@@ -124,12 +124,16 @@ def build(
     estimate: list[tuple],
     scraped_at: str,
     published_at: str,
-) -> tuple[int, int, int, int]:
+) -> tuple[dict, dict]:
     """Append changed/new week-versions into db_path. Never mutates/deletes rows.
 
-    Returns (roles_inserted, estimate_inserted, roles_distinct_weeks,
-    estimate_distinct_weeks). Aborts (raises) without writing if either payload
-    looks broken or would shrink an existing dataset.
+    Returns (roles_summary, estimate_summary), each a dict with:
+        new       — count of weeks not in DB before this run
+        revised   — count of pre-existing weeks whose values differ from prior
+        unchanged — count of pre-existing weeks whose values match prior (skipped)
+        distinct  — total distinct weeks in the table after the run
+    new + revised = number of rows actually inserted. Aborts (raises) without
+    writing if either payload looks broken or would shrink an existing dataset.
     """
     # Guard 1: absolute floor.
     if len(roles) < MIN_ROWS_FLOOR:
@@ -206,16 +210,36 @@ def build(
                 f"{len(latest_estimate)} — refusing to write a shrinking dataset."
             )
 
-        roles_to_insert = [
-            [week, scraped_at, published_at, *vals]
-            for (week, *vals) in roles
-            if latest_roles.get(week) != tuple(vals)
-        ]
-        estimate_to_insert = [
-            [week, scraped_at, published_at, documented, estimate_val]
-            for (week, documented, estimate_val) in estimate
-            if latest_estimate.get(week) != (documented, estimate_val)
-        ]
+        # Split the comparison into new vs revised vs unchanged so the CLI can
+        # report a useful breakdown — a 200-row insert against an empty table
+        # and a 200-row revision against a populated one look identical in a
+        # single "inserted" counter, hiding both surprising backfills and the
+        # cadence of Mediazona's revisions.
+        roles_to_insert: list[list] = []
+        roles_new = roles_revised = roles_unchanged = 0
+        for week, *vals in roles:
+            prior = latest_roles.get(week)
+            if prior is None:
+                roles_new += 1
+                roles_to_insert.append([week, scraped_at, published_at, *vals])
+            elif prior != tuple(vals):
+                roles_revised += 1
+                roles_to_insert.append([week, scraped_at, published_at, *vals])
+            else:
+                roles_unchanged += 1
+
+        estimate_to_insert: list[list] = []
+        est_new = est_revised = est_unchanged = 0
+        for week, documented, estimate_val in estimate:
+            prior = latest_estimate.get(week)
+            if prior is None:
+                est_new += 1
+                estimate_to_insert.append([week, scraped_at, published_at, documented, estimate_val])
+            elif prior != (documented, estimate_val):
+                est_revised += 1
+                estimate_to_insert.append([week, scraped_at, published_at, documented, estimate_val])
+            else:
+                est_unchanged += 1
 
         if roles_to_insert:
             ph = ", ".join(["?"] * (3 + len(ROLE_COLS)))
@@ -240,7 +264,10 @@ def build(
         est_distinct = conn.execute("SELECT COUNT(DISTINCT week) FROM weekly_estimate").fetchone()[0]
     finally:
         conn.close()
-    return len(roles_to_insert), len(estimate_to_insert), roles_distinct, est_distinct
+    return (
+        {"new": roles_new, "revised": roles_revised, "unchanged": roles_unchanged, "distinct": roles_distinct},
+        {"new": est_new, "revised": est_revised, "unchanged": est_unchanged, "distinct": est_distinct},
+    )
 
 
 def main() -> int:
@@ -263,10 +290,14 @@ def main() -> int:
     roles = parse_roles(Path(args.roles))
     estimate = parse_estimate(Path(args.estimate))
     out = Path(args.out)
-    r_ins, e_ins, r_distinct, e_distinct = build(out, roles, estimate, scraped_at, args.published_at)
+    r, e = build(out, roles, estimate, scraped_at, args.published_at)
+    fmt = lambda s: (
+        f"{s['new']:>4} new, {s['revised']:>4} revised, {s['unchanged']:>4} unchanged "
+        f"-> {s['new'] + s['revised']} inserted; {s['distinct']} distinct weeks"
+    )
     print(
-        f"==> roles:    inserted {r_ins} new/changed week-versions; {r_distinct} distinct weeks\n"
-        f"==> estimate: inserted {e_ins} new/changed week-versions; {e_distinct} distinct weeks\n"
+        f"==> roles:    {fmt(r)}\n"
+        f"==> estimate: {fmt(e)}\n"
         f"==> published_at={args.published_at}  scraped_at={scraped_at}\n"
         f"==> {out} ({out.stat().st_size} bytes)"
     )
