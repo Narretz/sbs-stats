@@ -56,7 +56,7 @@ an edit inserts a **new version row**, never overwrites. Reads resolve the lates
   `(post_id, scraped_at, region)`. View **`region_totals`**.
 - **`summaries`** — the daily **Сводка** posts, stored **raw** (header + full
   text) even though we don't parse their body yet. The MoD largely **stopped
-  reporting Ukrainian losses** sometime in 2026; capturing the raw text now means
+  reporting Ukrainian losses** at the end of February 2026; capturing the raw text now means
   we can backfill-parse later. PK `(post_id, scraped_at)`.
 
 Change-detection compares the **parsed fields** (drones, window, kind, regions),
