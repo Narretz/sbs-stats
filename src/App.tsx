@@ -32,7 +32,7 @@ import { SbuAlfaMonthlyPage } from "@/pages/SbuAlfaMonthlyPage";
 import { SbsDailyPage } from "@/pages/SbsDailyPage";
 import { SbsHourlyPage } from "@/pages/SbsHourlyPage";
 import { SbsMonthlyPage } from "@/pages/SbsMonthlyPage";
-import { MediazonaPage } from "@/pages/MediazonaPage";
+import { MediazonaWeeklyPage } from "@/pages/MediazonaWeeklyPage";
 import { MediazonaMonthlyPage } from "@/pages/MediazonaMonthlyPage";
 import { HomePage } from "@/pages/HomePage";
 import type { Page, Site } from "@/types";
@@ -208,7 +208,7 @@ function MediazonaRoot({
         refreshIntervalMs={refreshIntervalMs}
       />
       <PageShell>
-        {page === "weekly" && <MediazonaPage refreshKey={refreshCount} />}
+        {page === "weekly" && <MediazonaWeeklyPage refreshKey={refreshCount} />}
         {page === "monthly" && <MediazonaMonthlyPage refreshKey={refreshCount} />}
       </PageShell>
     </>

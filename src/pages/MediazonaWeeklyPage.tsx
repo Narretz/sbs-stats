@@ -39,7 +39,7 @@ function fmtMonthYear(week: string | null): string {
   return `${MONTHS[parseInt(m, 10) - 1]} ${y}`;
 }
 
-export function MediazonaPage({ refreshKey }: Props) {
+export function MediazonaWeeklyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
   const { loadState, error, queryRoles, queryEstimate, queryDataWindow } = useMediazonaDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
