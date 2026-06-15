@@ -192,17 +192,17 @@ function SbuAlfaRoot({
 }
 
 function MediazonaRoot({
-  page, pages, site, setSite, setPage,
+  page, pages, site, setSite, setPage, onHome,
 }: {
   page: Page; pages: Page[]; site: Site;
-  setSite: (s: Site) => void; setPage: (p: Page) => void;
+  setSite: (s: Site) => void; setPage: (p: Page) => void; onHome: () => void;
 }) {
   const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useMediazonaDatabaseContext();
   return (
     <>
       <SiteHeader
         site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage}
+        onSiteChange={setSite} onPageChange={setPage} onHome={onHome}
         lastRefreshed={lastRefreshed} refreshCount={refreshCount}
         onRefresh={refresh} isLoading={loadState === "loading"}
         refreshIntervalMs={refreshIntervalMs}
@@ -279,7 +279,7 @@ function AppInner() {
         {site === "mediazona" && (
           <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
             <MediazonaDatabaseProvider>
-              <MediazonaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
+              <MediazonaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} onHome={goHome} />
             </MediazonaDatabaseProvider>
           </ErrorBoundary>
         )}
