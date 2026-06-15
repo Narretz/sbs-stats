@@ -83,7 +83,6 @@ export function DocumentedVsEstimatedChart({ rows }: { rows: MediazonaEstimateRo
 
   const provisionalFrom = data.length > PROVISIONAL_WEEKS ? data[data.length - PROVISIONAL_WEEKS].week : null;
   const lastWeek = data.length ? data[data.length - 1].week : null;
-  const overall = totDoc ? totEst / totDoc : null;
 
   return (
     <div className="daily-card" style={{
@@ -97,7 +96,6 @@ export function DocumentedVsEstimatedChart({ rows }: { rows: MediazonaEstimateRo
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
         <span style={{ color: ESTIMATE }}>● Estimated losses <span style={{ opacity: 0.8 }}>· total {fmt(totEst)}</span></span>
         <span style={{ color: NAMES }}>● Recorded names <span style={{ opacity: 0.8 }}>· total {fmt(totDoc)}</span></span>
-        {overall != null && <span style={{ color: t.textMuted }}>×{overall.toFixed(1)} undercount</span>}
       </div>
       <ResponsiveContainer width="100%" height={300}>
         <ComposedChart data={data} margin={{ top: 8, right: 8, left: -6, bottom: 0 }}>
