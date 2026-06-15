@@ -289,12 +289,16 @@ export function useDatabase({ enabled = true }: { enabled?: boolean } = {}) {
       const dateStr = String(row["date"]).slice(0, 7);
       const isCurrentMonth = dateStr === currentMonth;
 
+      // Spread stats first, then the explicit fields — otherwise the raw SQL
+      // row's `date` ("YYYY-MM-01" because the column is typed DATE) clobbers
+      // the sliced YYYY-MM and the homepage's combined chart can't merge SBS
+      // months with other sources that already store dates as YYYY-MM.
       const typedRow: MonthlyRow = {
+        ...(row as unknown as Record<StatKey, number>),
         date: dateStr,
         is_current_month: isCurrentMonth,
         projection_day: isCurrentMonth ? dayOfMonth : null,
         projection_days_in_month: isCurrentMonth ? daysInMonth : null,
-        ...(row as unknown as Record<StatKey, number>),
       };
 
       if (isCurrentMonth) {
