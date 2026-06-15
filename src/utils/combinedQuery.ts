@@ -137,21 +137,16 @@ function projectMonthly(
 ): DailyDataPoint[] {
   // Inclusive window on the YYYY-MM string sort. Map MonthlyRow → the chart's
   // shared DailyDataPoint shape, carrying `is_current_month` through `is_today`
-  // so the chart's "partial last period" dot logic works unchanged.
-  //
-  // Defensively slice the date to YYYY-MM: every monthly hook is supposed to
-  // return this format, but DATE-typed columns can leak through as YYYY-MM-DD
-  // and the lexicographic window-filter then drops anything that doesn't
-  // share the same suffix as the bounds.
+  // so the chart's "partial last period" dot logic works unchanged. Every
+  // monthly hook is required to return `date` as YYYY-MM — we don't slice
+  // here so a hook that breaks the contract fails loudly instead of being
+  // papered over.
   return rows
-    .filter((r) => {
-      const d = r.date.slice(0, 7);
-      return d >= startMonth && d <= endMonth;
-    })
+    .filter((r) => r.date >= startMonth && r.date <= endMonth)
     .map((r) => {
       const raw = r[key];
       return {
-        date: r.date.slice(0, 7),
+        date: r.date,
         value: typeof raw === "number" ? raw : null,
         is_today: r.is_current_month === true,
       };
