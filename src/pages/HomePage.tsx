@@ -5,6 +5,8 @@ import { useDatabaseGsua } from "@/hooks/useDatabaseGsua";
 import { useDatabaseRuLosses } from "@/hooks/useDatabaseRuLosses";
 import { useDatabaseRuMod } from "@/hooks/useDatabaseRuMod";
 import { useDatabaseRuAirAttacks } from "@/hooks/useDatabaseRuAirAttacks";
+import { useDatabaseSbuAlfa } from "@/hooks/useDatabaseSbuAlfa";
+import { useDatabaseMediazona } from "@/hooks/useDatabaseMediazona";
 import { DailyMultiLineChart, type LineSeries, type YAxisMode, type ChartGranularity } from "@/components/DailyMultiLineChart";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { MonthRangeSelect } from "@/components/MonthRangeSelect";
@@ -339,13 +341,17 @@ export function HomePage({ onGoToSite }: Props) {
     return s;
   }, [allMetrics]);
 
-  // Mount all five daily-capable hooks (Rules of Hooks); each is inert until
-  // its source is selected.
+  // Mount every source's hook (Rules of Hooks); each is inert until selected.
+  // The five daily-capable sources are usable in both granularities; SBU Alfa
+  // and Mediazona are monthly-only and only appear in the picker when a
+  // chart's granularity is "monthly".
   const sbs = useDatabase({ enabled: needed.has("sbs") });
   const gsua = useDatabaseGsua({ enabled: needed.has("gsua") });
   const ruLosses = useDatabaseRuLosses({ enabled: needed.has("ru-losses") });
   const ruMod = useDatabaseRuMod({ enabled: needed.has("ru-airdef-mod") });
   const ruAir = useDatabaseRuAirAttacks({ enabled: needed.has("ru-air-attacks") });
+  const sbuAlfa = useDatabaseSbuAlfa({ enabled: needed.has("sbu-alfa") });
+  const mediazona = useDatabaseMediazona({ enabled: needed.has("mediazona") });
 
   // Per-chart series data — each chart has its own window so they can't share
   // a fetch. Keyed by chartUid → { metricId → points[] }.
@@ -381,6 +387,8 @@ export function HomePage({ onGoToSite }: Props) {
       [needed.has("ru-losses"), ruLosses.loadState],
       [needed.has("ru-airdef-mod"), ruMod.loadState],
       [needed.has("ru-air-attacks"), ruAir.loadState],
+      [needed.has("sbu-alfa"), sbuAlfa.loadState],
+      [needed.has("mediazona"), mediazona.loadState],
     ].every(([n, s]) => !n || s === "ready");
     if (!allReady) return;
 
@@ -416,6 +424,9 @@ export function HomePage({ onGoToSite }: Props) {
             ruLosses: needed.has("ru-losses") ? ruLosses.queryMonthly : undefined,
             ruMod: needed.has("ru-airdef-mod") ? ruMod.queryMonthly : undefined,
             ruAir: needed.has("ru-air-attacks") ? ruAir.queryMonthly : undefined,
+            sbuAlfa: needed.has("sbu-alfa") ? sbuAlfa.queryCounters : undefined,
+            mediazonaRoles: needed.has("mediazona") ? mediazona.queryRolesMonthly : undefined,
+            mediazonaEstimate: needed.has("mediazona") ? mediazona.queryEstimateMonthly : undefined,
           })
         : fetchCombinedDaily(metrics, c.window as DayOption, selectedDate || undefined, {
             sbs: needed.has("sbs") ? sbs.queryDaily : undefined,
@@ -436,7 +447,9 @@ export function HomePage({ onGoToSite }: Props) {
       gsua.loadState, gsua.queryDaily, gsua.queryMonthly,
       ruLosses.loadState, ruLosses.queryDaily, ruLosses.queryMonthly,
       ruMod.loadState, ruMod.queryDaily, ruMod.queryMonthly,
-      ruAir.loadState, ruAir.queryDaily, ruAir.queryMonthly]);
+      ruAir.loadState, ruAir.queryDaily, ruAir.queryMonthly,
+      sbuAlfa.loadState, sbuAlfa.queryCounters,
+      mediazona.loadState, mediazona.queryRolesMonthly, mediazona.queryEstimateMonthly]);
 
   // Refetch whole-dataset stats whenever the set of needed sources grows. The
   // bundle is keyed by source so adding a metric from an already-loaded source
@@ -448,7 +461,10 @@ export function HomePage({ onGoToSite }: Props) {
       "ru-losses": needed.has("ru-losses") && ruLosses.loadState === "ready",
       "ru-airdef-mod": needed.has("ru-airdef-mod") && ruMod.loadState === "ready",
       "ru-air-attacks": needed.has("ru-air-attacks") && ruAir.loadState === "ready",
+      // SBU Alfa + Mediazona are monthly-only; the daily global-stats bundle
+      // doesn't carry them. Their chart fall back to window stats either way.
       "sbu-alfa": false,
+      "mediazona": false,
     };
     const readySet = new Set<MetricSource>(
       (Object.keys(sourcesReady) as MetricSource[]).filter((k) => sourcesReady[k]),
@@ -549,9 +565,11 @@ export function HomePage({ onGoToSite }: Props) {
       ["ru-losses", ruLosses.loadState],
       ["ru-airdef-mod", ruMod.loadState],
       ["ru-air-attacks", ruAir.loadState],
+      ["sbu-alfa", sbuAlfa.loadState],
+      ["mediazona", mediazona.loadState],
     ];
     return states.filter(([s, st]) => needed.has(s) && st === "loading").map(([s]) => s);
-  }, [needed, sbs.loadState, gsua.loadState, ruLosses.loadState, ruMod.loadState, ruAir.loadState]);
+  }, [needed, sbs.loadState, gsua.loadState, ruLosses.loadState, ruMod.loadState, ruAir.loadState, sbuAlfa.loadState, mediazona.loadState]);
 
   const onSitePick = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     const v = e.target.value;

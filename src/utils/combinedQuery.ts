@@ -14,6 +14,8 @@ import type {
   GsuaDailyRow,
   GsuaGlobalStats,
   GsuaMonthlyRow,
+  MediazonaEstimateRow,
+  MediazonaRolesRow,
   MonthlyRow,
   RuAdGlobalStats,
   RuAdDailyRow,
@@ -24,6 +26,7 @@ import type {
   RuLossesDailyRow,
   RuLossesGlobalStats,
   RuLossesMonthlyRow,
+  SbuAlfaCounterRow,
   Stat,
 } from "@/types";
 import type { CombinedMetric, MetricSource } from "@/utils/combinedMetrics";
@@ -73,6 +76,57 @@ export interface CombinedMonthlyQueries {
   ruLosses?: () => RuLossesMonthlyRow[];
   ruMod?: () => RuAdMonthlyRow[];
   ruAir?: () => RuAirAttacksMonthlyRow[];
+  sbuAlfa?: () => SbuAlfaCounterRow[];
+  // Mediazona has two independent monthly queries — pass both; the fetcher
+  // routes each metric to the right one by key.
+  mediazonaRoles?: () => MediazonaRolesRow[];
+  mediazonaEstimate?: () => MediazonaEstimateRow[];
+}
+
+// Mediazona role keys live on the roles row; documented/estimate live on the
+// estimate row. Used by the fetcher to pick the right query per metric.
+const MEDIAZONA_ESTIMATE_KEYS = new Set(["documented", "estimate"]);
+
+// SBU Alfa long-table → DailyDataPoint[] for one metric. Filters by category
+// and groups by period (one row per period normally; latest wins if duplicated
+// because of the derive step). Inclusive YYYY-MM window.
+function pivotSbuAlfa(
+  rows: SbuAlfaCounterRow[],
+  category: string,
+  startMonth: string,
+  endMonth: string,
+): DailyDataPoint[] {
+  const byPeriod = new Map<string, number>();
+  for (const r of rows) {
+    if (r.category !== category) continue;
+    if (r.period < startMonth || r.period > endMonth) continue;
+    byPeriod.set(r.period, typeof r.value === "number" ? r.value : 0);
+  }
+  return [...byPeriod.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, value]) => ({ date, value, is_today: false }));
+}
+
+// Mediazona monthly rows carry `week` = "YYYY-MM-01" (the bucket month rolled
+// up from weekly rows). Slice to "YYYY-MM" so the chart axis aligns with the
+// other monthly sources.
+function projectMediazona(
+  rows: Array<{ week: string } & Record<string, unknown>>,
+  key: string,
+  startMonth: string,
+  endMonth: string,
+): DailyDataPoint[] {
+  return rows
+    .map((r) => ({ ...r, date: r.week.slice(0, 7) }))
+    .filter((r) => r.date >= startMonth && r.date <= endMonth)
+    .map((r) => {
+      const raw = (r as Record<string, unknown>)[key];
+      return {
+        date: r.date,
+        value: typeof raw === "number" ? raw : null,
+        is_today: false,
+      };
+    });
 }
 
 function projectMonthly(
@@ -112,6 +166,18 @@ export async function fetchCombinedMonthly(
   const ruLossesRows = sources.has("ru-losses") && queries.ruLosses ? queries.ruLosses() : null;
   const ruModRows = sources.has("ru-airdef-mod") && queries.ruMod ? queries.ruMod() : null;
   const ruAirRows = sources.has("ru-air-attacks") && queries.ruAir ? queries.ruAir() : null;
+  const sbuAlfaRows = sources.has("sbu-alfa") && queries.sbuAlfa ? queries.sbuAlfa() : null;
+
+  // Mediazona has two queries; only call the ones whose metrics are present.
+  const needsMediazonaRoles = sources.has("mediazona") && metrics.some((m) =>
+    m.source === "mediazona" && !MEDIAZONA_ESTIMATE_KEYS.has(m.key)
+  );
+  const needsMediazonaEstimate = sources.has("mediazona") && metrics.some((m) =>
+    m.source === "mediazona" && MEDIAZONA_ESTIMATE_KEYS.has(m.key)
+  );
+  const mediazonaRolesRows = needsMediazonaRoles && queries.mediazonaRoles ? queries.mediazonaRoles() : null;
+  const mediazonaEstimateRows = needsMediazonaEstimate && queries.mediazonaEstimate ? queries.mediazonaEstimate() : null;
+
   const gsuaRows = sources.has("gsua") && queries.gsua ? await queries.gsua() : null;
 
   for (const m of metrics) {
@@ -120,6 +186,16 @@ export async function fetchCombinedMonthly(
     else if (m.source === "ru-losses" && ruLossesRows) result[m.id] = projectMonthly(ruLossesRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "ru-airdef-mod" && ruModRows) result[m.id] = projectMonthly(ruModRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "ru-air-attacks" && ruAirRows) result[m.id] = projectMonthly(ruAirRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
+    else if (m.source === "sbu-alfa" && sbuAlfaRows) result[m.id] = pivotSbuAlfa(sbuAlfaRows, m.key, startMonth, endMonth);
+    else if (m.source === "mediazona") {
+      if (MEDIAZONA_ESTIMATE_KEYS.has(m.key) && mediazonaEstimateRows) {
+        result[m.id] = projectMediazona(mediazonaEstimateRows as unknown as Array<{ week: string } & Record<string, unknown>>, m.key, startMonth, endMonth);
+      } else if (mediazonaRolesRows) {
+        result[m.id] = projectMediazona(mediazonaRolesRows as unknown as Array<{ week: string } & Record<string, unknown>>, m.key, startMonth, endMonth);
+      } else {
+        result[m.id] = [];
+      }
+    }
     else result[m.id] = [];
   }
   return result;

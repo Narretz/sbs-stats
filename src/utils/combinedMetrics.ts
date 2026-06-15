@@ -10,6 +10,8 @@ import {
   ATTACK_CATEGORY_LABELS,
   GSUA_METRIC_KEYS,
   GSUA_METRIC_LABELS,
+  MEDIAZONA_ROLE_GROUP_KEYS,
+  MEDIAZONA_ROLE_GROUPS,
   RU_LOSSES_METRIC_KEYS,
   RU_LOSSES_METRIC_LABELS,
   SBU_ALFA_CATEGORY_KEYS,
@@ -24,7 +26,8 @@ export type MetricSource =
   | "ru-losses"
   | "ru-airdef-mod"
   | "ru-air-attacks"
-  | "sbu-alfa";
+  | "sbu-alfa"
+  | "mediazona";
 
 export type MetricView = "daily" | "monthly";
 
@@ -48,6 +51,7 @@ export const SOURCE_LABELS: Record<MetricSource, string> = {
   "ru-airdef-mod": "RU MoD AD",
   "ru-air-attacks": "RU Strikes",
   "sbu-alfa": "SBU Alfa",
+  "mediazona": "Mediazona",
 };
 
 function make(
@@ -116,6 +120,19 @@ const SBU_ALFA_METRICS: CombinedMetric[] = SBU_ALFA_CATEGORY_KEYS.map((k) =>
   make("sbu-alfa", k, SBU_ALFA_CATEGORY_LABELS[k], MONTHLY_ONLY),
 );
 
+// Mediazona — monthly only. Two underlying queries:
+//   - role composition (`total` + 7 role groups), keyed by group name
+//   - estimate series (`documented`, `estimate`)
+// All ten land in one source group; the fetcher routes by key.
+const MEDIAZONA_METRICS: CombinedMetric[] = [
+  make("mediazona", "total", "Confirmed Deaths (Total)", MONTHLY_ONLY),
+  ...MEDIAZONA_ROLE_GROUP_KEYS.map((k) =>
+    make("mediazona", k, MEDIAZONA_ROLE_GROUPS[k].label, MONTHLY_ONLY),
+  ),
+  make("mediazona", "documented", "Documented (Named) Deaths", MONTHLY_ONLY),
+  make("mediazona", "estimate", "Probate-Registry Estimate", MONTHLY_ONLY),
+];
+
 export const COMBINED_METRICS: CombinedMetric[] = [
   ...SBS_METRICS,
   ...GSUA_METRICS,
@@ -123,6 +140,7 @@ export const COMBINED_METRICS: CombinedMetric[] = [
   ...RU_MOD_METRICS,
   ...RU_AIR_ATTACKS_METRICS,
   ...SBU_ALFA_METRICS,
+  ...MEDIAZONA_METRICS,
 ];
 
 const BY_ID = new Map(COMBINED_METRICS.map((m) => [m.id, m]));
