@@ -726,13 +726,19 @@ interface ChartCardProps {
 }
 
 // Window-relative running sum. Each point's value becomes the cumulative
-// total up to and including that point. Nulls don't add but the line keeps
-// the prior running total so a missing day doesn't open a gap.
+// total up to and including that point. Internal nulls don't add but keep
+// the prior running total (so a single missing day doesn't open a gap);
+// trailing nulls (padded to extend the axis to the chart's end) become null
+// so the line stops where real data stops instead of extending flat to today.
 function toCumulative(points: DailyDataPoint[]): DailyDataPoint[] {
+  let lastReal = -1;
+  for (let i = points.length - 1; i >= 0; i--) {
+    if (typeof points[i].value === "number") { lastReal = i; break; }
+  }
   let sum = 0;
-  return points.map((p) => {
+  return points.map((p, i) => {
     if (typeof p.value === "number") sum += p.value;
-    return { ...p, value: sum };
+    return { ...p, value: i > lastReal ? null : sum };
   });
 }
 

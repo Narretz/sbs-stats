@@ -10,6 +10,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam } from "@/utils/dayRange";
+import { padTrailingDaily, resolvedEndDate } from "@/utils/padTrailing";
 import {
   RU_LOSSES_METRIC_KEYS,
   RU_LOSSES_METRIC_LABELS,
@@ -104,12 +105,16 @@ export function RuLossesDailyPage({ refreshKey }: Props) {
     return rows.filter((row) => selectedWeekdays.includes(new Date(row.date + "T12:00:00").getDay()));
   }, [rows, selectedWeekdays, selectedDate, days]);
 
+  const endDate = resolvedEndDate(selectedDate);
   const makeDataset = (key: RuLossesMetricKey) =>
-    filteredRows.map((d) => ({
-      date: d.date,
-      value: typeof d[key] === "number" ? (d[key] as number) : null,
-      is_today: d.is_today,
-    }));
+    padTrailingDaily(
+      filteredRows.map((d) => ({
+        date: d.date,
+        value: typeof d[key] === "number" ? (d[key] as number) : null,
+        is_today: d.is_today,
+      })),
+      endDate,
+    );
 
   return (
     <div>

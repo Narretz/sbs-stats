@@ -10,6 +10,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam } from "@/utils/dayRange";
+import { padTrailingDaily, resolvedEndDate } from "@/utils/padTrailing";
 import {
   GSUA_METRIC_KEYS,
   GSUA_METRIC_LABELS,
@@ -153,23 +154,33 @@ export function GsuaDailyPage({ refreshKey }: Props) {
     return r;
   }, [directionRows, selectedDate, selectedWeekdays, days]);
 
+  const endDate = resolvedEndDate(selectedDate);
   const makeDataset = (key: GsuaMetricKey) =>
-    filteredRows.map((d) => ({
-      date: d.date,
-      value: typeof d[key] === "number" ? (d[key] as number) : null,
-      is_today: d.is_today,
-    }));
+    padTrailingDaily(
+      filteredRows.map((d) => ({
+        date: d.date,
+        value: typeof d[key] === "number" ? (d[key] as number) : null,
+        is_today: d.is_today,
+      })),
+      endDate,
+    );
 
-  const directionAttacksDataset = filteredDirectionRows.map((d) => ({
-    date: d.date,
-    value: d.attacks,
-    is_today: d.is_today,
-  }));
-  const directionOngoingDataset = filteredDirectionRows.map((d) => ({
-    date: d.date,
-    value: d.ongoing,
-    is_today: d.is_today,
-  }));
+  const directionAttacksDataset = padTrailingDaily(
+    filteredDirectionRows.map((d) => ({
+      date: d.date,
+      value: d.attacks,
+      is_today: d.is_today,
+    })),
+    endDate,
+  );
+  const directionOngoingDataset = padTrailingDaily(
+    filteredDirectionRows.map((d) => ({
+      date: d.date,
+      value: d.ongoing,
+      is_today: d.is_today,
+    })),
+    endDate,
+  );
   const directionAttacksStats = useMemo(() => {
     const vals = directionAttacksDataset
       .map((p) => p.value)

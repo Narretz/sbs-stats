@@ -6,6 +6,7 @@ import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import type { RuAdMonthlyRow, MonthlyDataPoint } from "@/types";
 import { FONTS } from "@/theme";
 
@@ -31,26 +32,30 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
     }
   }, [loadState, queryMonthly, refreshKey]);
 
+  const endMonth = resolvedEndMonth("Europe/Moscow");
   const makeDataset = (key: MetricKey): MonthlyDataPoint[] =>
-    rows.map((d) => {
-      const value = d[key];
-      const projected = d[`${key}_projected`];
-      // Only the overall-total chart carries the double-count caveat (the flag is
-      // about a report's whole window, not its night/day split).
-      const note =
-        key === "total" && d.overlap_reports > 0
-          ? `includes ${d.overlap_reports} report${d.overlap_reports > 1 ? "s" : ""} whose window may overlap a neighbor — possible double-count`
-          : undefined;
-      return {
-        date: d.date,
-        value,
-        gap: projected != null && value != null ? projected - value : undefined,
-        projected,
-        projection_day: d.projection_day ?? undefined,
-        projection_days_in_month: d.projection_days_in_month ?? undefined,
-        note,
-      };
-    });
+    padTrailingMonthly(
+      rows.map((d) => {
+        const value = d[key];
+        const projected = d[`${key}_projected`];
+        // Only the overall-total chart carries the double-count caveat (the flag is
+        // about a report's whole window, not its night/day split).
+        const note =
+          key === "total" && d.overlap_reports > 0
+            ? `includes ${d.overlap_reports} report${d.overlap_reports > 1 ? "s" : ""} whose window may overlap a neighbor — possible double-count`
+            : undefined;
+        return {
+          date: d.date,
+          value,
+          gap: projected != null && value != null ? projected - value : undefined,
+          projected,
+          projection_day: d.projection_day ?? undefined,
+          projection_days_in_month: d.projection_days_in_month ?? undefined,
+          note,
+        };
+      }),
+      endMonth,
+    );
 
   return (
     <div>

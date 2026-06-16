@@ -6,6 +6,7 @@ import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { TargetsStackedChart, type TargetsStackPoint } from "@/components/TargetsStackedChart";
 import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { extendMonthsTo, resolvedEndMonth } from "@/utils/padTrailing";
 import {
   SBU_ALFA_CATEGORY_KEYS,
   SBU_ALFA_CATEGORY_LABELS,
@@ -73,7 +74,10 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
   // is a no-op today (3 months) and the picker appears automatically once SBU
   // has published 13+ monthly recaps.
   const yr = useMonthlyYearRange(allPeriods.length);
-  const periods = useMemo(() => yr.slice(allPeriods), [allPeriods, yr]);
+  const periods = useMemo(
+    () => extendMonthsTo(yr.slice(allPeriods), resolvedEndMonth()),
+    [allPeriods, yr],
+  );
   const visibleRows = useMemo(() => {
     if (yr.hidden) return rows;
     const keep = new Set(periods);

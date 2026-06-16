@@ -8,6 +8,7 @@ import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/compo
 import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { buildMetrics } from "@/utils/metrics";
+import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import { TARGET_IDS, TARGET_LABELS } from "@/types";
 import type { MonthlyDataPoint, MonthlyRow, StatKey, Metric } from "@/types";
 import { FONTS } from "@/theme";
@@ -41,18 +42,22 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
     [metrics]
   );
 
+  const endMonth = resolvedEndMonth();
   const makeDataset = (key: StatKey): MonthlyDataPoint[] =>
-    rows.map((d: MonthlyRow) => {
-      const value = typeof d[key] === "number" ? (d[key] as number) : null;
-      const projected = d[`${key}_projected`] as number | undefined;
-      return {
-        date: d.date, value,
-        gap: projected != null && value != null ? projected - value : undefined,
-        projected,
-        projection_day: d.projection_day ?? undefined,
-        projection_days_in_month: d.projection_days_in_month ?? undefined,
-      };
-    });
+    padTrailingMonthly(
+      rows.map((d: MonthlyRow) => {
+        const value = typeof d[key] === "number" ? (d[key] as number) : null;
+        const projected = d[`${key}_projected`] as number | undefined;
+        return {
+          date: d.date, value,
+          gap: projected != null && value != null ? projected - value : undefined,
+          projected,
+          projection_day: d.projection_day ?? undefined,
+          projection_days_in_month: d.projection_days_in_month ?? undefined,
+        };
+      }),
+      endMonth,
+    );
 
   const makeTargetPairDataset = (targetId: number): MonthlyTargetPairDataPoint[] =>
     rows.map((d: MonthlyRow) => {

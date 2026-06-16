@@ -7,6 +7,7 @@ import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/compo
 import { DataWindow } from "@/components/DataWindow";
 import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import {
   ATTACK_CATEGORY_LABELS,
   ATTACK_DB_CATEGORIES,
@@ -40,19 +41,23 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
   // the tail). The query returns the full history sorted ascending.
   const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
 
+  const endMonth = resolvedEndMonth();
   const makeDataset = (key: AttackCategoryKey): MonthlyDataPoint[] =>
-    rows.map((d) => {
-      const value = typeof d[key] === "number" ? (d[key] as number) : null;
-      const projected = d[`${key}_projected`];
-      return {
-        date: d.date,
-        value,
-        gap: projected != null && value != null ? projected - value : undefined,
-        projected,
-        projection_day: d.projection_day ?? undefined,
-        projection_days_in_month: d.projection_days_in_month ?? undefined,
-      };
-    });
+    padTrailingMonthly(
+      rows.map((d) => {
+        const value = typeof d[key] === "number" ? (d[key] as number) : null;
+        const projected = d[`${key}_projected`];
+        return {
+          date: d.date,
+          value,
+          gap: projected != null && value != null ? projected - value : undefined,
+          projected,
+          projection_day: d.projection_day ?? undefined,
+          projection_days_in_month: d.projection_days_in_month ?? undefined,
+        };
+      }),
+      endMonth,
+    );
 
   // Launched vs intercepted pair, reusing the SBS hit/destroyed chart shape.
   // `hit_*` = launched (primary), `destroyed_*` = intercepted (secondary), so

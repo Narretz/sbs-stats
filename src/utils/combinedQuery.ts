@@ -31,6 +31,7 @@ import type {
 } from "@/types";
 import type { CombinedMetric, MetricSource } from "@/utils/combinedMetrics";
 import { type MonthOption, monthOf, windowStartMonth } from "@/utils/monthRange";
+import { padTrailingDaily, padTrailingMonthly, resolvedEndDate } from "@/utils/padTrailing";
 
 export interface CombinedQueries {
   sbs?: (days: number, endDate?: string) => DailyRow[];
@@ -181,6 +182,13 @@ export async function fetchCombinedMonthly(
     else if (m.source === "mediazona-roles" && mediazonaRolesRows) result[m.id] = projectMediazona(mediazonaRolesRows as unknown as Array<{ week: string } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "mediazona-estimate" && mediazonaEstimateRows) result[m.id] = projectMediazona(mediazonaEstimateRows as unknown as Array<{ week: string } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else result[m.id] = [];
+    // Extend each series' trailing tail to the chart's end month so a lagging
+    // source visibly stops short instead of silently ending where its data does.
+    result[m.id] = padTrailingMonthly(
+      result[m.id],
+      endMonth,
+      (date) => ({ date, value: null, is_today: false }),
+    );
   }
   return result;
 }
@@ -202,6 +210,7 @@ export async function fetchCombinedDaily(
   const ruAirRows = sources.has("ru-air-attacks") && queries.ruAir ? queries.ruAir(days, endDate) : null;
   const gsuaRows = sources.has("gsua") && queries.gsua ? await queries.gsua(days, endDate) : null;
 
+  const endDateResolved = resolvedEndDate(endDate);
   for (const m of metrics) {
     if (m.source === "sbs" && sbsRows) result[m.id] = project(sbsRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
     else if (m.source === "gsua" && gsuaRows) result[m.id] = project(gsuaRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
@@ -209,6 +218,9 @@ export async function fetchCombinedDaily(
     else if (m.source === "ru-airdef-mod" && ruModRows) result[m.id] = project(ruModRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
     else if (m.source === "ru-air-attacks" && ruAirRows) result[m.id] = project(ruAirRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
     else result[m.id] = [];
+    // Extend each series' trailing tail to the chart's end date so a lagging
+    // source visibly stops short instead of silently ending where its data does.
+    result[m.id] = padTrailingDaily(result[m.id], endDateResolved);
   }
   return result;
 }

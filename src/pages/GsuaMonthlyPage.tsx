@@ -6,6 +6,7 @@ import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import {
   GSUA_METRIC_KEYS,
   GSUA_METRIC_LABELS,
@@ -41,19 +42,23 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
     return () => { cancelled = true; };
   }, [loadState, queryMonthly, refreshKey]);
 
+  const endMonth = resolvedEndMonth();
   const makeDataset = (key: GsuaMetricKey): MonthlyDataPoint[] =>
-    rows.map((d) => {
-      const value = typeof d[key] === "number" ? d[key] : null;
-      const projected = d[`${key}_projected`];
-      return {
-        date: d.date,
-        value,
-        gap: projected != null && value != null ? projected - value : undefined,
-        projected,
-        projection_day: d.projection_day ?? undefined,
-        projection_days_in_month: d.projection_days_in_month ?? undefined,
-      };
-    });
+    padTrailingMonthly(
+      rows.map((d) => {
+        const value = typeof d[key] === "number" ? d[key] : null;
+        const projected = d[`${key}_projected`];
+        return {
+          date: d.date,
+          value,
+          gap: projected != null && value != null ? projected - value : undefined,
+          projected,
+          projection_day: d.projection_day ?? undefined,
+          projection_days_in_month: d.projection_days_in_month ?? undefined,
+        };
+      }),
+      endMonth,
+    );
 
   return (
     <div>
