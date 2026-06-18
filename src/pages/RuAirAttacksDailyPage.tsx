@@ -59,7 +59,7 @@ interface Props {
 
 export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryDaily, queryGlobalStats, queryDailyByModel, queryDailyBreakdownByCategory, queryDataWindow } = useRuAirAttacksDatabaseContext();
+  const { loadState, error, queryDaily, queryGlobalStats, queryDailyByModel, queryDailyBreakdownByCategory, queryDailyAggBreakdown, queryDataWindow } = useRuAirAttacksDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
 
   const initial = useMemo(() => getUrlParams(), []);
@@ -70,6 +70,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   const [rows, setRows] = useState<RuAirAttacksDailyRow[]>([]);
   const [modelRows, setModelRows] = useState<Record<string, RuAirAttacksModelDailyRow[]>>({});
   const [breakdowns, setBreakdowns] = useState<Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>>({} as Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>);
+  const [allBreakdown, setAllBreakdown] = useState<Map<string, ModelBreakdownEntry[]>>(new Map());
   const [globalStats, setGlobalStats] = useState<RuAirAttacksGlobalStats>({} as RuAirAttacksGlobalStats);
   const [hasData, setHasData] = useState(false);
 
@@ -97,9 +98,10 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
         b[cat] = queryDailyBreakdownByCategory(cat, days, selectedDate || undefined);
       }
       setBreakdowns(b);
+      setAllBreakdown(queryDailyAggBreakdown(days, selectedDate || undefined));
       setHasData(true);
     }
-  }, [loadState, days, selectedDate, queryDaily, queryDailyByModel, queryDailyBreakdownByCategory, refreshKey]);
+  }, [loadState, days, selectedDate, queryDaily, queryDailyByModel, queryDailyBreakdownByCategory, queryDailyAggBreakdown, refreshKey]);
 
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00").getDay();
   const maxSelectableDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
@@ -171,7 +173,8 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
       {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
       {(loadState === "ready" || hasData) && (
         <ChartGrid>
-          {/* Combined: total launched per day (single line), full width. */}
+          {/* Combined: total launched per day (single line), full width.
+              Tooltip carries a per-category breakdown for the hovered date. */}
           <DailyLineChart
             key="all"
             title="All — Drones + Missiles · Launched"
@@ -179,6 +182,8 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
             globalMax={globalStats.all?.launched.max ?? 0}
             globalMedian={globalStats.all?.launched.median ?? 0}
             globalTotal={globalStats.all?.launched.total ?? 0}
+            breakdownByDate={allBreakdown}
+            breakdownHeader="Category"
             wfull
           />
           {/* Per category: launched (area) with intercepted as a filled subset.

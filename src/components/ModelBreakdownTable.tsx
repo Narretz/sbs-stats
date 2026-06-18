@@ -13,9 +13,13 @@ function fmt(n: number | null | undefined): string {
 export function ModelBreakdownTable({
   entries,
   t,
+  header = "Model",
 }: {
   entries: ModelBreakdownEntry[];
   t: Theme;
+  /** First-column header. Default "Model"; pass "Category" when the rows are
+   *  weapon categories (e.g. the all-attacks aggregate chart). */
+  header?: string;
 }) {
   const numCell = {
     textAlign: "right" as const,
@@ -36,7 +40,7 @@ export function ModelBreakdownTable({
       <table style={{ borderCollapse: "collapse", width: "100%" }}>
         <thead>
           <tr>
-            <th style={{ textAlign: "left" }}>Model</th>
+            <th style={{ textAlign: "left" }}>{header}</th>
             <th title="Number launched" style={numCell}>📈</th>
             <th title="Interception Rate" style={numCell}>🎯</th>
           </tr>

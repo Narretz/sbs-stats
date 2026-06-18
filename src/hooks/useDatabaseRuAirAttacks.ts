@@ -10,7 +10,7 @@ import type {
   AttackDbCategory,
   ModelBreakdownEntry,
 } from "@/types";
-import { ATTACK_CATEGORY_KEYS, ATTACK_DB_CATEGORIES } from "@/types";
+import { ATTACK_CATEGORY_KEYS, ATTACK_CATEGORY_LABELS, ATTACK_DB_CATEGORIES } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { windowStartSql } from "@/utils/dayRange";
 
@@ -352,6 +352,71 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
     [db]
   );
 
+  // Per-date breakdown by category (drone / cruise / ballistic) for the
+  // aggregate "All" chart's tooltip. Returns rows labelled with their
+  // human-readable category name so they read naturally in the table.
+  const queryDailyAggBreakdown = useCallback(
+    (days: number, endDate?: string): Map<string, ModelBreakdownEntry[]> => {
+      if (!db) return new Map();
+      const todayStr = getKyivDateString();
+      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
+      const rows = queryRows<{ date: string; category: string; launched: number | null; destroyed: number | null }>(
+        db,
+        `SELECT date, category, launched, destroyed
+         FROM daily_by_category
+         WHERE date >= ${windowStartSql(endDateSql, days)}
+           AND date <= date('${endDateSql}')
+         ORDER BY date ASC, launched DESC`
+      );
+      const out = new Map<string, ModelBreakdownEntry[]>();
+      for (const r of rows) {
+        const cat = String(r.category) as AttackDbCategory;
+        if (!(ATTACK_DB_CATEGORIES as readonly string[]).includes(cat)) continue;
+        const date = String(r.date);
+        const list = out.get(date) ?? [];
+        list.push({
+          model: ATTACK_CATEGORY_LABELS[cat],
+          launched: num(r.launched),
+          intercepted: num(r.destroyed),
+        });
+        out.set(date, list);
+      }
+      return out;
+    },
+    [db]
+  );
+
+  // Per-month breakdown by category for the aggregate monthly bar chart.
+  const queryMonthlyAggBreakdown = useCallback(
+    (): Map<string, ModelBreakdownEntry[]> => {
+      if (!db) return new Map();
+      const rows = queryRows<{ month: string; category: string; launched: number | null; destroyed: number | null }>(
+        db,
+        `SELECT substr(date, 1, 7) AS month, category,
+                SUM(launched)  AS launched,
+                SUM(destroyed) AS destroyed
+         FROM daily_by_category
+         GROUP BY month, category
+         ORDER BY month ASC, launched DESC`
+      );
+      const out = new Map<string, ModelBreakdownEntry[]>();
+      for (const r of rows) {
+        const cat = String(r.category) as AttackDbCategory;
+        if (!(ATTACK_DB_CATEGORIES as readonly string[]).includes(cat)) continue;
+        const month = String(r.month);
+        const list = out.get(month) ?? [];
+        list.push({
+          model: ATTACK_CATEGORY_LABELS[cat],
+          launched: num(r.launched),
+          intercepted: num(r.destroyed),
+        });
+        out.set(month, list);
+      }
+      return out;
+    },
+    [db]
+  );
+
   // Per-month model breakdown for one DB category. Same shape as the daily
   // version (Map<bucket-key, ModelBreakdownEntry[]>) but bucketed by YYYY-MM.
   // Used by the monthly chart tooltip: "what models drove this month's Cruise
@@ -398,6 +463,7 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
     queryDaily, queryGlobalStats, queryMonthly,
     queryDailyByModel, queryMonthlyByModel,
     queryDailyBreakdownByCategory, queryMonthlyBreakdownByCategory,
+    queryDailyAggBreakdown, queryMonthlyAggBreakdown,
     queryDataWindow,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs,

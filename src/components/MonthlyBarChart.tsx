@@ -1,14 +1,22 @@
 import { Bar, Cell } from "recharts";
-import type { MonthlyDataPoint } from "@/types";
+import type { ModelBreakdownEntry, MonthlyDataPoint } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { MonthlyChartCard, type TooltipRenderProps } from "@/components/MonthlyChartCard";
+import { ModelBreakdownTable } from "@/components/ModelBreakdownTable";
 
 interface Props {
   title: string;
   data: MonthlyDataPoint[];
   wfull: boolean;
+  // Optional per-month breakdown rendered below the standard tooltip rows.
+  // Used by the RU air-attacks aggregate "All" monthly bar chart to break the
+  // total into drone / cruise / ballistic.
+  breakdownByMonth?: Map<string, ModelBreakdownEntry[]>;
+  // First-column header for the breakdown table. Default "Model"; pass
+  // "Category" for the all-attacks aggregate.
+  breakdownHeader?: string;
 }
 
 // Cap bar width so a chart with few data points (e.g. SBU Alfa's 3 months)
@@ -16,7 +24,7 @@ interface Props {
 // less than this anyway and the cap is a no-op.
 const MAX_BAR_SIZE = 70;
 
-export function MonthlyBarChart({ title, data, wfull }: Props) {
+export function MonthlyBarChart({ title, data, wfull, breakdownByMonth, breakdownHeader }: Props) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
   const lastIdx = data.length - 1;
@@ -28,6 +36,7 @@ export function MonthlyBarChart({ title, data, wfull }: Props) {
   const renderTooltip = ({ active, payload }: TooltipRenderProps<MonthlyDataPoint>) => {
     if (!active || !payload?.length) return null;
     const d = payload[0].payload;
+    const entries = breakdownByMonth?.get(d.date.slice(0, 7)) ?? [];
     return (
       <div style={{
         background: t.surface, border: `1px solid ${t.border}`,
@@ -54,6 +63,7 @@ export function MonthlyBarChart({ title, data, wfull }: Props) {
             ⚠ {d.note}
           </div>
         )}
+        {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} header={breakdownHeader} />}
       </div>
     );
   };

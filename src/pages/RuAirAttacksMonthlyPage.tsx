@@ -28,11 +28,12 @@ interface Props {
 
 export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryMonthly, queryMonthlyByModel, queryMonthlyBreakdownByCategory, queryDataWindow } = useRuAirAttacksDatabaseContext();
+  const { loadState, error, queryMonthly, queryMonthlyByModel, queryMonthlyBreakdownByCategory, queryMonthlyAggBreakdown, queryDataWindow } = useRuAirAttacksDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const [allRows, setAllRows] = useState<RuAirAttacksMonthlyRow[]>([]);
   const [allModelRows, setAllModelRows] = useState<Record<string, RuAirAttacksModelMonthlyRow[]>>({});
   const [breakdowns, setBreakdowns] = useState<Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>>({} as Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>);
+  const [allBreakdown, setAllBreakdown] = useState<Map<string, ModelBreakdownEntry[]>>(new Map());
   const [hasData, setHasData] = useState(false);
   const yr = useMonthlyYearRange(allRows.length);
 
@@ -45,9 +46,10 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
       const b = {} as Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>;
       for (const cat of ATTACK_DB_CATEGORIES) b[cat] = queryMonthlyBreakdownByCategory(cat);
       setBreakdowns(b);
+      setAllBreakdown(queryMonthlyAggBreakdown());
       setHasData(true);
     }
-  }, [loadState, queryMonthly, queryMonthlyByModel, queryMonthlyBreakdownByCategory, refreshKey]);
+  }, [loadState, queryMonthly, queryMonthlyByModel, queryMonthlyBreakdownByCategory, queryMonthlyAggBreakdown, refreshKey]);
 
   // Slice to the last N*12 months (including the current/projected month at
   // the tail). The query returns the full history sorted ascending.
@@ -149,6 +151,8 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
             key="all"
             title={`${ATTACK_CATEGORY_LABELS.all} · Launched`}
             data={makeDataset("all")}
+            breakdownByMonth={allBreakdown}
+            breakdownHeader="Category"
             wfull
           />
           {ATTACK_DB_CATEGORIES.map((k) => (
