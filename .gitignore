@@ -26,6 +26,7 @@ data/ru-air-attacks-gsua.db
 data/sbs-foosint.db
 data/sbs.db
 data/sbu-alfa.db
+data/mediazona.db
 
 # GSUA scraper local artifacts
 scripts/gsua/output/
