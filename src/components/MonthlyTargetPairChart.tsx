@@ -136,7 +136,7 @@ export function MonthlyTargetPairChart({
             axisLine={false}
             tickFormatter={(v: string) => v.slice(0, 7).replace("-", "/")}
           />
-          <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
+          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
           <Tooltip
             content={({ active, payload }) => (
               <MonthlyPairTooltip

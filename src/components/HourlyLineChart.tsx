@@ -228,7 +228,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
             type="number"
             domain={[0, 24]}
           />
-          <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, yScaleMax)]} />
+          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, yScaleMax)]} />
           <Tooltip
             content={({ active, payload, label }) => (
               <CustomTooltip

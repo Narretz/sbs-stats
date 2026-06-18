@@ -125,7 +125,7 @@ export function DocumentedVsEstimatedChart({
             tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
             tickLine={false} axisLine={false} minTickGap={28} tickFormatter={fmtDate}
           />
-          <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
+          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
             tickFormatter={(v: number) => v.toLocaleString()} />
           <Tooltip
             cursor={{ stroke: t.textMuted, strokeWidth: 1 }}

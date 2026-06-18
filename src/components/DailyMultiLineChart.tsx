@@ -210,6 +210,7 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
           />
           {yMode === "log" ? (
             <YAxis
+              allowDecimals={false}
               tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
               tickLine={false} axisLine={false}
               scale="log"
@@ -225,6 +226,7 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
             />
           ) : (
             <YAxis
+              allowDecimals={false}
               tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
               tickLine={false} axisLine={false}
               domain={[0, (dataMax: number) => Math.max(dataMax, ceiling)]}

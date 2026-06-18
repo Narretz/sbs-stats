@@ -281,7 +281,7 @@ export function DailyLineChart({
               tickLine={false} axisLine={false}
               tickFormatter={(v: string) => { const p = v.slice(5).split('-'); return `${p[1]}/${p[0]}`; }}
             />
-            <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
+            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
               domain={[0, (dataMax: number) => Math.max(dataMax, yMax)]} />
             <Tooltip
               allowEscapeViewBox={{ x: false, y: true }}
@@ -318,7 +318,7 @@ export function DailyLineChart({
               tickLine={false} axisLine={false}
               tickFormatter={(v: string) => { const p = v.slice(5).split('-'); return `${p[1]}/${p[0]}`; }}
             />
-            <YAxis tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
+            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
               domain={[0, (dataMax: number) => Math.max(dataMax, max)]} />
             <Tooltip
               allowEscapeViewBox={{ x: false, y: true }}

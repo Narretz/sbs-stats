@@ -106,7 +106,7 @@ export function RoleCompositionChart({
           {/* Left axis = stack shares (0..100%); right axis = absolute weekly total. */}
           <YAxis yAxisId="left" tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
             domain={[0, 1]} tickFormatter={(v: number) => `${Math.round(v * 100)}%`} />
-          <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
+          <YAxis yAxisId="right" orientation="right" allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
             tickFormatter={(v: number) => v.toLocaleString()} />
           <Tooltip
             cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
