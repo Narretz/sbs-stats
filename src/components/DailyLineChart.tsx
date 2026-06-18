@@ -184,14 +184,6 @@ function PairedTooltip({
 
 // Elevate the hovered card so a tooltip overflowing its bottom edge isn't
 // painted over by the next chart card (a later sibling in the grid).
-const STYLE_ID = "daily-chart-hover-style";
-if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
-  const s = document.createElement("style");
-  s.id = STYLE_ID;
-  s.textContent = `.daily-card { position: relative; z-index: 1; } .daily-card:hover { z-index: 2; }`;
-  document.head.appendChild(s);
-}
-
 export function DailyLineChart({
   title, data, globalMax, globalMedian, globalTotal, wfull,
   data2, primaryLabel, label2, globalMax2, globalMedian2, globalTotal2, pairMode = "subset",
@@ -247,7 +239,7 @@ export function DailyLineChart({
     : max;
 
   return (
-    <div className="daily-card" style={{
+    <div className="chart-card" style={{
       background: t.surface,
       border: `1px solid ${t.surfaceBorder}`,
       borderRadius: 8,

@@ -110,7 +110,7 @@ export function MonthlyTargetPairChart({
   const destroyedProjectedFill = c.destroyedProjected;
 
   return (
-    <div style={{
+    <div className="chart-card" style={{
       background: t.surface,
       border: `1px solid ${t.surfaceBorder}`,
       borderRadius: 8,
@@ -152,6 +152,7 @@ export function MonthlyTargetPairChart({
               />
             )}
             allowEscapeViewBox={{ x: false, y: true }}
+            wrapperStyle={{ zIndex: 9999 }}
           />
 
           <Bar dataKey="hit_value" stackId="hit" name={primaryLabel}>

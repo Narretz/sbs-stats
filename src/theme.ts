@@ -76,4 +76,10 @@ export const GLOBAL_CSS = (t: Theme) => `
   ::-webkit-scrollbar-thumb { background: ${t.border}; border-radius: 3px; }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
   @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  /* Hover-elevation for any chart card: a tooltip that overflows the card's
+     bottom edge would otherwise be painted over by the next chart-card
+     sibling in the grid. Lifting the hovered card's stacking context keeps
+     its absolutely-positioned tooltip on top. */
+  .chart-card { position: relative; z-index: 1; }
+  .chart-card:hover { z-index: 2; }
 `;

@@ -7,16 +7,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { FONTS, type Theme } from "@/theme";
 
-// Reuse the hover-elevation class injected by DailyLineChart so an overflowing
-// tooltip isn't clipped under the next card. Guarded — no-op if already present.
-const STYLE_ID = "daily-chart-hover-style";
-if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
-  const s = document.createElement("style");
-  s.id = STYLE_ID;
-  s.textContent = `.daily-card { position: relative; z-index: 1; } .daily-card:hover { z-index: 2; }`;
-  document.head.appendChild(s);
-}
-
 export interface LineSeries {
   key: string;
   label: string;
@@ -185,7 +175,7 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
     : max;
 
   return (
-    <div className="daily-card" style={{
+    <div className="chart-card" style={{
       background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8,
       padding: "18px 16px 12px", gridColumn: wfull ? "1 / -1" : undefined,
       animation: "fadeIn 0.3s ease both", boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
