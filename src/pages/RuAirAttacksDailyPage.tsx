@@ -14,9 +14,13 @@ import { padTrailingDaily, resolvedEndDate } from "@/utils/padTrailing";
 import {
   ATTACK_DB_CATEGORIES,
   ATTACK_CATEGORY_LABELS,
+  FEATURED_MODELS,
   type AttackCategoryKey,
+  type AttackDbCategory,
+  type ModelBreakdownEntry,
   type RuAirAttacksDailyRow,
   type RuAirAttacksGlobalStats,
+  type RuAirAttacksModelDailyRow,
 } from "@/types";
 import { FONTS } from "@/theme";
 
@@ -55,7 +59,7 @@ interface Props {
 
 export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryDaily, queryGlobalStats, queryDataWindow } = useRuAirAttacksDatabaseContext();
+  const { loadState, error, queryDaily, queryGlobalStats, queryDailyByModel, queryDailyBreakdownByCategory, queryDataWindow } = useRuAirAttacksDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
 
   const initial = useMemo(() => getUrlParams(), []);
@@ -64,6 +68,8 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   const [selectedDate, setSelectedDate] = useState<string>(initial.date);
 
   const [rows, setRows] = useState<RuAirAttacksDailyRow[]>([]);
+  const [modelRows, setModelRows] = useState<Record<string, RuAirAttacksModelDailyRow[]>>({});
+  const [breakdowns, setBreakdowns] = useState<Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>>({} as Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>);
   const [globalStats, setGlobalStats] = useState<RuAirAttacksGlobalStats>({} as RuAirAttacksGlobalStats);
   const [hasData, setHasData] = useState(false);
 
@@ -81,9 +87,19 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   useEffect(() => {
     if (loadState === "ready") {
       setRows(queryDaily(days, selectedDate || undefined));
+      const m: Record<string, RuAirAttacksModelDailyRow[]> = {};
+      for (const model of FEATURED_MODELS) {
+        m[model] = queryDailyByModel(model, days, selectedDate || undefined);
+      }
+      setModelRows(m);
+      const b = {} as Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>;
+      for (const cat of ATTACK_DB_CATEGORIES) {
+        b[cat] = queryDailyBreakdownByCategory(cat, days, selectedDate || undefined);
+      }
+      setBreakdowns(b);
       setHasData(true);
     }
-  }, [loadState, days, selectedDate, queryDaily, refreshKey]);
+  }, [loadState, days, selectedDate, queryDaily, queryDailyByModel, queryDailyBreakdownByCategory, refreshKey]);
 
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00").getDay();
   const maxSelectableDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
@@ -112,6 +128,21 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
         date: d.date,
         value: typeof d[`${key}_${metric}`] === "number" ? (d[`${key}_${metric}`] as number) : null,
         is_today: d.is_today,
+      })),
+      endDate,
+    );
+
+  const filterModelRows = (mrows: RuAirAttacksModelDailyRow[]) => {
+    if (selectedDate) return mrows; // SQL already bounded the window
+    if (selectedWeekdays.length === 0) return mrows;
+    return mrows.filter((r) => selectedWeekdays.includes(new Date(r.date + "T12:00:00").getDay()));
+  };
+  const modelSeries = (model: string, metric: "launched" | "intercepted") =>
+    padTrailingDaily(
+      filterModelRows(modelRows[model] ?? []).map((r) => ({
+        date: r.date,
+        value: r[metric],
+        is_today: r.is_today,
       })),
       endDate,
     );
@@ -150,7 +181,8 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
             globalTotal={globalStats.all?.launched.total ?? 0}
             wfull
           />
-          {/* Per category: launched (area) with intercepted as a filled subset. */}
+          {/* Per category: launched (area) with intercepted as a filled subset.
+              Tooltip carries a top-N model breakdown for the hovered date. */}
           {ATTACK_DB_CATEGORIES.map((cat) => (
             <DailyLineChart
               key={cat}
@@ -166,9 +198,47 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
               globalMax2={globalStats[cat]?.intercepted.max ?? 0}
               globalMedian2={globalStats[cat]?.intercepted.median ?? 0}
               globalTotal2={globalStats[cat]?.intercepted.total ?? 0}
+              breakdownByDate={breakdowns[cat]}
               wfull={false}
             />
           ))}
+          {/* Per featured model: bundled "X and Y" rows aren't counted here, so
+              standalone-model attribution may read low when piterfm reports a
+              mixed-strike row instead of breaking it apart. Reference-line
+              stats are window-scoped (no all-time bundle is precomputed for
+              per-model series). */}
+          {FEATURED_MODELS.map((model) => {
+            const ld = modelSeries(model, "launched");
+            const id = modelSeries(model, "intercepted");
+            const stats = (xs: typeof ld) => {
+              const vs = xs.map((p) => p.value).filter((v): v is number => typeof v === "number").sort((a, b) => a - b);
+              return {
+                max: vs.length ? vs[vs.length - 1] : 0,
+                median: vs.length ? vs[Math.floor(vs.length / 2)] : 0,
+                total: vs.reduce((s, n) => s + n, 0),
+              };
+            };
+            const ls = stats(ld);
+            const is = stats(id);
+            return (
+              <DailyLineChart
+                key={`model-${model}`}
+                title={model}
+                data={ld}
+                data2={id}
+                primaryLabel="Launched"
+                label2="Intercepted"
+                pairMode="subset"
+                globalMax={ls.max}
+                globalMedian={ls.median}
+                globalTotal={ls.total}
+                globalMax2={is.max}
+                globalMedian2={is.median}
+                globalTotal2={is.total}
+                wfull={false}
+              />
+            );
+          })}
         </ChartGrid>
       )}
     </div>

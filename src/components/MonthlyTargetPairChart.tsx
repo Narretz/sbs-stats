@@ -5,6 +5,8 @@ import {
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
+import { ModelBreakdownTable } from "@/components/ModelBreakdownTable";
+import type { ModelBreakdownEntry } from "@/types";
 
 export interface MonthlyTargetPairDataPoint {
   date: string;
@@ -26,10 +28,14 @@ interface Props {
   secondaryLabel?: string;
   showRatio?: boolean;
   ratioLabel?: string;
+  // Optional per-month model breakdown (YYYY-MM → entries). When provided,
+  // the tooltip renders the shared ModelBreakdownTable under the standard
+  // hit/destroyed rows. Used by the RU air-attacks category charts.
+  breakdownByMonth?: Map<string, ModelBreakdownEntry[]>;
 }
 
 const MonthlyPairTooltip = ({
-  active, payload, t, c, primaryLabel, secondaryLabel, showRatio, ratioLabel,
+  active, payload, t, c, primaryLabel, secondaryLabel, showRatio, ratioLabel, breakdownByMonth,
 }: {
   active?: boolean;
   payload?: Array<{ payload: MonthlyTargetPairDataPoint }>;
@@ -39,10 +45,12 @@ const MonthlyPairTooltip = ({
   secondaryLabel: string;
   showRatio: boolean;
   ratioLabel: string;
+  breakdownByMonth?: Map<string, ModelBreakdownEntry[]>;
 }) => {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   const destroyedPct = d.hit_value > 0 ? (d.destroyed_value / d.hit_value) * 100 : null;
+  const entries = breakdownByMonth?.get(d.date.slice(0, 7)) ?? [];
   return (
     <div style={{
       background: t.surface, border: `1px solid ${t.border}`,
@@ -75,6 +83,7 @@ const MonthlyPairTooltip = ({
           Day {d.projection_day} of {d.projection_days_in_month}
         </div>
       ) : null}
+      {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} />}
     </div>
   );
 };
@@ -87,6 +96,7 @@ export function MonthlyTargetPairChart({
   secondaryLabel = "Destroyed",
   showRatio = true,
   ratioLabel = "% destroyed",
+  breakdownByMonth,
 }: Props) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
@@ -138,6 +148,7 @@ export function MonthlyTargetPairChart({
                 secondaryLabel={secondaryLabel}
                 showRatio={showRatio}
                 ratioLabel={ratioLabel}
+                breakdownByMonth={breakdownByMonth}
               />
             )}
             allowEscapeViewBox={{ x: false, y: true }}

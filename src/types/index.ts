@@ -253,6 +253,43 @@ export const ATTACK_CATEGORY_LABELS: Record<AttackCategoryKey, string> = {
 
 export type AttackMetricCol = `${AttackCategoryKey}_launched` | `${AttackCategoryKey}_intercepted`;
 
+// Featured weapon models charted individually on the air-attacks pages.
+// Listed in the same `model` string the DB stores; the page renders a chart per
+// entry alongside the per-category charts. Extend as needed — purely additive,
+// no other code references the slugs directly.
+// Iskander-M is the only standalone model that's both currently active and
+// reported as its own row in piterfm's data (Shahed-136/131 ≈ the "drone"
+// category, and X-101/Kalibr increasingly land inside "X and Y" bundle rows
+// from late 2025 onward — see makeModelPairDataset comment).
+export const FEATURED_MODELS = ["Iskander-M"] as const;
+export type FeaturedModel = (typeof FEATURED_MODELS)[number];
+
+export type RuAirAttacksModelDailyRow = {
+  date: string; // YYYY-MM-DD
+  is_today: boolean;
+  launched: number;
+  intercepted: number;
+};
+
+// One model's contribution to a single (date, category) cell, used to render
+// the per-model breakdown tooltip on the daily category charts.
+export type ModelBreakdownEntry = {
+  model: string;
+  launched: number;
+  intercepted: number;
+};
+
+export type RuAirAttacksModelMonthlyRow = {
+  date: string; // YYYY-MM
+  is_current_month: boolean;
+  projection_day: number | null;
+  projection_days_in_month: number | null;
+  launched: number;
+  intercepted: number;
+  launched_projected?: number;
+  intercepted_projected?: number;
+};
+
 export type RuAirAttacksDailyRow = {
   date: string;        // YYYY-MM-DD (date of attack window start)
   is_today: boolean;

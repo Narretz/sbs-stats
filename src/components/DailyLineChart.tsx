@@ -3,12 +3,13 @@ import {
   Tooltip, ReferenceLine, ResponsiveContainer, type DotProps,
 } from "recharts";
 import { useMemo } from "react";
-import type { DailyDataPoint, EodEstimate, PairMode } from "@/types";
+import type { DailyDataPoint, EodEstimate, ModelBreakdownEntry, PairMode } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
 import { FONTS, type Theme } from "@/theme";
 import { AREA_FILL_OPACITY, COLOR_DESTROYED, COLOR_DESTROYED_TREND } from "@/chartColors";
+import { ModelBreakdownTable } from "@/components/ModelBreakdownTable";
 
 function linearRegression(data: DailyDataPoint[]): Array<number | null> {
   const points = data
@@ -48,6 +49,11 @@ interface Props {
   // End-of-day estimate for the "today" point (primary / paired series).
   eod?: EodEstimate | null;
   eod2?: EodEstimate | null;
+  // Optional per-date model breakdown rendered under the tooltip body. Used by
+  // the RU air-attacks daily category charts to show "what models drove this
+  // day's number". When provided, the tooltip lists the top models with
+  // launched count + intercept %.
+  breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
 }
 
 function CustomDot(props: DotProps & { payload?: DailyDataPoint; accentColor: string; primaryColor: string; bgColor: string }) {
@@ -127,7 +133,7 @@ function SingleTooltip({
 }
 
 function PairedTooltip({
-  active, payload, t, primaryColor, primaryLabel, secondaryLabel, pairMode,
+  active, payload, t, primaryColor, primaryLabel, secondaryLabel, pairMode, breakdownByDate,
 }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
@@ -136,6 +142,7 @@ function PairedTooltip({
   primaryLabel: string;
   secondaryLabel: string;
   pairMode: PairMode;
+  breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
 }) {
   if (!active || !payload?.length || !payload[0].payload) return null;
   const d = payload[0].payload;
@@ -149,6 +156,7 @@ function PairedTooltip({
   const pct = typeof total === "number" && total > 0 && typeof v2 === "number"
     ? (v2 / total) * 100
     : null;
+  const entries = breakdownByDate?.get(d.date) ?? [];
   return (
     <div style={{
       background: t.surface,
@@ -169,6 +177,7 @@ function PairedTooltip({
       {tipRow(COLOR_DESTROYED_TREND, `Trend (${secondaryLabel})`, fmt(tr2))}
       {d.is_today && d.eod && eodRow(primaryColor, primaryLabel, d.eod)}
       {d.is_today && d.eod2 && eodRow(COLOR_DESTROYED, secondaryLabel, d.eod2)}
+      {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} />}
     </div>
   );
 }
@@ -186,7 +195,7 @@ if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
 export function DailyLineChart({
   title, data, globalMax, globalMedian, globalTotal, wfull,
   data2, primaryLabel, label2, globalMax2, globalMedian2, globalTotal2, pairMode = "subset",
-  eod, eod2,
+  eod, eod2, breakdownByDate,
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
@@ -288,6 +297,7 @@ export function DailyLineChart({
                   primaryLabel={resolvedPrimaryLabel}
                   secondaryLabel={resolvedSecondaryLabel}
                   pairMode={pairMode}
+                  breakdownByDate={breakdownByDate}
                 />
               )}
             />

@@ -11,8 +11,12 @@ import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import {
   ATTACK_CATEGORY_LABELS,
   ATTACK_DB_CATEGORIES,
+  FEATURED_MODELS,
   type AttackCategoryKey,
+  type AttackDbCategory,
+  type ModelBreakdownEntry,
   type RuAirAttacksMonthlyRow,
+  type RuAirAttacksModelMonthlyRow,
   type MonthlyDataPoint,
 } from "@/types";
 import { FONTS } from "@/theme";
@@ -24,22 +28,35 @@ interface Props {
 
 export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryMonthly, queryDataWindow } = useRuAirAttacksDatabaseContext();
+  const { loadState, error, queryMonthly, queryMonthlyByModel, queryMonthlyBreakdownByCategory, queryDataWindow } = useRuAirAttacksDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const [allRows, setAllRows] = useState<RuAirAttacksMonthlyRow[]>([]);
+  const [allModelRows, setAllModelRows] = useState<Record<string, RuAirAttacksModelMonthlyRow[]>>({});
+  const [breakdowns, setBreakdowns] = useState<Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>>({} as Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>);
   const [hasData, setHasData] = useState(false);
   const yr = useMonthlyYearRange(allRows.length);
 
   useEffect(() => {
     if (loadState === "ready") {
       setAllRows(queryMonthly());
+      const m: Record<string, RuAirAttacksModelMonthlyRow[]> = {};
+      for (const model of FEATURED_MODELS) m[model] = queryMonthlyByModel(model);
+      setAllModelRows(m);
+      const b = {} as Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>;
+      for (const cat of ATTACK_DB_CATEGORIES) b[cat] = queryMonthlyBreakdownByCategory(cat);
+      setBreakdowns(b);
       setHasData(true);
     }
-  }, [loadState, queryMonthly, refreshKey]);
+  }, [loadState, queryMonthly, queryMonthlyByModel, queryMonthlyBreakdownByCategory, refreshKey]);
 
   // Slice to the last N*12 months (including the current/projected month at
   // the tail). The query returns the full history sorted ascending.
   const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
+  const modelRows = useMemo(() => {
+    const out: Record<string, RuAirAttacksModelMonthlyRow[]> = {};
+    for (const m of FEATURED_MODELS) out[m] = yr.slice(allModelRows[m] ?? []);
+    return out;
+  }, [allModelRows, yr]);
 
   const endMonth = resolvedEndMonth();
   const makeDataset = (key: AttackCategoryKey): MonthlyDataPoint[] =>
@@ -80,6 +97,22 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
         projection_days_in_month: d.projection_days_in_month ?? undefined,
       };
     });
+
+  // Same shape, one chart per featured model. Bundled "X and Y" rows aren't
+  // counted here so standalone-model attribution may read low when piterfm
+  // reports a mixed strike.
+  const makeModelPairDataset = (model: string): MonthlyTargetPairDataPoint[] =>
+    (modelRows[model] ?? []).map((d) => ({
+      date: d.date,
+      hit_value: d.launched,
+      hit_gap: d.launched_projected != null ? d.launched_projected - d.launched : undefined,
+      hit_projected: d.launched_projected,
+      destroyed_value: d.intercepted,
+      destroyed_gap: d.intercepted_projected != null ? d.intercepted_projected - d.intercepted : undefined,
+      destroyed_projected: d.intercepted_projected,
+      projection_day: d.projection_day ?? undefined,
+      projection_days_in_month: d.projection_days_in_month ?? undefined,
+    }));
 
   return (
     <div>
@@ -123,6 +156,18 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
               key={k}
               title={ATTACK_CATEGORY_LABELS[k]}
               data={makePairDataset(k)}
+              primaryLabel="Launched"
+              secondaryLabel="Intercepted"
+              showRatio
+              ratioLabel="% intercepted"
+              breakdownByMonth={breakdowns[k]}
+            />
+          ))}
+          {FEATURED_MODELS.map((model) => (
+            <MonthlyTargetPairChart
+              key={`model-${model}`}
+              title={model}
+              data={makeModelPairDataset(model)}
               primaryLabel="Launched"
               secondaryLabel="Intercepted"
               showRatio

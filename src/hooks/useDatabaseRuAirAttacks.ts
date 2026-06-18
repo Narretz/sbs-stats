@@ -4,7 +4,11 @@ import type {
   RuAirAttacksDailyRow,
   RuAirAttacksGlobalStats,
   RuAirAttacksMonthlyRow,
+  RuAirAttacksModelDailyRow,
+  RuAirAttacksModelMonthlyRow,
   AttackCategoryKey,
+  AttackDbCategory,
+  ModelBreakdownEntry,
 } from "@/types";
 import { ATTACK_CATEGORY_KEYS, ATTACK_DB_CATEGORIES } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
@@ -230,6 +234,154 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
       });
   }, [db]);
 
+  // ── Per-model daily: one row per date with launched + intercepted for the
+  // given `model` (exact match on the DB's `model` column — bundled rows like
+  // "X-101/X-555 and Kalibr" don't fold into individual model charts).
+  //
+  // Left-joined against the set of dates that appear in `daily_by_category` so
+  // days with attacks in other categories but none for this model render as 0
+  // (parity with the per-category charts, whose pivot zero-fills cross-
+  // category). Days with no data at all stay absent → the trailing-pad utility
+  // can render them as visibly missing instead of as zeros.
+  const queryDailyByModel = useCallback(
+    (model: string, days: number, endDate?: string): RuAirAttacksModelDailyRow[] => {
+      if (!db) return [];
+      const todayStr = getKyivDateString();
+      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
+      const safeModel = model.replace(/'/g, "''");
+      const sql = `
+        SELECT d.date, COALESCE(m.launched, 0) AS launched, COALESCE(m.destroyed, 0) AS destroyed
+        FROM (
+          SELECT DISTINCT date FROM daily_by_category
+          WHERE date >= ${windowStartSql(endDateSql, days)}
+            AND date <= date('${endDateSql}')
+        ) d
+        LEFT JOIN daily_by_model m
+          ON m.date = d.date AND m.model = '${safeModel}'
+        ORDER BY d.date ASC
+      `;
+      return queryRows<{ date: string; launched: number | null; destroyed: number | null }>(db, sql).map((r) => ({
+        date: String(r.date),
+        is_today: String(r.date) === todayStr,
+        launched: num(r.launched),
+        intercepted: num(r.destroyed),
+      }));
+    },
+    [db]
+  );
+
+  // ── Per-model monthly: sums per calendar month, with current-month projection
+  // on both launched and intercepted (same pro-rata extrapolation as the
+  // per-category monthly query).
+  const queryMonthlyByModel = useCallback(
+    (model: string): RuAirAttacksModelMonthlyRow[] => {
+      if (!db) return [];
+      const safeModel = model.replace(/'/g, "''");
+      const raw = queryRows<{ month: string; launched: number | null; destroyed: number | null }>(
+        db,
+        `SELECT substr(date, 1, 7) AS month,
+                SUM(launched) AS launched, SUM(destroyed) AS destroyed
+         FROM daily_by_model
+         WHERE model = '${safeModel}'
+         GROUP BY month
+         ORDER BY month ASC`
+      );
+
+      const kyivDateStr = getKyivDateString();
+      const currentMonth = kyivDateStr.slice(0, 7);
+      const dayOfMonth = parseInt(kyivDateStr.slice(8, 10), 10);
+      const [y, m] = currentMonth.split("-").map(Number);
+      const daysInMonth = new Date(y, m, 0).getDate();
+
+      return raw.map((r) => {
+        const month = String(r.month);
+        const launched = num(r.launched);
+        const intercepted = num(r.destroyed);
+        const isCurrent = month === currentMonth;
+        const row: RuAirAttacksModelMonthlyRow = {
+          date: month,
+          is_current_month: isCurrent,
+          projection_day: isCurrent ? dayOfMonth : null,
+          projection_days_in_month: isCurrent ? daysInMonth : null,
+          launched,
+          intercepted,
+        };
+        if (isCurrent && dayOfMonth > 0) {
+          const mult = daysInMonth / dayOfMonth;
+          row.launched_projected = Math.round(launched * mult);
+          row.intercepted_projected = Math.round(intercepted * mult);
+        }
+        return row;
+      });
+    },
+    [db]
+  );
+
+  // ── Per-date model breakdown for one DB category. Used by the daily chart
+  // tooltip: "what models drove this Cruise spike on 2026-03-12?". Returns
+  // each date's contributing models sorted by launched DESC. Bundled "X and Y"
+  // rows are returned as their literal model string (callers can decide to
+  // collapse them or show them as-is).
+  const queryDailyBreakdownByCategory = useCallback(
+    (cat: AttackDbCategory, days: number, endDate?: string): Map<string, ModelBreakdownEntry[]> => {
+      if (!db) return new Map();
+      const todayStr = getKyivDateString();
+      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
+      const safe = cat.replace(/'/g, "''");
+      const rows = queryRows<{ date: string; model: string; launched: number | null; destroyed: number | null }>(
+        db,
+        `SELECT attack_date AS date, model,
+                SUM(launched)  AS launched,
+                SUM(destroyed) AS destroyed
+         FROM missile_attacks_latest
+         WHERE category = '${safe}'
+           AND attack_date >= ${windowStartSql(endDateSql, days)}
+           AND attack_date <= date('${endDateSql}')
+         GROUP BY attack_date, model
+         ORDER BY attack_date ASC, launched DESC`
+      );
+      const out = new Map<string, ModelBreakdownEntry[]>();
+      for (const r of rows) {
+        const date = String(r.date);
+        const list = out.get(date) ?? [];
+        list.push({ model: String(r.model), launched: num(r.launched), intercepted: num(r.destroyed) });
+        out.set(date, list);
+      }
+      return out;
+    },
+    [db]
+  );
+
+  // Per-month model breakdown for one DB category. Same shape as the daily
+  // version (Map<bucket-key, ModelBreakdownEntry[]>) but bucketed by YYYY-MM.
+  // Used by the monthly chart tooltip: "what models drove this month's Cruise
+  // number?".
+  const queryMonthlyBreakdownByCategory = useCallback(
+    (cat: AttackDbCategory): Map<string, ModelBreakdownEntry[]> => {
+      if (!db) return new Map();
+      const safe = cat.replace(/'/g, "''");
+      const rows = queryRows<{ month: string; model: string; launched: number | null; destroyed: number | null }>(
+        db,
+        `SELECT substr(attack_date, 1, 7) AS month, model,
+                SUM(launched)  AS launched,
+                SUM(destroyed) AS destroyed
+         FROM missile_attacks_latest
+         WHERE category = '${safe}'
+         GROUP BY month, model
+         ORDER BY month ASC, launched DESC`
+      );
+      const out = new Map<string, ModelBreakdownEntry[]>();
+      for (const r of rows) {
+        const month = String(r.month);
+        const list = out.get(month) ?? [];
+        list.push({ model: String(r.model), launched: num(r.launched), intercepted: num(r.destroyed) });
+        out.set(month, list);
+      }
+      return out;
+    },
+    [db]
+  );
+
   // Full covered date range (first/last day), for the "Data … – …" freshness
   // note in the page header.
   const queryDataWindow = useCallback((): { minDate: string | null; maxDate: string | null } => {
@@ -243,7 +395,10 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
 
   return {
     loadState, error,
-    queryDaily, queryGlobalStats, queryMonthly, queryDataWindow,
+    queryDaily, queryGlobalStats, queryMonthly,
+    queryDailyByModel, queryMonthlyByModel,
+    queryDailyBreakdownByCategory, queryMonthlyBreakdownByCategory,
+    queryDataWindow,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs,
   };
