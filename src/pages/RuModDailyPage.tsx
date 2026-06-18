@@ -102,9 +102,21 @@ export function RuModDailyPage({ refreshKey }: Props) {
   }, [rows, selectedWeekdays, selectedDate, days]);
 
   const endDate = resolvedEndDate(selectedDate, "Europe/Moscow");
+  // Compose the tooltip note from the per-report DB notes (already prefixed
+  // with the report's HH:MM→HH:MM window in queryDaily) so the reader sees
+  // exactly which window(s) overlap.
+  const overlapForKey = (d: RuAdDailyRow, key: "total" | "night" | "day") => {
+    const note = key === "total" ? d.overlap_note_total : key === "night" ? d.overlap_note_night : d.overlap_note_day;
+    return note ?? undefined;
+  };
   const makeDataset = (key: "total" | "night" | "day") =>
     padTrailingDaily(
-      filteredRows.map((d) => ({ date: d.date, value: d[key], is_today: d.is_today })),
+      filteredRows.map((d) => ({
+        date: d.date,
+        value: d[key],
+        is_today: d.is_today,
+        note: overlapForKey(d, key),
+      })),
       endDate,
     );
 

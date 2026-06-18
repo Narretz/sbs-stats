@@ -81,13 +81,31 @@ const LATEST_PER_POST = `(
 ) latest`;
 
 // Per drone-day aggregation, split by reporting window (overnight vs daytime).
-// 'other'-kind reports fold into `day` so night + day == total.
+// 'other'-kind reports fold into `day` so night + day == total. Overlap notes
+// concatenate per series so the daily tooltip can say *which* report windows
+// overlap — preferred over a bare count when explaining the caveat. Each line
+// is prefixed with the report's HH:MM→HH:MM window for context.
 const DAILY_SELECT = `
   SELECT report_date AS date,
          SUM(drones) AS total,
          SUM(CASE WHEN window_kind = 'night' THEN drones ELSE 0 END) AS night,
          SUM(CASE WHEN window_kind = 'night' THEN 0 ELSE drones END) AS day,
-         COUNT(*) AS reports
+         COUNT(*) AS reports,
+         SUM(CASE WHEN notes IS NOT NULL THEN 1 ELSE 0 END) AS overlap_total,
+         SUM(CASE WHEN notes IS NOT NULL AND window_kind = 'night' THEN 1 ELSE 0 END) AS overlap_night,
+         SUM(CASE WHEN notes IS NOT NULL AND window_kind != 'night' THEN 1 ELSE 0 END) AS overlap_day,
+         GROUP_CONCAT(
+           CASE WHEN notes IS NOT NULL
+                THEN substr(window_start, 12, 5) || '→' || substr(window_end, 12, 5) || ': ' || notes
+           END, char(10)) AS overlap_note_total,
+         GROUP_CONCAT(
+           CASE WHEN notes IS NOT NULL AND window_kind = 'night'
+                THEN substr(window_start, 12, 5) || '→' || substr(window_end, 12, 5) || ': ' || notes
+           END, char(10)) AS overlap_note_night,
+         GROUP_CONCAT(
+           CASE WHEN notes IS NOT NULL AND window_kind != 'night'
+                THEN substr(window_start, 12, 5) || '→' || substr(window_end, 12, 5) || ': ' || notes
+           END, char(10)) AS overlap_note_day
   FROM ${LATEST_PER_POST}`;
 
 const stat = (vals: number[]): RuAdStat => {
@@ -121,13 +139,21 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
           AND report_date <= date('${endDateSql}')
         GROUP BY report_date
         ORDER BY report_date ASC`;
+      const numOr = (v: unknown, fallback = 0): number => (typeof v === "number" ? v : fallback);
+      const strOr = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
       return queryRows<Record<string, number | string>>(db, sql).map((r) => ({
         date: String(r.date),
         is_today: String(r.date) === todayStr,
         total: typeof r.total === "number" ? r.total : null,
         night: typeof r.night === "number" ? r.night : null,
         day: typeof r.day === "number" ? r.day : null,
-        reports: typeof r.reports === "number" ? r.reports : 0,
+        reports: numOr(r.reports),
+        overlap_total: numOr(r.overlap_total),
+        overlap_night: numOr(r.overlap_night),
+        overlap_day: numOr(r.overlap_day),
+        overlap_note_total: strOr(r.overlap_note_total),
+        overlap_note_night: strOr(r.overlap_note_night),
+        overlap_note_day: strOr(r.overlap_note_day),
       }));
     },
     [db]

@@ -8,7 +8,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
 import { FONTS, type Theme } from "@/theme";
-import { AREA_FILL_OPACITY, COLOR_DESTROYED, COLOR_DESTROYED_TREND } from "@/chartColors";
+import { AREA_FILL_OPACITY, COLOR_DESTROYED, COLOR_DESTROYED_TREND, chartColors } from "@/chartColors";
 import { ModelBreakdownTable } from "@/components/ModelBreakdownTable";
 
 function linearRegression(data: DailyDataPoint[]): Array<number | null> {
@@ -58,11 +58,13 @@ interface Props {
   breakdownHeader?: string;
 }
 
-function CustomDot(props: DotProps & { payload?: DailyDataPoint; accentColor: string; primaryColor: string; bgColor: string }) {
-  const { cx, cy, payload, accentColor, primaryColor, bgColor } = props;
+function CustomDot(props: DotProps & { payload?: PairedRow; accentColor: string; primaryColor: string; bgColor: string; noteColor: string }) {
+  const { cx, cy, payload, accentColor, primaryColor, bgColor, noteColor } = props;
   if (cx == null || cy == null) return null;
   if (payload?.is_today)
     return <circle cx={cx} cy={cy} r={5} fill={accentColor} stroke={bgColor} strokeWidth={2} />;
+  if (payload?.note)
+    return <circle cx={cx} cy={cy} r={4} fill={noteColor} stroke={bgColor} strokeWidth={1.5} />;
   return <circle cx={cx} cy={cy} r={2} fill={primaryColor} opacity={0.5} />;
 }
 
@@ -76,6 +78,7 @@ type PairedRow = {
   is_today: boolean;
   eod: EodEstimate | null;
   eod2: EodEstimate | null;
+  note?: string;
 };
 
 interface TooltipPayloadEntry {
@@ -133,6 +136,11 @@ function SingleTooltip({
       {tipRow(primaryColor, primaryLabel, fmt(d.value))}
       {tipRow(t.muted, "Trend", fmt(d.trend1))}
       {d.is_today && d.eod && eodRow(t.accent, primaryLabel, d.eod)}
+      {d.note && (
+        <div style={{ color: chartColors(t).noteText, fontSize: 10, marginTop: 6, maxWidth: 280, whiteSpace: "pre-line" }}>
+          ⚠ {d.note}
+        </div>
+      )}
       {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} header={breakdownHeader} />}
     </div>
   );
@@ -184,6 +192,11 @@ function PairedTooltip({
       {tipRow(COLOR_DESTROYED_TREND, `Trend (${secondaryLabel})`, fmt(tr2))}
       {d.is_today && d.eod && eodRow(primaryColor, primaryLabel, d.eod)}
       {d.is_today && d.eod2 && eodRow(COLOR_DESTROYED, secondaryLabel, d.eod2)}
+      {d.note && (
+        <div style={{ color: chartColors(t).noteText, fontSize: 10, marginTop: 6, maxWidth: 280, whiteSpace: "pre-line" }}>
+          ⚠ {d.note}
+        </div>
+      )}
       {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} header={breakdownHeader} />}
     </div>
   );
@@ -237,6 +250,7 @@ export function DailyLineChart({
         valueDiff: diff,
         eod: d.is_today ? (eod ?? null) : null,
         eod2: d.is_today ? (eod2 ?? null) : null,
+        note: d.note,
       };
     });
   }, [data, data2, pairMode, eod, eod2]);
@@ -341,7 +355,7 @@ export function DailyLineChart({
             <ReferenceLine y={median} stroke={t.muted} strokeDasharray="4 4" strokeOpacity={0.5}
               label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: t.muted, fontFamily: FONTS.mono }} />
             <Line type="monotone" dataKey="value" name={resolvedPrimaryLabel} stroke={primaryColor} strokeWidth={2}
-              dot={({ key, ...props }) => <CustomDot key={key} {...props} accentColor={t.accent} primaryColor={primaryColor} bgColor={t.surface} />}
+              dot={({ key, ...props }) => <CustomDot key={key} {...props} accentColor={t.accent} primaryColor={primaryColor} bgColor={t.surface} noteColor={chartColors(t).noteText} />}
               activeDot={{ r: 5, fill: primaryColor }}
             />
             <Line type="linear" dataKey="trend1" name="Trend" stroke={t.muted} strokeWidth={1.5}

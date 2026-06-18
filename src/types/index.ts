@@ -57,6 +57,11 @@ export interface DailyDataPoint {
   date: string;
   value: number | null;
   is_today: boolean;
+  // Optional caveat: when set, the chart highlights this point (warning-styled
+  // dot) and shows the text under the tooltip's standard rows. Used today by
+  // the RU MoD daily charts to surface the same "possible double-count" flag
+  // that the monthly chart already shows on overlap-flagged months.
+  note?: string;
 }
 
 // End-of-day projection for the current (still incomplete) day, derived from the
@@ -326,6 +331,19 @@ export type RuAdDailyRow = {
   night: number | null;
   day: number | null;
   reports: number;
+  // Counts of posts on this day flagged with an overlap caveat (possible
+  // double-count), split by which series they roll up into so the daily
+  // chart can mark night/day independently. `overlap_total` = total flagged
+  // reports (== night + day).
+  overlap_total: number;
+  overlap_night: number;
+  overlap_day: number;
+  // Newline-joined "HH:MM→HH:MM: <ad_reports.notes>" lines for each flagged
+  // report. Null when nothing on this day/series is flagged. The chart renders
+  // each line verbatim so the reader knows exactly which window(s) overlap.
+  overlap_note_total: string | null;
+  overlap_note_night: string | null;
+  overlap_note_day: string | null;
 };
 
 export type RuAdGlobalStats = { total: RuAdStat; night: RuAdStat; day: RuAdStat };

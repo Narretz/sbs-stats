@@ -6,6 +6,7 @@ import type { DailyDataPoint } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { FONTS, type Theme } from "@/theme";
+import { chartColors } from "@/chartColors";
 
 export interface LineSeries {
   key: string;
@@ -67,10 +68,11 @@ function median(vals: number[]): number {
   return s.length ? s[Math.floor(s.length / 2)] : 0;
 }
 
-function Dot(props: DotProps & { payload?: Row; color: string; bg: string }) {
-  const { cx, cy, payload, color, bg } = props;
+function Dot(props: DotProps & { payload?: Row; color: string; bg: string; noteKey: string; noteColor: string }) {
+  const { cx, cy, payload, color, bg, noteKey, noteColor } = props;
   if (cx == null || cy == null) return null;
   if (payload?.is_today) return <circle cx={cx} cy={cy} r={5} fill={color} stroke={bg} strokeWidth={2} />;
+  if (payload?.[noteKey]) return <circle cx={cx} cy={cy} r={4} fill={noteColor} stroke={bg} strokeWidth={1.5} />;
   return <circle cx={cx} cy={cy} r={2} fill={color} opacity={0.5} />;
 }
 
@@ -85,6 +87,10 @@ function MultiTooltip({
 }) {
   if (!active || !payload?.length || !payload[0].payload) return null;
   const row = payload[0].payload;
+  const noteColor = chartColors(t).noteText;
+  const notes = series
+    .map((s) => row[`${s.key}__note`])
+    .filter((n): n is string => typeof n === "string" && n.length > 0);
   return (
     <div style={{
       background: t.surface, border: `1px solid ${t.border}`, borderRadius: 6,
@@ -104,6 +110,11 @@ function MultiTooltip({
           </div>
         );
       })}
+      {notes.map((n, i) => (
+        <div key={`n-${i}`} style={{ color: noteColor, fontSize: 10, marginTop: 6, maxWidth: 280, whiteSpace: "pre-line" }}>
+          ⚠ {n}
+        </div>
+      ))}
     </div>
   );
 }
@@ -129,6 +140,7 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
         const r = byDate.get(p.date) ?? ({ date: p.date, is_today: p.is_today } as Row);
         // Raw absolute value preserved for the tooltip regardless of yMode.
         r[`${s.key}__raw`] = p.value;
+        if (p.note) r[`${s.key}__note`] = p.note;
         // Plotted value depends on mode. For "log" we drop zeros / nulls (log
         // is undefined there) and let recharts skip — `connectNulls` keeps the
         // line continuous around the gap.
@@ -242,7 +254,7 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
           />
           {series.map((s) => (
             <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2}
-              dot={({ key, ...props }) => <Dot key={key} {...props} color={s.color} bg={t.surface} />}
+              dot={({ key, ...props }) => <Dot key={key} {...props} color={s.color} bg={t.surface} noteKey={`${s.key}__note`} noteColor={chartColors(t).noteText} />}
               activeDot={{ r: 5, fill: s.color }} connectNulls isAnimationActive={false}
             />
           ))}
