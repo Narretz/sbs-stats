@@ -4,9 +4,11 @@ import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
+import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
+import { maxMedian } from "@/utils/windowStats";
 import type { RuAdMonthlyRow, MonthlyDataPoint } from "@/types";
 import { FONTS } from "@/theme";
 
@@ -31,6 +33,15 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
       setHasData(true);
     }
   }, [loadState, queryMonthly, refreshKey]);
+
+  const allStats = useMemo(() => {
+    const keys: MetricKey[] = ["total", "night", "day"];
+    const out: Record<string, { max: number; median: number; total: number }> = {};
+    for (const k of keys) {
+      out[k] = maxMedian(allRows.map((r) => (typeof r[k] === "number" ? r[k] : null)));
+    }
+    return out;
+  }, [allRows]);
 
   const endMonth = resolvedEndMonth("Europe/Moscow");
   const makeDataset = (key: MetricKey): MonthlyDataPoint[] =>
@@ -67,20 +78,24 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
             Monthly sums of Russian MoD air-defense intercept claims (MSK drone-days). Current month shows an end-of-month projection. A dashed outline marks months containing a report whose window may overlap a neighbor (possible double-count) — see tooltip.
           </p>
           <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-mod" />
-        {!yr.hidden && (
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          {!yr.hidden && (
             <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
-          </div>
-        )}
+          )}
+          <StatScopeToggle />
+        </div>
       </div>
 
       {loadState === "loading" && !hasData && <LoadingScreen message="Loading RU air-defense database…" />}
       {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
       {(loadState === "ready" || hasData) && (
         <ChartGrid>
-          <MonthlyBarChart title="UAVs Downed — Monthly Total" data={makeDataset("total")} wfull />
-          <MonthlyBarChart title="Overnight Reports" data={makeDataset("night")} wfull={false} />
-          <MonthlyBarChart title="Daytime Reports" data={makeDataset("day")} wfull={false} />
+          <MonthlyBarChart title="UAVs Downed — Monthly Total" data={makeDataset("total")} wfull
+            globalMax={allStats.total?.max ?? 0} globalMedian={allStats.total?.median ?? 0} globalTotal={allStats.total?.total ?? 0} />
+          <MonthlyBarChart title="Overnight Reports" data={makeDataset("night")} wfull={false}
+            globalMax={allStats.night?.max ?? 0} globalMedian={allStats.night?.median ?? 0} globalTotal={allStats.night?.total ?? 0} />
+          <MonthlyBarChart title="Daytime Reports" data={makeDataset("day")} wfull={false}
+            globalMax={allStats.day?.max ?? 0} globalMedian={allStats.day?.median ?? 0} globalTotal={allStats.day?.total ?? 0} />
         </ChartGrid>
       )}
     </div>

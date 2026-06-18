@@ -5,9 +5,11 @@ import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/components/MonthlyTargetPairChart";
 import { DataWindow } from "@/components/DataWindow";
+import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
+import { maxMedian } from "@/utils/windowStats";
 import {
   ATTACK_CATEGORY_LABELS,
   ATTACK_DB_CATEGORIES,
@@ -59,6 +61,28 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
     for (const m of FEATURED_MODELS) out[m] = yr.slice(allModelRows[m] ?? []);
     return out;
   }, [allModelRows, yr]);
+
+  // Whole-dataset (cat | model) stats for the "all" stat scope. Computed off
+  // the un-sliced rows so the labels don't shrink when the user narrows the
+  // year range.
+  const allStats = useMemo(() => {
+    const cat: Record<string, { max: number; median: number; total: number }> = {};
+    const catInt: Record<string, { max: number; median: number; total: number }> = {};
+    for (const k of [...ATTACK_DB_CATEGORIES, "all"] as const) {
+      cat[k] = maxMedian(allRows.map((r) => (typeof r[k as AttackCategoryKey] === "number" ? (r[k as AttackCategoryKey] as number) : null)));
+      catInt[k] = maxMedian(allRows.map((r) => {
+        const v = r[`${k as AttackCategoryKey}_intercepted` as keyof RuAirAttacksMonthlyRow];
+        return typeof v === "number" ? v : null;
+      }));
+    }
+    const model: Record<string, { max: number; median: number; total: number }> = {};
+    const modelInt: Record<string, { max: number; median: number; total: number }> = {};
+    for (const m of FEATURED_MODELS) {
+      model[m] = maxMedian((allModelRows[m] ?? []).map((r) => r.launched));
+      modelInt[m] = maxMedian((allModelRows[m] ?? []).map((r) => r.intercepted));
+    }
+    return { cat, catInt, model, modelInt };
+  }, [allRows, allModelRows]);
 
   const endMonth = resolvedEndMonth();
   const makeDataset = (key: AttackCategoryKey): MonthlyDataPoint[] =>
@@ -132,11 +156,12 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
           <span style={{ color: chartColors(t).destroyed }}>Intercepted</span>
           <span style={{ color: t.textMuted }}>Lighter segment = current-month projection</span>
         </div>
-        {!yr.hidden && (
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          {!yr.hidden && (
             <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
-          </div>
-        )}
+          )}
+          <StatScopeToggle />
+        </div>
 
       </div>
 
@@ -154,6 +179,9 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
             breakdownByMonth={allBreakdown}
             breakdownHeader="Category"
             wfull
+            globalMax={allStats.cat.all?.max ?? 0}
+            globalMedian={allStats.cat.all?.median ?? 0}
+            globalTotal={allStats.cat.all?.total ?? 0}
           />
           {ATTACK_DB_CATEGORIES.map((k) => (
             <MonthlyTargetPairChart
@@ -165,6 +193,12 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
               showRatio
               ratioLabel="% intercepted"
               breakdownByMonth={breakdowns[k]}
+              globalMax={allStats.cat[k]?.max ?? 0}
+              globalMedian={allStats.cat[k]?.median ?? 0}
+              globalTotal={allStats.cat[k]?.total ?? 0}
+              globalMax2={allStats.catInt[k]?.max ?? 0}
+              globalMedian2={allStats.catInt[k]?.median ?? 0}
+              globalTotal2={allStats.catInt[k]?.total ?? 0}
             />
           ))}
           {FEATURED_MODELS.map((model) => (
@@ -176,6 +210,12 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
               secondaryLabel="Intercepted"
               showRatio
               ratioLabel="% intercepted"
+              globalMax={allStats.model[model]?.max ?? 0}
+              globalMedian={allStats.model[model]?.median ?? 0}
+              globalTotal={allStats.model[model]?.total ?? 0}
+              globalMax2={allStats.modelInt[model]?.max ?? 0}
+              globalMedian2={allStats.modelInt[model]?.median ?? 0}
+              globalTotal2={allStats.modelInt[model]?.total ?? 0}
             />
           ))}
         </ChartGrid>

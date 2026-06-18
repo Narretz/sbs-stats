@@ -5,10 +5,12 @@ import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/components/MonthlyTargetPairChart";
+import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { buildMetrics } from "@/utils/metrics";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
+import { maxMedian } from "@/utils/windowStats";
 import { TARGET_IDS, TARGET_LABELS } from "@/types";
 import type { MonthlyDataPoint, MonthlyRow, StatKey, Metric } from "@/types";
 import { FONTS } from "@/theme";
@@ -41,6 +43,28 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
     ),
     [metrics]
   );
+
+  // Whole-dataset stats per metric, computed off the un-sliced rows so the
+  // "all" stat scope reflects everything ever published — not just what the
+  // current year-range filter keeps. Window scope uses the sliced/padded data
+  // and is computed inside the chart components.
+  const allStats = useMemo(() => {
+    const out: Record<string, { max: number; median: number; total: number }> = {};
+    for (const r of allRows) {
+      for (const k of Object.keys(r)) {
+        const v = (r as Record<string, unknown>)[k];
+        if (typeof v !== "number") continue;
+        (out[k] ??= { max: 0, median: 0, total: 0 });
+      }
+    }
+    for (const k of Object.keys(out)) {
+      out[k] = maxMedian(allRows.map((r) => {
+        const v = (r as Record<string, unknown>)[k];
+        return typeof v === "number" ? v : null;
+      }));
+    }
+    return out;
+  }, [allRows]);
 
   const endMonth = resolvedEndMonth();
   const makeDataset = (key: StatKey): MonthlyDataPoint[] =>
@@ -133,11 +157,12 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
           <span style={{ color: t.accent }}>Destroyed</span>
           <span style={{ color: t.textMuted }}>Lighter segment = current-month projection</span>
         </div>
-        {!yr.hidden && (
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          {!yr.hidden && (
             <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
-          </div>
-        )}
+          )}
+          <StatScopeToggle />
+        </div>
       </div>
 
       {loadState === "loading" && !hasData && <LoadingScreen />}
@@ -150,6 +175,9 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
               title={m.label}
               data={makeDataset(m.key)}
               wfull={m.wfull ?? false}
+              globalMax={allStats[m.key]?.max ?? 0}
+              globalMedian={allStats[m.key]?.median ?? 0}
+              globalTotal={allStats[m.key]?.total ?? 0}
             />
           ))}
           <MonthlyTargetPairChart
@@ -160,17 +188,35 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
             secondaryLabel="Killed"
             showRatio={true}
             ratioLabel="% killed"
+            globalMax={allStats["total_personnel_casualties"]?.max ?? 0}
+            globalMedian={allStats["total_personnel_casualties"]?.median ?? 0}
+            globalTotal={allStats["total_personnel_casualties"]?.total ?? 0}
+            globalMax2={allStats["personnel_killed"]?.max ?? 0}
+            globalMedian2={allStats["personnel_killed"]?.median ?? 0}
+            globalTotal2={allStats["personnel_killed"]?.total ?? 0}
           />
           <MonthlyTargetPairChart
             key="targets-hit-destroyed"
             title="Targets Hit / Destroyed"
             data={makeTargetsPairDataset()}
+            globalMax={allStats["total_targets_hit"]?.max ?? 0}
+            globalMedian={allStats["total_targets_hit"]?.median ?? 0}
+            globalTotal={allStats["total_targets_hit"]?.total ?? 0}
+            globalMax2={allStats["total_targets_destroyed"]?.max ?? 0}
+            globalMedian2={allStats["total_targets_destroyed"]?.median ?? 0}
+            globalTotal2={allStats["total_targets_destroyed"]?.total ?? 0}
           />
           {TARGET_IDS.map((targetId) => (
             <MonthlyTargetPairChart
               key={`target-pair-${targetId}`}
               title={TARGET_LABELS[targetId]}
               data={makeTargetPairDataset(targetId)}
+              globalMax={allStats[`hit_${targetId}`]?.max ?? 0}
+              globalMedian={allStats[`hit_${targetId}`]?.median ?? 0}
+              globalTotal={allStats[`hit_${targetId}`]?.total ?? 0}
+              globalMax2={allStats[`destroyed_${targetId}`]?.max ?? 0}
+              globalMedian2={allStats[`destroyed_${targetId}`]?.median ?? 0}
+              globalTotal2={allStats[`destroyed_${targetId}`]?.total ?? 0}
             />
           ))}
         </ChartGrid>

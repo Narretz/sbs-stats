@@ -4,9 +4,11 @@ import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
+import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
+import { maxMedian } from "@/utils/windowStats";
 import {
   RU_LOSSES_METRIC_KEYS,
   RU_LOSSES_METRIC_LABELS,
@@ -36,6 +38,14 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
     }
   }, [loadState, queryMonthly, refreshKey]);
 
+  const allStats = useMemo(() => {
+    const out: Record<string, { max: number; median: number; total: number }> = {};
+    for (const k of RU_LOSSES_METRIC_KEYS) {
+      out[k] = maxMedian(allRows.map((r) => (typeof r[k] === "number" ? r[k] : null)));
+    }
+    return out;
+  }, [allRows]);
+
   const endMonth = resolvedEndMonth();
   const makeDataset = (key: RuLossesMetricKey): MonthlyDataPoint[] =>
     padTrailingMonthly(
@@ -64,11 +74,12 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
             Monthly sums of daily Russian losses reported by the Ukrainian General Staff · source: <a href="https://github.com/PetroIvaniuk/2022-Ukraine-Russia-War-Dataset" rel="nofollow external" target="_blank">PetroIvaniuk dataset</a>
           </p>
           <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-losses" />
-        {!yr.hidden && (
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          {!yr.hidden && (
             <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
-          </div>
-        )}
+          )}
+          <StatScopeToggle />
+        </div>
       </div>
 
       {loadState === "loading" && !hasData && <LoadingScreen message="Loading RU losses database…" />}
@@ -81,6 +92,9 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
               title={RU_LOSSES_METRIC_LABELS[k]}
               data={makeDataset(k)}
               wfull={k === "personnel"}
+              globalMax={allStats[k]?.max ?? 0}
+              globalMedian={allStats[k]?.median ?? 0}
+              globalTotal={allStats[k]?.total ?? 0}
             />
           ))}
         </ChartGrid>

@@ -1,8 +1,11 @@
+import { useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Cell, ResponsiveContainer,
+  Tooltip, Cell, ReferenceLine, ResponsiveContainer,
 } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
+import { useStatScope } from "@/hooks/useStatScope";
+import { maxMedian } from "@/utils/windowStats";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { ModelBreakdownTable } from "@/components/ModelBreakdownTable";
@@ -32,6 +35,15 @@ interface Props {
   // the tooltip renders the shared ModelBreakdownTable under the standard
   // hit/destroyed rows. Used by the RU air-attacks category charts.
   breakdownByMonth?: Map<string, ModelBreakdownEntry[]>;
+  // Whole-dataset stats for the "all" stat scope, primary (hit/launched) and
+  // optional secondary (destroyed/intercepted). When omitted on either side
+  // the chart falls back to the window-scoped values computed from `data`.
+  globalMax?: number;
+  globalMedian?: number;
+  globalTotal?: number;
+  globalMax2?: number;
+  globalMedian2?: number;
+  globalTotal2?: number;
 }
 
 const MonthlyPairTooltip = ({
@@ -97,10 +109,23 @@ export function MonthlyTargetPairChart({
   showRatio = true,
   ratioLabel = "% destroyed",
   breakdownByMonth,
+  globalMax, globalMedian, globalTotal,
+  globalMax2, globalMedian2, globalTotal2,
 }: Props) {
   const { theme: t } = useTheme();
+  const { scope } = useStatScope();
   const c = chartColors(t);
   const lastIdx = data.length - 1;
+
+  const win = scope === "window";
+  const primaryWin = useMemo(() => maxMedian(data.map((d) => d.hit_value)), [data]);
+  const secondaryWin = useMemo(() => maxMedian(data.map((d) => d.destroyed_value)), [data]);
+  const max = win ? primaryWin.max : (globalMax ?? primaryWin.max);
+  const median = win ? primaryWin.median : (globalMedian ?? primaryWin.median);
+  const total = win ? primaryWin.total : (globalTotal ?? primaryWin.total);
+  const max2 = win ? secondaryWin.max : (globalMax2 ?? secondaryWin.max);
+  const median2 = win ? secondaryWin.median : (globalMedian2 ?? secondaryWin.median);
+  const total2 = win ? secondaryWin.total : (globalTotal2 ?? secondaryWin.total);
   // Historical note: this chart originally used t.accent for "destroyed", while
   // DailyLineChart uses the static COLOR_DESTROYED. Routing both through
   // c.damaged / c.destroyed unifies them. The visible change is small in light
@@ -119,8 +144,18 @@ export function MonthlyTargetPairChart({
       animation: "fadeIn 0.3s ease both",
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
     }}>
-      <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 12, color: t.textMuted, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 14 }}>
+      <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 12, color: t.textMuted, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 4 }}>
         {title}
+      </div>
+      <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
+        <span style={{ color: c.damaged }}>● {primaryLabel}</span>
+        <span style={{ color: t.accent }}>▲ MAX {max.toLocaleString()}</span>
+        <span style={{ color: t.muted }}>~ MED {median.toLocaleString()}</span>
+        <span style={{ color: t.textMuted }}>Σ TOTAL {total.toLocaleString()}</span>
+        <span style={{ color: c.destroyed, marginLeft: 8 }}>● {secondaryLabel}</span>
+        <span style={{ color: c.destroyed }}>▲ MAX {max2.toLocaleString()}</span>
+        <span style={{ color: c.destroyed, opacity: 0.7 }}>~ MED {median2.toLocaleString()}</span>
+        <span style={{ color: c.destroyed, opacity: 0.7 }}>Σ TOTAL {total2.toLocaleString()}</span>
       </div>
       <ResponsiveContainer width="100%" height={220}>
         <BarChart
@@ -137,6 +172,10 @@ export function MonthlyTargetPairChart({
             tickFormatter={(v: string) => v.slice(0, 7).replace("-", "/")}
           />
           <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
+          <ReferenceLine y={max} stroke={t.accent} strokeDasharray="4 4" strokeOpacity={0.6}
+            label={{ value: "MAX", position: "insideTopRight", fontSize: 9, fill: t.accent, fontFamily: FONTS.mono }} />
+          <ReferenceLine y={median} stroke={t.muted} strokeDasharray="4 4" strokeOpacity={0.5}
+            label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: t.muted, fontFamily: FONTS.mono }} />
           <Tooltip
             content={({ active, payload }) => (
               <MonthlyPairTooltip

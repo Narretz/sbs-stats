@@ -4,9 +4,11 @@ import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
+import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
+import { maxMedian } from "@/utils/windowStats";
 import {
   GSUA_METRIC_KEYS,
   GSUA_METRIC_LABELS,
@@ -42,6 +44,16 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
     return () => { cancelled = true; };
   }, [loadState, queryMonthly, refreshKey]);
 
+  // Whole-dataset stats per metric, from un-sliced rows so the "all" stat
+  // scope reflects the full history (not just the year-range window).
+  const allStats = useMemo(() => {
+    const out: Record<string, { max: number; median: number; total: number }> = {};
+    for (const k of GSUA_METRIC_KEYS) {
+      out[k] = maxMedian(allRows.map((r) => (typeof r[k] === "number" ? r[k] : null)));
+    }
+    return out;
+  }, [allRows]);
+
   const endMonth = resolvedEndMonth();
   const makeDataset = (key: GsuaMetricKey): MonthlyDataPoint[] =>
     padTrailingMonthly(
@@ -70,11 +82,12 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
           Monthly sums of daily totals from Ukrainian General Staff reports. Current month shows end-of-month projection.  Via Telegram @GeneralStaffZSU.
         </p>
         <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
-        {!yr.hidden && (
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          {!yr.hidden && (
             <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
-          </div>
-        )}
+          )}
+          <StatScopeToggle />
+        </div>
       </div>
 
       {loadState === "loading" && !hasData && <LoadingScreen message="Loading GSUA database…" />}
@@ -87,6 +100,9 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
               title={GSUA_METRIC_LABELS[k]}
               data={makeDataset(k)}
               wfull={k === "combat_engagements"}
+              globalMax={allStats[k]?.max ?? 0}
+              globalMedian={allStats[k]?.median ?? 0}
+              globalTotal={allStats[k]?.total ?? 0}
             />
           ))}
         </ChartGrid>

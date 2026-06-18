@@ -6,7 +6,9 @@ import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { TargetsStackedChart, type TargetsStackPoint } from "@/components/TargetsStackedChart";
 import { YearRangeSelect } from "@/components/YearRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { extendMonthsTo, resolvedEndMonth } from "@/utils/padTrailing";
+import { maxMedian } from "@/utils/windowStats";
 import {
   SBU_ALFA_CATEGORY_KEYS,
   SBU_ALFA_CATEGORY_LABELS,
@@ -112,6 +114,18 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
   }, [visibleRows, periods]);
   const hasTargetsData = targetsStack.some((p) => p.destroyed != null || p.damaged != null);
 
+  // Whole-dataset stats per category, from the un-sliced `rows` so the "all"
+  // stat scope reflects every published month — not just the picker window.
+  const allStats = useMemo(() => {
+    const out: Record<string, { max: number; median: number; total: number }> = {};
+    for (const k of SBU_ALFA_CATEGORY_KEYS) {
+      out[k] = maxMedian(
+        rows.filter((r) => r.category === k).map((r) => r.value),
+      );
+    }
+    return out;
+  }, [rows]);
+
   return (
     <div>
 <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 28 }}>
@@ -131,11 +145,12 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
             Data Availability: {dataWindow.minPeriod} – {dataWindow.maxPeriod} · {allPeriods.length} month{allPeriods.length === 1 ? "" : "s"}
           </p>
         )}
-        {!yr.hidden && (
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          {!yr.hidden && (
             <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
-          </div>
-        )}
+          )}
+          <StatScopeToggle />
+        </div>
       </div>
 
       {loadState === "loading" && !hasData && <LoadingScreen message="Loading SBU Alfa database…" />}
@@ -155,6 +170,9 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
               title={SBU_ALFA_CATEGORY_LABELS[k]}
               data={toDataset(visibleRows, k, periods)}
               wfull={false}
+              globalMax={allStats[k]?.max ?? 0}
+              globalMedian={allStats[k]?.median ?? 0}
+              globalTotal={allStats[k]?.total ?? 0}
             />
           ))}
         </ChartGrid>

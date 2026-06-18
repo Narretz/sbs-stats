@@ -34,12 +34,16 @@ interface Props<TData extends { date: string }> {
   wfull?: boolean;
   // Renders the inner tooltip content; the shell wires `<Tooltip>` for you.
   tooltip?: (props: TooltipRenderProps<TData>) => ReactNode;
-  // `<Bar>` elements — one or more.
+  // Optional extra content rendered between the title/legend and the chart.
+  // Used to show MAX/MED/TOTAL stat labels in the same row-style as
+  // DailyLineChart, kept opt-in so consumers without window stats don't pay.
+  subheader?: ReactNode;
+  // `<Bar>` elements — one or more. May also include `<ReferenceLine>` etc.
   children: ReactNode;
 }
 
 export function MonthlyChartCard<TData extends { date: string }>({
-  title, data, legend, wfull, tooltip, children,
+  title, data, legend, wfull, tooltip, subheader, children,
 }: Props<TData>) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
@@ -68,6 +72,7 @@ export function MonthlyChartCard<TData extends { date: string }>({
           ))}
         </div>
       )}
+      {subheader}
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="2 4" stroke={c.grid} />
