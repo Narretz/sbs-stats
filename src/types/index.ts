@@ -1,5 +1,10 @@
 // ─── Target classification IDs ────────────────────────────────────────────────
-export const TARGET_IDS = [1, 2, 32, 9, 7, 18, 3, 4, 5, 6, 21, 22, 24, 25, 30, 23] as const;
+// Around 2026-03-20 SBS migrated drone-launch tracking from targetClassId 23
+// ("Точки вильоту дронів") to targetClassId 37 ("ПУ БпЛА") on the live daily
+// endpoint, but their previous-month rollup endpoint still folds the total
+// back into 23 — so id 23 reads ~0 on daily charts but big monthly numbers on
+// the monthly chart. Both ids are charted so the discrepancy is visible.
+export const TARGET_IDS = [1, 2, 32, 9, 7, 18, 3, 4, 5, 6, 21, 22, 24, 25, 30, 31, 37, 23] as const;
 export type TargetId = (typeof TARGET_IDS)[number];
 
 export const TARGET_LABELS: Record<TargetId, string> = {
@@ -14,11 +19,13 @@ export const TARGET_LABELS: Record<TargetId, string> = {
   18: "Motorcycles & Buggies",
   21: "Shelters",
   22: "Dugouts",
-  23: "Drone Launch Points",
+  23: "Drone Launch Points (until 2026-03)",
   24: 'Copter UAVs',
   25: "Fixed-wing UAVs",
   30: 'Shaheds',
+  31: "Gerberas",
   32: "SAM",
+  37: "Drone Launch Points",
 };
 
 // ─── Base numeric stat keys ───────────────────────────────────────────────────
