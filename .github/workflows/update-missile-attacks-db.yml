@@ -8,10 +8,10 @@ name: Update RU Missile Attacks Database
 on:
   workflow_dispatch: # allow manual trigger from the GitHub UI
   schedule:
-    # piterfm re-publishes ~weekly and back-edits historical rows; a daily run is
+    # piterfm re-publishes ~weekly and back-edits historical rows; two daily runs is
     # cheap and catches new versions + corrections promptly (append-on-change, so
     # an unchanged dataset inserts nothing).
-    - cron: "0 6 * * *"
+    - cron: "0 6,16 * * *"
 
 # Single source of truth for the bucket + DB filename.
 env:
