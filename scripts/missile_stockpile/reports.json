@@ -49,7 +49,7 @@
   "reports": [
     {
       "as_of": "2022-11-22", "as_of_precision": "day", "reported_at": "2022-11-22",
-      "source": { "org": "MoD", "via": "Reznikov (tweet)", "url": "" },
+      "source": { "org": "MoD", "via": "Reznikov (tweet) / Interfax-Ukraine", "url": "https://en.interfax.com.ua/news/general/873775.html" },
       "note": "Consumption ledger; only 'remaining' values recorded, so sparse. Source says 'Iskander ballistic' -> mapped to Iskander-M (the ballistic 9M723); Iskander-K (cruise) not reported here.",
       "stockpile": [
         { "type": "iskander_m", "raw_label": "Iskander ballistic (remaining)", "value": 119, "bound": "approx" },
@@ -60,7 +60,7 @@
     },
     {
       "as_of": "2023-08-15", "as_of_precision": "mid_month", "reported_at": "2023-08-28",
-      "source": { "org": "GUR", "via": "Skibitsky", "url": "" },
+      "source": { "org": "GUR", "via": "Skibitsky / Kyiv Post", "url": "https://www.kyivpost.com/post/21001" },
       "note": "Iskander reported without M/K split. Production figures were stated as monthly PLANS, not confirmed output.",
       "stockpile": [
         { "types": ["iskander_m", "iskander_k"], "combined": true, "raw_label": "Iskander (ballistic + cruise)", "value": 270, "bound": "approx" },
@@ -77,7 +77,7 @@
     },
     {
       "as_of": "2024-12-28", "as_of_precision": "day", "reported_at": "2024-12-28",
-      "source": { "org": "HUR", "via": "Yusov / Defense Express / RBC", "url": "" },
+      "source": { "org": "HUR", "via": "Yusov / Defense Express / RBC-Ukraine", "url": "https://newsukraine.rbc.ua/news/ukrainian-intelligence-directorate-shares-1735347294.html" },
       "note": "~1,400 long-range total. Source says 'Iskander ballistic' for the stockpile -> mapped to Iskander-M (ballistic 9M723); Iskander-K (cruise) not reported. Production was a bare 'Iskander' (unqualified) but read as Iskander-M to match the report's ballistic framing. Kh-101/Kh-55/Kh-35 lumped.",
       "stockpile": [
         { "type": "oniks",   "raw_label": "Oniks", "value": 500, "bound": "approx" },
