@@ -3,17 +3,18 @@ import { useTheme } from "@/hooks/useTheme";
 import { ChartGrid } from "@/components/Layout";
 import { MissileRangeChart } from "@/components/MissileRangeChart";
 import { MissileStackedBarChart } from "@/components/MissileStackedBarChart";
-import { buildSeries, TIME_DOMAIN, TIME_TICKS, DATA_WINDOW, type MissileKind } from "@/data/missiles";
-import { colorMap } from "@/components/missilePalette";
+import { buildSeries, TIME_DOMAIN, TIME_TICKS, DATA_WINDOW, MISSILE_TYPES, type MissileKind } from "@/data/missiles";
+import {
+  colorMap,
+  MISSILE_CATEGORY,
+  MISSILE_CATEGORY_LABEL,
+  MISSILE_CATEGORY_ORDER,
+  MISSILE_HIDDEN_DEFAULT,
+  type MissileCategory,
+} from "@/components/missilePalette";
 import { FONTS } from "@/theme";
 
-// Outliers hidden by default in the bar view: the S-300/400 figure is the whole
-// air-defence pool (~11,000, a different quantity from strike missiles) and the
-// Kh-29/31/35/58/59 entry is itself a 5-way lump — both swamp the stack.
-const BAR_HIDDEN_DEFAULT = ["s300_s400_ad", "kh_tactical"];
-
 type View = "production" | "stockpile";
-type ScaleMode = "shared" | "fit";
 type Layout = "grid" | "bars";
 const KIND: Record<View, MissileKind> = { production: "production_monthly", stockpile: "stockpile" };
 const UNIT: Record<View, string> = { production: "units / month", stockpile: "in stockpile" };
@@ -30,11 +31,10 @@ const LEGEND: Array<{ g: string; label: string }> = [
 export function MissilesPage() {
   const { theme: t } = useTheme();
   const [view, setView] = useState<View>("production");
-  const [scaleMode, setScaleMode] = useState<ScaleMode>("shared");
   const [layout, setLayout] = useState<Layout>("grid");
   // Tracked as the *hidden* set so defaults persist across view switches and any
   // newly-appearing type defaults to shown.
-  const [hidden, setHidden] = useState<Set<string>>(new Set(BAR_HIDDEN_DEFAULT));
+  const [hidden, setHidden] = useState<Set<string>>(new Set(MISSILE_HIDDEN_DEFAULT));
 
   // Lumped buckets (one number spanning >1 type, e.g. Zircon+Oniks) make poor
   // trend panels — single sparse points that don't trend and aren't comparable —
@@ -45,10 +45,46 @@ export function MissilesPage() {
     [view],
   );
 
-  // Colours assigned over the full type list (stable per type regardless of
-  // which are checked) and shared with the checkbox swatches.
-  const colorFor = useMemo(() => colorMap(series.map((s) => s.key)), [series]);
-  const barSeries = useMemo(() => series.filter((s) => !hidden.has(s.key)), [series, hidden]);
+  const seriesByKey = useMemo(() => {
+    const m = new Map<string, (typeof series)[number]>();
+    for (const s of series) m.set(s.key, s);
+    return m;
+  }, [series]);
+
+  // Colours assigned over the FULL canonical type list (not just types present
+  // in the current view) so a checkbox's swatch stays consistent across
+  // production ↔ stockpile toggling and never changes when a type appears.
+  const colorFor = useMemo(() => colorMap(Object.keys(MISSILE_CATEGORY)), []);
+
+  // Types that show up as a standalone single-type measurement in at least one
+  // view (production OR stockpile) across the whole report set. Anything that
+  // ONLY ever appears inside a lumped combined bucket (today: just Kh-55, only
+  // in the 2024-12-28 Kh-101+Kh-35+Kh-55 entry) is dropped from the checkbox
+  // list entirely — a permanently-disabled row adds clutter without value. If
+  // a future disclosure breaks that type out standalone, it auto-reappears.
+  const everHasStandaloneData = useMemo(() => {
+    const set = new Set<string>();
+    for (const kind of ["production_monthly", "stockpile"] as const) {
+      for (const s of buildSeries(kind)) {
+        if (s.members.length === 1) set.add(s.key);
+      }
+    }
+    return set;
+  }, []);
+
+  // Checkbox rows enumerate every canonical type that's ever been reported
+  // standalone; types missing from the current view (but present in the other)
+  // render as disabled with a "no data" hover hint.
+  const grouped = useMemo(() => {
+    const out: Record<MissileCategory, string[]> = { cruise: [], ballistic: [], other: [] };
+    for (const k of Object.keys(MISSILE_CATEGORY)) {
+      if (!everHasStandaloneData.has(k)) continue;
+      out[MISSILE_CATEGORY[k]].push(k);
+    }
+    return out;
+  }, [everHasStandaloneData]);
+
+  const visibleSeries = useMemo(() => series.filter((s) => !hidden.has(s.key)), [series, hidden]);
   const toggleHidden = (key: string) =>
     setHidden((prev) => {
       const next = new Set(prev);
@@ -57,9 +93,11 @@ export function MissilesPage() {
     });
 
   // Shared y-max across the grid so panel heights are comparable; padded 15%.
+  // Only the *visible* series feed it — hiding an outlier (e.g. the AD pool's
+  // ~11k) lets the grid rescale to the remaining types automatically.
   const sharedMax = useMemo(
-    () => Math.ceil(Math.max(1, ...series.flatMap((s) => s.points.map((p) => p.high))) * 1.15),
-    [series],
+    () => Math.ceil(Math.max(1, ...visibleSeries.flatMap((s) => s.points.map((p) => p.high))) * 1.15),
+    [visibleSeries],
   );
 
   const pill = <T extends string>(value: T, current: T, set: (v: T) => void, label: string) => (
@@ -109,61 +147,86 @@ export function MissilesPage() {
           ))}
           {layout === "bars" && <span>Segments = central estimate · hover a type to trace it · *totals not comparable (later reports itemise more types)</span>}
         </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          {layout === "grid" && (
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted }}>Y-axis:</span>
-              {pill<ScaleMode>("shared", scaleMode, setScaleMode, "SHARED")}
-              {pill<ScaleMode>("fit", scaleMode, setScaleMode, "FIT EACH")}
-            </div>
-          )}
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted }}>View as:</span>
-            {pill<Layout>("grid", layout, setLayout, "GRID")}
-            {pill<Layout>("bars", layout, setLayout, "BARS")}
-          </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted }}>View as:</span>
+          {pill<Layout>("grid", layout, setLayout, "GRID")}
+          {pill<Layout>("bars", layout, setLayout, "BARS")}
         </div>
       </div>
 
+      {/* Type checkboxes, one row per weapon family. Every canonical type is
+          listed regardless of whether it has data in the current view — types
+          without data render as disabled with a tooltip. Filters both grid and
+          bars so a hidden outlier (e.g. the AD pool ~11k) doesn't squash the
+          y-axis. */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+        {MISSILE_CATEGORY_ORDER.map((cat) => {
+          const list = grouped[cat];
+          if (list.length === 0) return null;
+          return (
+            <div key={cat} style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontFamily: FONTS.display, fontSize: 11, fontWeight: 700, color: t.textMuted, letterSpacing: "0.04em", minWidth: 150 }}>
+                {MISSILE_CATEGORY_LABEL[cat].toUpperCase()}
+              </span>
+              {list.map((key) => {
+                const hasData = seriesByKey.has(key);
+                const label = MISSILE_TYPES[key]?.name ?? key;
+                const on = !hidden.has(key);
+                const color = colorFor.get(key);
+                const labelColor = !hasData ? t.textFaint : on ? t.text : t.textFaint;
+                const title = hasData
+                  ? undefined
+                  : `No ${view} data for ${label} in any HUR/GUR disclosure so far.`;
+                return (
+                  <label key={key} title={title} style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    cursor: hasData ? "pointer" : "not-allowed",
+                    fontFamily: FONTS.mono, fontSize: 11, color: labelColor,
+                    opacity: hasData ? 1 : 0.7,
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      disabled={!hasData}
+                      onChange={() => toggleHidden(key)}
+                      style={{ cursor: hasData ? "pointer" : "not-allowed" }}
+                    />
+                    <span style={{
+                      width: 12, height: 12, borderRadius: 2, flexShrink: 0,
+                      background: on && hasData ? color : "transparent",
+                      border: `1px solid ${color}`,
+                    }} />
+                    {label}
+                  </label>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+
       {layout === "grid" && (
-        <ChartGrid>
-          {series.map((s) => (
-            <MissileRangeChart
-              key={s.key}
-              series={s}
-              unit={UNIT[view]}
-              timeDomain={TIME_DOMAIN}
-              ticks={TIME_TICKS}
-              yMax={scaleMode === "shared" ? sharedMax : undefined}
-            />
-          ))}
-        </ChartGrid>
+        visibleSeries.length > 0
+          ? (
+            <ChartGrid>
+              {visibleSeries.map((s) => (
+                <MissileRangeChart
+                  key={s.key}
+                  series={s}
+                  unit={UNIT[view]}
+                  timeDomain={TIME_DOMAIN}
+                  ticks={TIME_TICKS}
+                  yMax={sharedMax}
+                />
+              ))}
+            </ChartGrid>
+          )
+          : <div style={{ fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted, padding: 40, textAlign: "center" }}>Select at least one missile type.</div>
       )}
       {layout === "bars" && (
-        <>
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
-            {series.map((s) => {
-              const on = !hidden.has(s.key);
-              return (
-                <label key={s.key} style={{
-                  display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",
-                  fontFamily: FONTS.mono, fontSize: 11, color: on ? t.text : t.textFaint,
-                }}>
-                  <input type="checkbox" checked={on} onChange={() => toggleHidden(s.key)} style={{ cursor: "pointer" }} />
-                  <span style={{
-                    width: 10, height: 10, borderRadius: 2, flexShrink: 0,
-                    background: on ? colorFor.get(s.key) : "transparent",
-                    border: `1px solid ${colorFor.get(s.key)}`,
-                  }} />
-                  {s.label}
-                </label>
-              );
-            })}
-          </div>
-          {barSeries.length > 0
-            ? <MissileStackedBarChart series={barSeries} unit={UNIT[view]} timeDomain={TIME_DOMAIN} ticks={TIME_TICKS} colorFor={colorFor} />
-            : <div style={{ fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted, padding: 40, textAlign: "center" }}>Select at least one missile type.</div>}
-        </>
+        visibleSeries.length > 0
+          ? <MissileStackedBarChart series={visibleSeries} unit={UNIT[view]} timeDomain={TIME_DOMAIN} ticks={TIME_TICKS} colorFor={colorFor} />
+          : <div style={{ fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted, padding: 40, textAlign: "center" }}>Select at least one missile type.</div>
       )}
     </div>
   );
