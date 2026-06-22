@@ -16,8 +16,32 @@ import { FONTS } from "@/theme";
 
 type View = "production" | "stockpile";
 type Layout = "grid" | "bars";
+const VIEWS: View[] = ["production", "stockpile"];
+const LAYOUTS: Layout[] = ["grid", "bars"];
+const VIEW_PARAM = 'missiles-view';
+const LAYOUT_PARAM = 'missiles-layout';
 const KIND: Record<View, MissileKind> = { production: "production_monthly", stockpile: "stockpile" };
 const UNIT: Record<View, string> = { production: "units / month", stockpile: "in stockpile" };
+
+// URL-param persistence: mirrors the date/days/weekday pattern used on the
+// other pages so a deep link captures what the user was looking at.
+function parseEnum<T extends string>(raw: string | null, allowed: readonly T[], fallback: T): T {
+  return raw != null && (allowed as readonly string[]).includes(raw) ? (raw as T) : fallback;
+}
+
+function getUrlParams() {
+  const p = new URLSearchParams(window.location.search);
+  return {
+    view: parseEnum<View>(p.get(VIEW_PARAM), VIEWS, "production"),
+    layout: parseEnum<Layout>(p.get(LAYOUT_PARAM), LAYOUTS, "grid"),
+  };
+}
+
+function setUrlParams(params: Record<string, string>) {
+  const p = new URLSearchParams(window.location.search);
+  for (const [k, v] of Object.entries(params)) p.set(k, v);
+  window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
+}
 
 // The bound→glyph key, shown once so the per-panel dot shapes are legible.
 const LEGEND: Array<{ g: string; label: string }> = [
@@ -30,8 +54,11 @@ const LEGEND: Array<{ g: string; label: string }> = [
 
 export function MissilesPage() {
   const { theme: t } = useTheme();
-  const [view, setView] = useState<View>("production");
-  const [layout, setLayout] = useState<Layout>("grid");
+  const initial = useMemo(() => getUrlParams(), []);
+  const [view, setViewState] = useState<View>(initial.view);
+  const [layout, setLayoutState] = useState<Layout>(initial.layout);
+  const setView = (v: View) => { setViewState(v); setUrlParams({ [VIEW_PARAM]: v }); };
+  const setLayout = (l: Layout) => { setLayoutState(l); setUrlParams({ [LAYOUT_PARAM]: l }); };
   // Tracked as the *hidden* set so defaults persist across view switches and any
   // newly-appearing type defaults to shown.
   const [hidden, setHidden] = useState<Set<string>>(new Set(MISSILE_HIDDEN_DEFAULT));
