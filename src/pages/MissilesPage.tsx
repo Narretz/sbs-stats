@@ -217,6 +217,7 @@ export function MissilesPage() {
                   timeDomain={TIME_DOMAIN}
                   ticks={TIME_TICKS}
                   yMax={sharedMax}
+                  swatch={colorFor.get(s.key)}
                 />
               ))}
             </ChartGrid>

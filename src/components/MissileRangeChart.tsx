@@ -85,9 +85,12 @@ interface Props {
   // Shared y-max across the grid (for cross-panel comparison). When omitted the
   // panel fits its own data.
   yMax?: number;
+  // Per-type category swatch shown next to the title, matching the checkbox
+  // list and the bars view so the colour is consistent across all three.
+  swatch?: string;
 }
 
-export function MissileRangeChart({ series, unit, timeDomain, ticks, yMax }: Props) {
+export function MissileRangeChart({ series, unit, timeDomain, ticks, yMax, swatch }: Props) {
   const { theme: t } = useTheme();
   const color = series.combined ? t.muted : t.primary;
 
@@ -105,9 +108,16 @@ export function MissileRangeChart({ series, unit, timeDomain, ticks, yMax }: Pro
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
     }}>
       <div style={{
+        display: "flex", alignItems: "center", gap: 8,
         fontFamily: FONTS.display, fontWeight: 700, fontSize: 12, color: t.textMuted,
         letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 2,
       }}>
+        {swatch && (
+          <span style={{
+            width: 14, height: 14, borderRadius: 2, flexShrink: 0,
+            background: swatch, border: `1px solid ${swatch}`,
+          }} />
+        )}
         {series.label}
       </div>
       <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textFaint, marginBottom: 8 }}>
