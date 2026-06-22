@@ -33,7 +33,7 @@ export const LIGHT: Theme = {
   border:       "#d0d5dd",
   text:         "#111827",
   textMuted:    "#6b7280",
-  textFaint:    "#9ca3af",
+  textFaint:    "#8B93A1",
   primary:      "#1d6fa4",   // steel blue — readable on white
   accent:       "#db2c18",   // strong red — today / current highlight
   muted:        "#70a65b",
