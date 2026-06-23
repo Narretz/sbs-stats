@@ -577,6 +577,53 @@ class TestBreakdown:
             "Смоленской области":   2, "Липецкой области":   2,
         }
 
+    def test_v_preposition_region(self):
+        # msg 44303 (Oct 2024): older MoD format mixes "над <region>" with
+        # "в <region>" — both a PO form ("по 2 БпЛА в Курской и Ростовской
+        # областях") and a bare-count form ("один в Краснодарском крае").
+        # Required adding "в" to _DASH_OR_NAD, to the boundary alternation
+        # (so PO regions don't run past " в "), and prepositional-plural
+        # nouns (областях/морях/краях) to _PLURAL_TO_SINGULAR for PO split.
+        r = _parse(
+            "Дежурными средствами ПВО перехвачено и уничтожено "
+            "47 украинских беспилотных летательных аппарата. "
+            "24 БпЛА сбиты над территорией Брянской области, "
+            "5 БпЛА уничтожены над территорией Белгородской области, "
+            "по 2 БпЛА в Курской и Ростовской областях, "
+            "один в Краснодарском крае "
+            "и 13 над акваторией Азовского моря.",
+            posted_utc="2024-10-25T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert sum(bd.values()) == 47
+        assert bd["Брянской области"] == 24
+        assert bd["Белгородской области"] == 5
+        assert bd["Курской области"] == 2
+        assert bd["Ростовской области"] == 2
+        assert bd["Краснодарском крае"] == 1
+        assert bd["Азовского моря"] == 13
+
+    def test_greedy_count_fallback_does_not_swallow_next_item(self):
+        # Regression guard for the parse_breakdown cursor-loop: _COUNT_GROUP
+        # is greedy up to 3 words, so non-numeral phrases like "беспилотных
+        # летательных аппаратов" can match as the count, get rejected by
+        # _count_to_int, and previously took the FOLLOWING valid item with
+        # them when findall() advanced past the entire failed match. The
+        # manual cursor advances by 1 char on failure instead.
+        r = _parse(
+            "С 8.00 мск до 9.40 мск дежурными средствами ПВО уничтожены "
+            "шесть украинских беспилотных летательных аппаратов самолетного типа: "
+            "два БПЛА – над территорией Московского региона, "
+            "один БПЛА – над территорией Рязанской области, "
+            "один БПЛА – над территорией Нижегородской области, "
+            "один БПЛА – над территорией Смоленской области и "
+            "один БПЛА – над территорией Курской области.",
+            posted_utc="2025-07-05T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert sum(bd.values()) == 6
+        assert bd["Московского региона"] == 2
+
     def test_iz_kotorykh_connective_before_count(self):
         # msg 47131 (Dec 2024): "уничтожены N БПЛА, из которых девять
         # сбиты над …". The greedy count group absorbed "из которых" as

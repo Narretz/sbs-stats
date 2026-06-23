@@ -123,7 +123,7 @@ REGION_RE = re.compile(r"над\s+территор\w+\s+(.*)", re.I)
 # "перехвачен[ыо]" added after msg 47783 used "перехвачены" in a per-region
 # bullet alongside the more common "уничтожен"/"сбит".
 _VERB_OPT = r"(?:(?:уничтожен[ыо]?|сбит[оы]?|перехвачен[ыо]?)\s+)?"
-_DASH_OR_NAD = r"(?:[-–—]\s*(?:над\s+)?|над\s+)"
+_DASH_OR_NAD = r"(?:[-–—]\s*(?:над\s+|в\s+)?|над\s+|в\s+)"
 # Bullet glyphs the channel uses between items: WHITE (▫️) and BLACK (▪️)
 # small squares. Both pre-2025 and post-2025 posts mix the two freely; the
 # region capture must stop at either.
@@ -137,17 +137,19 @@ _BULLET = "▫▪"
 #   ", <count> БПЛА …"       — "Липецкой областей, девять БПЛА – …" (msg 48833 —
 #                              for PO_ITEM_RE only, since REGION_ITEM_RE's region
 #                              group already excludes `,`; harmless overlap)
+#   ", <count> в <Region> …"  — "Ростовской областях, один в …"     (msg 44303 —
+#                              older "в <region>" preposition variant)
 # The "по" marker NEVER appears mid-region-name in this channel — it's always
 # the start of a distributive bullet — so a bare `по <count>` is unambiguous.
-# The "и <count> (БПЛА|–|над)" alternation covers all three possible follow-ups
+# The "и <count> (БПЛА|–|над|в)" alternation covers all four possible follow-ups
 # after a conjunction-joined trailing count.
 _BOUNDARY_PATTERN = (
     rf"(?:"
     rf"\s+(?:"
     rf"(?:и\s+)?по\s+(?:\d+|[А-Яа-яЁё]+)"
-    rf"|и\s+(?:\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}})\s+(?:БПЛА|[-–—]|над\s)"
+    rf"|и\s+(?:\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}})\s+(?:БПЛА|[-–—]|над\s|в\s)"
     rf")"
-    rf"|,\s*(?:\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}})\s+(?:БПЛА|[-–—])"
+    rf"|,\s*(?:\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}})\s+(?:БПЛА|[-–—]|в\s)"
     rf")"
 )
 _NEXT_ITEM_LA = rf"(?!{_BOUNDARY_PATTERN})"
@@ -200,6 +202,11 @@ _PLURAL_TO_SINGULAR = {
     "морей":    "моря",
     "краёв":    "края",
     "краев":    "края",
+    # Prepositional plural — appears in "в Курской и Ростовской областях"
+    # (msg 44303, older "в <region>" preposition variant).
+    "областях": "области",
+    "морях":    "моря",
+    "краях":    "края",
 }
 
 # Spelled-out Russian cardinals as they appear in per-region counts. Low-count
@@ -506,14 +513,27 @@ def parse_breakdown(text: str) -> list[tuple[str, int]]:
         residual = text
 
     # Second pass: standard single-region bullets on whatever's left.
-    for n, name in REGION_ITEM_RE.findall(residual):
-        count = _count_to_int(n)
-        if count is None:                                   # matched phrase wasn't a number
+    # Use a manual cursor instead of findall so a count phrase the regex
+    # absorbed but _count_to_int rejects doesn't swallow the next valid item:
+    # _COUNT_GROUP is greedy up to 3 words, so "беспилотных летательных
+    # аппаратов" can match as the count, fail _count_to_int, and findall
+    # would then advance past the whole match (taking "два БПЛА – над
+    # территорией Московского региона" with it). Advancing by 1 char on
+    # failure lets the next position retry from "два".
+    pos = 0
+    while pos < len(residual):
+        m = REGION_ITEM_RE.search(residual, pos)
+        if m is None:
+            break
+        count = _count_to_int(m.group(1))
+        if count is None:
+            pos = m.start() + 1
             continue
-        name = _REGION_NOUN_RE.sub("", name)                # drop "территорией "/"акваторией "
+        name = _REGION_NOUN_RE.sub("", m.group(2))          # drop "территорией "/"акваторией "
         name = re.sub(r"\s+", " ", name).strip(" .,")
         if name:
             items.append((name, count))
+        pos = m.end()
 
     # Merge duplicate region names — sums counts when the same area appears
     # in both a "по" expansion and a standalone bullet (or, rarely, in two
