@@ -218,6 +218,37 @@ PO_ITEM_RE = re.compile(
     rf"((?:{_NEXT_ITEM_LA}[^.{_BULLET}])+?)(?=[.{_BULLET}]|{_NEXT_ITEM_BOUNDARY}|$)",
     re.I,
 )
+# Region-first INVERTED bullet ("Над территорией X уничтожено N БПЛА"),
+# common in late-2024 posts mixed with standard noun-first bullets in
+# the same post (msg 44107, 45925, 46082, 46184, …). The region runs
+# lazily until the engine finds a verb + count + БПЛА — the verb anchor
+# keeps the lazy group from chewing past the bullet end.
+REGION_FIRST_BULLET_RE = re.compile(
+    rf"над\s+(?:территори\w+|акватори\w+)\s+([^.,;{_BULLET}]+?)\s+"
+    rf"(?:уничтожен[ыо]?|сбит[оы]?|перехвачен[ыо]?)"
+    rf"(?:\s+и\s+(?:уничтожен[ыо]?|сбит[оы]?|перехвачен[ыо]?))?\s+"
+    rf"(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}})\s+БПЛА",
+    re.I,
+)
+# Noun-first bullet using the same surface form as the noun-first
+# headline ("N украинских <unit> уничтожен[ы] над <region>"). Late-2024
+# posts often had NO separate verb-first total — the noun-first phrase
+# was the first bullet, and parse_report's drones reconcile step then
+# recomputes the true total from the breakdown sum (msg 45017, 45204).
+NOUN_FIRST_BULLET_RE = re.compile(
+    rf"{_HEAD_NUM}\s+украин\w+\s+{_UNIT_NOUN}(?:\s+\w+){{0,3}}\s+{_AD_VERB}\s+{_DASH_OR_NAD}"
+    rf"((?:{_NEXT_ITEM_LA}[^,.;{_BULLET}\d])+)",
+    re.I,
+)
+# Singular bullet ("Также украинский БпЛА уничтожен над акваторией X") —
+# count is implicit 1, no numeral. The match pattern mirrors the singular
+# headline detector; the bullet form just appends "над <region>" so the
+# region can be captured alongside.
+SINGULAR_BULLET_RE = re.compile(
+    rf"украинский\s+{_UNIT_NOUN}(?:\s+\w+){{0,3}}\s+{_AD_VERB}\s+{_DASH_OR_NAD}"
+    rf"((?:{_NEXT_ITEM_LA}[^,.;{_BULLET}\d])+)",
+    re.I,
+)
 # Leading "территорией "/"акваторией " noun stripped off the captured phrase so
 # the region name itself remains (e.g. "Брянской области", "Азовского моря").
 _REGION_NOUN_RE = re.compile(r"^(?:территори\w+|акватори\w+)\s+", re.I)
@@ -271,21 +302,29 @@ def _ru_numeral(text: str) -> int | None:
     return total if matched else None
 
 
-def _extract_drones(flat: str) -> int | None:
-    """Headline drone count for an AD intercept post.
+def _extract_drones(flat: str) -> tuple[int, str] | None:
+    """Headline drone count + tag of which surface form matched.
 
     Walks the three headline forms in order. finditer (not search) so a
     first match whose count phrase _count_to_int can't resolve doesn't
     drop the whole post — keep trying. The singular implicit form
     contributes a fixed count of 1 (no numeral in the text).
+
+    The tag ('verb_first' / 'noun_first' / 'singular') tells the caller
+    whether the count came from a true headline or a noun-first phrase
+    that may actually be the first bullet of a bullet-less list; the
+    caller can then reconcile drones against the breakdown sum.
     """
-    for rx in (COUNT_VERB_FIRST_RE, COUNT_NOUN_FIRST_RE):
-        for m in rx.finditer(flat):
-            n = _count_to_int(m.group(1))
-            if n is not None and n <= MAX_PLAUSIBLE:
-                return n
+    for m in COUNT_VERB_FIRST_RE.finditer(flat):
+        n = _count_to_int(m.group(1))
+        if n is not None and n <= MAX_PLAUSIBLE:
+            return n, "verb_first"
+    for m in COUNT_NOUN_FIRST_RE.finditer(flat):
+        n = _count_to_int(m.group(1))
+        if n is not None and n <= MAX_PLAUSIBLE:
+            return n, "noun_first"
     if COUNT_SINGULAR_RE.search(flat):
-        return 1
+        return 1, "singular"
     return None
 
 
@@ -542,23 +581,65 @@ def parse_breakdown(text: str) -> list[tuple[str, int]]:
             start = back.start()
         consumed_spans.append((start, m.end()))
 
-    # Blank out consumed spans so REGION_ITEM_RE can't re-match the same count.
-    if consumed_spans:
-        # Overwrite consumed "по N …" spans with bullet glyphs (which are in
-        # REGION_ITEM_RE's region-exclusion set) rather than spaces. Plain
-        # spaces leave a hole that the next-item lookahead can't anchor on,
-        # so a region capture preceding the consumed span ("… Тамбовской
-        # области и …" before a deleted "по одному …") would walk past the
-        # "и" into the gap. The sentinel terminates the region group cleanly.
+    def _blank(text: str, spans: list[tuple[int, int]]) -> str:
+        # Overwrite consumed spans with the black-square bullet glyph (which is
+        # in REGION_ITEM_RE's region-exclusion set) rather than spaces. Plain
+        # spaces leave a hole the next-item lookahead can't anchor on, so a
+        # region capture preceding the consumed span (e.g. "… Тамбовской области
+        # и …" before a deleted "по одному …") would walk past the "и" into the
+        # gap. The sentinel terminates the region group cleanly.
+        if not spans:
+            return text
         chars = list(text)
-        for s, e in consumed_spans:
+        for s, e in spans:
             for i in range(s, e):
                 chars[i] = "▪"
-        residual = "".join(chars)
-    else:
-        residual = text
+        return "".join(chars)
+    residual = _blank(text, consumed_spans)
 
-    # Second pass: standard single-region bullets on whatever's left.
+    # Second pass: region-first inverted bullets ("над територiей X уничтожено
+    # N БПЛА"). Run before the standard pass so the consumed text doesn't get
+    # a phantom REGION_ITEM_RE match starting at the count inside the bullet.
+    rf_spans: list[tuple[int, int]] = []
+    for m in REGION_FIRST_BULLET_RE.finditer(residual):
+        count = _count_to_int(m.group(2))
+        if count is None:
+            continue
+        name = re.sub(r"\s+", " ", m.group(1)).strip(" .,")
+        if name:
+            items.append((name, count))
+            rf_spans.append((m.start(), m.end()))
+    residual = _blank(residual, rf_spans)
+
+    # Third pass: noun-first bullets ("N украинских <unit> уничтожен[ы] над
+    # территорией X"). These are usually the OPENING bullet of a list whose
+    # remaining items use the short standard form; capturing them here keeps
+    # the count+region tied together so parse_report can detect a noun-first
+    # "headline" that was actually just the first bullet.
+    nf_spans: list[tuple[int, int]] = []
+    for m in NOUN_FIRST_BULLET_RE.finditer(residual):
+        count = _count_to_int(m.group(1))
+        if count is None:
+            continue
+        name = _REGION_NOUN_RE.sub("", m.group(2))
+        name = re.sub(r"\s+", " ", name).strip(" .,")
+        if name:
+            items.append((name, count))
+            nf_spans.append((m.start(), m.end()))
+    residual = _blank(residual, nf_spans)
+
+    # Fourth pass: singular implicit bullets ("Также украинский БпЛА уничтожен
+    # над акваторией X") — count is fixed at 1, no numeral in the text.
+    sg_spans: list[tuple[int, int]] = []
+    for m in SINGULAR_BULLET_RE.finditer(residual):
+        name = _REGION_NOUN_RE.sub("", m.group(1))
+        name = re.sub(r"\s+", " ", name).strip(" .,")
+        if name:
+            items.append((name, 1))
+            sg_spans.append((m.start(), m.end()))
+    residual = _blank(residual, sg_spans)
+
+    # Fifth pass: standard single-region bullets on whatever's left.
     # Use a manual cursor instead of findall so a count phrase the regex
     # absorbed but _count_to_int rejects doesn't swallow the next valid item:
     # _COUNT_GROUP is greedy up to 3 words, so "беспилотных летательных
@@ -602,9 +683,10 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
     flat = re.sub(r"\s+", " ", _strip_md(html.unescape(text))).strip()
     if not AD_GATE.search(flat) or "беспилотн" not in flat.lower():
         return None
-    drones = _extract_drones(flat)
-    if drones is None:
+    extracted = _extract_drones(flat)
+    if extracted is None:
         return None
+    drones, drones_form = extracted
     posted_msk = posted_at_utc.astimezone(MSK)
     start, end, kind = _parse_window(flat, posted_msk)
     # attribute to the MSK date of the window end; fall back to posted MSK date
@@ -612,6 +694,14 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
 
     # Prefer the itemized per-region counts when present; else the loose clause.
     breakdown = parse_breakdown(flat)
+    # When the headline form was noun-first or singular (no separate verb-first
+    # total), the "headline" count may actually be the first bullet of a
+    # bullet-less list — e.g. "N украинских БПЛА уничтожены над X, M – над Y,
+    # K – над Z". In that case the true total is the sum of all bullets, not
+    # just the first one. Trust the breakdown when it sums higher than the
+    # noun-first headline (max() keeps verb-first headlines authoritative).
+    if drones_form != "verb_first" and breakdown:
+        drones = max(drones, sum(c for _, c in breakdown))
     if breakdown:
         region_count = len(breakdown)
         regions = ", ".join(name for name, _ in breakdown)[:300]

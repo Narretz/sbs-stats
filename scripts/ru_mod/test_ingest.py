@@ -577,6 +577,77 @@ class TestBreakdown:
             "Смоленской области":   2, "Липецкой области":   2,
         }
 
+    def test_region_first_inverted_bullets(self):
+        # msg 44107, 45925, 46082 (Oct/Nov 2024): bullets that invert the
+        # standard order — "Над территорией X уничтожено N БПЛА" instead of
+        # "N БПЛА уничтожены над территорией X". Captured by
+        # REGION_FIRST_BULLET_RE in parse_breakdown. The post can mix the
+        # inverted form (first 2 bullets) with the standard form (rest).
+        r = _parse(
+            "В течение прошедшей ночи при попытке киевского режима с применением "
+            "беспилотных летательных аппаратов дежурными средствами ПВО уничтожены "
+            "и перехвачены 18 украинских БПЛА самолетного типа. "
+            "Над территорией Белгородской области уничтожено 6 БПЛА, "
+            "над территорией Воронежской области уничтожено и перехвачено 6 БПЛА, "
+            "5 БПЛА уничтожены над акваторией Азовского моря "
+            "и один – над территорией Ростовской области.",
+            posted_utc="2024-10-04T01:00:00+00:00",
+        )
+        assert r.drones == 18
+        bd = dict(r.breakdown)
+        assert sum(bd.values()) == 18
+        assert bd["Белгородской области"] == 6
+        assert bd["Воронежской области"] == 6
+        assert bd["Азовского моря"] == 5
+        assert bd["Ростовской области"] == 1
+
+    def test_noun_first_headline_is_first_bullet(self):
+        # msg 45017, 45204 (Oct 2024): posts that open straight with the
+        # noun-first form ("N украинских БПЛА уничтожены над X, M – над Y,
+        # K – над Z") and have NO separate verb-first total — the
+        # "headline" is actually just the first bullet of a bullet-less
+        # list. NOUN_FIRST_BULLET_RE captures the first bullet too, and
+        # parse_report's reconcile step (max(headline, breakdown_sum) for
+        # non-verb-first headlines) recovers the true total.
+        r = _parse(
+            "С 15.00 до 19.30 мск пресечены попытки киевского режима совершить "
+            "террористические атаки c применением БпЛА самолетного типа. "
+            "Дежурными средствами ПВО 22 украинских беспилотных летательных "
+            "аппарата уничтожены над территорией Брянской области, "
+            "три – над территорией Белгородской области, "
+            "и один – над территорией Курской области.",
+            posted_utc="2024-10-27T17:00:00+00:00",
+        )
+        assert r.drones == 26  # 22+3+1, recovered from breakdown sum
+        bd = dict(r.breakdown)
+        assert bd["Брянской области"] == 22
+        assert bd["Белгородской области"] == 3
+        assert bd["Курской области"] == 1
+
+    def test_singular_implicit_bullet(self):
+        # msg 44980 (Oct 2024): post mixes counted bullets with a trailing
+        # singular implicit one — "Также украинский БпЛА уничтожен над
+        # акваторией X" (no numeral; count is 1 by agreement). Captured
+        # by SINGULAR_BULLET_RE so the per-region sum reaches the
+        # headline total.
+        r = _parse(
+            "В течение прошедшей ночи при попытке киевского режима с применением "
+            "беспилотных летательных аппаратов дежурными средствами ПВО уничтожен "
+            "и перехвачен 51 украинский беспилотный летательный аппарат. "
+            "Восемнадцать БпЛА перехвачены над территорией Тамбовской области. "
+            "Шестнадцать БпЛА сбиты над территорией Белгородской области. "
+            "По четыре БпЛА уничтожено над территориями Брянской, Липецкой и Орловской областей. "
+            "Три БпЛА уничтожены над территорией Воронежской области "
+            "и один БпЛА сбит над Курской областью. "
+            "Также украинский БпЛА уничтожен над акваторией Азовского моря.",
+            posted_utc="2024-10-27T01:00:00+00:00",
+        )
+        assert r.drones == 51
+        bd = dict(r.breakdown)
+        assert sum(bd.values()) == 51
+        assert bd["Азовского моря"] == 1
+        assert bd["Тамбовской области"] == 18
+
     def test_headline_short_unit_бпла(self):
         # msg 44509 (Oct 2024): "уничтожены три украинских БпЛА самолетного
         # типа" — the old COUNT_RE only matched the long noun phrase
