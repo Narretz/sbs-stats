@@ -28,6 +28,8 @@ data/sbs.db
 data/sbu-alfa.db
 data/mediazona.db
 
+sources/
+
 # GSUA scraper local artifacts
 scripts/gsua/output/
 # RU losses ingest local artifacts
