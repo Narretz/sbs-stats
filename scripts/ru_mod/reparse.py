@@ -21,6 +21,7 @@ A row whose text no longer passes the AD gate (parse_report returns None) is
 DELETED — mirrors what a re-scrape via INSERT-OR-IGNORE-or-skip would produce.
 """
 import argparse
+import os
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -196,8 +197,15 @@ def main() -> int:
                    help="Rows whose per-region SUM(drones) doesn't equal the headline `drones`.")
     p.add_argument("--dry-run", action="store_true",
                    help="Show what would change without writing.")
-    p.add_argument("--db", default=str(ig.SCRIPT_DIR / "output" / ig.DEFAULT_DB_NAME),
-                   help="Path to the SQLite DB.")
+    # Mirror ingest.py's --out resolution so a session that backfills into
+    # data/ru-mod-ad.db via `ingest.py --out …` (or RU_MOD_DB_PATH) reparses
+    # the SAME file — without this they silently diverge: ingest writes one
+    # DB, reparse reads another, and "Selected 0 rows" looks like a parser
+    # success when it's just hitting an empty default.
+    p.add_argument("--db", default=os.environ.get(
+        "RU_MOD_DB_PATH", str(ig.SCRIPT_DIR / "output" / ig.DEFAULT_DB_NAME)),
+                   help="Path to the SQLite DB. Defaults to $RU_MOD_DB_PATH or "
+                        "scripts/ru_mod/output/<db>, matching ingest.py.")
     args = p.parse_args()
 
     if not (args.message_ids or args.all or args.since or args.until
