@@ -17,15 +17,17 @@ Lines worth inspecting:
                   re-run `ingest.py --source telethon --since … --until …`).
 
 Usage:
-  python probe_gap.py 2024-10-11 2024-10-16             # date window
-  python probe_gap.py --ids 44509 44515 44518           # specific post_ids
-  python probe_gap.py 2024-10-11 2024-10-16 --full      # show full text + parse verdict
+  python probe_gap.py --since 2024-10-11 --until 2024-10-16     # date window (MSK)
+  python probe_gap.py --dates 2024-10-12 2024-11-21 2025-03-02  # specific MSK dates
+  python probe_gap.py --ids 44509 44515 44518                   # specific post_ids
+  python probe_gap.py --since 2024-10-11 --until 2024-10-16 --full
 
 `--full` runs parse_report on each post and prints WHY parse rejected it
 (AD gate / count regex / breakdown), so we can tell whether a MISSED post
 is dropped by the gate, the COUNT_RE noun-phrase anchor, or stored fine.
 """
 import argparse
+import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -50,13 +52,29 @@ def _diagnose(text: str) -> str:
     return f"OK drones={drones} bd={len(bd)}"
 
 
+_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _check_date(date_str: str, flag: str) -> str:
+    if not _DATE_RE.fullmatch(date_str):
+        raise argparse.ArgumentTypeError(f"{flag} must be YYYY-MM-DD, got {date_str!r}")
+    return date_str
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[1])
-    p.add_argument("since", nargs="?", help="Lower bound (inclusive), YYYY-MM-DD UTC.")
-    p.add_argument("until", nargs="?", help="Upper bound (exclusive), YYYY-MM-DD UTC. "
-                                 "telethon walks newest→oldest from here.")
+    p.add_argument("--since", help="Lower bound (inclusive), YYYY-MM-DD MSK.",
+                   type=lambda s: _check_date(s, "--since"))
+    p.add_argument("--until", help="Upper bound (inclusive), YYYY-MM-DD MSK. "
+                                   "telethon walks newest→oldest from here.",
+                   type=lambda s: _check_date(s, "--until"))
+    p.add_argument("--dates", nargs="+", metavar="YYYY-MM-DD",
+                   type=lambda s: _check_date(s, "--dates"),
+                   help="Specific MSK dates to probe (any number, not necessarily "
+                        "contiguous). Cheaper than a wide --since/--until when you "
+                        "only care about a few suspect days.")
     p.add_argument("--ids", type=int, nargs="+",
-                   help="Specific post_ids to fetch instead of a date window.")
+                   help="Specific post_ids to fetch instead of dates.")
     p.add_argument("--full", action="store_true",
                    help="Print the post's full text + parse_report verdict.")
     p.add_argument("--channel", default="mod_russia")
@@ -67,8 +85,12 @@ def main() -> int:
                    help="Chars of the post text to print (ignored with --full).")
     args = p.parse_args()
 
-    if not args.ids and not (args.since and args.until):
-        p.error("provide either a date window (since until) or --ids <id> [<id> ...]")
+    selectors = [bool(args.ids), bool(args.dates), bool(args.since or args.until)]
+    if sum(selectors) != 1:
+        p.error("provide exactly one of: --ids <id> [<id> ...], --dates <date> [<date> ...], "
+                "or --since YYYY-MM-DD --until YYYY-MM-DD")
+    if args.since and not args.until or args.until and not args.since:
+        p.error("--since and --until must be used together (use --dates for non-contiguous days)")
 
     db_path = Path(args.db)
     if db_path.exists():
@@ -101,9 +123,28 @@ def main() -> int:
                     if isinstance(m, Message) and m.text:
                         yield m.id, m.date.astimezone(timezone.utc), m.text
         src = stream()
+    elif args.dates:
+        # Multi-date probe: walk newest→oldest from one day past the
+        # latest wanted date, emit posts whose MSK date is in the set,
+        # stop once we've slipped past the earliest wanted date.
+        wanted = set(args.dates)
+        min_d = min(args.dates)
+        max_d = max(args.dates)
+        offset = datetime.fromisoformat(f"{max_d}T23:59:59+03:00")
+        def stream():
+            for pid, posted, text in ig.iter_telethon(args.channel, offset_date=offset):
+                msk_date = posted.astimezone(ig.MSK).date().isoformat()
+                if msk_date < min_d:
+                    return
+                if msk_date in wanted:
+                    yield pid, posted, text
+        src = stream()
     else:
-        since = datetime.fromisoformat(args.since).replace(tzinfo=timezone.utc)
-        until = datetime.fromisoformat(args.until).replace(tzinfo=timezone.utc)
+        # --since/--until window — interpret as inclusive MSK dates,
+        # converted to the corresponding UTC instants so a post posted
+        # at 23:30 MSK on --until still falls inside.
+        since = datetime.fromisoformat(f"{args.since}T00:00:00+03:00")
+        until = datetime.fromisoformat(f"{args.until}T23:59:59+03:00")
         def stream():
             for pid, posted, text in ig.iter_telethon(args.channel, offset_date=until):
                 if posted < since:
@@ -143,7 +184,12 @@ def main() -> int:
             snippet = " ".join(flat.split())[: args.snippet]
             print(f"{pid:>6} {posted:%Y-%m-%d %H:%M} {gate} {flag:>6}  {snippet}")
 
-    where = f"ids {args.ids}" if args.ids else f"[{args.since}, {args.until})"
+    if args.ids:
+        where = f"ids {args.ids}"
+    elif args.dates:
+        where = f"dates {sorted(args.dates)}"
+    else:
+        where = f"[{args.since}, {args.until}] MSK"
     print(
         f"\n# {n_total} post(s) in {where}:"
         f" {n_ad} AD-gate, {n_sv} svodka-gate, {n_missed} not in our DB."
