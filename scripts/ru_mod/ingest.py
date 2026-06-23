@@ -939,11 +939,27 @@ CREATE TABLE IF NOT EXISTS ad_regions (
   PRIMARY KEY (post_id, scraped_at, region)
 );
 CREATE INDEX IF NOT EXISTS ix_adr_region ON ad_regions(region);
+-- Days verified to have no standalone AD intercept post (the MoD was active
+-- — usually a Сводка was posted — but didn't issue a discrete ПВО report).
+-- Surfaced in daily_ad as a 0-drone row so the frontend chart stays
+-- continuous, and the gap-day ingest warning stops re-flagging the date.
+-- Populated manually via `python ingest.py --mark-silent YYYY-MM-DD '<note>'`.
+CREATE TABLE IF NOT EXISTS silent_days (
+  report_date TEXT PRIMARY KEY,
+  note        TEXT,
+  recorded_at TEXT NOT NULL
+);
 CREATE VIEW IF NOT EXISTS daily_ad AS
   SELECT report_date AS date,
          SUM(drones)  AS drones_destroyed,
          COUNT(*)     AS reports
-  FROM ad_latest GROUP BY report_date;
+  FROM ad_latest GROUP BY report_date
+  UNION ALL
+  SELECT report_date AS date,
+         0 AS drones_destroyed,
+         0 AS reports
+  FROM silent_days
+  WHERE report_date NOT IN (SELECT report_date FROM ad_latest);
 CREATE VIEW IF NOT EXISTS region_totals AS
   SELECT g.region,
          SUM(g.drones)           AS drones,
@@ -966,15 +982,25 @@ CREATE TABLE IF NOT EXISTS summaries (
 """
 
 
+def _apply_schema(conn: sqlite3.Connection) -> None:
+    """Run SCHEMA + any view/column migrations. Idempotent.
+
+    `daily_ad` was changed to UNION in silent_days rows after the view
+    first shipped, and `notes` was added to ad_reports later still —
+    CREATE VIEW/TABLE IF NOT EXISTS won't replace existing definitions,
+    so drop the view first and ALTER the column in if missing.
+    """
+    conn.execute("DROP VIEW IF EXISTS daily_ad")
+    conn.executescript(SCHEMA)
+    if "notes" not in {r[1] for r in conn.execute("PRAGMA table_info(ad_reports)")}:
+        conn.execute("ALTER TABLE ad_reports ADD COLUMN notes TEXT")
+
+
 def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -> tuple[int, int, str | None]:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
-        conn.executescript(SCHEMA)
-        # Migration: `notes` was added after the table first shipped; ADD COLUMN
-        # on pre-existing DBs (CREATE TABLE IF NOT EXISTS won't alter them).
-        if "notes" not in {r[1] for r in conn.execute("PRAGMA table_info(ad_reports)")}:
-            conn.execute("ALTER TABLE ad_reports ADD COLUMN notes TEXT")
+        _apply_schema(conn)
         # Microsecond precision so two edits seen close together (or back-to-back
         # store() calls) get distinct version keys.
         scraped = datetime.now(timezone.utc).isoformat(timespec="microseconds")
@@ -1199,10 +1225,19 @@ def main() -> int:
              "backfill window (e.g. one month). telethon starts fetching at this date.",
     )
     ap.add_argument("--selftest", action="store_true", help="parse built-in samples, no network")
+    ap.add_argument(
+        "--mark-silent", nargs=2, metavar=("YYYY-MM-DD", "NOTE"),
+        help="Record that the MoD posted no standalone AD intercept on this MSK date "
+             "(usually because only Сводки went out that day). Adds a 0-drone row to "
+             "daily_ad via the silent_days table, and suppresses the gap-day warning "
+             "for the date. Verify with probe_gap.py before marking.",
+    )
     args = ap.parse_args()
 
     if args.selftest:
         return selftest()
+    if args.mark_silent:
+        return mark_silent_day(Path(args.out), args.mark_silent[0], args.mark_silent[1]) or 0
     for name, val in (("--since", args.since), ("--until", args.until)):
         if val and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", val):
             ap.error(f"{name} must be YYYY-MM-DD")
@@ -1281,12 +1316,19 @@ def _warn_gap_days(out: Path, scan_min: str | None, scan_max: str | None) -> Non
             "WHERE report_date BETWEEN ? AND ?",
             (scan_min, scan_max),
         )}
+        # Skip dates we've already verified as MoD-silent — re-flagging them
+        # every run isn't useful, the silent_days row is the record.
+        silent = {d for (d,) in conn.execute(
+            "SELECT report_date FROM silent_days "
+            "WHERE report_date BETWEEN ? AND ?",
+            (scan_min, scan_max),
+        )}
     gaps: list[str] = []
     d = date.fromisoformat(scan_min)
     end = date.fromisoformat(scan_max)
     while d <= end:
         s = d.isoformat()
-        if s not in covered:
+        if s not in covered and s not in silent:
             gaps.append(s)
         d += timedelta(days=1)
     if not gaps:
@@ -1294,7 +1336,41 @@ def _warn_gap_days(out: Path, scan_min: str | None, scan_max: str | None) -> Non
     head = ", ".join(gaps[:10])
     more = f" (+{len(gaps) - 10} more)" if len(gaps) > 10 else ""
     print(f"WARNING: {len(gaps)} day(s) in [{scan_min}, {scan_max}] "
-          f"with no AD report in DB — verify with probe_gap.py: {head}{more}")
+          f"with no AD report in DB — verify with probe_gap.py, then mark "
+          f"confirmed-silent ones via --mark-silent: {head}{more}")
+
+
+def mark_silent_day(db_path: Path, report_date: str, note: str) -> None:
+    """Record that a date had no standalone MoD AD intercept post, so
+    daily_ad surfaces a 0 instead of a gap and the warning above stops
+    re-flagging it. Idempotent — re-marking just updates the note."""
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", report_date):
+        raise SystemExit(f"ERROR: --mark-silent date must be YYYY-MM-DD, got {report_date!r}")
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    try:
+        _apply_schema(conn)
+        # Guard against marking a date that already has a real AD report —
+        # silent_days is for verified-empty days, not for overriding real data.
+        n = conn.execute(
+            "SELECT COUNT(*) FROM ad_latest WHERE report_date = ?",
+            (report_date,),
+        ).fetchone()[0]
+        if n:
+            raise SystemExit(
+                f"ERROR: {report_date} already has {n} AD report(s) in ad_latest; "
+                f"silent_days is for days with no standalone intercept post."
+            )
+        recorded_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        conn.execute(
+            "INSERT INTO silent_days (report_date, note, recorded_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(report_date) DO UPDATE SET note=excluded.note, recorded_at=excluded.recorded_at",
+            (report_date, note, recorded_at),
+        )
+        conn.commit()
+        print(f"==> marked {report_date} as silent (note: {note!r}) → {db_path}")
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

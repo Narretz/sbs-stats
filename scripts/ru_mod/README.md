@@ -58,6 +58,15 @@ an edit inserts a **new version row**, never overwrites. Reads resolve the lates
   text) even though we don't parse their body yet. The MoD largely **stopped
   reporting Ukrainian losses** at the end of February 2026; capturing the raw text now means
   we can backfill-parse later. PK `(post_id, scraped_at)`.
+- **`silent_days`** — dates verified to have no standalone MoD AD intercept
+  post (usually only Сводки went out that day). `daily_ad` UNIONs in a
+  0-drone row for each entry so the frontend chart stays continuous, and
+  the gap-day ingest warning stops re-flagging the date. Populated
+  manually after verifying with `probe_gap.py`:
+  ```sh
+  python ingest.py --mark-silent 2025-04-20 \
+    "no standalone AD post; Сводка part 1+2 (51523, 51524) went out instead"
+  ```
 
 Change-detection compares the **parsed fields** (drones, window, kind, regions),
 **not** raw text — so the web and telethon backends ingesting the same post don't
