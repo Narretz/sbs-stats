@@ -82,4 +82,7 @@ export const GLOBAL_CSS = (t: Theme) => `
      its absolutely-positioned tooltip on top. */
   .chart-card { position: relative; z-index: 1; }
   .chart-card:hover { z-index: 2; }
+  /* The native <details>/<summary> triangle is too small at the page's 11px
+     mono baseline — scale just the marker so the affordance is visible. */
+  summary::marker { font-size: 1.6em; }
 `;

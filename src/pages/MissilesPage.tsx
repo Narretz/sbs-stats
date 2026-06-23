@@ -3,7 +3,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { ChartGrid } from "@/components/Layout";
 import { MissileRangeChart } from "@/components/MissileRangeChart";
 import { MissileStackedBarChart } from "@/components/MissileStackedBarChart";
-import { buildSeries, TIME_DOMAIN, TIME_TICKS, DATA_WINDOW, MISSILE_TYPES, type MissileKind } from "@/data/missiles";
+import { buildSeries, TIME_DOMAIN, TIME_TICKS, DATA_WINDOW, MISSILE_TYPES, MISSILE_REPORTS, type MissileKind } from "@/data/missiles";
 import {
   colorMap,
   MISSILE_CATEGORY,
@@ -22,6 +22,17 @@ const VIEW_PARAM = 'missiles-view';
 const LAYOUT_PARAM = 'missiles-layout';
 const KIND: Record<View, MissileKind> = { production: "production_monthly", stockpile: "stockpile" };
 const UNIT: Record<View, string> = { production: "units / month", stockpile: "in stockpile" };
+
+const MONTH_NAMES = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Render `as_of` at its declared precision so a "mid-May 2025" estimate isn't
+// misread as a specific calendar day; mirrors MissileRangeChart.fmtAsOf.
+function fmtAsOf(as_of: string, precision: "day" | "mid_month" | "month"): string {
+  const [y, m, d] = as_of.split("-");
+  if (precision === "day") return `${d}.${m}.${y}`;
+  if (precision === "mid_month") return `mid-${MONTH_NAMES[+m]} ${y}`;
+  return `${MONTH_NAMES[+m]} ${y}`;
+}
 
 // URL-param persistence: mirrors the date/days/weekday pattern used on the
 // other pages so a deep link captures what the user was looking at.
@@ -157,9 +168,39 @@ export function MissilesPage() {
               These are intelligence estimates, not counts — every value carries a stated bound (≤, ≥, ~, range). Figures vary by ±10% even between reports weeks apart, and the type breakdown changes over time. A missing report is a gap, not a zero.
             </span>
           </p>
-          <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Data Availability: {DATA_WINDOW.min} – {DATA_WINDOW.max} · {DATA_WINDOW.reports} disclosures
-          </div>
+          <details style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
+            <summary style={{ cursor: "pointer", listStyle: "revert" }}>
+              Data Availability: {DATA_WINDOW.min} – {DATA_WINDOW.max} · {DATA_WINDOW.reports} disclosures
+            </summary>
+            <ol style={{ listStyle: "none", padding: 0, margin: "8px 0 0", display: "flex", flexDirection: "column", gap: 6 }}>
+              {MISSILE_REPORTS.map((r, i) => (
+                <li key={r.as_of + r.reported_at} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+                  <span style={{ color: t.textFaint, minWidth: 24 }}>[{i + 1}]</span>
+                  <span style={{ color: t.text, minWidth: 110 }}>{fmtAsOf(r.as_of, r.as_of_precision)}</span>
+                  <span style={{ minWidth: 60 }}>{r.source.org}</span>
+                  <span style={{ flex: 1 }}>
+                    {r.source.via}
+                    {r.source.url && (
+                      <>
+                        {" · "}
+                        <a
+                          href={r.source.url}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                          style={{ color: t.primary, textDecoration: "underline" }}
+                        >
+                          source ↗
+                        </a>
+                      </>
+                    )}
+                    {r.reported_at !== r.as_of && (
+                      <span style={{ color: t.textFaint }}> · disclosed {r.reported_at}</span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </details>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {pill<View>("production", view, setView, "PRODUCTION")}
@@ -256,6 +297,7 @@ export function MissilesPage() {
           ? <MissileStackedBarChart series={visibleSeries} unit={UNIT[view]} timeDomain={TIME_DOMAIN} ticks={TIME_TICKS} colorFor={colorFor} />
           : <div style={{ fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted, padding: 40, textAlign: "center" }}>Select at least one missile type.</div>
       )}
+
     </div>
   );
 }
