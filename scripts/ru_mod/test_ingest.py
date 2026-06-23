@@ -577,6 +577,29 @@ class TestBreakdown:
             "Смоленской области":   2, "Липецкой области":   2,
         }
 
+    def test_iz_kotorykh_connective_before_count(self):
+        # msg 47131 (Dec 2024): "уничтожены N БПЛА, из которых девять
+        # сбиты над …". The greedy count group absorbed "из которых" as
+        # extra words, and _count_to_int previously rejected the whole
+        # phrase because "из" isn't a numeral. Fixed by stripping leading
+        # non-numeral words in _count_to_int so the trailing numeral wins.
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО уничтожены "
+            "19 украинских беспилотных летательных аппаратов, "
+            "из которых девять сбиты над территорией Белгородской области, "
+            "пять – над территорией Воронежской области, "
+            "три – над акваторией Черного моря "
+            "и по одному – над территориями Курской области и Краснодарского края.",
+            posted_utc="2024-12-30T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert sum(bd.values()) == 19
+        assert bd["Белгородской области"] == 9
+        assert bd["Воронежской области"] == 5
+        assert bd["Черного моря"] == 3
+        assert bd["Курской области"] == 1
+        assert bd["Краснодарского края"] == 1
+
     def test_no_bullets_multi_verb_post(self):
         # msg 47783 (Jan 2025): no ▫/▪ bullets at all, items separated by
         # commas and periods, plus three different verbs (уничтожен,

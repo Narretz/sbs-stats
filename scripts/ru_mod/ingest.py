@@ -241,12 +241,22 @@ _LEADING_CONJ = re.compile(r"^\s*и\s+", re.I)
 def _count_to_int(token: str) -> int | None:
     """A breakdown count is either digits or a spelled-out numeral.
 
-    Strips a leading "и " conjunction so the last item in a bullet-less list
-    ("…Смоленской области и один БПЛА – над …") doesn't get rejected: when
-    REGION_ITEM_RE's lazy count group has to span 2 words to make the rest
-    match, it grabs "и один" rather than "один" alone."""
+    The regex's count group is greedy and may have absorbed a connective
+    phrase before reaching the actual numeral:
+      * " и один …"          → "и один"       (msg 54759 — last item joined
+                                                by the "и" conjunction)
+      * " из которых девять "  → "из которых девять" (msg 47131 — "of which N")
+    Strip any leading non-numeral words so the trailing numeral resolves
+    instead of the whole phrase being rejected."""
     token = _LEADING_CONJ.sub("", token).strip()
-    return int(token) if token.isdigit() else _ru_numeral(token)
+    if token.isdigit():
+        return int(token)
+    words = token.lower().split()
+    while words and not (words[0] in _RU_HUNDREDS
+                         or words[0] in _RU_TENS
+                         or words[0] in _RU_UNITS):
+        words.pop(0)
+    return _ru_numeral(" ".join(words)) if words else None
 
 MAX_PLAUSIBLE = 5000  # guard against a runaway parse
 
