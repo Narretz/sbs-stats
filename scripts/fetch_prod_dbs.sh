@@ -11,6 +11,12 @@ mkdir -p data
 urls=$(grep -E '^VITE_[A-Z_]*DB_URL=' .env.production | sed 's/^[^=]*=//' | tr -d '\r')
 
 for url in $urls; do
+  # Frontend reads stripped `<name>.public.db` copies (raw_text blanked) for
+  # GSUA / ru-mod-ad. Local reparse + ingest need the full text, so map the
+  # `.public.db` URL back to the authoritative `.db` object on R2.
+  case "$url" in
+    *.public.db) url="${url%.public.db}.db" ;;
+  esac
   name=$(basename "$url")
   echo "→ $name"
   curl --fail --location --show-error --silent --output "data/$name" "$url"

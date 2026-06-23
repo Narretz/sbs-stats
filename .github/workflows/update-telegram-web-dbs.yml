@@ -74,16 +74,29 @@ jobs:
         working-directory: scripts/gsua
         run: python scrape_general_staff.py --source web --since "${{ steps.cutoff.outputs.since }}"
 
-      - name: Upload GSUA DB to R2
+      # Strip the bulky `posts.text` column into a frontend-only copy
+      # (~7 MB of UA-staff post text the FE never queries → DB shrinks ~3×).
+      # Uploaded alongside the full DB; the frontend's VITE_GSUA_DB_URL points
+      # at this public copy.
+      - name: Build public GSUA DB (strip raw text)
+        run: |
+          python3 scripts/build_public_db.py \
+            --in  "scripts/gsua/output/$GSUA_DB_NAME" \
+            --out "scripts/gsua/output/${GSUA_DB_NAME%.db}.public.db" \
+            --blank posts.text
+
+      - name: Upload GSUA DB to R2 (full + public)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          npx --yes wrangler@4 r2 object put \
-            "$R2_BUCKET/$GSUA_DB_NAME" \
-            --file "scripts/gsua/output/$GSUA_DB_NAME" \
-            --content-type application/vnd.sqlite3 \
-            --remote
+          for variant in "$GSUA_DB_NAME" "${GSUA_DB_NAME%.db}.public.db"; do
+            npx --yes wrangler@4 r2 object put \
+              "$R2_BUCKET/$variant" \
+              --file "scripts/gsua/output/$variant" \
+              --content-type application/vnd.sqlite3 \
+              --remote
+          done
 
   # ── RU MoD air-defense intercept reports → ru-mod-ad.db ─────────────────────
   rumod:
@@ -151,13 +164,26 @@ jobs:
             --source web --since "${{ steps.cutoff.outputs.since }}" --max-pages 60 \
             --out "scripts/ru_mod/output/$RU_MOD_DB_NAME"
 
-      - name: Upload RU MoD DB to R2
+      # Strip the two bulky raw_text columns into a frontend-only copy
+      # (Сводки are long → DB shrinks ~5×). Uploaded alongside the full DB;
+      # the frontend's VITE_RU_MOD_DB_URL points at this public copy.
+      - name: Build public RU MoD DB (strip raw text)
+        run: |
+          python3 scripts/build_public_db.py \
+            --in  "scripts/ru_mod/output/$RU_MOD_DB_NAME" \
+            --out "scripts/ru_mod/output/${RU_MOD_DB_NAME%.db}.public.db" \
+            --blank ad_reports.raw_text \
+            --blank summaries.raw_text
+
+      - name: Upload RU MoD DB to R2 (full + public)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          npx --yes wrangler@4 r2 object put \
-            "$R2_BUCKET/$RU_MOD_DB_NAME" \
-            --file "scripts/ru_mod/output/$RU_MOD_DB_NAME" \
-            --content-type application/vnd.sqlite3 \
-            --remote
+          for variant in "$RU_MOD_DB_NAME" "${RU_MOD_DB_NAME%.db}.public.db"; do
+            npx --yes wrangler@4 r2 object put \
+              "$R2_BUCKET/$variant" \
+              --file "scripts/ru_mod/output/$variant" \
+              --content-type application/vnd.sqlite3 \
+              --remote
+          done
