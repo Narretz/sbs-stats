@@ -577,6 +577,67 @@ class TestBreakdown:
             "Смоленской области":   2, "Липецкой области":   2,
         }
 
+    def test_headline_short_unit_бпла(self):
+        # msg 44509 (Oct 2024): "уничтожены три украинских БпЛА самолетного
+        # типа" — the old COUNT_RE only matched the long noun phrase
+        # "беспилотных летательных аппаратов" and silently dropped every
+        # post that used the short "БпЛА"/"БПЛА" unit. Now part of the
+        # _UNIT_NOUN alternation.
+        r = _parse(
+            "Дежурными средствами ПВО уничтожены три украинских БпЛА "
+            "самолетного типа над территориями Белгородской, Курской и Тульской областей.",
+            posted_utc="2024-10-15T01:00:00+00:00",
+        )
+        assert r.drones == 3
+
+    def test_headline_noun_first_verb_order(self):
+        # msg 44515, 44463, 44467 (Oct 2024): "N украинских беспилотных
+        # летательных аппарата уничтожены над …" — count comes BEFORE the
+        # verb, opposite to the canonical "уничтожено N …" form. Covered
+        # by COUNT_NOUN_FIRST_RE.
+        r = _parse(
+            "Дежурными средствами ПВО два украинских беспилотных летательных "
+            "аппарата уничтожены над территорией Белгородской области.",
+            posted_utc="2024-10-15T05:00:00+00:00",
+        )
+        assert r.drones == 2
+
+    def test_headline_singular_implicit_count(self):
+        # msg 44518, 44461, 44465 (Oct 2024): "украинский беспилотный
+        # летательный аппарат уничтожен над …" — no numeral in the text;
+        # the singular agreement of "украинский / аппарат / уничтожен"
+        # implies count=1. COUNT_SINGULAR_RE handles this with a fixed 1.
+        r = _parse(
+            "Дежурными средствами ПВО украинский беспилотный летательный "
+            "аппарат уничтожен над территорией Белгородской области.",
+            posted_utc="2024-10-15T08:00:00+00:00",
+        )
+        assert r.drones == 1
+
+    def test_headline_paired_verb(self):
+        # msg 44421 (Oct 2024): "уничтожено и перехвачено 47 украинских
+        # БпЛА" — the channel pairs two verbs around the count. The old
+        # COUNT_RE's optional "и уничтожен" repeat didn't accept other
+        # verbs there; now the optional inner group is any _AD_VERB.
+        # Also exercises the paired-verb _VERB_OPT in REGION_ITEM_RE
+        # ("17 БпЛА перехвачены и уничтожены над …").
+        r = _parse(
+            "Дежурными средствами ПВО уничтожено и перехвачено 47 украинских "
+            "БпЛА самолетного типа. "
+            "17 БпЛА перехвачены и уничтожены над территорией Краснодарского края, "
+            "16 - над акваторией Азовского моря, "
+            "12 – над территорией Курской области, "
+            "два над территорией Белгородской области.",
+            posted_utc="2024-10-12T01:00:00+00:00",
+        )
+        assert r.drones == 47
+        bd = dict(r.breakdown)
+        assert sum(bd.values()) == 47
+        assert bd["Краснодарского края"] == 17
+        assert bd["Азовского моря"] == 16
+        assert bd["Курской области"] == 12
+        assert bd["Белгородской области"] == 2
+
     def test_v_preposition_region(self):
         # msg 44303 (Oct 2024): older MoD format mixes "над <region>" with
         # "в <region>" — both a PO form ("по 2 БпЛА в Курской и Ростовской

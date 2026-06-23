@@ -63,11 +63,29 @@ MONTHS = {
 # `\w*` (not `\w+`) on the verb suffix is deliberate: Russian uses the bare
 # masculine-singular form "уничтожен" — no trailing letter — when the count
 # ends in 1 but not 11 (e.g. "уничтожен 301 ... аппарат", "уничтожен 141 ...").
-# Anchoring the noun via `украин\w+ беспилотн\w+ летательн\w+ аппарат` keeps the
-# match constrained enough that the looser verb suffix can't pull in nearby
-# verbs like "уничтоженного" by accident.
-COUNT_RE = re.compile(
-    r"уничтожен\w*\s+(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+)?)\s+украин\w+\s+беспилотн\w+\s+летательн\w+\s+аппарат",
+# Two surface forms appear across the channel's history (see _extract_drones):
+#   * VERB-FIRST:  "уничтожено [и перехвачено] N украинских <unit>"     — common
+#   * NOUN-FIRST:  "N украинских <unit> [adjs] уничтожен[ы]"            — Oct'24
+# A SINGULAR variant ("украинский <unit> уничтожен" — count=1, no numeral) is
+# also used for one-drone intercepts. The "украин\w+" anchor between count and
+# unit is what distinguishes a headline from a per-region bullet (bullets drop
+# the "украинских" modifier), so all three patterns keep it.
+_AD_VERB = r"(?:уничтожен|сбит|перехвач)\w*"
+# Unit noun: either the short "БПЛА"/"БпЛА" or the full "беспилотн… летательн…
+# аппарат" noun phrase. The short form became common in late 2024 — its absence
+# from the old COUNT_RE silently dropped every report that used it.
+_UNIT_NOUN = r"(?:БПЛА|БпЛА|беспилотн\w+\s+летательн\w+\s+аппарат\w*)"
+_HEAD_NUM = r"(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+)?)"
+COUNT_VERB_FIRST_RE = re.compile(
+    rf"уничтожен\w*(?:\s+и\s+{_AD_VERB})?\s+{_HEAD_NUM}\s+украин\w+\s+{_UNIT_NOUN}",
+    re.I,
+)
+COUNT_NOUN_FIRST_RE = re.compile(
+    rf"{_HEAD_NUM}\s+украин\w+\s+{_UNIT_NOUN}(?:\s+\w+){{0,3}}\s+{_AD_VERB}",
+    re.I,
+)
+COUNT_SINGULAR_RE = re.compile(
+    rf"украинский\s+{_UNIT_NOUN}(?:\s+\w+){{0,3}}\s+{_AD_VERB}",
     re.I,
 )
 # Is this an air-defense intercept post at all?
@@ -122,7 +140,17 @@ REGION_RE = re.compile(r"над\s+территор\w+\s+(.*)", re.I)
 # e.g. "Тридцать один БПЛА уничтожен"); "ы"/"о" cover plural and neuter forms.
 # "перехвачен[ыо]" added after msg 47783 used "перехвачены" in a per-region
 # bullet alongside the more common "уничтожен"/"сбит".
-_VERB_OPT = r"(?:(?:уничтожен[ыо]?|сбит[оы]?|перехвачен[ыо]?)\s+)?"
+# Optionally a single AD verb OR a paired one ("перехвачены и уничтожены",
+# msg 44421 Oct 2024) between the count/unit and the dash/над. The paired
+# form became common in older bullets where the channel double-named the
+# action.
+_VERB_OPT = (
+    r"(?:"
+    r"(?:уничтожен[ыо]?|сбит[оы]?|перехвачен[ыо]?)"
+    r"(?:\s+и\s+(?:уничтожен[ыо]?|сбит[оы]?|перехвачен[ыо]?))?"
+    r"\s+"
+    r")?"
+)
 _DASH_OR_NAD = r"(?:[-–—]\s*(?:над\s+|в\s+)?|над\s+|в\s+)"
 # Bullet glyphs the channel uses between items: WHITE (▫️) and BLACK (▪️)
 # small squares. Both pre-2025 and post-2025 posts mix the two freely; the
@@ -241,6 +269,24 @@ def _ru_numeral(text: str) -> int | None:
         else:
             return None  # a non-numeral word — not a spelled-out number
     return total if matched else None
+
+
+def _extract_drones(flat: str) -> int | None:
+    """Headline drone count for an AD intercept post.
+
+    Walks the three headline forms in order. finditer (not search) so a
+    first match whose count phrase _count_to_int can't resolve doesn't
+    drop the whole post — keep trying. The singular implicit form
+    contributes a fixed count of 1 (no numeral in the text).
+    """
+    for rx in (COUNT_VERB_FIRST_RE, COUNT_NOUN_FIRST_RE):
+        for m in rx.finditer(flat):
+            n = _count_to_int(m.group(1))
+            if n is not None and n <= MAX_PLAUSIBLE:
+                return n
+    if COUNT_SINGULAR_RE.search(flat):
+        return 1
+    return None
 
 
 _LEADING_CONJ = re.compile(r"^\s*и\s+", re.I)
@@ -556,11 +602,8 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
     flat = re.sub(r"\s+", " ", _strip_md(html.unescape(text))).strip()
     if not AD_GATE.search(flat) or "беспилотн" not in flat.lower():
         return None
-    cm = COUNT_RE.search(flat)
-    if not cm:
-        return None
-    drones = _count_to_int(cm.group(1))
-    if drones is None or drones > MAX_PLAUSIBLE:
+    drones = _extract_drones(flat)
+    if drones is None:
         return None
     posted_msk = posted_at_utc.astimezone(MSK)
     start, end, kind = _parse_window(flat, posted_msk)
