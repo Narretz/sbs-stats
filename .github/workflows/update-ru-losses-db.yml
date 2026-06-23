@@ -46,8 +46,14 @@ jobs:
       # ingest.py merges the fetched days into the (downloaded) DB and aborts
       # without writing if the fetch looks partial/broken — so a bad upstream
       # response fails this step and the upload below is skipped, leaving R2
-      # untouched. stdlib only, so no pip install needed.
+      # untouched. stdlib only, so no pip install needed. GITHUB_TOKEN is the
+      # workflow-scoped default token (no extra secret needed); the ingest
+      # uses it on Contents-API calls to lift the anonymous 60 req/h limit to
+      # 5000/h — relevant only if the cron ever lines up with another action
+      # hitting the same IP.
       - name: Build RU losses DB
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p scripts/ru_losses/output
           python3 scripts/ru_losses/ingest.py \

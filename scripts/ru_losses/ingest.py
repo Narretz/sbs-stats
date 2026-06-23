@@ -58,9 +58,16 @@ import urllib.request
 from datetime import date as date_cls, datetime, timedelta, timezone
 from pathlib import Path
 
-RAW = "https://raw.githubusercontent.com/PetroIvaniuk/2022-Ukraine-Russia-War-Dataset/main/data"
-EQUIP_URL = f"{RAW}/russia_losses_equipment.json"
-PERSONNEL_URL = f"{RAW}/russia_losses_personnel.json"
+# Fetch via the GitHub Contents API rather than raw.githubusercontent.com:
+# raw.* is fronted by an edge cache (Cache-Control: max-age=300 + occasional
+# longer holds during heavy traffic), so a CI run that fires inside that
+# window catches yesterday's file even when main has already been updated.
+# The Contents API reads the repo's current tree directly and isn't subject
+# to that delay; `Accept: application/vnd.github.raw` returns the file bytes
+# unaltered (same shape we'd get from the raw URL, just fresh).
+API = "https://api.github.com/repos/PetroIvaniuk/2022-Ukraine-Russia-War-Dataset/contents/data"
+EQUIP_URL = f"{API}/russia_losses_equipment.json"
+PERSONNEL_URL = f"{API}/russia_losses_personnel.json"
 
 # our daily_losses column  ←  PetroIvaniuk source key. Order is the display order;
 # mirror it in RU_LOSSES_METRIC_KEYS (src/types/index.ts). `ugs` is the category
@@ -118,7 +125,19 @@ DEFAULT_DB_NAME = os.environ.get("RU_LOSSES_DB_NAME", "ru-losses-gsua-petroivani
 
 
 def fetch_json(url: str) -> list[dict]:
-    req = urllib.request.Request(url, headers={"User-Agent": "sbs-stats-ingest"})
+    headers = {"User-Agent": "sbs-stats-ingest"}
+    # Contents API returns the raw file body when asked, dodging the JSON
+    # envelope (and base64-encoded `content` field) we'd otherwise have to
+    # unwrap. Anonymous rate-limit is 60 req/h per IP — two files per run is
+    # safely under that. A GITHUB_TOKEN, if present (CI default), lifts it
+    # to 5000/h; passing it as a Bearer is a no-op for public repos but
+    # cheap insurance against rate-limit collisions during heavy CI activity.
+    if url.startswith("https://api.github.com/"):
+        headers["Accept"] = "application/vnd.github.raw"
+        token = os.environ.get("GITHUB_TOKEN")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=60) as resp:
         if resp.status != 200:
             raise RuntimeError(f"{url} returned HTTP {resp.status}")
