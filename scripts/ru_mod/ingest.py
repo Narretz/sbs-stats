@@ -40,7 +40,7 @@ import sys
 import time
 import urllib.request
 from dataclasses import dataclass, field as dc_field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -1102,6 +1102,11 @@ def main() -> int:
         src = iter_telethon(args.channel, offset_date=offset_date)
 
     scanned = 0
+    # Track the MSK-date span this run examined so _warn_gap_days can list
+    # dates in that span with no stored AD report — catches posts the gate
+    # or parser is silently dropping (channel was active but DB has nothing).
+    scan_min: str | None = None
+    scan_max: str | None = None
     for pid, posted, text in src:
         msk_date = posted.astimezone(MSK).date().isoformat()
         # Date window (newest→oldest): skip newer than --until, stop past --since.
@@ -1110,6 +1115,10 @@ def main() -> int:
         if args.since and msk_date < args.since:
             break
         scanned += 1
+        if scan_min is None or msk_date < scan_min:
+            scan_min = msk_date
+        if scan_max is None or msk_date > scan_max:
+            scan_max = msk_date
         r = parse_report(text, pid, posted)
         if r:
             reports.append(r)
@@ -1122,7 +1131,45 @@ def main() -> int:
     print(f"==> scanned {scanned} posts, parsed {len(reports)} AD reports "
           f"+ {len(summaries)} Сводка summaries, inserted {inserted} new AD; "
           f"DB total {total} (latest {latest}) → {out}")
+    _warn_gap_days(out, scan_min, scan_max)
     return 0
+
+
+def _warn_gap_days(out: Path, scan_min: str | None, scan_max: str | None) -> None:
+    """Print a WARNING listing dates in [scan_min, scan_max] with no stored
+    ad_reports row. Run after store() so freshly-ingested rows count.
+
+    Today's MSK date is excluded — the channel's overnight report often
+    lands several hours into the new day, so an in-progress day with no
+    report yet isn't a signal worth surfacing on every CI run.
+    """
+    if not scan_min or not scan_max:
+        return
+    today = datetime.now(MSK).date().isoformat()
+    if scan_max >= today:
+        scan_max = (date.fromisoformat(today) - timedelta(days=1)).isoformat()
+    if scan_max < scan_min:
+        return
+    with sqlite3.connect(out) as conn:
+        covered = {d for (d,) in conn.execute(
+            "SELECT DISTINCT report_date FROM ad_latest "
+            "WHERE report_date BETWEEN ? AND ?",
+            (scan_min, scan_max),
+        )}
+    gaps: list[str] = []
+    d = date.fromisoformat(scan_min)
+    end = date.fromisoformat(scan_max)
+    while d <= end:
+        s = d.isoformat()
+        if s not in covered:
+            gaps.append(s)
+        d += timedelta(days=1)
+    if not gaps:
+        return
+    head = ", ".join(gaps[:10])
+    more = f" (+{len(gaps) - 10} more)" if len(gaps) > 10 else ""
+    print(f"WARNING: {len(gaps)} day(s) in [{scan_min}, {scan_max}] "
+          f"with no AD report in DB — verify with probe_gap.py: {head}{more}")
 
 
 if __name__ == "__main__":
