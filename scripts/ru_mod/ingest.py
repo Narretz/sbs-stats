@@ -368,7 +368,25 @@ MAX_PLAUSIBLE = 5000  # guard against a runaway parse
 # (no personnel); a daily variant uses "по состоянию на DD month YYYY". These
 # appear to have stopped on the channel in 2026. We capture them RAW (header +
 # full text) for later parsing — see DATASETS.md §3.
-SVODKA_GATE = re.compile(r"обороны\s+Российской\s+Федерации\s+о\s+ходе\s+проведения\s+специальной\s+военной\s+операции", re.I)
+# Сводки come in multiple parts. Part 1 always carries the formal header
+# ("Министерства обороны Российской Федерации о ходе проведения специальной
+# военной операции"); follow-on parts (part 2+, msg 51524 Apr 2025) drop
+# the header and open straight with operational recap content. Two markers
+# reliably identify these continuation posts and never appear in standalone
+# AD intercept reports:
+#   * "См. часть N"  — back-reference to part 1
+#   * "Всего с начала проведения специальной военной операции"  — running
+#     cumulative-stats footer
+# Without these the part 2 post matches AD_GATE (via incidental "ПВО"
+# mentions) but no headline regex, getting dropped entirely — and the
+# gap-day warning then flags the day as "no AD report" while really there
+# just isn't a standalone intercept post.
+SVODKA_GATE = re.compile(
+    r"обороны\s+Российской\s+Федерации\s+о\s+ходе\s+проведения\s+специальной\s+военной\s+операции"
+    r"|см\.\s+часть\s+\d"
+    r"|Всего\s+с\s+начала\s+проведения\s+специальной\s+военной\s+операции",
+    re.I,
+)
 # Weekly range: "с 29 ноября по 5 декабря 2025" or shared-month "со 2 по 8 мая 2026".
 SVODKA_WEEKLY_RE = re.compile(r"с[о]?\s+(\d{1,2})(?:\s+(\w+))?\s+по\s+(\d{1,2})\s+(\w+)\s+(\d{4})", re.I)
 SVODKA_DAILY_RE = re.compile(r"по\s+состоянию\s+на\s+(\d{1,2}\s+\w+\s+\d{4})", re.I)
@@ -693,6 +711,12 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
     """Parse one AD intercept post; return None if it isn't one."""
     flat = re.sub(r"\s+", " ", _strip_md(html.unescape(text))).strip()
     if not AD_GATE.search(flat) or "беспилотн" not in flat.lower():
+        return None
+    # Сводка posts often carry "ПВО уничтожено N беспилотных летательных
+    # аппаратов" inside their daily-stats block, satisfying AD_GATE. Reject
+    # them up front so a future wording variant doesn't slip through as a
+    # spurious AD report — parse_summary handles them on the next pass.
+    if SVODKA_GATE.search(flat):
         return None
     extracted = _extract_drones(flat)
     if extracted is None:

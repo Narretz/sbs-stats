@@ -1010,6 +1010,27 @@ class TestSummary:
         # The loss Сводка must not be misread as a daily air-defense report.
         assert _parse(WEEKLY_SVODKA, posted_utc="2025-12-06T08:00:00+00:00") is None
 
+    def test_svodka_part2_caught_without_header(self):
+        # msg 51524 (Apr 2025): Сводка part 2 doesn't repeat the formal
+        # header — opens straight with operational recap content. The
+        # widened SVODKA_GATE matches via "См. часть N" and "Всего с
+        # начала проведения специальной военной операции", so the post
+        # lands in summaries (kind='svodka') instead of being silently
+        # dropped, and parse_report's SVODKA guard keeps it out of
+        # ad_reports even if a future variant would otherwise match a
+        # headline regex.
+        text = (
+            "📍 Подразделения группировки войск «Центр» заняли более выгодные рубежи. "
+            "🎯 Средствами противовоздушной обороны уничтожены три управляемых "
+            "авиационных бомбы JDAM, а также 88 беспилотных летательных аппаратов. "
+            "📊 Всего с начала проведения специальной военной операции уничтожены: "
+            "52 831 беспилотный летательный аппарат. 👉 См. часть 1 🔹 Минобороны России"
+        )
+        assert _parse(text, posted_utc="2025-04-20T06:00:00+00:00") is None
+        s = _summary(text, posted_utc="2025-04-20T06:00:00+00:00")
+        assert s is not None
+        assert s.kind == "svodka"
+
     def test_ad_report_is_not_a_summary(self):
         assert _summary(
             "С 14.00 до 20.00 мск дежурными средствами ПВО перехвачены и уничтожены 11 "
