@@ -973,8 +973,10 @@ CREATE TABLE IF NOT EXISTS ad_regions (
 CREATE INDEX IF NOT EXISTS ix_adr_region ON ad_regions(region);
 -- Days verified to have no standalone AD intercept post (the MoD was active
 -- — usually a Сводка was posted — but didn't issue a discrete ПВО report).
--- Surfaced in daily_ad as a 0-drone row so the frontend chart stays
--- continuous, and the gap-day ingest warning stops re-flagging the date.
+-- Used by _warn_gap_days to suppress re-flagging dates we've already
+-- audited; the frontend deliberately does NOT render these as 0 rows
+-- because the day's actual intercept count is unknown (the Сводка stats
+-- aren't parsed yet). A gap on the chart is the honest signal.
 -- Populated manually via `python ingest.py --mark-silent YYYY-MM-DD '<note>'`.
 CREATE TABLE IF NOT EXISTS silent_days (
   report_date TEXT PRIMARY KEY,
@@ -985,13 +987,7 @@ CREATE VIEW IF NOT EXISTS daily_ad AS
   SELECT report_date AS date,
          SUM(drones)  AS drones_destroyed,
          COUNT(*)     AS reports
-  FROM ad_latest GROUP BY report_date
-  UNION ALL
-  SELECT report_date AS date,
-         0 AS drones_destroyed,
-         0 AS reports
-  FROM silent_days
-  WHERE report_date NOT IN (SELECT report_date FROM ad_latest);
+  FROM ad_latest GROUP BY report_date;
 CREATE VIEW IF NOT EXISTS region_totals AS
   SELECT g.region,
          SUM(g.drones)           AS drones,

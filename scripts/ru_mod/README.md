@@ -59,10 +59,13 @@ an edit inserts a **new version row**, never overwrites. Reads resolve the lates
   reporting Ukrainian losses** at the end of February 2026; capturing the raw text now means
   we can backfill-parse later. PK `(post_id, scraped_at)`.
 - **`silent_days`** — dates verified to have no standalone MoD AD intercept
-  post (usually only Сводки went out that day). `daily_ad` UNIONs in a
-  0-drone row for each entry so the frontend chart stays continuous, and
-  the gap-day ingest warning stops re-flagging the date. Populated
-  manually after verifying with `probe_gap.py`:
+  post (usually only Сводки went out that day). Used by the gap-day ingest
+  warning to skip already-audited dates so they don't re-flag every run.
+  The frontend deliberately does NOT render these as 0 — a no-post day
+  isn't a "verified 0 drones" day (drones may have been intercepted but
+  only mentioned inside the Сводка stats we don't yet parse), so a chart
+  gap is the honest signal. Populated manually after verifying with
+  `probe_gap.py`:
   ```sh
   python ingest.py --mark-silent 2025-04-20 \
     "no standalone AD post; Сводка part 1+2 (51523, 51524) went out instead"

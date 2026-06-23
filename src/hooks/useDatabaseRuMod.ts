@@ -134,37 +134,18 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
       if (!db) return [];
       const todayStr = getMskDateString();
       const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
-      const winStart = windowStartSql(endDateSql, days);
-      // UNION in `silent_days` rows (dates verified to have NO standalone MoD
-      // AD intercept post — usually a Сводка-only day) so the chart renders
-      // them as explicit zeros instead of skipping. silent_days is a recent
-      // schema addition; some prod DBs may not have it yet, so check first
-      // and skip the UNION if the table isn't present.
-      const hasSilent = queryRows<Record<string, string>>(
-        db,
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='silent_days'"
-      ).length > 0;
-      const sql = hasSilent
-        ? `SELECT * FROM (
-              ${DAILY_SELECT}
-              WHERE report_date >= ${winStart}
-                AND report_date <= date('${endDateSql}')
-              GROUP BY report_date
-            UNION ALL
-              SELECT s.report_date AS date,
-                     0 AS total, 0 AS night, 0 AS day, 0 AS reports,
-                     0 AS overlap_total, 0 AS overlap_night, 0 AS overlap_day,
-                     NULL AS overlap_note_total, NULL AS overlap_note_night, NULL AS overlap_note_day
-              FROM silent_days s
-              WHERE s.report_date >= ${winStart}
-                AND s.report_date <= date('${endDateSql}')
-                AND NOT EXISTS (SELECT 1 FROM ad_reports r WHERE r.report_date = s.report_date)
-            ) ORDER BY date ASC`
-        : `${DAILY_SELECT}
-            WHERE report_date >= ${winStart}
-              AND report_date <= date('${endDateSql}')
-            GROUP BY report_date
-            ORDER BY report_date ASC`;
+      // silent_days is intentionally NOT unioned in here: a day with no
+      // standalone AD post isn't a "verified 0 drones" day — drones may
+      // have been intercepted but only mentioned inside the Сводка stats
+      // we don't yet parse, so an explicit 0 would be misleading. The
+      // honest render is a gap. silent_days still earns its keep
+      // server-side (suppressing the ingest gap-day warning so already-
+      // audited days don't re-flag).
+      const sql = `${DAILY_SELECT}
+        WHERE report_date >= ${windowStartSql(endDateSql, days)}
+          AND report_date <= date('${endDateSql}')
+        GROUP BY report_date
+        ORDER BY report_date ASC`;
       const numOr = (v: unknown, fallback = 0): number => (typeof v === "number" ? v : fallback);
       const strOr = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
       return queryRows<Record<string, number | string>>(db, sql).map((r) => ({
