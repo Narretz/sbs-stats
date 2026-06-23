@@ -560,6 +560,40 @@ class TestBreakdown:
         bd = dict(r.breakdown)
         assert bd == {"Белгородской области": 15, "Курской области": 6, "Воронежской области": 2}
 
+    def test_po_phrase_stops_at_next_po_item(self):
+        # Bullet-less post chains "по N БПЛА" items with commas. The first
+        # phrase must stop at ", по <count>" so the next "по" item doesn't
+        # get absorbed and inflate the sum. msg 49522 (Mar 2025).
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачены и "
+            "уничтожены 10 украинских беспилотных летательных аппаратов: "
+            "по три БпЛА над территориями Белгородской и Ростовской областей, "
+            "по два БпЛА над территориями Смоленской и Липецкой областей.",
+            posted_utc="2025-03-01T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd == {
+            "Белгородской области": 3, "Ростовской области": 3,
+            "Смоленской области":   2, "Липецкой области":   2,
+        }
+
+    def test_po_phrase_stops_at_conjunction_po(self):
+        # Trailing "и по <count>" boundary (no БПЛА before the dash) —
+        # msg 49931 (Mar 2025). Adding the "и по" alternation alongside
+        # bare "по" so the conjunction doesn't get consumed into the region.
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачены и "
+            "уничтожены шесть украинских беспилотных летательных аппаратов: "
+            "по два БпЛА уничтожены над территориями Воронежской и Орловской областей "
+            "и по одному – над территориями Белгородской и Курской областей.",
+            posted_utc="2025-03-10T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd == {
+            "Воронежской области": 2, "Орловской области": 2,
+            "Белгородской области": 1, "Курской области":  1,
+        }
+
     def test_footer_summary_after_emoji_is_ignored(self):
         # Some posts append a "📊 Всего за время налета … 26.05 над
         # российскими регионами сбито 148 …" footer summarising a wider

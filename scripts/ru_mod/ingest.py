@@ -123,14 +123,19 @@ _DASH_OR_NAD = r"(?:[-–—]\s*(?:над\s+)?|над\s+)"
 # small squares. Both pre-2025 and post-2025 posts mix the two freely; the
 # region capture must stop at either.
 _BULLET = "▫▪"
-# Stop the region phrase at the next bullet, a "new item" marker (`и <count>
-# БПЛА…` is a fresh bullet, not a continuation of the current region tail),
-# a comma, period, semicolon, or any digit (which would start a new count).
-# The lookahead handles the bullet-less form (post 54759, where items are
-# joined by `, шесть БПЛА…` without a glyph).
-_NEXT_ITEM_LA = (
-    rf"(?!\s+и\s+(?:\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}})\s+БПЛА)"
+# Stop the region phrase at the next item, in any of these bullet-less forms:
+#   " и <count> БПЛА…"      — "Брянской области и один БПЛА – …"   (msg 54759)
+#   " по <count> …"          — "Ростовской областей, по два БПЛА…"  (msg 49522)
+#   " и по <count> …"        — "Орловской областей и по одному – …" (msg 49931)
+# The "по" marker NEVER appears mid-region-name in this channel — it's always
+# the start of a distributive bullet — so a bare `по <count>` is unambiguous.
+_BOUNDARY_PATTERN = (
+    rf"\s+(?:"
+    rf"(?:и\s+)?по\s+(?:\d+|[А-Яа-яЁё]+)"
+    rf"|и\s+(?:\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}})\s+БПЛА"
+    rf")"
 )
+_NEXT_ITEM_LA = rf"(?!{_BOUNDARY_PATTERN})"
 REGION_ITEM_RE = re.compile(
     rf"(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}}?)\s*(?:БПЛА\s*)?{_VERB_OPT}{_DASH_OR_NAD}"
     rf"((?:{_NEXT_ITEM_LA}[^,.;{_BULLET}\d])+)",
@@ -143,11 +148,10 @@ REGION_ITEM_RE = re.compile(
 # posts — the next `и <count> БПЛА` boundary (otherwise the phrase swallows
 # subsequent items and inflates the breakdown sum).
 # `_NEXT_ITEM_BOUNDARY` matches the position right before the next item in a
-# bullet-less post (`Курской и Ростовской областей и один БПЛА – …`), so the
-# distributive phrase can legitimately end there as well as at `.` / a bullet.
-_NEXT_ITEM_BOUNDARY = (
-    rf"\s+и\s+(?:\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}})\s+БПЛА"
-)
+# bullet-less post — same alternation as _NEXT_ITEM_LA, used as the trailing
+# `(?=…|.|▫|▪)` end assertion on PO_ITEM_RE so the lazy region group has a
+# valid stopping point.
+_NEXT_ITEM_BOUNDARY = _BOUNDARY_PATTERN
 PO_ITEM_RE = re.compile(
     rf"по\s+(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}}?)\s*(?:БПЛА\s*)?{_VERB_OPT}{_DASH_OR_NAD}"
     rf"((?:{_NEXT_ITEM_LA}[^.{_BULLET}])+?)(?=[.{_BULLET}]|{_NEXT_ITEM_BOUNDARY}|$)",
