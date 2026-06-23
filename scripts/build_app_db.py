@@ -5,18 +5,18 @@ Build a frontend-only copy of a dataset DB with bulky text columns stripped.
 The full DB stays as the authoritative R2 object: ingest scripts and reparse.py
 need the raw post text to re-derive parsed fields from stored sources (and
 future Сводка/transcript parsing experiments will too). The frontend never
-queries those text columns, so the public copy can drop their contents — for
+queries those text columns, so the app copy can drop their contents — for
 ru-mod-ad that shrinks the DB ~5×, for gsua ~3×. CI uploads both the
-authoritative '<name>.db' and the stripped '<name>.public.db'; the frontend's
-VITE_*_DB_URL points at the public copy.
+authoritative '<name>.db' and the stripped '<name>.app.db'; the frontend's
+VITE_*_DB_URL points at the app copy.
 
 Sentinel choice is automatic: NULL where the column allows it, '' where there's
 a NOT NULL constraint — so post-VACUUM the row layout shrinks either way.
 
 Usage:
-  python scripts/build_public_db.py \\
+  python scripts/build_app_db.py \\
     --in scripts/ru_mod/output/ru-mod-ad.db \\
-    --out scripts/ru_mod/output/ru-mod-ad.public.db \\
+    --out scripts/ru_mod/output/ru-mod-ad.app.db \\
     --blank ad_reports.raw_text \\
     --blank summaries.raw_text
 """

@@ -77,20 +77,20 @@ jobs:
       # Strip the bulky `posts.text` column into a frontend-only copy
       # (~7 MB of UA-staff post text the FE never queries → DB shrinks ~3×).
       # Uploaded alongside the full DB; the frontend's VITE_GSUA_DB_URL points
-      # at this public copy.
-      - name: Build public GSUA DB (strip raw text)
+      # at this app copy.
+      - name: Build app GSUA DB (strip raw text)
         run: |
-          python3 scripts/build_public_db.py \
+          python3 scripts/build_app_db.py \
             --in  "scripts/gsua/output/$GSUA_DB_NAME" \
-            --out "scripts/gsua/output/${GSUA_DB_NAME%.db}.public.db" \
+            --out "scripts/gsua/output/${GSUA_DB_NAME%.db}.app.db" \
             --blank posts.text
 
-      - name: Upload GSUA DB to R2 (full + public)
+      - name: Upload GSUA DB to R2 (full + app)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          for variant in "$GSUA_DB_NAME" "${GSUA_DB_NAME%.db}.public.db"; do
+          for variant in "$GSUA_DB_NAME" "${GSUA_DB_NAME%.db}.app.db"; do
             npx --yes wrangler@4 r2 object put \
               "$R2_BUCKET/$variant" \
               --file "scripts/gsua/output/$variant" \
@@ -166,21 +166,21 @@ jobs:
 
       # Strip the two bulky raw_text columns into a frontend-only copy
       # (Сводки are long → DB shrinks ~5×). Uploaded alongside the full DB;
-      # the frontend's VITE_RU_MOD_DB_URL points at this public copy.
-      - name: Build public RU MoD DB (strip raw text)
+      # the frontend's VITE_RU_MOD_DB_URL points at this app copy.
+      - name: Build app RU MoD DB (strip raw text)
         run: |
-          python3 scripts/build_public_db.py \
+          python3 scripts/build_app_db.py \
             --in  "scripts/ru_mod/output/$RU_MOD_DB_NAME" \
-            --out "scripts/ru_mod/output/${RU_MOD_DB_NAME%.db}.public.db" \
+            --out "scripts/ru_mod/output/${RU_MOD_DB_NAME%.db}.app.db" \
             --blank ad_reports.raw_text \
             --blank summaries.raw_text
 
-      - name: Upload RU MoD DB to R2 (full + public)
+      - name: Upload RU MoD DB to R2 (full + app)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          for variant in "$RU_MOD_DB_NAME" "${RU_MOD_DB_NAME%.db}.public.db"; do
+          for variant in "$RU_MOD_DB_NAME" "${RU_MOD_DB_NAME%.db}.app.db"; do
             npx --yes wrangler@4 r2 object put \
               "$R2_BUCKET/$variant" \
               --file "scripts/ru_mod/output/$variant" \
