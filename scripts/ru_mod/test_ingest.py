@@ -1149,7 +1149,7 @@ class TestStorage:
         db = tmp_path / "ad.db"
         reports = self._reports_for_one_drone_day()
 
-        inserted, total, latest = ig.store(db, reports)
+        inserted, _sum_by_kind, total, latest = ig.store(db, reports)
         assert inserted == 4 and total == 4 and latest == "2026-05-23"
 
         conn = sqlite3.connect(db)
@@ -1160,7 +1160,7 @@ class TestStorage:
         assert row == ("2026-05-23", 348 + 17 + 42 + 11, 4)  # 418 total, 4 reports
 
         # Re-store the same posts → change detection sees no change, nothing added.
-        inserted2, total2, _ = ig.store(db, reports)
+        inserted2, _sum2, total2, _ = ig.store(db, reports)
         assert inserted2 == 0 and total2 == 4
 
     def test_region_breakdown_persisted(self, tmp_path):
@@ -1259,9 +1259,12 @@ class TestVersioning:
     def test_edit_adds_version_latest_wins(self, tmp_path):
         import sqlite3
         db = tmp_path / "ad.db"
-        assert ig.store(db, [self._report(100)])[:2] == (1, 1)   # first version
-        assert ig.store(db, [self._report(100)])[:2] == (0, 1)   # unchanged → no new version
-        assert ig.store(db, [self._report(120)])[:2] == (1, 2)   # edited → second version
+        # store() returns (inserted_ad, sum_by_kind, total, latest); inserted_ad
+        # and total are the relevant values for this versioning assertion.
+        _take = lambda t: (t[0], t[2])
+        assert _take(ig.store(db, [self._report(100)])) == (1, 1)  # first version
+        assert _take(ig.store(db, [self._report(100)])) == (0, 1)  # unchanged → no new version
+        assert _take(ig.store(db, [self._report(120)])) == (1, 2)  # edited → second version
 
         conn = sqlite3.connect(db)
         versions = conn.execute("SELECT COUNT(*) FROM ad_reports WHERE post_id=700").fetchone()[0]

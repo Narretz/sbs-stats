@@ -1028,7 +1028,7 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE ad_reports ADD COLUMN notes TEXT")
 
 
-def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -> tuple[int, int, str | None]:
+def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -> tuple[int, dict[str, int], int, str | None]:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
@@ -1086,7 +1086,12 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
                 )
             inserted += 1
 
-        sum_inserted = 0
+        # Track summary inserts by kind so the run summary can show which
+        # specific kinds (svodka_daily / briefing / main_of_day / …) were
+        # newly captured this run — a single "N summaries" line obscured
+        # which one actually landed, especially when refetching a small
+        # window expecting one specific kind (e.g. a briefing re-ingest).
+        sum_inserted_by_kind: dict[str, int] = {}
         for s in summaries:
             if latest_sum.get(s.post_id) == _norm_summary(s.raw_text):
                 continue
@@ -1095,7 +1100,7 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
                 "VALUES (?,?,?,?,?,?)",
                 (s.post_id, scraped, s.posted_at, s.kind, s.period, s.raw_text),
             )
-            sum_inserted += 1
+            sum_inserted_by_kind[s.kind] = sum_inserted_by_kind.get(s.kind, 0) + 1
 
         conn.commit()
         total = conn.execute("SELECT COUNT(*) FROM ad_reports").fetchone()[0]
@@ -1130,7 +1135,7 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
                       f"per-region breakdown; none new this run.", file=sys.stderr)
     finally:
         conn.close()
-    return inserted, total, latest
+    return inserted, sum_inserted_by_kind, total, latest
 
 
 def _overlap_pairs(conn) -> list[tuple[int, str, int, str]]:
@@ -1319,9 +1324,19 @@ def main() -> int:
         if s:
             summaries.append(s)
 
-    inserted, total, latest = store(out, reports, summaries)
-    print(f"==> scanned {scanned} posts, parsed {len(reports)} AD reports "
-          f"+ {len(summaries)} Сводка summaries, inserted {inserted} new AD; "
+    inserted, sum_inserted_by_kind, total, latest = store(out, reports, summaries)
+    # Per-kind breakdown of summary parses (what we read this run) AND
+    # inserts (what was new vs. already in the DB at this content version).
+    sum_parsed_by_kind: dict[str, int] = {}
+    for s in summaries:
+        sum_parsed_by_kind[s.kind] = sum_parsed_by_kind.get(s.kind, 0) + 1
+    def _kinds(d: dict[str, int]) -> str:
+        return ", ".join(f"{k} {v}" for k, v in sorted(d.items()))
+    sum_total = sum(sum_inserted_by_kind.values())
+    parsed_str = f"{len(summaries)} parsed" + (f" [{_kinds(sum_parsed_by_kind)}]" if sum_parsed_by_kind else "")
+    new_str = f"{sum_total} new" + (f" [{_kinds(sum_inserted_by_kind)}]" if sum_inserted_by_kind else "")
+    print(f"==> scanned {scanned} posts; AD: {len(reports)} parsed → {inserted} new; "
+          f"summaries: {parsed_str} → {new_str}; "
           f"DB total {total} (latest {latest}) → {out}")
     _warn_gap_days(out, scan_min, scan_max)
     return 0
