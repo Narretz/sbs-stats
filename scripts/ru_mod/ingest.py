@@ -88,6 +88,13 @@ COUNT_SINGULAR_RE = re.compile(
     rf"украинский\s+{_UNIT_NOUN}(?:\s+\w+){{0,3}}\s+{_AD_VERB}",
     re.I,
 )
+# Verb-first singular: "уничтожен украинский <unit> над <region>" (msg
+# 49558, Mar 2025) — the short verb-first form for one-drone intercepts.
+# Mirror of COUNT_SINGULAR_RE with the verb fronted.
+COUNT_SINGULAR_VERB_FIRST_RE = re.compile(
+    rf"уничтожен\w*(?:\s+и\s+{_AD_VERB})?\s+украинский\s+{_UNIT_NOUN}",
+    re.I,
+)
 # Is this an air-defense intercept post at all?
 AD_GATE = re.compile(r"(противовоздушн|средствами\s+пво|перехвач\w+\s+и\s+уничтож)", re.I)
 # Explicit night range with dates: "с 20.00 мск 22 мая до 7.00 мск 23 мая".
@@ -323,7 +330,7 @@ def _extract_drones(flat: str) -> tuple[int, str] | None:
         n = _count_to_int(m.group(1))
         if n is not None and n <= MAX_PLAUSIBLE:
             return n, "noun_first"
-    if COUNT_SINGULAR_RE.search(flat):
+    if COUNT_SINGULAR_RE.search(flat) or COUNT_SINGULAR_VERB_FIRST_RE.search(flat):
         return 1, "singular"
     return None
 

@@ -118,14 +118,22 @@ def main() -> int:
         ad = bool(ig.AD_GATE.search(flat)) and "беспилотн" in flat.lower()
         sv = bool(ig.SVODKA_GATE.search(flat))
         gate = "AD" if ad else ("SV" if sv else "--")
-        stored = pid in known_ad or pid in known_sv
+        # Distinguish stored-AS-AD from stored-AS-SV — the AD gate fires on
+        # many Сводка posts because they recap "перехвачено и уничтожено N
+        # БПЛА" stats, but parse_summary takes them first in main() so the
+        # row ends up in `summaries`, not `ad_reports`. A flat "stored" was
+        # misleading there.
+        if pid in known_ad:
+            flag = "as-AD "
+        elif pid in known_sv:
+            flag = "as-SV "
+        else:
+            flag = "MISSED"
+            n_missed += 1
         if ad:
             n_ad += 1
         if sv:
             n_sv += 1
-        if not stored:
-            n_missed += 1
-        flag = "stored" if stored else "MISSED"
         if args.full:
             verdict = _diagnose(text)
             full = " ".join(flat.split())

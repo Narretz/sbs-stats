@@ -676,6 +676,18 @@ class TestBreakdown:
         )
         assert r.drones == 2
 
+    def test_headline_singular_verb_first(self):
+        # msg 49558 (Mar 2025): "уничтожен украинский беспилотный летательный
+        # аппарат над …" — singular form with the verb FRONTED. The original
+        # COUNT_SINGULAR_RE only matched the noun-first ordering ("украинский
+        # … уничтожен"); added COUNT_SINGULAR_VERB_FIRST_RE for this mirror.
+        r = _parse(
+            "Около 9.30 мск дежурными средствами ПВО уничтожен украинский "
+            "беспилотный летательный аппарат над территорией Белгородской области.",
+            posted_utc="2025-03-02T05:00:00+00:00",
+        )
+        assert r.drones == 1
+
     def test_headline_singular_implicit_count(self):
         # msg 44518, 44461, 44465 (Oct 2024): "украинский беспилотный
         # летательный аппарат уничтожен над …" — no numeral in the text;
