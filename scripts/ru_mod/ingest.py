@@ -390,13 +390,22 @@ SVODKA_GATE = re.compile(
     r"|см\.\s+часть\s+\d"
     r"|Всего\s+с\s+начала\s+проведения\s+специальной\s+военной\s+операции"
     r"|Главное\s+за\s+день"
-    r"|#ИтогиДня",
+    r"|#ИтогиДня"
+    # "Тезисы брифинга …" briefing transcripts (msg 59941, Dec 2025 Putin
+    # residence attack recap) — multi-region, multi-day, with time-window
+    # sub-bullets that wrecked the standard breakdown parser. Treat as a
+    # summary; the headline drone count ("девяносто одного") sits outside
+    # any verb-first/noun-first form so parse_report can't extract it
+    # cleanly without a dedicated briefing-transcript pass we don't yet
+    # have. Store raw for a future structured parser.
+    r"|Тезисы\s+брифинга",
     re.I,
 )
 # Subset of SVODKA_GATE that identifies daily-wrap-up posts specifically,
 # so parse_summary can tag them with a distinct `kind` ('main_of_day')
 # rather than the generic 'svodka'.
 _MAIN_OF_DAY_MARKER = re.compile(r"Главное\s+за\s+день|#ИтогиДня", re.I)
+_BRIEFING_MARKER = re.compile(r"Тезисы\s+брифинга", re.I)
 # Weekly range: "с 29 ноября по 5 декабря 2025" or shared-month "со 2 по 8 мая 2026".
 SVODKA_WEEKLY_RE = re.compile(r"с[о]?\s+(\d{1,2})(?:\s+(\w+))?\s+по\s+(\d{1,2})\s+(\w+)\s+(\d{4})", re.I)
 SVODKA_DAILY_RE = re.compile(r"по\s+состоянию\s+на\s+(\d{1,2}\s+\w+\s+\d{4})", re.I)
@@ -778,15 +787,23 @@ def parse_summary(text: str, post_id: int, posted_at_utc: datetime) -> Summary |
     flat = re.sub(r"\s+", " ", html.unescape(text)).strip()
     if not SVODKA_GATE.search(flat):
         return None
-    w = SVODKA_WEEKLY_RE.search(flat)
-    if w:
-        d1, mon1, d2, mon2, yr = w.groups()
-        kind, period = "svodka_weekly", f"{d1} {mon1 or mon2} – {d2} {mon2} {yr}"
+    # Briefing and main-of-day markers checked first — both carry incidental
+    # "с D по D" date phrases that would otherwise satisfy SVODKA_WEEKLY_RE
+    # and get mis-tagged as a weekly Сводка (msg 59941's "с 28 по 29 декабря
+    # 2025" inside a "Тезисы брифинга" was the trigger).
+    if _BRIEFING_MARKER.search(flat):
+        # "Тезисы брифинга" briefing transcripts — multi-region, time-
+        # windowed AD recaps that don't fit the standard single-window
+        # model. Distinct kind so we can build a structured parser later.
+        kind, period = "briefing", None
     elif _MAIN_OF_DAY_MARKER.search(flat):
         # "Главное за день" daily wrap-ups carry no period header — they're
         # the day they're posted on. Distinct kind so a future pass can
         # extract their "сбиты N БПЛА" recap separately from Сводка parts.
         kind, period = "main_of_day", None
+    elif (w := SVODKA_WEEKLY_RE.search(flat)):
+        d1, mon1, d2, mon2, yr = w.groups()
+        kind, period = "svodka_weekly", f"{d1} {mon1 or mon2} – {d2} {mon2} {yr}"
     else:
         d = SVODKA_DAILY_RE.search(flat)
         kind, period = ("svodka_daily", d.group(1)) if d else ("svodka", None)

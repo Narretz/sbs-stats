@@ -1010,6 +1010,32 @@ class TestSummary:
         # The loss Сводка must not be misread as a daily air-defense report.
         assert _parse(WEEKLY_SVODKA, posted_utc="2025-12-06T08:00:00+00:00") is None
 
+    def test_briefing_transcript(self):
+        # msg 59941 (Dec 2025): "Тезисы брифинга начальника зенитных
+        # ракетных войск" — a multi-region, time-windowed briefing
+        # transcript recapping the Dec 28-29 attack on Putin's residence.
+        # 91 drones over 3 regions, each subdivided by time windows that
+        # wrecked parse_breakdown (it captured timestamps as counts and
+        # got bd_sum=363 vs drones=41). The post doesn't fit the standard
+        # single-window AD model; route to summaries with kind='briefing'.
+        # Briefing marker also has to win against the incidental "с 28 по
+        # 29 декабря 2025" date phrase that would otherwise trigger
+        # SVODKA_WEEKLY_RE and mis-tag as a weekly Сводка.
+        text = (
+            "Тезисы брифинга начальника зенитных ракетных войск ВКС России. "
+            "В период с 28 по 29 декабря 2025 года киевский режим предпринял "
+            "попытку террористической атаки с применением девяносто одного "
+            "беспилотного летательного аппарата. Над территорией Брянской области "
+            "сбито сорок девять беспилотных летательных аппаратов. Над территорией "
+            "Новгородской области сбит сорок один украинский беспилотный "
+            "летательный аппарат. 🔹 Минобороны России"
+        )
+        assert _parse(text, posted_utc="2025-12-31T08:00:00+00:00") is None
+        s = _summary(text, posted_utc="2025-12-31T08:00:00+00:00")
+        assert s is not None
+        assert s.kind == "briefing"
+        assert s.period is None
+
     def test_main_of_day_wrapup(self):
         # msg 52583 (May 2025): "📆 Главное за день … #ИтогиДня" — sibling
         # of Сводка, recaps the day's AD totals in passing rather than
