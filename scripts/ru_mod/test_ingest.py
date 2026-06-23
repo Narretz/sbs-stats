@@ -577,6 +577,35 @@ class TestBreakdown:
             "Смоленской области":   2, "Липецкой области":   2,
         }
 
+    def test_no_bullets_multi_verb_post(self):
+        # msg 47783 (Jan 2025): no ▫/▪ bullets at all, items separated by
+        # commas and periods, plus three different verbs (уничтожен,
+        # сбиты/сбито, перехвачены) and a multi-word numeral ("Тридцать
+        # один"). Stresses the count's greedy expansion (must include
+        # "один" but stop before "БПЛА" or any verb) and the PO_ITEM_RE
+        # backwards span-extension over a preceding " и " conjunction.
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачены и "
+            "уничтожены 85 украинских беспилотных летательных аппаратов. "
+            "Тридцать один БпЛА уничтожен над акваторией Черного моря, "
+            "по шестнадцать БпЛА сбиты над территориями Воронежской области и Краснодарского края, "
+            "четырнадцать – над акваторией Азовского моря, "
+            "четыре – над территорией Белгородской области, "
+            "два БпЛА перехвачены над территорией Тамбовской области "
+            "и по одному сбито над территориями Республики Крым и Курской области.",
+            posted_utc="2025-01-23T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert sum(bd.values()) == 85
+        assert bd["Черного моря"] == 31
+        assert bd["Воронежской области"] == 16
+        assert bd["Краснодарского края"] == 16
+        assert bd["Азовского моря"] == 14
+        assert bd["Белгородской области"] == 4
+        assert bd["Тамбовской области"] == 2
+        assert bd["Республики Крым"] == 1
+        assert bd["Курской области"] == 1
+
     def test_trailing_dashed_item_joined_by_conjunction(self):
         # "… и <count> – над …" boundary (no БПЛА), msg 48889 / 48760 /
         # 48594 (Feb 2025). REGION_ITEM_RE's region group otherwise greedily

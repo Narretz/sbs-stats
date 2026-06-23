@@ -117,7 +117,12 @@ REGION_RE = re.compile(r"над\s+территор\w+\s+(.*)", re.I)
 # БПЛА сбиты над …" — no dash). Anchoring on a verb OR a dash followed by
 # "над" lets the regexes tolerate either form without matching the headline
 # (which has no verb between its count and the rest of the sentence).
-_VERB_OPT = r"(?:(?:уничтожен[ыо]|сбит[оы])\s+)?"
+# Optional verb token allowed between БПЛА (or count) and the dash/над. The
+# bare suffix is masculine-singular (governs counts ending in 1 but not 11,
+# e.g. "Тридцать один БПЛА уничтожен"); "ы"/"о" cover plural and neuter forms.
+# "перехвачен[ыо]" added after msg 47783 used "перехвачены" in a per-region
+# bullet alongside the more common "уничтожен"/"сбит".
+_VERB_OPT = r"(?:(?:уничтожен[ыо]?|сбит[оы]?|перехвачен[ыо]?)\s+)?"
 _DASH_OR_NAD = r"(?:[-–—]\s*(?:над\s+)?|над\s+)"
 # Bullet glyphs the channel uses between items: WHITE (▫️) and BLACK (▪️)
 # small squares. Both pre-2025 and post-2025 posts mix the two freely; the
@@ -150,8 +155,20 @@ _NEXT_ITEM_LA = rf"(?!{_BOUNDARY_PATTERN})"
 # БпЛА – над …", msg 49133) instead of dropping it as in the headline form.
 # Tolerate either ordering before the БПЛА unit.
 _UA_OPT = r"(?:украин\w+\s+)?"
+# Count group: digits OR a 1–3 word Russian numeral. Multi-word numerals are
+# matched greedily *up to but not including* "БПЛА" or one of the verbs in
+# _VERB_OPT — that way "Тридцать один БПЛА" extends to "Тридцать один" (31)
+# instead of stopping at "Тридцать" (30, lazy default), while "один БПЛА"
+# stays at "один" because БПЛА is excluded, and "одному сбито над …" stays
+# at "одному" because "сбито" is excluded (otherwise _count_to_int would
+# reject the verb word and the bullet would be silently dropped).
+_COUNT_GROUP = (
+    r"(\d+|[А-Яа-яЁё]+(?:\s+"
+    r"(?!(?:БПЛА|уничтожен[ыо]?|сбит[оы]?|перехвачен[ыо]?)\b)"
+    r"[А-Яа-яЁё]+){0,2})"
+)
 REGION_ITEM_RE = re.compile(
-    rf"(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}}?)\s*{_UA_OPT}(?:БПЛА\s*)?{_VERB_OPT}{_DASH_OR_NAD}"
+    rf"{_COUNT_GROUP}\s*{_UA_OPT}(?:БПЛА\s*)?{_VERB_OPT}{_DASH_OR_NAD}"
     rf"((?:{_NEXT_ITEM_LA}[^,.;{_BULLET}\d])+)",
     re.I,
 )
@@ -167,7 +184,7 @@ REGION_ITEM_RE = re.compile(
 # valid stopping point.
 _NEXT_ITEM_BOUNDARY = _BOUNDARY_PATTERN
 PO_ITEM_RE = re.compile(
-    rf"по\s+(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}}?)\s*(?:БПЛА\s*)?{_VERB_OPT}{_DASH_OR_NAD}"
+    rf"по\s+{_COUNT_GROUP}\s*(?:БПЛА\s*)?{_VERB_OPT}{_DASH_OR_NAD}"
     rf"((?:{_NEXT_ITEM_LA}[^.{_BULLET}])+?)(?=[.{_BULLET}]|{_NEXT_ITEM_BOUNDARY}|$)",
     re.I,
 )
@@ -451,14 +468,29 @@ def parse_breakdown(text: str) -> list[tuple[str, int]]:
             continue
         for r in regions:
             items.append((r, count))
-        consumed_spans.append((m.start(), m.end()))
+        # Extend the consumed span backward over a preceding " и " conjunction
+        # (msg 47783: "… Тамбовской области и по одному сбито …"). After
+        # blanking, that "и" would otherwise dangle into the previous bullet's
+        # region capture — the boundary lookahead can't fire across blanked
+        # bullet glyphs, so the "и" needs to be erased too.
+        start = m.start()
+        back = re.search(r"\s+и\s+$", text[:start])
+        if back:
+            start = back.start()
+        consumed_spans.append((start, m.end()))
 
     # Blank out consumed spans so REGION_ITEM_RE can't re-match the same count.
     if consumed_spans:
+        # Overwrite consumed "по N …" spans with bullet glyphs (which are in
+        # REGION_ITEM_RE's region-exclusion set) rather than spaces. Plain
+        # spaces leave a hole that the next-item lookahead can't anchor on,
+        # so a region capture preceding the consumed span ("… Тамбовской
+        # области и …" before a deleted "по одному …") would walk past the
+        # "и" into the gap. The sentinel terminates the region group cleanly.
         chars = list(text)
         for s, e in consumed_spans:
             for i in range(s, e):
-                chars[i] = " "
+                chars[i] = "▪"
         residual = "".join(chars)
     else:
         residual = text
