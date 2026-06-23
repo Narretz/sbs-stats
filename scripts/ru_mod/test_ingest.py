@@ -234,6 +234,26 @@ class TestGate:
         )
         assert r.drones == 23
 
+    def test_masculine_singular_ends_in_one(self):
+        # Russian: counts ending in 1 but not 11 take masculine-singular form,
+        # i.e. bare "уничтожен" with NO suffix and "украинский ... аппарат"
+        # (singular). msg 64830 (301) and msg 64851 (141) were both missed by
+        # the earlier `уничтожен\w+` gate which required a trailing letter.
+        r301 = _parse(
+            "В течение ночи в период с 20.00 мск 21 июня до 7.00 мск 22 июня дежурными "
+            "средствами ПВО перехвачен и уничтожен 301 украинский беспилотный летательный "
+            "аппарат самолетного типа над территориями Белгородской области.",
+            mid=64830, posted_utc="2026-06-22T05:49:48+00:00",
+        )
+        assert r301 is not None and r301.drones == 301
+        r141 = _parse(
+            "В период с 7.00 до 20.00 мск дежурными средствами ПВО перехвачен и уничтожен "
+            "141 украинский беспилотный летательный аппарат самолетного типа над "
+            "территориями Белгородской области.",
+            mid=64851, posted_utc="2026-06-22T18:37:01+00:00",
+        )
+        assert r141 is not None and r141.drones == 141
+
 
 # ── region extraction ─────────────────────────────────────────────────────────
 class TestRegions:

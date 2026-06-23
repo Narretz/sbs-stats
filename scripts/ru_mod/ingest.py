@@ -60,8 +60,14 @@ MONTHS = {
 # the token is digits OR a 1–2 word spelled-out numeral ("шесть", "двадцать три")
 # resolved via _count_to_int — low days (single-digit totals) use word form, e.g.
 # msg 63991 "уничтожены шесть украинских беспилотных…".
+# `\w*` (not `\w+`) on the verb suffix is deliberate: Russian uses the bare
+# masculine-singular form "уничтожен" — no trailing letter — when the count
+# ends in 1 but not 11 (e.g. "уничтожен 301 ... аппарат", "уничтожен 141 ...").
+# Anchoring the noun via `украин\w+ беспилотн\w+ летательн\w+ аппарат` keeps the
+# match constrained enough that the looser verb suffix can't pull in nearby
+# verbs like "уничтоженного" by accident.
 COUNT_RE = re.compile(
-    r"уничтожен\w+\s+(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+)?)\s+украин\w+\s+беспилотн\w+\s+летательн\w+\s+аппарат",
+    r"уничтожен\w*\s+(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+)?)\s+украин\w+\s+беспилотн\w+\s+летательн\w+\s+аппарат",
     re.I,
 )
 # Is this an air-defense intercept post at all?
