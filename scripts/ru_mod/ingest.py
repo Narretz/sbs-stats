@@ -77,7 +77,11 @@ _AD_VERB = r"(?:уничтожен|сбит|перехвач)\w*"
 _UNIT_NOUN = r"(?:БПЛА|БпЛА|беспилотн\w+\s+летательн\w+\s+аппарат\w*)"
 _HEAD_NUM = r"(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+)?)"
 COUNT_VERB_FIRST_RE = re.compile(
-    rf"уничтожен\w*(?:\s+и\s+{_AD_VERB})?\s+{_HEAD_NUM}\s+украин\w+\s+{_UNIT_NOUN}",
+    # Leading verb is any _AD_VERB, not just "уничтожен" — msg 50783 (Apr
+    # 2025) opened with "перехвачено три украинских …", and the channel
+    # also uses "сбит…" in the same position. The optional inner verb
+    # then covers paired forms like "уничтожено и перехвачено N".
+    rf"{_AD_VERB}(?:\s+и\s+{_AD_VERB})?\s+{_HEAD_NUM}\s+украин\w+\s+{_UNIT_NOUN}",
     re.I,
 )
 COUNT_NOUN_FIRST_RE = re.compile(
@@ -92,7 +96,7 @@ COUNT_SINGULAR_RE = re.compile(
 # 49558, Mar 2025) — the short verb-first form for one-drone intercepts.
 # Mirror of COUNT_SINGULAR_RE with the verb fronted.
 COUNT_SINGULAR_VERB_FIRST_RE = re.compile(
-    rf"уничтожен\w*(?:\s+и\s+{_AD_VERB})?\s+украинский\s+{_UNIT_NOUN}",
+    rf"{_AD_VERB}(?:\s+и\s+{_AD_VERB})?\s+украинский\s+{_UNIT_NOUN}",
     re.I,
 )
 # Is this an air-defense intercept post at all?

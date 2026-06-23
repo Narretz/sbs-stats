@@ -676,6 +676,20 @@ class TestBreakdown:
         )
         assert r.drones == 2
 
+    def test_headline_verb_first_with_perekhvacheno(self):
+        # msg 50783 (Apr 2025): verb-first headline opened with "перехвачено"
+        # instead of the more usual "уничтожено" — "перехвачено три украинских
+        # беспилотных летательных аппарата над …". The leading verb in
+        # COUNT_VERB_FIRST_RE was hard-coded to "уничтожен\w*"; now any
+        # _AD_VERB (уничтожен / сбит / перехвач) is accepted in that slot.
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачено "
+            "три украинских беспилотных летательных аппарата над территорией "
+            "Брянской области.",
+            posted_utc="2025-04-01T01:00:00+00:00",
+        )
+        assert r.drones == 3
+
     def test_headline_singular_verb_first(self):
         # msg 49558 (Mar 2025): "уничтожен украинский беспилотный летательный
         # аппарат над …" — singular form with the verb FRONTED. The original
