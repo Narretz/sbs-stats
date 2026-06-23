@@ -11,7 +11,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam } from "@/utils/dayRange";
-import { padTrailingDaily, resolvedEndDate } from "@/utils/padTrailing";
+import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
 import type { RuAdDailyRow, RuAdGlobalStats } from "@/types";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
@@ -102,6 +102,12 @@ export function RuModDailyPage({ refreshKey }: Props) {
   }, [rows, selectedWeekdays, selectedDate, days]);
 
   const endDate = resolvedEndDate(selectedDate, "Europe/Moscow");
+  const startDate = windowStartDate(endDate, days);
+  // When a weekday filter is on, the chart deliberately drops other weekdays;
+  // the fill must respect that so padding doesn't reintroduce them as gap rows.
+  const keepDate = selectedWeekdays.length === 0
+    ? undefined
+    : (iso: string) => selectedWeekdays.includes(new Date(iso + "T12:00:00").getDay());
   // Compose the tooltip note from the per-report DB notes (already prefixed
   // with the report's HH:MM→HH:MM window in queryDaily) so the reader sees
   // exactly which window(s) overlap.
@@ -110,14 +116,16 @@ export function RuModDailyPage({ refreshKey }: Props) {
     return note ?? undefined;
   };
   const makeDataset = (key: "total" | "night" | "day") =>
-    padTrailingDaily(
+    fillDailyRange(
       filteredRows.map((d) => ({
         date: d.date,
         value: d[key],
         is_today: d.is_today,
         note: overlapForKey(d, key),
       })),
+      startDate,
       endDate,
+      { keepDate },
     );
 
   return (

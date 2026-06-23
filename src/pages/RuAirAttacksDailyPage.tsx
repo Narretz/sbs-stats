@@ -10,7 +10,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam } from "@/utils/dayRange";
-import { padTrailingDaily, resolvedEndDate } from "@/utils/padTrailing";
+import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
 import {
   ATTACK_DB_CATEGORIES,
   ATTACK_CATEGORY_LABELS,
@@ -124,14 +124,21 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   }, [rows, selectedWeekdays, selectedDate, days]);
 
   const endDate = resolvedEndDate(selectedDate);
+  const startDate = windowStartDate(endDate, days);
+  // Weekday filter is intentional — don't pad dates that the user filtered out.
+  const keepDate = selectedWeekdays.length === 0
+    ? undefined
+    : (iso: string) => selectedWeekdays.includes(new Date(iso + "T12:00:00").getDay());
   const series = (key: AttackCategoryKey, metric: "launched" | "intercepted") =>
-    padTrailingDaily(
+    fillDailyRange(
       filteredRows.map((d) => ({
         date: d.date,
         value: typeof d[`${key}_${metric}`] === "number" ? (d[`${key}_${metric}`] as number) : null,
         is_today: d.is_today,
       })),
+      startDate,
       endDate,
+      { keepDate },
     );
 
   const filterModelRows = (mrows: RuAirAttacksModelDailyRow[]) => {
@@ -140,13 +147,15 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
     return mrows.filter((r) => selectedWeekdays.includes(new Date(r.date + "T12:00:00").getDay()));
   };
   const modelSeries = (model: string, metric: "launched" | "intercepted") =>
-    padTrailingDaily(
+    fillDailyRange(
       filterModelRows(modelRows[model] ?? []).map((r) => ({
         date: r.date,
         value: r[metric],
         is_today: r.is_today,
       })),
+      startDate,
       endDate,
+      { keepDate },
     );
 
   return (

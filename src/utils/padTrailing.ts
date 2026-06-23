@@ -1,26 +1,38 @@
-// Pad the trailing end of a chart's data array with null-valued rows up to a
-// target end (day / month / week). Used so a chart's X-axis extends to the
-// user's selected end even when the underlying dataset lags — the gap between
-// last available data and the selected end becomes visible (line breaks; bars
-// render as empty slots) instead of the chart silently ending early.
-//
+// Helpers that pad a chart's data array with null-valued rows so the chart's
+// x-axis spans the user's selected window even where source data is missing.
 // All padded rows carry `value: null` (and `is_today: false` for daily) so
-// recharts skips them in the line/bar geometry but still shows the X-axis tick.
+// recharts skips them in the line/bar geometry but still shows the X-axis tick
+// — gaps render as line breaks / empty slots instead of being silently
+// bridged by recharts' category-axis spacing or by the chart ending early.
 import { Temporal } from "temporal-polyfill";
 import type { DailyDataPoint } from "@/types";
 
-export function padTrailingDaily(
+// Fills every date in [startDate, endDate] with either the real row from
+// `data` or a null-valued placeholder — covers the leading edge, internal
+// gaps (silent_days / channel outages), and the trailing tail in one pass.
+//
+// `keepDate` is an optional predicate (used by pages that filter by
+// weekday) — only padded dates passing it are emitted; the underlying data
+// rows are always kept so user-filtered weekdays don't get re-introduced.
+export function fillDailyRange(
   data: DailyDataPoint[],
-  endDate: string, // YYYY-MM-DD
+  startDate: string,
+  endDate: string,
+  opts: { keepDate?: (date: string) => boolean } = {},
 ): DailyDataPoint[] {
-  if (data.length === 0) return data;
-  const last = data[data.length - 1].date;
-  if (last >= endDate) return data;
-  const out = [...data];
-  let cursor = Temporal.PlainDate.from(last).add({ days: 1 });
+  const { keepDate } = opts;
+  const byDate = new Map(data.map((p) => [p.date, p]));
+  const out: DailyDataPoint[] = [];
+  let cursor = Temporal.PlainDate.from(startDate);
   const stop = Temporal.PlainDate.from(endDate);
   while (Temporal.PlainDate.compare(cursor, stop) <= 0) {
-    out.push({ date: cursor.toString(), value: null, is_today: false });
+    const iso = cursor.toString();
+    const existing = byDate.get(iso);
+    if (existing) {
+      out.push(existing);
+    } else if (!keepDate || keepDate(iso)) {
+      out.push({ date: iso, value: null, is_today: false });
+    }
     cursor = cursor.add({ days: 1 });
   }
   return out;

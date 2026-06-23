@@ -255,7 +255,7 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
           {series.map((s) => (
             <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2}
               dot={({ key, ...props }) => <Dot key={key} {...props} color={s.color} bg={t.surface} noteKey={`${s.key}__note`} noteColor={chartColors(t).noteText} />}
-              activeDot={{ r: 5, fill: s.color }} connectNulls isAnimationActive={false}
+              activeDot={{ r: 5, fill: s.color }} connectNulls={yMode === "log"} isAnimationActive={false}
             />
           ))}
         </LineChart>

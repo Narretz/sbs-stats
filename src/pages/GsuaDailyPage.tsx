@@ -10,7 +10,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam } from "@/utils/dayRange";
-import { padTrailingDaily, resolvedEndDate } from "@/utils/padTrailing";
+import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
 import {
   GSUA_METRIC_KEYS,
   GSUA_METRIC_LABELS,
@@ -155,31 +155,42 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   }, [directionRows, selectedDate, selectedWeekdays, days]);
 
   const endDate = resolvedEndDate(selectedDate);
+  const startDate = windowStartDate(endDate, days);
+  // Weekday filter is intentional — don't pad dates that the user filtered out.
+  const keepDate = selectedWeekdays.length === 0
+    ? undefined
+    : (iso: string) => selectedWeekdays.includes(new Date(iso + "T12:00:00").getDay());
   const makeDataset = (key: GsuaMetricKey) =>
-    padTrailingDaily(
+    fillDailyRange(
       filteredRows.map((d) => ({
         date: d.date,
         value: typeof d[key] === "number" ? (d[key] as number) : null,
         is_today: d.is_today,
       })),
+      startDate,
       endDate,
+      { keepDate },
     );
 
-  const directionAttacksDataset = padTrailingDaily(
+  const directionAttacksDataset = fillDailyRange(
     filteredDirectionRows.map((d) => ({
       date: d.date,
       value: d.attacks,
       is_today: d.is_today,
     })),
+    startDate,
     endDate,
+    { keepDate },
   );
-  const directionOngoingDataset = padTrailingDaily(
+  const directionOngoingDataset = fillDailyRange(
     filteredDirectionRows.map((d) => ({
       date: d.date,
       value: d.ongoing,
       is_today: d.is_today,
     })),
+    startDate,
     endDate,
+    { keepDate },
   );
   const directionAttacksStats = useMemo(() => {
     const vals = directionAttacksDataset
