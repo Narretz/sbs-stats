@@ -577,6 +577,69 @@ class TestBreakdown:
             "Смоленской области":   2, "Липецкой области":   2,
         }
 
+    def test_trailing_dashed_item_joined_by_conjunction(self):
+        # "… и <count> – над …" boundary (no БПЛА), msg 48889 / 48760 /
+        # 48594 (Feb 2025). REGION_ITEM_RE's region group otherwise greedily
+        # consumes " и один – над територiей Воронежской области" into the
+        # previous item.
+        r = _parse(
+            "В период с 10.50 до 13.30 мск дежурными средствами ПВО уничтожены "
+            "шесть украинских беспилотных летательных аппаратов: "
+            "три БПЛА – над территорией Белгородской области, "
+            "два – над территорией Курской области "
+            "и один – над территорией Воронежской области.",
+            posted_utc="2025-02-14T13:35:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd == {"Белгородской области": 3, "Курской области": 2, "Воронежской области": 1}
+
+    def test_trailing_item_joined_by_conjunction_with_nad(self):
+        # "… и <count> над …" boundary (no dash AND no БПЛА), msg 48494 (Feb
+        # 2025). Same family as above but the trailing item drops the dash
+        # entirely.
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО уничтожены "
+            "три украинских беспилотных летательных аппаратов: "
+            "два БПЛА – над территорией Белгородской области "
+            "и один над территорией Курской области.",
+            posted_utc="2025-02-03T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd == {"Белгородской области": 2, "Курской области": 1}
+
+    def test_po_stops_at_comma_separated_next_item(self):
+        # PO_ITEM_RE's region group allows commas (for the multi-region
+        # tail), but a comma followed by "<count> БПЛА – над …" is a NEW
+        # item, not a region in the current "по" phrase. msg 48833 (Feb 2025).
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО уничтожены "
+            "33 украинских беспилотных летательных аппарата: "
+            "по 12 БПЛА – над территориями Курской и Липецкой областей, "
+            "9 БПЛА – над территорией Тверской области.",
+            posted_utc="2025-02-13T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd == {
+            "Курской области": 12, "Липецкой области": 12, "Тверской области": 9,
+        }
+
+    def test_ukrainian_adjective_between_count_and_bpla(self):
+        # The MoD usually drops "украинских" in per-region bullets but
+        # occasionally repeats it ("19 украинских БпЛА – над …", msg 49133,
+        # Feb 2025) — the regex's optional _UA_OPT clause tolerates either.
+        r = _parse(
+            "В период с 15.30 до 19.30 мск дежурными средствами ПВО уничтожены "
+            "28 украинских беспилотных летательных аппаратов: "
+            "19 украинских БпЛА – над территорией Краснодарского края, "
+            "8 БпЛА – над акваторией Азовского моря "
+            "и один БпЛА над территорией Белгородской области.",
+            posted_utc="2025-02-20T19:35:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd == {
+            "Краснодарского края": 19, "Азовского моря": 8, "Белгородской области": 1,
+        }
+
     def test_po_phrase_stops_at_conjunction_po(self):
         # Trailing "и по <count>" boundary (no БПЛА before the dash) —
         # msg 49931 (Mar 2025). Adding the "и по" alternation alongside

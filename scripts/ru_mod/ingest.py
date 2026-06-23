@@ -124,20 +124,34 @@ _DASH_OR_NAD = r"(?:[-–—]\s*(?:над\s+)?|над\s+)"
 # region capture must stop at either.
 _BULLET = "▫▪"
 # Stop the region phrase at the next item, in any of these bullet-less forms:
-#   " и <count> БПЛА…"      — "Брянской области и один БПЛА – …"   (msg 54759)
+#   " и <count> БПЛА …"      — "Брянской области и один БПЛА – …"   (msg 54759)
+#   " и <count> – …"         — "Курской области и один – над …"     (msg 48889)
+#   " и <count> над …"       — "Белгородской и два над …"           (msg 48494)
 #   " по <count> …"          — "Ростовской областей, по два БПЛА…"  (msg 49522)
 #   " и по <count> …"        — "Орловской областей и по одному – …" (msg 49931)
+#   ", <count> БПЛА …"       — "Липецкой областей, девять БПЛА – …" (msg 48833 —
+#                              for PO_ITEM_RE only, since REGION_ITEM_RE's region
+#                              group already excludes `,`; harmless overlap)
 # The "по" marker NEVER appears mid-region-name in this channel — it's always
 # the start of a distributive bullet — so a bare `по <count>` is unambiguous.
+# The "и <count> (БПЛА|–|над)" alternation covers all three possible follow-ups
+# after a conjunction-joined trailing count.
 _BOUNDARY_PATTERN = (
+    rf"(?:"
     rf"\s+(?:"
     rf"(?:и\s+)?по\s+(?:\d+|[А-Яа-яЁё]+)"
-    rf"|и\s+(?:\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}})\s+БПЛА"
+    rf"|и\s+(?:\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}})\s+(?:БПЛА|[-–—]|над\s)"
+    rf")"
+    rf"|,\s*(?:\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}})\s+(?:БПЛА|[-–—])"
     rf")"
 )
 _NEXT_ITEM_LA = rf"(?!{_BOUNDARY_PATTERN})"
+# The MoD occasionally repeats "украинских" in the breakdown ("19 украинских
+# БпЛА – над …", msg 49133) instead of dropping it as in the headline form.
+# Tolerate either ordering before the БПЛА unit.
+_UA_OPT = r"(?:украин\w+\s+)?"
 REGION_ITEM_RE = re.compile(
-    rf"(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}}?)\s*(?:БПЛА\s*)?{_VERB_OPT}{_DASH_OR_NAD}"
+    rf"(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}}?)\s*{_UA_OPT}(?:БПЛА\s*)?{_VERB_OPT}{_DASH_OR_NAD}"
     rf"((?:{_NEXT_ITEM_LA}[^,.;{_BULLET}\d])+)",
     re.I,
 )
