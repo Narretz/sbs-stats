@@ -92,6 +92,26 @@ Key flags: `--source {web,telethon}`, `--since` / `--until YYYY-MM-DD`,
 `--backfill` (web: ignore stored ids, walk `--max-pages`), `--max-pages`,
 `--sleep`, `--channel`, `--out`.
 
+## Reparse stored posts (no Telegram round-trip)
+
+`raw_text` is kept on every `ad_reports` row, so after a parser change the
+stored corpus can be re-derived in place without re-scraping Telegram.
+
+```sh
+python reparse.py 55511 55452                 # specific post_ids
+python reparse.py --since 2025-08-01 --until 2025-08-31
+python reparse.py --window-other              # rows whose window didn't classify
+python reparse.py --breakdown-mismatch        # per-region sum != headline drones
+python reparse.py --all                       # the whole DB
+python reparse.py --since 2025-08-01 --dry-run
+```
+
+Updates only the latest version per `post_id` (older rows are immutable
+history), refreshes `ad_regions` in lockstep, re-runs `_flag_overlaps` so the
+overlap-caveat notes stay consistent with any window reclassifications, and
+deletes rows whose text no longer passes the AD gate. Idempotent — a no-op
+on rows the parser already agrees with.
+
 ## Tests
 
 ```sh
