@@ -1010,6 +1010,26 @@ class TestSummary:
         # The loss Сводка must not be misread as a daily air-defense report.
         assert _parse(WEEKLY_SVODKA, posted_utc="2025-12-06T08:00:00+00:00") is None
 
+    def test_main_of_day_wrapup(self):
+        # msg 52583 (May 2025): "📆 Главное за день … #ИтогиДня" — sibling
+        # of Сводка, recaps the day's AD totals in passing rather than
+        # reporting a single intercept window. The standalone "143 БПЛА"
+        # mention is a derived daily total, not an intercept report. The
+        # wrap-up should land in summaries with kind='main_of_day' so
+        # probe_gap shows `as-SV` instead of `AD MISSED`, and so a future
+        # pass can extract its recap totals separately.
+        text = (
+            "📆 Главное за день ▫️ Министр обороны РФ Андрей Белоусов провел встречу. "
+            "▫️ Средствами противовоздушной обороны сбиты три управляемые авиационные "
+            "бомбы JDAM и 143 беспилотных летательных аппарата самолетного типа. "
+            "#ИтогиДня 🔹 Минобороны России"
+        )
+        assert _parse(text, posted_utc="2025-05-11T16:00:00+00:00") is None
+        s = _summary(text, posted_utc="2025-05-11T16:00:00+00:00")
+        assert s is not None
+        assert s.kind == "main_of_day"
+        assert s.period is None
+
     def test_svodka_part2_caught_without_header(self):
         # msg 51524 (Apr 2025): Сводка part 2 doesn't repeat the formal
         # header — opens straight with operational recap content. The

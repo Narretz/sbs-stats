@@ -371,22 +371,32 @@ MAX_PLAUSIBLE = 5000  # guard against a runaway parse
 # Сводки come in multiple parts. Part 1 always carries the formal header
 # ("Министерства обороны Российской Федерации о ходе проведения специальной
 # военной операции"); follow-on parts (part 2+, msg 51524 Apr 2025) drop
-# the header and open straight with operational recap content. Two markers
-# reliably identify these continuation posts and never appear in standalone
-# AD intercept reports:
+# the header and open straight with operational recap content. Several
+# markers reliably identify continuation posts and the sibling "Главное за
+# день" daily wrap-up posts (msg 52583 May 2025), and none of them appear
+# in standalone AD intercept reports:
 #   * "См. часть N"  — back-reference to part 1
 #   * "Всего с начала проведения специальной военной операции"  — running
-#     cumulative-stats footer
-# Without these the part 2 post matches AD_GATE (via incidental "ПВО"
-# mentions) but no headline regex, getting dropped entirely — and the
-# gap-day warning then flags the day as "no AD report" while really there
-# just isn't a standalone intercept post.
+#     cumulative-stats footer at the bottom of every Сводка
+#   * "Главное за день" / "#ИтогиДня"  — the channel's daily wrap-up format,
+#     which recaps the day's AD totals in passing rather than reporting
+#     a single intercept window
+# Without these the post matches AD_GATE (via incidental "ПВО" mentions)
+# but no headline regex, getting dropped entirely — and the gap-day
+# warning then flags the day as "no AD report" when really there just
+# isn't a standalone intercept post.
 SVODKA_GATE = re.compile(
     r"обороны\s+Российской\s+Федерации\s+о\s+ходе\s+проведения\s+специальной\s+военной\s+операции"
     r"|см\.\s+часть\s+\d"
-    r"|Всего\s+с\s+начала\s+проведения\s+специальной\s+военной\s+операции",
+    r"|Всего\s+с\s+начала\s+проведения\s+специальной\s+военной\s+операции"
+    r"|Главное\s+за\s+день"
+    r"|#ИтогиДня",
     re.I,
 )
+# Subset of SVODKA_GATE that identifies daily-wrap-up posts specifically,
+# so parse_summary can tag them with a distinct `kind` ('main_of_day')
+# rather than the generic 'svodka'.
+_MAIN_OF_DAY_MARKER = re.compile(r"Главное\s+за\s+день|#ИтогиДня", re.I)
 # Weekly range: "с 29 ноября по 5 декабря 2025" or shared-month "со 2 по 8 мая 2026".
 SVODKA_WEEKLY_RE = re.compile(r"с[о]?\s+(\d{1,2})(?:\s+(\w+))?\s+по\s+(\d{1,2})\s+(\w+)\s+(\d{4})", re.I)
 SVODKA_DAILY_RE = re.compile(r"по\s+состоянию\s+на\s+(\d{1,2}\s+\w+\s+\d{4})", re.I)
@@ -772,6 +782,11 @@ def parse_summary(text: str, post_id: int, posted_at_utc: datetime) -> Summary |
     if w:
         d1, mon1, d2, mon2, yr = w.groups()
         kind, period = "svodka_weekly", f"{d1} {mon1 or mon2} – {d2} {mon2} {yr}"
+    elif _MAIN_OF_DAY_MARKER.search(flat):
+        # "Главное за день" daily wrap-ups carry no period header — they're
+        # the day they're posted on. Distinct kind so a future pass can
+        # extract their "сбиты N БПЛА" recap separately from Сводка parts.
+        kind, period = "main_of_day", None
     else:
         d = SVODKA_DAILY_RE.search(flat)
         kind, period = ("svodka_daily", d.group(1)) if d else ("svodka", None)
