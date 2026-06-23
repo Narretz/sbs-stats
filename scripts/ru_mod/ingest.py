@@ -80,8 +80,11 @@ AD_GATE = re.compile(r"(противовоздушн|средствами\s+пв
 NIGHT_DATED_RE = re.compile(
     r"с\s+(\d{1,2})[.:]\d{2}\s*(?:мск\s+)?(\d{1,2})\s+(\w+)\s+до\s+(\d{1,2})[.:]\d{2}\s*(?:мск\s+)?(\d{1,2})\s+(\w+)", re.I)
 # Same-day range: "с 14.00 до 20.00 мск" and "с 7.00 мск до 15.00 мск"
-# (the channel sometimes repeats "мск" after the start time).
-DAY_RANGE_RE = re.compile(r"с\s+(\d{1,2})[.:]\d{2}\s*(?:мск\s*)?до\s+(\d{1,2})[.:]\d{2}\s*мск", re.I)
+# (the channel sometimes repeats "мск" after the start time). Minutes are
+# captured (not just hours): early August 2025 reports used short same-hour
+# windows like "С 07.00 до 07.20 мск" which without minute precision look like
+# h1==h2 → "crosses midnight" → mis-recorded as a 24-hour overnight window.
+DAY_RANGE_RE = re.compile(r"с\s+(\d{1,2})[.:](\d{2})\s*(?:мск\s*)?до\s+(\d{1,2})[.:](\d{2})\s*мск", re.I)
 NIGHT_PHRASE_RE = re.compile(r"прошедш\w+\s+ноч|в\s+течение\s+ноч|минувш\w+\s+ноч", re.I)
 # Explicit "с HH.MM … до HH.MM" hours within a night report, regardless of the
 # date format that follows (word month, numeric "6.05", a "т.г." suffix, or the
@@ -109,16 +112,65 @@ REGION_RE = re.compile(r"над\s+территор\w+\s+(.*)", re.I)
 # unit is consumed by the dedicated group below (not swallowed into the numeral,
 # which would make "один БПЛА" fail to parse); it only expands for genuine
 # multi-word numerals like "двадцать три".
+# Optional verb that some bullets insert between "БПЛА" and the dash/над. When
+# present it may also replace the dash entirely ("4 БПЛА сбито над …" / "10
+# БПЛА сбиты над …" — no dash). Anchoring on a verb OR a dash followed by
+# "над" lets the regexes tolerate either form without matching the headline
+# (which has no verb between its count and the rest of the sentence).
+_VERB_OPT = r"(?:(?:уничтожен[ыо]|сбит[оы])\s+)?"
+_DASH_OR_NAD = r"(?:[-–—]\s*(?:над\s+)?|над\s+)"
+# Bullet glyphs the channel uses between items: WHITE (▫️) and BLACK (▪️)
+# small squares. Both pre-2025 and post-2025 posts mix the two freely; the
+# region capture must stop at either.
+_BULLET = "▫▪"
+# Stop the region phrase at the next bullet, a "new item" marker (`и <count>
+# БПЛА…` is a fresh bullet, not a continuation of the current region tail),
+# a comma, period, semicolon, or any digit (which would start a new count).
+# The lookahead handles the bullet-less form (post 54759, where items are
+# joined by `, шесть БПЛА…` without a glyph).
+_NEXT_ITEM_LA = (
+    rf"(?!\s+и\s+(?:\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}})\s+БПЛА)"
+)
 REGION_ITEM_RE = re.compile(
-    r"(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){0,2}?)\s*(?:БПЛА\s*)?[-–—]\s*(?:над\s+)?([^,.;▫\d]+)", re.I)
+    rf"(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}}?)\s*(?:БПЛА\s*)?{_VERB_OPT}{_DASH_OR_NAD}"
+    rf"((?:{_NEXT_ITEM_LA}[^,.;{_BULLET}\d])+)",
+    re.I,
+)
+# Distributive "по N" form: ONE count applies to MULTIPLE regions listed in the
+# same bullet, e.g. "по 8 БПЛА – над территориями Брянской и Тульской областей"
+# means 8 over Bryansk AND 8 over Tula (16 drones total, two breakdown rows).
+# The region phrase runs until the next bullet, period, or — in bullet-less
+# posts — the next `и <count> БПЛА` boundary (otherwise the phrase swallows
+# subsequent items and inflates the breakdown sum).
+# `_NEXT_ITEM_BOUNDARY` matches the position right before the next item in a
+# bullet-less post (`Курской и Ростовской областей и один БПЛА – …`), so the
+# distributive phrase can legitimately end there as well as at `.` / a bullet.
+_NEXT_ITEM_BOUNDARY = (
+    rf"\s+и\s+(?:\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}})\s+БПЛА"
+)
+PO_ITEM_RE = re.compile(
+    rf"по\s+(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+){{0,2}}?)\s*(?:БПЛА\s*)?{_VERB_OPT}{_DASH_OR_NAD}"
+    rf"((?:{_NEXT_ITEM_LA}[^.{_BULLET}])+?)(?=[.{_BULLET}]|{_NEXT_ITEM_BOUNDARY}|$)",
+    re.I,
+)
 # Leading "территорией "/"акваторией " noun stripped off the captured phrase so
 # the region name itself remains (e.g. "Брянской области", "Азовского моря").
 _REGION_NOUN_RE = re.compile(r"^(?:территори\w+|акватори\w+)\s+", re.I)
+# Trailing-noun handoff: in "над территориями A и B областей" the genitive
+# plural noun follows the LAST region; the earlier bare-adjective regions
+# share it. Map plural → singular so the per-region rows are consistent with
+# the canonical "<adj> области" form used by single-region bullets.
+_PLURAL_TO_SINGULAR = {
+    "областей": "области",
+    "морей":    "моря",
+    "краёв":    "края",
+    "краев":    "края",
+}
 
 # Spelled-out Russian cardinals as they appear in per-region counts. Low-count
 # days (≤ a few dozen drones over any one region) write the number as a word.
 _RU_UNITS = {
-    "ноль": 0, "один": 1, "одного": 1, "одна": 1, "одно": 1, "два": 2, "две": 2,
+    "ноль": 0, "один": 1, "одного": 1, "одна": 1, "одно": 1, "одному": 1, "два": 2, "две": 2,
     "три": 3, "четыре": 4, "пять": 5, "шесть": 6, "семь": 7, "восемь": 8, "девять": 9,
     "десять": 10, "одиннадцать": 11, "двенадцать": 12, "тринадцать": 13,
     "четырнадцать": 14, "пятнадцать": 15, "шестнадцать": 16, "семнадцать": 17,
@@ -149,9 +201,16 @@ def _ru_numeral(text: str) -> int | None:
     return total if matched else None
 
 
+_LEADING_CONJ = re.compile(r"^\s*и\s+", re.I)
+
 def _count_to_int(token: str) -> int | None:
-    """A breakdown count is either digits or a spelled-out numeral."""
-    token = token.strip()
+    """A breakdown count is either digits or a spelled-out numeral.
+
+    Strips a leading "и " conjunction so the last item in a bullet-less list
+    ("…Смоленской области и один БПЛА – над …") doesn't get rejected: when
+    REGION_ITEM_RE's lazy count group has to span 2 words to make the rest
+    match, it grabs "и один" rather than "один" alone."""
+    token = _LEADING_CONJ.sub("", token).strip()
     return int(token) if token.isdigit() else _ru_numeral(token)
 
 MAX_PLAUSIBLE = 5000  # guard against a runaway parse
@@ -202,7 +261,10 @@ def _strip_md(text: str) -> str:
     region name) — which both dirties the data and makes the same post look
     edited across sources, spuriously inserting a new version."""
     text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)  # [label](url) → label
-    return text.replace("*", "").replace("_", "")          # bold/italic markers
+    # Drop SOFT HYPHEN (U+00AD) — typographic invisible char that occasionally
+    # slips into MoD posts (e.g. msg 53965 between "БПЛА " and the en-dash)
+    # and breaks dash-anchored regexes by separating the dash from its noun.
+    return text.replace("*", "").replace("_", "").replace("­", "")
 
 
 def _parse_window(text: str, posted_msk: datetime):
@@ -246,17 +308,22 @@ def _parse_window(text: str, posted_msk: datetime):
     if start is None:
         m = DAY_RANGE_RE.search(text)
         if m:
-            h1, h2 = int(m.group(1)), int(m.group(2))
+            h1, mi1 = int(m.group(1)), int(m.group(2))
+            h2, mi2 = int(m.group(3)), int(m.group(4))
             base = posted_msk.replace(minute=0, second=0, microsecond=0)
 
-            def at(hh: int) -> datetime:  # tolerate "24.00" → next-day 00:00
+            def at(hh: int, mi: int) -> datetime:  # tolerate "24.00" → next-day 00:00
                 extra, hh = divmod(hh, 24)
-                return (base + timedelta(days=extra)).replace(hour=hh)
+                return (base + timedelta(days=extra)).replace(hour=hh, minute=mi)
 
-            start, end = at(h1), at(h2)
-            if end <= start:  # crosses midnight
+            start, end = at(h1, mi1), at(h2, mi2)
+            crosses_midnight = end <= start
+            if crosses_midnight:
                 end += timedelta(days=1)
-            kind = "night" if h1 >= 18 or h2 <= 7 else "day"
+            # Use minute precision for the night cutoff: a 07:00 end IS the
+            # overnight handoff (night), but 07:20 is already daytime.
+            end_minutes = h2 * 60 + mi2
+            kind = "night" if crosses_midnight or h1 >= 18 or end_minutes <= 7 * 60 else "day"
 
     if start is None:
         return None, None, "other"
@@ -284,13 +351,102 @@ def _parse_regions(text: str):
     return len(parts), clause[:300]
 
 
+def _split_po_regions(phrase: str) -> list[str]:
+    """Split a distributive-"по N" region phrase into individual region names.
+
+    Input shape: "над территориями A, B, ..., Y и Z областей" — one shared
+    "над <noun>" prefix, regions separated by `,` and the final ` и `, and a
+    trailing plural noun ("областей", "морей") that semantically belongs to
+    each region. Output applies the canonical "<adj> области" form so the
+    per-region rows merge with single-region bullets in the rest of the post.
+    """
+    parts = [p.strip(" .,") for p in re.split(r",\s*|\s+и\s+", phrase) if p.strip()]
+    if not parts:
+        return []
+    # Strip leading "над " / "территориями " / "акваториями " (either or both,
+    # in either order) from each part. PO_ITEM_RE has already eaten the first
+    # "над" from the very front of the phrase, but later parts (joined by "и"
+    # / commas) may carry their own "над" — e.g. "над территорией X области
+    # и над Московским регионом" splits to "над Московским регионом" for the
+    # second region.
+    prefix = re.compile(r"^(?:над\s+)?(?:территори\w+|акватори\w+)?\s*", re.I)
+    parts = [prefix.sub("", p).strip(" .,") for p in parts]
+    parts = [p for p in parts if p]
+    if not parts:
+        return []
+    # Pull the trailing plural noun off the last region (if any) and
+    # propagate its singular form to earlier bare-adjective regions.
+    last = parts[-1]
+    for plural, singular in _PLURAL_TO_SINGULAR.items():
+        if last.endswith(" " + plural) or last == plural:
+            parts[-1] = (last[: -len(plural)].rstrip() + " " + singular).strip()
+            for i in range(len(parts) - 1):
+                # Bare adj (no embedded space) → append the singular noun.
+                if " " not in parts[i]:
+                    parts[i] = parts[i] + " " + singular
+            break
+    return parts
+
+
 def parse_breakdown(text: str) -> list[tuple[str, int]]:
     """Extract per-region (name, count) pairs when the post itemizes them.
 
     Returns [] for the total-only format. Requires ≥2 items (a single match in
-    the total-only wording would be spurious)."""
+    the total-only wording would be spurious).
+
+    Two item shapes are handled:
+      * Single-region bullets ("N БПЛА – над территорией X области") — the
+        common case, handled by REGION_ITEM_RE.
+      * Distributive "по N" bullets ("по N БПЛА – над территориями X и Y
+        областей") — one count, multiple regions; expanded via
+        PO_ITEM_RE + _split_po_regions so the per-region sum equals the
+        reported total.
+    """
+    # The MoD often appends one or more wider-window summary blocks AFTER the
+    # immediate-window breakdown — same post, second total, second bullet list.
+    # The headline COUNT_RE catches only the first total, but parse_breakdown
+    # would otherwise sweep up bullets from BOTH halves, inflating the sum.
+    # Truncate at the earliest of these footer markers so only the headline's
+    # own breakdown remains:
+    #   "📊 Всего за время налета …"   — bar-chart footer with a date suffix
+    #                                    (".05" parses as a phantom count)
+    #   "➡️ Всего за ночь …"           — newer "total this night" arrow form
+    #   "Всего"                        — older "Всего, начиная с …" running total
+    # All three reliably mark wider-window summaries in this channel; "Всего"
+    # is also a common Russian adverb but never appears mid-bullet in MoD posts.
+    cutoffs = [text.find(m) for m in ("📊", "➡️", "Всего")]
+    cuts = [c for c in cutoffs if c >= 0]
+    if cuts:
+        text = text[: min(cuts)]
     items = []
-    for n, name in REGION_ITEM_RE.findall(text):
+    # First pass: distributive "по N" items. Track the matched spans so the
+    # second pass (single-region regex) doesn't double-count their counts.
+    consumed_spans: list[tuple[int, int]] = []
+    for m in PO_ITEM_RE.finditer(text):
+        count = _count_to_int(m.group(1))
+        if count is None:
+            continue
+        regions = _split_po_regions(m.group(2))
+        if len(regions) < 2:
+            # No multi-region expansion needed — let the standard regex
+            # handle it on the second pass instead.
+            continue
+        for r in regions:
+            items.append((r, count))
+        consumed_spans.append((m.start(), m.end()))
+
+    # Blank out consumed spans so REGION_ITEM_RE can't re-match the same count.
+    if consumed_spans:
+        chars = list(text)
+        for s, e in consumed_spans:
+            for i in range(s, e):
+                chars[i] = " "
+        residual = "".join(chars)
+    else:
+        residual = text
+
+    # Second pass: standard single-region bullets on whatever's left.
+    for n, name in REGION_ITEM_RE.findall(residual):
         count = _count_to_int(n)
         if count is None:                                   # matched phrase wasn't a number
             continue
@@ -298,6 +454,20 @@ def parse_breakdown(text: str) -> list[tuple[str, int]]:
         name = re.sub(r"\s+", " ", name).strip(" .,")
         if name:
             items.append((name, count))
+
+    # Merge duplicate region names — sums counts when the same area appears
+    # in both a "по" expansion and a standalone bullet (or, rarely, in two
+    # sub-window bullets within a single post). Without this `store()` trips
+    # the (post_id, scraped_at, region) PK on ad_regions.
+    merged: dict[str, int] = {}
+    order: list[str] = []
+    for name, count in items:
+        if name in merged:
+            merged[name] += count
+        else:
+            merged[name] = count
+            order.append(name)
+    items = [(name, merged[name]) for name in order]
     return items if len(items) >= 2 else []
 
 

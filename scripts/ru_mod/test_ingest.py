@@ -189,6 +189,24 @@ class TestWindows:
         assert r.window_kind == "night"        # starts ≥18:00
         assert r.window_end is not None and r.window_end.endswith("00:00+03:00")
 
+    def test_short_same_hour_window_is_day_not_24h(self):
+        # msg 55511 (Aug 2025): "С 07.00 до 07.20 мск" is a 20-minute daytime
+        # window. The earlier hours-only DAY_RANGE_RE saw h1==h2 and treated
+        # it as crosses-midnight → fake 24-hour overnight, which then made
+        # every subsequent same-day report appear to "overlap" 55511.
+        r = _parse(
+            "С 07.00 до 07.20 мск дежурными средствами ПВО уничтожены три "
+            "украинских беспилотных летательных аппарата самолетного типа над "
+            "территорией Белгородской области.",
+            mid=55511, posted_utc="2025-08-13T05:21:33+00:00",
+        )
+        assert r is not None
+        assert r.drones == 3
+        assert r.window_kind == "day"
+        assert r.window_start == "2025-08-13T07:00+03:00"
+        assert r.window_end == "2025-08-13T07:20+03:00"   # not the next-day fake
+        assert r.report_date == "2025-08-13"
+
 
 # ── the gate: only real AD-intercept posts parse ──────────────────────────────
 class TestGate:
@@ -376,6 +394,208 @@ class TestBreakdown:
         assert bd["Курской области"] == 2
         assert bd["Черного моря"] == 1
         assert sum(bd.values()) == 11
+
+    def test_po_distributes_count_across_regions(self):
+        # "по N БПЛА – над территориями X и Y" means N over EACH region (so
+        # 2*N drones across the two rows). msg 57301 (Oct 2025) used three
+        # such bullets and the breakdown was N short by the sum of (N * (k-1))
+        # for each "по" item; this fix makes the sum reconcile.
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачен и "
+            "уничтожен 30 украинский беспилотный летательный аппарат самолетного типа: "
+            "▫️ 4 БПЛА – над территорией Рязанской области, "
+            "▫️ По 8 БПЛА – над территориями Брянской и Тульской областей, "
+            "▫️ По 2 БПЛА – над территориями Владимирской, Ивановской, Калужской, Тамбовской и Орловской областей.",
+            posted_utc="2025-10-06T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd["Рязанской области"] == 4
+        assert bd["Брянской области"] == 8
+        assert bd["Тульской области"] == 8
+        assert bd["Владимирской области"] == 2
+        assert bd["Ивановской области"] == 2
+        assert bd["Калужской области"] == 2
+        assert bd["Тамбовской области"] == 2
+        assert bd["Орловской области"] == 2
+        assert sum(bd.values()) == 4 + 8 * 2 + 2 * 5
+
+    def test_po_with_verb_and_no_dash(self):
+        # Verb between БПЛА and the region phrase ("сбито", "уничтожены")
+        # sometimes replaces the dash entirely. msg 55905 (Aug 2025).
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "
+            "12 украинских беспилотных летательных аппаратов самолетного типа: "
+            "▫️ по шесть БПЛА уничтожены – над территориями Ленинградской и Рязанской областей.",
+            posted_utc="2025-08-26T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd["Ленинградской области"] == 6
+        assert bd["Рязанской области"] == 6
+
+    def test_po_one_dative(self):
+        # "по одному" (dative singular) for 1 — common in low-count bullets.
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "
+            "12 украинских беспилотных летательных аппаратов самолетного типа: "
+            "▫️ по одному – над территориями Воронежской, Калужской и Липецкой областей, "
+            "▫️ девять – над территорией Брянской области.",
+            posted_utc="2025-08-26T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd["Воронежской области"] == 1
+        assert bd["Калужской области"] == 1
+        assert bd["Липецкой области"] == 1
+        assert bd["Брянской области"] == 9
+
+    def test_black_square_bullet_separates_items(self):
+        # The MoD mixes ▫️ (white square) and ▪️ (black square) bullets. Both
+        # must terminate the region capture; otherwise a "по" phrase swallows
+        # everything to the next period and the breakdown inflates. msg 54393
+        # (Jul 2025) exposed this with three back-to-back "по N БПЛА" items
+        # separated only by ▪️.
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "
+            "30 украинских беспилотных летательных аппарата самолетного типа: "
+            "▪️ по девять БПЛА – над территориями Белгородской и Саратовской областей, "
+            "▪️ 8 БПЛА – над территорией Новгородской области, "
+            "▪️ по два БПЛА – над территориями Ростовской и Калужской областей.",
+            posted_utc="2025-07-05T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd["Белгородской области"] == 9
+        assert bd["Саратовской области"] == 9
+        assert bd["Новгородской области"] == 8
+        assert bd["Ростовской области"] == 2
+        assert bd["Калужской области"] == 2
+        assert sum(bd.values()) == 9 + 9 + 8 + 2 + 2
+
+    def test_po_phrase_stops_before_next_bulletless_item(self):
+        # Some bullet-less posts join items with " и <count> БПЛА" — e.g.
+        # "по два БПЛА – над территориями Курской и Ростовской областей и
+        # один БПЛА – над территорией Республики Крым". The "по" phrase must
+        # stop at the boundary "и один БПЛА" so the standalone trailing item
+        # isn't swallowed (and so REGION_ITEM_RE catches it on the residual).
+        # msg 54315 (Jul 2025).
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО уничтожены 5 "
+            "украинских беспилотных летательных аппаратов самолетного типа: "
+            "по два БПЛА – над территориями Курской и Ростовской областей и "
+            "один БПЛА – над территорией Республики Крым.",
+            posted_utc="2025-07-01T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd["Курской области"] == 2
+        assert bd["Ростовской области"] == 2
+        assert bd["Республики Крым"] == 1
+        assert sum(bd.values()) == 5
+
+    def test_trailing_item_joined_by_conjunction_is_caught(self):
+        # In bullet-less lists the final item is "… и один БПЛА – над …".
+        # REGION_ITEM_RE's lazy count group expands to "и один" (because the
+        # rest of the regex doesn't match starting at "и" alone), so
+        # _count_to_int needs to strip the leading "и " before resolving.
+        # msg 54397, 54759 (Jul 2025).
+        r = _parse(
+            "С 8.00 мск до 9.40 мск дежурными средствами ПВО уничтожены "
+            "шесть украинских беспилотных летательных аппаратов самолетного типа: "
+            "два БПЛА – над территорией Московского региона, "
+            "один БПЛА – над территорией Рязанской области, "
+            "один БПЛА – над территорией Нижегородской области, "
+            "один БПЛА – над территорией Смоленской области и "
+            "один БПЛА – над территорией Курской области.",
+            posted_utc="2025-07-05T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd["Курской области"] == 1
+        assert sum(bd.values()) == 6
+
+    def test_vsego_summary_block_is_ignored(self):
+        # Post has an immediate-window breakdown followed by a wider-window
+        # "Всего, начиная с …" summary with its own ▪️ bullets. Without the
+        # truncation, both halves' bullets get summed into one breakdown and
+        # the total reads N + M instead of N. msg 51913 (Apr 2025).
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО уничтожены "
+            "12 украинских беспилотных летательных аппаратов самолетного типа: "
+            "▪️ 8 БПЛА – над территорией Рязанской области, "
+            "▪️ 4 БПЛА – над территорией Орловской области. "
+            "Всего, начиная с 20.00 мск 28 апреля до 06.00 мск 29 апреля, "
+            "дежурными средствами ПВО уничтожен 91 украинский беспилотный летательный аппарат самолетного типа: "
+            "▪️ 40 БПЛА – над территорией Курской области, "
+            "▪️ 51 БПЛА – над территорией Орловской области.",
+            posted_utc="2025-04-29T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd == {"Рязанской области": 8, "Орловской области": 4}
+
+    def test_arrow_summary_block_is_ignored(self):
+        # Same shape with the newer "➡️ Всего за ночь …" marker (msg 54070,
+        # Jun 2025).
+        r = _parse(
+            "В период с 22.00 мск 22 июня до 7.00 мск 23 июня дежурными "
+            "средствами ПВО перехвачены и уничтожены 16 украинских беспилотных "
+            "летательных аппаратов самолетного типа: "
+            "▪️ 13 БПЛА – над территорией Ростовской области, "
+            "▪️ 3 БПЛА – над территорией Астраханской области. "
+            "➡️ Всего за ночь перехвачены и уничтожены 23 беспилотных летательных аппарата самолетного типа: "
+            "▪️ 14 БПЛА – над территорией Ростовской области, "
+            "▪️ 9 БПЛА – над территорией Волгоградской области.",
+            posted_utc="2025-06-23T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd == {"Ростовской области": 13, "Астраханской области": 3}
+
+    def test_soft_hyphen_between_bpla_and_dash(self):
+        # MoD typo: a SOFT HYPHEN (U+00AD) slipped in between "БПЛА" and the
+        # en-dash, breaking the dash-anchored region match. _strip_md drops
+        # the invisible char so the bullet parses normally. msg 53965 (Jun 2025).
+        r = _parse(
+            "20 июня с 22.00 до 23.55 мск дежурными средствами ПВО уничтожены "
+            "23 украинских беспилотных летательных аппарата самолетного типа: "
+            "▪️ 15 БПЛА – над территорией Белгородской области, "
+            "▪️ 6 БПЛА – над территорией Курской области, "
+            "▪️ 2 БПЛА \xad– над территорией Воронежской области.",
+            posted_utc="2025-06-20T22:30:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd == {"Белгородской области": 15, "Курской области": 6, "Воронежской области": 2}
+
+    def test_footer_summary_after_emoji_is_ignored(self):
+        # Some posts append a "📊 Всего за время налета … 26.05 над
+        # российскими регионами сбито 148 …" footer summarising a wider
+        # window. The embedded date suffix (".05") used to be matched as a
+        # count and "российскими регионами сбито" as its region. Truncating
+        # at the bar-chart emoji before scanning drops the footer entirely.
+        # msg 53129 (May 2025).
+        r = _parse(
+            "В период с 20.00 мск 25.05 дежурными средствами ПВО перехвачены "
+            "и уничтожены 5 украинских беспилотных летательных аппаратов "
+            "самолетного типа: ▪️ 3 БПЛА – над территорией Брянской области, "
+            "▪️ 2 БПЛА – над территорией Курской области. "
+            "📊 Всего за время налета в период с 10.00 мск 25.05 до 8.00 мск 26.05 "
+            "над российскими регионами сбито 148 украинских БпЛА самолетного типа.",
+            posted_utc="2025-05-26T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd == {"Брянской области": 3, "Курской области": 2}
+
+    def test_duplicate_region_names_are_merged(self):
+        # When a "по" bullet's expansion includes a region that ALSO appears
+        # in a single-region bullet, the two rows must merge (summed count)
+        # rather than crashing the (post_id, scraped_at, region) PK in
+        # ad_regions on insert. Triggered by a real Jun–Jul 2025 post.
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "
+            "20 украинских беспилотных летательных аппаратов самолетного типа: "
+            "▫️ 4 БПЛА – над территорией Брянской области, "
+            "▫️ По 8 БПЛА – над территориями Брянской и Тульской областей.",
+            posted_utc="2025-07-15T05:00:00+00:00",
+        )
+        bd = dict(r.breakdown)
+        assert bd["Брянской области"] == 12  # 4 from singleton + 8 from "по" expansion
+        assert bd["Тульской области"] == 8
+        # No duplicate keys reach the caller — that's the whole point.
+        assert len(r.breakdown) == len({n for n, _ in r.breakdown})
 
     def test_total_only_has_no_breakdown(self):
         r = _parse(
