@@ -255,13 +255,32 @@ def parse_rows(equip: list[dict], personnel: list[dict]) -> dict[str, dict]:
     return out
 
 
-def build(db_path: Path, equip: list[dict], personnel: list[dict]) -> tuple[int, int, str]:
+def build(
+    db_path: Path,
+    equip: list[dict],
+    personnel: list[dict],
+    supplement: dict[str, dict] | None = None,
+) -> tuple[int, int, str]:
     """Append changed/new day-versions into db_path. Never mutates/deletes rows.
+
+    `supplement` (optional) is a {loss_day: {reported_at, <metric>: delta}}
+    dict from mod_gov_ua.fetch_supplement — used to fill in loss-days
+    Petro hasn't published yet. Supplement rows are added BEFORE the
+    floor check, so the floor still applies to the merged total.
 
     Returns (inserted_rows, distinct_dates, latest_date). Aborts (raises) without
     writing if the payload looks broken, so the caller can skip the R2 upload.
     """
     fetched = parse_rows(equip, personnel)
+    if supplement:
+        for loss_day, rec in supplement.items():
+            if loss_day in fetched:
+                continue  # Petro already covers this day — don't override
+            # Fill missing metric keys with None so the row shape matches
+            # Petro-derived rows (build() reads METRICS in order downstream).
+            full = {m: rec.get(m) for m in METRICS}
+            full["reported_at"] = rec["reported_at"]
+            fetched[loss_day] = full
 
     # Guard 1: absolute floor — empty/tiny payloads are never legitimate.
     if len(fetched) < MIN_ROWS_FLOOR:
@@ -331,14 +350,36 @@ def main() -> int:
         default=os.environ.get("RU_LOSSES_DB_PATH", str(SCRIPT_DIR / "output" / DEFAULT_DB_NAME)),
         help="output SQLite path (default: scripts/ru_losses/output/%s)" % DEFAULT_DB_NAME,
     )
+    ap.add_argument(
+        "--no-mod-supplement", action="store_true",
+        help="Skip the mod.gov.ua freshness supplement (Petro-only run).",
+    )
     args = ap.parse_args()
 
     # fetch() prints its own per-URL [fetch] lines with cache headers, so
     # the old "==> Fetching <url>" banner is redundant — drop it.
     equip, personnel = fetch()
     check_drift(equip, personnel)
+
+    # MoD supplement: Petro publishes once per day (a day after the loss
+    # day), so on a fresh cron run the latest loss-day in Petro's data is
+    # usually today−2. mod.gov.ua publishes its own report a few hours
+    # earlier with the same numbers — fetch any loss-days strictly after
+    # Petro's latest, up to today−1, to close the gap. Skippable in case
+    # the MoD site is down.
+    supplement: dict[str, dict] | None = None
+    if not args.no_mod_supplement:
+        import mod_gov_ua
+        # Peek at Petro's latest loss-day (= his latest report-day shifted -1)
+        # without running parse_rows twice — `equip` is the longer series.
+        latest_petro_report_day = max(rec["date"] for rec in equip)
+        latest_petro_loss_day = shift_iso(latest_petro_report_day, REPORT_TO_LOSS_DAY)
+        supplement = mod_gov_ua.fetch_supplement(
+            latest_petro_loss_day, date_cls.today(),
+        )
+
     out = Path(args.out)
-    inserted, distinct, latest = build(out, equip, personnel)
+    inserted, distinct, latest = build(out, equip, personnel, supplement=supplement)
     print(
         f"==> Inserted {inserted} new/changed day-versions; "
         f"{distinct} distinct dates (latest {latest}) → {out} ({out.stat().st_size} bytes)"
