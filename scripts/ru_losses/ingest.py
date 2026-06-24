@@ -58,16 +58,21 @@ import urllib.request
 from datetime import date as date_cls, datetime, timedelta, timezone
 from pathlib import Path
 
-# Fetch via the GitHub Contents API rather than raw.githubusercontent.com:
-# raw.* is fronted by an edge cache (Cache-Control: max-age=300 + occasional
-# longer holds during heavy traffic), so a CI run that fires inside that
-# window catches yesterday's file even when main has already been updated.
-# The Contents API reads the repo's current tree directly and isn't subject
-# to that delay; `Accept: application/vnd.github.raw` returns the file bytes
-# unaltered (same shape we'd get from the raw URL, just fresh).
-API = "https://api.github.com/repos/PetroIvaniuk/2022-Ukraine-Russia-War-Dataset/contents/data"
-EQUIP_URL = f"{API}/russia_losses_equipment.json"
-PERSONNEL_URL = f"{API}/russia_losses_personnel.json"
+# Fetch by SHA-pinned raw URL rather than `/main/`: raw.githubusercontent.com
+# caches each URL at the edge, so the mutable `/main/` URL can serve yesterday's
+# body for ~5-15 minutes after a commit. The Contents API (which we tried in
+# 992ff9a2) has its own staleness window. SHA-pinned URLs are immutable — a
+# new commit produces a new URL, so the CDN never has a stale entry to serve
+# for the one we ask for.
+#
+# Two-step: resolve `main` to a commit SHA via the lightly-cached Commits
+# API, then fetch each file under that SHA. At worst step 1 is up to a
+# minute stale (so we ingest one commit behind on a tight cron window),
+# but the body we actually load matches the SHA we asked for.
+REPO = "PetroIvaniuk/2022-Ukraine-Russia-War-Dataset"
+COMMITS_API = f"https://api.github.com/repos/{REPO}/commits/main"
+EQUIP_PATH = "data/russia_losses_equipment.json"
+PERSONNEL_PATH = "data/russia_losses_personnel.json"
 
 # our daily_losses column  ←  PetroIvaniuk source key. Order is the display order;
 # mirror it in RU_LOSSES_METRIC_KEYS (src/types/index.ts). `ugs` is the category
@@ -124,28 +129,56 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_DB_NAME = os.environ.get("RU_LOSSES_DB_NAME", "ru-losses-gsua-petroivaniuk.db")
 
 
-def fetch_json(url: str) -> list[dict]:
+# Response headers worth surfacing in the run log so a stale fetch is
+# diagnosable after the fact (CI logs are the only place we'd notice). Pick
+# the ones GitHub / the raw CDN use to expose cache state.
+_LOG_HEADERS = (
+    "Date", "Age", "Cache-Control", "ETag", "Last-Modified",
+    "X-GitHub-Request-Id", "X-Cache", "X-Cache-Hits", "X-Served-By",
+)
+
+
+def _open(url: str, extra_headers: dict | None = None):
     headers = {"User-Agent": "sbs-stats-ingest"}
-    # Contents API returns the raw file body when asked, dodging the JSON
-    # envelope (and base64-encoded `content` field) we'd otherwise have to
-    # unwrap. Anonymous rate-limit is 60 req/h per IP — two files per run is
-    # safely under that. A GITHUB_TOKEN, if present (CI default), lifts it
-    # to 5000/h; passing it as a Bearer is a no-op for public repos but
-    # cheap insurance against rate-limit collisions during heavy CI activity.
-    if url.startswith("https://api.github.com/"):
-        headers["Accept"] = "application/vnd.github.raw"
-        token = os.environ.get("GITHUB_TOKEN")
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
+    if extra_headers:
+        headers.update(extra_headers)
+    token = os.environ.get("GITHUB_TOKEN")
+    if token and url.startswith("https://api.github.com/"):
+        # Bearer is a no-op for public repos but lifts the anonymous 60
+        # req/h IP rate-limit to 5000/h with the workflow's GITHUB_TOKEN.
+        headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        if resp.status != 200:
-            raise RuntimeError(f"{url} returned HTTP {resp.status}")
+    resp = urllib.request.urlopen(req, timeout=60)
+    if resp.status != 200:
+        raise RuntimeError(f"{url} returned HTTP {resp.status}")
+    selected = [f"{h}={resp.headers[h]}" for h in _LOG_HEADERS if resp.headers.get(h)]
+    print(f"[fetch] {url}\n         {' | '.join(selected)}")
+    return resp
+
+
+def _resolve_main_sha() -> str:
+    """Latest commit SHA on PetroIvaniuk's `main`. Used to pin the file
+    fetches below — the Commits API has lighter caching than raw, so we
+    eat at most a one-commit lag here in exchange for byte-accurate file
+    fetches afterwards."""
+    with _open(COMMITS_API, {"Accept": "application/vnd.github+json"}) as resp:
+        body = json.load(resp)
+    sha = body.get("sha")
+    if not sha:
+        raise RuntimeError(f"no sha in commits/main response: {body!r}")
+    return sha
+
+
+def fetch_json(url: str) -> list[dict]:
+    with _open(url) as resp:
         return json.load(resp)
 
 
 def fetch() -> tuple[list[dict], list[dict]]:
-    return fetch_json(EQUIP_URL), fetch_json(PERSONNEL_URL)
+    sha = _resolve_main_sha()
+    print(f"[fetch] pinned to commit {sha[:12]}")
+    raw = f"https://raw.githubusercontent.com/{REPO}/{sha}"
+    return fetch_json(f"{raw}/{EQUIP_PATH}"), fetch_json(f"{raw}/{PERSONNEL_PATH}")
 
 
 def check_drift(equip: list[dict], personnel: list[dict]) -> list[str]:
