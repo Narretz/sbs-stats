@@ -1,8 +1,11 @@
 # Candidate datasets for new views
 
-Research compiled 2026-05-25. Recency verified via GitHub `pushed_at` / Kaggle versions
-/ live API responses on that date. We already ingest: SBS (direct API) and GSUA per-direction
-combat stats (scraped → R2 → sql.js-httpvfs).
+Research compiled 2026-05-25, refreshed 2026-06-24 (added §5 lostarmour, updated
+§1 with mod.gov.ua supplement, §2/§3 to reflect since-shipped wiring). Recency
+verified via GitHub `pushed_at` / Kaggle versions / live API responses on that
+date. We currently ingest: SBS, GSUA per-direction combat, RU losses
+(PetroIvaniuk + mod.gov.ua), RU MoD air-defense, RU missile/UAV attacks
+(piterfm), SBU Alfa, Mediazona, and RU missile stockpiles (HUR prototype).
 
 Legend: **LIVE** = updated within the last few days · **STALE** = not updated · **GAP** = no
 off-the-shelf dataset, would need our own scraper.
@@ -45,11 +48,34 @@ upload) if < 365 days parsed or fewer dates than already stored.
 > old source. **lod-db/orc-losses** (https://github.com/lod-db/orc-losses, MIT) remains a
 > clean daily-JSON fallback, but lacks the UGS column.
 
+### mod.gov.ua MoD-page supplement — LIVE — ✅ INTEGRATED (freshness fallback for §1)
+- https://mod.gov.ua/en/news/total-russian-combat-losses-in-ukraine-as-of-{month}-{day}-{year}
+  (e.g. `…as-of-june-21-2026`). English page, SSR'd Next.js, every metric in a clean
+  `<li>label ‒ cumulative (+Δ);</li>` bullet plus a standalone "approximately N (+M) persons."
+  for the personnel line.
+- **Role:** Petro publishes ~1 day after the loss day, so a CI run that fires before his
+  daily push sees the latest stored loss-day at today−2. mod.gov.ua republishes the same
+  GS numbers a few hours earlier, so fetching it for any loss-day strictly after Petro's
+  latest closes that 1–2 day freshness gap. Petro stays authoritative for history; the
+  supplement only fills the tail.
+- **Pipeline:** `scripts/ru_losses/mod_gov_ua.py` (parser) → `ingest.py` calls
+  `fetch_supplement(latest_petro_loss_day, today)` after the Petro fetch, merges the
+  resulting rows into the build pipeline before the floor check. Opt out with
+  `--no-mod-supplement`. Pre-flight probe `scripts/ru_losses/probe_mod_gov_ua.py` verified
+  MoD's `(+Δ)` values match Petro's per-day diffs byte-for-byte on overlapping loss-days.
+- **Convention:** URL date = report-publish day; loss day = URL−1 (matches Petro's
+  REPORT_TO_LOSS_DAY = −1 shift). MoD's `(+Δ)` per metric goes directly into our
+  daily-Δ row.
+- **Caveats:** URL pattern verified stable for recent dates only — single-digit days are
+  NOT zero-padded (`may-1-2026` works, `may-01-2026` 404s). Submarines / POW omitted (parity
+  with our existing schema). Format is hand-edited so label drift is possible; the parser
+  raises if no recognised bullet is found rather than silently inserting an empty row.
+
 ---
 
 ## 2. Ukrainian air defense — Russian aerial attacks launched vs intercepted (TOP INTEREST)
 
-### piterfm "Massive Missile Attacks on Ukraine" (Kaggle) — LIVE — ✅ BACKEND INTEGRATED
+### piterfm "Massive Missile Attacks on Ukraine" (Kaggle) — LIVE — ✅ INTEGRATED (site "ru-air-attacks-gsua")
 - https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine
 - The only good machine-readable option. Solves the image-extraction problem (already digitized
   from the Air Force's posts at Telegram channel "kpszsu").
@@ -62,8 +88,9 @@ upload) if < 365 days parsed or fewer dates than already stored.
 - **Pipeline:** scripts/missile_attacks/ingest.py → ru-air-attacks-gsua.db → R2
   (workflow update-missile-attacks-db.yml; downloads current DB first, so it appends).
   Named as the Ukrainian-side mirror of ru-mod-ad.db (ru-mod-ad = UA launches at RU + RU
-  intercepts; ru-air-attacks-gsua = RU launches at UA + UA intercepts). Frontend: TODO (site wiring
-  not yet done). DB is small → fetch whole via sql.js.
+  intercepts; ru-air-attacks-gsua = RU launches at UA + UA intercepts). Frontend wired as
+  site key `ru-air-attacks-gsua` (RuAirAttacksDailyPage + monthly). DB is small → fetched
+  whole via sql.js.
 - **Data access:** Kaggle-ONLY — no GitHub mirror (piterfm's GitHub dataset repo holds only the
   losses JSON; his dashboard repo is stale since 2024-11). The Kaggle API gates downloads behind a
   FREE account token: ingest.py pulls the dataset zip over HTTP Basic auth using the KAGGLE_USERNAME
@@ -139,9 +166,25 @@ The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:
   8–11 May 2026 Victory-Day truce produced daily ("по состоянию на DD мая") and weekly ("со 2 по 8
   мая") Сводки reporting *truce-violation* counts, with no cumulative equipment/personnel totals.
   They're also **multi-part** (the same header repeats across [1/n] message parts).
-- We now **store every Сводka post raw** in a `summaries` table (post_id, posted_at, kind ∈
-  {svodka_weekly, svodka_daily, svodka}, parsed header period, full text) **without parsing numbers**,
-  so the source is retained whatever the format does next.
+- We now **store every Сводka-like post raw** in a `summaries` table (post_id, posted_at,
+  `kind` ∈ {`svodka_weekly`, `svodka_daily`, `svodka`, `main_of_day`, `briefing`}, parsed
+  header period, full text) **without parsing numbers**, so the source is retained whatever
+  the format does next. The two new kinds (added 2026-06):
+  - **`main_of_day`** — the channel's "📆 Главное за день … #ИтогиДня" daily-wrap-up
+    posts. Recap the day's PVO totals in passing (e.g. "143 беспилотных летательных
+    аппаратов") rather than reporting an intercept window. Detected via the
+    `Главное за день` / `#ИтогиДня` markers in `SVODKA_GATE`.
+  - **`briefing`** — "Тезисы брифинга …" briefing transcripts (e.g. msg 59941, the Dec
+    2025 Putin-residence attack recap). Multi-region + time-windowed AD recaps that
+    don't fit the single-window AD model. parse_report's `SVODKA_GATE` guard keeps them
+    out of `ad_reports` while parse_summary stores them for a future structured parser.
+- **`silent_days` table** (added 2026-06): dates verified to have no standalone MoD AD
+  intercept post (e.g. ceasefire days when only a Сводka went out). Populated manually via
+  `python ingest.py --mark-silent YYYY-MM-DD '<note>'` after auditing with
+  `scripts/ru_mod/probe_gap.py`. Used by the gap-day ingest warning to skip
+  already-audited dates so a re-scan doesn't re-flag them. The frontend deliberately
+  does NOT render these as 0-drone rows — a no-post day isn't a verified zero, so a
+  chart gap is the honest signal.
 - **REVISIT:** (a) telethon-backfill 2025 to recover the weekly equipment Сводки; (b) parse cumulative
   equipment from those; (c) pin down exactly when personnel reporting stopped (looks pre-2025 already);
   (d) compare equipment trend against the GSUA RU-LOSSES series. Deep history needs the telethon backend.
@@ -203,6 +246,23 @@ The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:
 - https://github.com/leedrake5/Russia-Ukraine · MIT · pushed daily
 - Oryx visually-confirmed equipment losses, machine-readable CSV mirror
   (`data/bySystem`, `byType`, FIRMS, Naalsio). Easy parse. Good counterweight to govt claims.
+
+### lostarmour.info — LIVE (content) but NOT machine-readable (checked 2026-06-24)
+- https://lostarmour.info/ — visually-confirmed equipment losses across the conflict
+  (armour `/armour`, vehicles `/auto`, aviation `/avia`, air defense `/pvo`, artillery
+  `/artd`/`/artc`, MRAPs `/mraps`, captured `/spoils`, plus geographic sections
+  `/east`, `/kursk` etc.). Distinct from Oryx: more RU-side-leaning, finer per-incident
+  geo-located photo/video catalogue rather than per-system aggregate counts.
+- **No public API or data exports.** Site is PHP 5.4.16 behind DDoS-Guard. Probed
+  `/api`, `/about` (both 404); `robots.txt` blocks parameterized + PHP URLs; sitemap
+  lists only HTML page routes (`/stats/<system>`, `/news/<id>` × 1000+) — no JSON/CSV
+  endpoints anywhere. The DDoS-Guard layer sets multiple `__ddgN_` cookies on every
+  request, so bulk scraping needs cookie-aware sessions and likely trips rate limits
+  on a bot UA. Contact: `admin@lostarmour.info`.
+- **Verdict:** reference / cross-check only. Their schema is per-incident-with-image
+  (different shape from our aggregate-counts model) and there's no machine path. If
+  ever wanted as an ingestion source, email the admins first; a hand-rolled HTML
+  scraper would be substantially more invasive than what we built for MoD or Petro.
 
 ### UALosses — LIVE — best Ukrainian-casualty source
 - https://ualosses.org/ + Kaggle `ol4ubert/confirmed-ukrainian-military-personnel-losses`
@@ -400,12 +460,30 @@ the two joinable:
 
 ---
 
-## Suggested integration order
+## Current integration status (2026-06-24)
 
-1. **russian-casualties.in.ua** — national GSUA totals. Lowest effort: pre-differenced daily
-   values + open CORS = direct browser fetch, no scraper/R2. New site-picker entry.
-2. **piterfm "Massive Missile Attacks"** — air defense launched-vs-intercepted. High value,
-   closest to existing SBS/GSUA work. Needs a small ingest (Kaggle CSV → our DB/R2).
-3. **leedrake5 Oryx** — OSINT-verified equipment as a counterweight to government claims.
+Done (each is a live R2 SQLite + a site-picker entry):
+- **SBS** — direct API, `sbs.db`
+- **GSUA per-direction combat** — `ru-attacks-gsua.db` (range-fetched via sql.js-httpvfs)
+- **RU losses (GSUA national totals)** — `ru-losses-gsua-petroivaniuk.db`; PetroIvaniuk
+  primary + mod.gov.ua freshness supplement (§1)
+- **RU MoD air-defense intercepts** — `ru-mod-ad.db` (§3)
+- **RU missile/UAV attacks (piterfm)** — `ru-air-attacks-gsua.db` (§2)
+- **SBU Alfa monthly recap** — `sbu-alfa.db`
+- **Mediazona named deaths + probate estimate** — `mediazona.db`
+- **RU missile stockpiles (HUR)** — prototype JSON, site `ru-missiles-hur` (§9)
 
-Open question / gap: Russian MoD daily claims (category 3) would need a dedicated scraper.
+Open work / candidate sources still on the board:
+- **GSUA-Telegram-direct cumulative loss summaries** (§3 REVISIT) — same upstream channel
+  the GSUA attacks scraper already targets, but the loss-summary posts are filtered out.
+  Adding a second recogniser would give a parallel third source for §1, redundant with
+  mod.gov.ua so deferred.
+- **Telethon backfill of 2025 weekly Сводки** (§3 REVISIT) to recover the equipment
+  trend before the format thinned in 2026.
+- **Front-line weather via Open-Meteo** (§6) — direction → lat/lon overlay, not started.
+- **Janis Kluge / Russianomics** (§7) — chart-scraping ruled out; would need a Russian
+  regional-budget scraper if pursued.
+- **DeepState territory polygons** (§8) — GeoJSON area-diffing on a periodic cadence
+  if/when we add a territorial-control view.
+- **lostarmour.info** (§5) — visually-confirmed losses, no machine path; reference only
+  unless we email for access.
