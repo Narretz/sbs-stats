@@ -333,7 +333,8 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    print(f"==> Fetching {EQUIP_URL}\n==> Fetching {PERSONNEL_URL}")
+    # fetch() prints its own per-URL [fetch] lines with cache headers, so
+    # the old "==> Fetching <url>" banner is redundant — drop it.
     equip, personnel = fetch()
     check_drift(equip, personnel)
     out = Path(args.out)
