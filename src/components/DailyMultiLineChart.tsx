@@ -100,16 +100,28 @@ function MultiTooltip({
       <div style={{ color: t.textMuted, marginBottom: 4 }}>
         {granularity === "monthly" ? formatMonth(row.date) : formatDate(row.date)}
       </div>
-      {series.map((s) => {
-        // Always show raw absolute values in the tooltip — even in normalized
-        // mode, the user wants to know "what is the actual number today?"
-        const raw = row[`${s.key}__raw`];
-        return (
+      {series
+        // Sort tooltip rows by THIS data point's raw value, highest first.
+        // Nulls fall to the bottom; original-order tiebreak keeps the order
+        // stable across mostly-flat windows. Sorting per-point is fine — most
+        // days the ranking matches the legend, and when it doesn't, the
+        // top-to-bottom read matches what's actually peaking that day.
+        .map((s, i) => ({
+          s, i,
+          raw: row[`${s.key}__raw`] as number | null | undefined,
+        }))
+        .sort((a, b) => {
+          const av = typeof a.raw === "number" ? a.raw : -Infinity;
+          const bv = typeof b.raw === "number" ? b.raw : -Infinity;
+          return bv - av || a.i - b.i;
+        })
+        .map(({ s, raw }) => (
+          // Always show raw absolute values in the tooltip — even in normalized
+          // mode, the user wants to know "what is the actual number today?"
           <div key={s.key} style={{ display: "flex", justifyContent: "space-between", gap: 12, color: s.color }}>
             <span>{s.label}</span><span>{fmt(raw as number | null)}</span>
           </div>
-        );
-      })}
+        ))}
       {notes.map((n, i) => (
         <div key={`n-${i}`} style={{ color: noteColor, fontSize: 10, marginTop: 6, maxWidth: 280, whiteSpace: "pre-line" }}>
           ⚠ {n}
