@@ -8,22 +8,29 @@ interface Props {
   onRefresh: () => void;
   isLoading: boolean;
   // Auto-refresh interval of the active site's loader (varies per site).
-  intervalMs: number;
+  // OMIT for manual-only mode (e.g. the home page, where multiple sources
+  // each have their own underlying cadence so a single combined countdown
+  // would be misleading) — the countdown ring + "refresh in M:SS" line
+  // are hidden in that case and only the manual button + last-updated
+  // stamp remain.
+  intervalMs?: number;
 }
 
 export function RefreshIndicator({ lastRefreshed, refreshCount, onRefresh, isLoading, intervalMs }: Props) {
   const { theme: t } = useTheme();
+  const manualOnly = intervalMs == null;
   const [progress, setProgress] = useState(1);
-  const [secondsLeft, setSecondsLeft] = useState(intervalMs / 1000);
+  const [secondsLeft, setSecondsLeft] = useState(intervalMs ? intervalMs / 1000 : 0);
   const startRef = useRef<number>(Date.now());
 
   useEffect(() => {
     startRef.current = Date.now();
     setProgress(1);
-    setSecondsLeft(intervalMs / 1000);
+    if (intervalMs) setSecondsLeft(intervalMs / 1000);
   }, [lastRefreshed, refreshCount, intervalMs]);
 
   useEffect(() => {
+    if (!intervalMs) return;
     const tick = () => {
       const elapsed = Date.now() - startRef.current;
       const remaining = Math.max(0, intervalMs - elapsed);
@@ -70,17 +77,34 @@ export function RefreshIndicator({ lastRefreshed, refreshCount, onRefresh, isLoa
     >
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={t.border} strokeWidth={stroke} />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke={isLoading ? t.accent : t.primary}
-          strokeWidth={stroke}
-          strokeDasharray={`${isLoading ? circ * 0.25 : dash} ${circ}`}
-          strokeLinecap="round"
-          style={isLoading ? { animation: "spin 1s linear infinite" } : { transition: "stroke-dasharray 0.8s linear" }}
-        />
+        {/* Filled countdown arc — only when there's an interval to count down. */}
+        {!manualOnly && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke={isLoading ? t.accent : t.primary}
+            strokeWidth={stroke}
+            strokeDasharray={`${isLoading ? circ * 0.25 : dash} ${circ}`}
+            strokeLinecap="round"
+            style={isLoading ? { animation: "spin 1s linear infinite" } : { transition: "stroke-dasharray 0.8s linear" }}
+          />
+        )}
+        {/* Manual-only mode shows a static spinner during loading, otherwise just the icon glyph. */}
+        {manualOnly && isLoading && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke={t.accent}
+            strokeWidth={stroke}
+            strokeDasharray={`${circ * 0.25} ${circ}`}
+            strokeLinecap="round"
+            style={{ animation: "spin 1s linear infinite" }}
+          />
+        )}
         <g transform={`rotate(90, ${size / 2}, ${size / 2}) translate(${size / 2}, ${size / 2})`}>
           <path
             d="M-3.5,0 A3.5,3.5 0 1,1 1.8,3 M1.8,3 L0,5 M1.8,3 L3.8,1.5"
@@ -94,7 +118,11 @@ export function RefreshIndicator({ lastRefreshed, refreshCount, onRefresh, isLoa
       </svg>
       <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 64 }}>
         <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, lineHeight: 1 }}>
-          {isLoading ? "refreshing…" : `refresh in ${formatTime(secondsLeft)}`}
+          {isLoading
+            ? "refreshing…"
+            : manualOnly
+              ? "refresh"
+              : `refresh in ${formatTime(secondsLeft)}`}
         </span>
         <span style={{ fontFamily: FONTS.mono, fontSize: 9, color: t.textMuted + "99", lineHeight: 1 }}>
           {lastRefreshed ? `updated ${lastUpdatedStr}` : "loading…"}

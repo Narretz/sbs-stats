@@ -13,6 +13,7 @@ import { MonthRangeSelect } from "@/components/MonthRangeSelect";
 import { DateNav } from "@/components/DateNav";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MetricPicker } from "@/components/MetricPicker";
+import { RefreshIndicator } from "@/components/RefreshIndicator";
 import { DAY_OPTIONS, type DayOption, parseDaysParam } from "@/utils/dayRange";
 import { MONTH_OPTIONS, type MonthOption } from "@/utils/monthRange";
 import { useStatScope, type StatScope } from "@/hooks/useStatScope";
@@ -576,6 +577,39 @@ export function HomePage({ onGoToSite }: Props) {
     return states.filter(([, st, isNeeded]) => isNeeded && st === "loading").map(([s]) => s);
   }, [needed, mediazonaNeeded, sbs.loadState, gsua.loadState, ruLosses.loadState, ruMod.loadState, ruAir.loadState, sbuAlfa.loadState, mediazona.loadState]);
 
+  // Cross-source refresh state for the header indicator. Each underlying hook
+  // has its own auto-refresh cadence, so a single combined countdown would be
+  // misleading — we render the indicator in manual-only mode (no intervalMs).
+  // `lastRefreshed` is the OLDEST timestamp across the needed sources (the
+  // freshness floor: "all your data is at least this fresh"); `isLoading` is
+  // any needed source still mid-fetch; `refresh()` fans out to every needed
+  // source. Sources not currently needed by any chart are excluded so a
+  // refresh doesn't fetch databases we aren't using.
+  const sourceHandles = useMemo(() => ([
+    { needed: needed.has("sbs"),               h: sbs       },
+    { needed: needed.has("gsua"),              h: gsua      },
+    { needed: needed.has("ru-losses"),         h: ruLosses  },
+    { needed: needed.has("ru-airdef-mod"),     h: ruMod     },
+    { needed: needed.has("ru-air-attacks"),    h: ruAir     },
+    { needed: needed.has("sbu-alfa"),          h: sbuAlfa   },
+    { needed: mediazonaNeeded,                 h: mediazona },
+  ]), [needed, mediazonaNeeded, sbs, gsua, ruLosses, ruMod, ruAir, sbuAlfa, mediazona]);
+
+  const refreshAggregated = useMemo(() => {
+    const active = sourceHandles.filter((s) => s.needed);
+    const stamps = active
+      .map((s) => s.h.lastRefreshed)
+      .filter((d): d is Date => d instanceof Date);
+    return {
+      lastRefreshed: stamps.length
+        ? new Date(Math.min(...stamps.map((d) => d.getTime())))
+        : null,
+      isLoading: active.some((s) => s.h.loadState === "loading"),
+      refreshCount: active.reduce((acc, s) => acc + s.h.refreshCount, 0),
+      onRefresh: () => active.forEach((s) => s.h.refresh()),
+    };
+  }, [sourceHandles]);
+
   const onSitePick = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     const v = e.target.value;
     if (v) onGoToSite(v as Site);
@@ -614,6 +648,12 @@ export function HomePage({ onGoToSite }: Props) {
           </select>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <RefreshIndicator
+            lastRefreshed={refreshAggregated.lastRefreshed}
+            refreshCount={refreshAggregated.refreshCount}
+            onRefresh={refreshAggregated.onRefresh}
+            isLoading={refreshAggregated.isLoading}
+          />
           <button
             onClick={toggle}
             title={`Switch to ${mode === "light" ? "dark" : "light"} mode`}
