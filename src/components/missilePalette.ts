@@ -51,16 +51,23 @@ export const MISSILE_HIDDEN_DEFAULT: string[] = Object.keys(MISSILE_CATEGORY).fi
 // Reds → oranges → violets. 10 cruise types; ordering goes "anti-ship" specials
 // at the ends, primary mass (Kalibr, Kh-101) up front in the brightest reds.
 const CRUISE_COLORS = [
-  "#db2c18", // canonical red
-  "#E8796E", //
-  "#a82b1f", // deep red
-  "#cf6b1e", //
-  "#e08a1e", //
-  "#f0a445", //
-  "#8617D4", // violet
-  "#F64EF0", // pink
-  "#e07866", // salmon
+  // canonical red
+  "#db2c18",
+  "#E8796E",
+  // deep red
+  "#a82b1f",
+  "#cf6b1e",
+  "#e08a1e",
+  "#f0a445",
+  // violet
+  "#8617D4",
+  // pink
+  "#F64EF0",
+  // brown
+  "#A16123",
 ];
+
+// rgb(224, 120, 102)
 
 // Blue / green / teal for the ballistic systems.
 const BALLISTIC_COLORS = [
