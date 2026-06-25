@@ -74,7 +74,7 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 28 }}>
+      <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 16 }}>
         <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
           Monthly Combat Stats - GSUA
         </h1>
@@ -82,12 +82,12 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
           Monthly sums of daily totals from Ukrainian General Staff reports. Current month shows end-of-month projection.  Via Telegram @GeneralStaffZSU.
         </p>
         <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          {!yr.hidden && (
-            <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
-          )}
-          <StatScopeToggle />
-        </div>
+      </div>
+      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+        {!yr.hidden && (
+          <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
+        )}
+        <StatScopeToggle />
       </div>
 
       {loadState === "loading" && !hasData && <LoadingScreen message="Loading GSUA database…" />}

@@ -82,6 +82,23 @@ export const GLOBAL_CSS = (t: Theme) => `
      its absolutely-positioned tooltip on top. */
   .chart-card { position: relative; z-index: 1; }
   .chart-card:hover { z-index: 2; }
+  /* Per-site pages' controls bar (time window, date nav, etc.) pinned right
+     below the 52px SiteHeader. z-index sits below the header (z:10) so the
+     header still covers it when scrolling, but above chart cards (z:1/2).
+     Solid bg + subtle bottom border keeps content from showing through.
+     On phone-sized screens the bar usually wraps to multiple rows and eats
+     too much vertical real estate; let it scroll with the page there. */
+  .page-controls-sticky {
+    position: sticky;
+    top: 52px;
+    z-index: 8;
+    background: ${t.bg};
+    padding: 10px 0;
+    border-bottom: 1px solid ${t.border};
+  }
+  @media (max-width: 640px) {
+    .page-controls-sticky { position: static; }
+  }
   /* The native <details>/<summary> triangle is too small at the page's 11px
      mono baseline — scale just the marker so the affordance is visible. */
   summary::marker { font-size: 1.6em; }

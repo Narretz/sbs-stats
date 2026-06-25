@@ -217,42 +217,40 @@ export function GsuaDailyPage({ refreshKey }: Props) {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-            Daily Combat Stats {selectedDirection ? `— ${selectedDirection}` : ""} - GSUA
-          </h1>
-          <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Last snapshot per day · Via Telegram @GeneralStaffZSU.
-          </p>
-          <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
-        </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
-          <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
-          <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
-      <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
-        Direction
-      </span>
-          <select
-            data-testid="direction-picker"
-            value={selectedDirection}
-            onChange={(e) => updateDirection(e.target.value)}
-            style={{
-              background: selectedDirection ? t.primary : t.bgAlt,
-              color: selectedDirection ? "#fff" : t.textMuted,
-              border: `1px solid ${selectedDirection ? t.primary : t.border}`,
-              borderRadius: 4, padding: "5px 8px",
-              fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
-            }}
-          >
-            <option value="">All Ukraine (overview)</option>
-            {directionList.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-          <StatScopeToggle />
-        </div>
+      <div style={{ marginBottom: 16 }}>
+        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
+          Daily Combat Stats {selectedDirection ? `— ${selectedDirection}` : ""} - GSUA
+        </h1>
+        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
+          Last snapshot per day · Via Telegram @GeneralStaffZSU.
+        </p>
+        <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
+      </div>
+      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+        <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
+        <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
+        <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
+        <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
+          Direction
+        </span>
+        <select
+          data-testid="direction-picker"
+          value={selectedDirection}
+          onChange={(e) => updateDirection(e.target.value)}
+          style={{
+            background: selectedDirection ? t.primary : t.bgAlt,
+            color: selectedDirection ? "#fff" : t.textMuted,
+            border: `1px solid ${selectedDirection ? t.primary : t.border}`,
+            borderRadius: 4, padding: "5px 8px",
+            fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
+          }}
+        >
+          <option value="">All Ukraine (overview)</option>
+          {directionList.map((d) => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+        <StatScopeToggle />
       </div>
 
       {loadState === "loading" && !hasData && <LoadingScreen message="Loading GSUA database…" />}

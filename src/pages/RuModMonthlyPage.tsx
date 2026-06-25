@@ -70,20 +70,20 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
 
   return (
     <div>
-<div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 28 }}>
-          <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-            Monthly Ukrainian UAVs Downed - RU MoD
-          </h1>
-          <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Monthly sums of Russian MoD air-defense intercept claims (MSK drone-days). Current month shows an end-of-month projection. A dashed outline marks months containing a report whose window may overlap a neighbor (possible double-count) — see tooltip.
-          </p>
-          <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-mod" />
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          {!yr.hidden && (
-            <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
-          )}
-          <StatScopeToggle />
-        </div>
+      <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 16 }}>
+        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
+          Monthly Ukrainian UAVs Downed - RU MoD
+        </h1>
+        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
+          Monthly sums of Russian MoD air-defense intercept claims (MSK drone-days). Current month shows an end-of-month projection. A dashed outline marks months containing a report whose window may overlap a neighbor (possible double-count) — see tooltip.
+        </p>
+        <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-mod" />
+      </div>
+      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+        {!yr.hidden && (
+          <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
+        )}
+        <StatScopeToggle />
       </div>
 
       {loadState === "loading" && !hasData && <LoadingScreen message="Loading RU air-defense database…" />}

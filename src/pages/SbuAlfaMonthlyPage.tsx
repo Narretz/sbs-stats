@@ -128,7 +128,7 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
 
   return (
     <div>
-<div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 28 }}>
+      <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 16 }}>
         <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
           SBU «Альфа» — Monthly Recap
         </h1>
@@ -145,12 +145,12 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
             Data Availability: {dataWindow.minPeriod} – {dataWindow.maxPeriod} · {allPeriods.length} month{allPeriods.length === 1 ? "" : "s"}
           </p>
         )}
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          {!yr.hidden && (
-            <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
-          )}
-          <StatScopeToggle />
-        </div>
+      </div>
+      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+        {!yr.hidden && (
+          <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
+        )}
+        <StatScopeToggle />
       </div>
 
       {loadState === "loading" && !hasData && <LoadingScreen message="Loading SBU Alfa database…" />}
