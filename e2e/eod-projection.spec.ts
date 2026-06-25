@@ -40,10 +40,16 @@ async function eodTooltip(page: Page, chartIndex: number): Promise<string> {
   return "";
 }
 
+// "/" lands on the Custom-charts homepage; per-site views are reached via
+// the ?site=…&page=… URL params. Tests deep-link to bypass home → site.
+const SBS_DAILY = "/?site=sbs&page=daily";
+const SBS_HOURLY = "/?site=sbs&page=hourly";
+const GSUA_DAILY = "/?site=ru-attacks-gsua&page=daily";
+const GSUA_HOURLY = "/?site=ru-attacks-gsua&page=hourly";
+
 test.describe("End-of-day projection", () => {
   test("SBS daily — single-series tooltip shows a projected value", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTestId("nav-daily").click();
+    await page.goto(SBS_DAILY);
     const txt = await eodTooltip(page, 0); // Personnel Casualties (full-width, single line)
     expect(txt).toMatch(/EoD est/);
     expect(txt).toMatch(/~[\d,]+/);   // a projected number
@@ -51,34 +57,32 @@ test.describe("End-of-day projection", () => {
   });
 
   test("SBS daily — paired chart projects both series", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTestId("nav-daily").click();
+    await page.goto(SBS_DAILY);
     const txt = await eodTooltip(page, 2); // Targets — Hit / Destroyed
     expect((txt.match(/EoD est/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 
   test("SBS daily — hovered card is elevated so the tooltip isn't clipped", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTestId("nav-daily").click();
+    await page.goto(SBS_DAILY);
     await eodTooltip(page, 1); // leaves the mouse hovering this card
     const z = await page.evaluate(() => {
-      const el = document.querySelector(".daily-card:hover");
+      const el = document.querySelector(".chart-card:hover");
       return el ? getComputedStyle(el).zIndex : null;
     });
-    expect(z).toBe("100");
+    // theme.ts: `.chart-card:hover { z-index: 2; }` — enough to sit above the
+    // sibling `.chart-card { z-index: 1; }` whose top edge would otherwise
+    // paint over the hover-card's tooltip.
+    expect(z).toBe("2");
   });
 
   test("SBS hourly — tooltip header shows the EoD estimate", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTestId("nav-hourly").click();
+    await page.goto(SBS_HOURLY);
     const txt = await eodTooltip(page, 0);
     expect(txt).toMatch(/TODAY EoD est ~[\d,]+ \(\d+% in by \d{2}:\d{2}\)/);
   });
 
   test("GSUA ru-attacks daily — single-series tooltip shows a projected value", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTestId("site-picker").selectOption("ru-attacks-gsua");
-    await page.getByTestId("nav-daily").click();
+    await page.goto(GSUA_DAILY);
     const txt = await eodTooltip(page, 0); // Combat Engagements
     expect(txt).toMatch(/EoD est/);
     expect(txt).toMatch(/~[\d,]+/);
@@ -86,9 +90,7 @@ test.describe("End-of-day projection", () => {
   });
 
   test("GSUA ru-attacks hourly — tooltip header shows the EoD estimate", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTestId("site-picker").selectOption("ru-attacks-gsua");
-    await page.getByTestId("nav-hourly").click();
+    await page.goto(GSUA_HOURLY);
     const txt = await eodTooltip(page, 0);
     expect(txt).toMatch(/TODAY EoD est ~[\d,]+ \(\d+% in by \d{2}:\d{2}\)/);
   });

@@ -29,8 +29,10 @@ async function setDays(page: Page, days: string) {
 for (const view of ["daily", "hourly"] as const) {
   test.describe(`SBS ${view} — MAX/MED scope`, () => {
     test("'All data' spans the whole dataset; 'Window data' only the window", async ({ page }) => {
-      await page.goto("/");
-      await page.getByTestId(`nav-${view}`).click();
+      // "/" lands on the Custom-charts homepage; site pages are reached via the
+      // ?site=…&page=… URL params (or the in-app site-picker once you're inside
+      // a site). Tests deep-link to bypass the home → site click.
+      await page.goto(`/?site=sbs&page=${view}`);
       await page.waitForSelector(".recharts-surface");
 
       await page.getByTestId("stat-scope-select").selectOption("all");
@@ -43,8 +45,10 @@ for (const view of ["daily", "hourly"] as const) {
     });
 
     test("'All data' MAX/MED is independent of the day-range window", async ({ page }) => {
-      await page.goto("/");
-      await page.getByTestId(`nav-${view}`).click();
+      // "/" lands on the Custom-charts homepage; site pages are reached via the
+      // ?site=…&page=… URL params (or the in-app site-picker once you're inside
+      // a site). Tests deep-link to bypass the home → site click.
+      await page.goto(`/?site=sbs&page=${view}`);
       await page.waitForSelector(".recharts-surface");
       await page.getByTestId("stat-scope-select").selectOption("all");
 
