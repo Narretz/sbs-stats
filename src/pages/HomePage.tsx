@@ -913,7 +913,12 @@ function ChartCard({
         )}
         <MetricPicker selected={config.metricIds} onChange={onMetricsChange} view={config.granularity} />
         <button
-          onClick={onRemove}
+          onClick={() => {
+            const msg = isOnlyChart
+              ? `Reset "${config.name}" to an empty default chart?`
+              : `Remove "${config.name}"?`;
+            if (window.confirm(msg)) onRemove();
+          }}
           title={isOnlyChart ? "Reset this chart" : "Remove this chart"}
           style={{
             background: t.bgAlt, color: t.textMuted, border: `1px solid ${t.border}`,
