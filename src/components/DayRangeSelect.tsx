@@ -35,31 +35,21 @@ export function DayRangeSelect<T extends number>({ options, value, onChange }: P
     }
   };
 
-  // Listen for the DOM `change` event in addition to React's `onChange` (which
-  // is actually the per-keystroke `input` event). The native `change` event
-  // fires on spinner-button clicks, Enter, and blur-with-change — covering the
-  // case where the user uses the number input's stepper without ever giving the
-  // field keyboard focus (Firefox). Debounce so a flurry of spinner clicks
-  // doesn't trigger a chart re-query on each step.
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const handler = (e: Event) => {
-      const raw = (e.target as HTMLInputElement).value;
-      if (timer != null) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
-        commit(raw);
-      }, 350);
-    };
-    el.addEventListener("change", handler);
-    return () => {
-      el.removeEventListener("change", handler);
-      if (timer != null) clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  // Debounce commits so a flurry of spinner-button clicks (or fast typing)
+  // doesn't re-fetch the chart on every keystroke. The timer is scheduled
+  // inside React's onChange, so its closure captures the props from the
+  // render that just produced this handler — fresh per gesture. (An older
+  // version of this component bound a native `change` listener inside a
+  // useEffect with stale deps; that one captured props from a past render
+  // and clobbered any state change the parent made in the meantime.)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelDebounce = () => {
+    if (debounceRef.current != null) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+  };
+  useEffect(() => cancelDebounce, []);
 
   const inputStyle = {
     background: t.bgAlt,
@@ -104,7 +94,16 @@ export function DayRangeSelect<T extends number>({ options, value, onChange }: P
         min={1}
         step={1}
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          const v = e.target.value;
+          setDraft(v);
+          cancelDebounce();
+          debounceRef.current = setTimeout(() => commit(v), 350);
+        }}
+        onBlur={(e) => {
+          cancelDebounce();
+          commit(e.target.value);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") inputRef.current?.blur();
         }}

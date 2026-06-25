@@ -34,25 +34,16 @@ export function MonthRangeSelect({ options, value, onChange }: Props) {
     }
   };
 
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const handler = (e: Event) => {
-      const raw = (e.target as HTMLInputElement).value;
-      if (timer != null) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
-        commit(raw);
-      }, 350);
-    };
-    el.addEventListener("change", handler);
-    return () => {
-      el.removeEventListener("change", handler);
-      if (timer != null) clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  // Debounce commits so spinner clicks / fast typing don't re-fetch on every
+  // event. See DayRangeSelect for the closure-freshness rationale.
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelDebounce = () => {
+    if (debounceRef.current != null) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+  };
+  useEffect(() => cancelDebounce, []);
 
   const labelFor = (opt: MonthOption): string => {
     if (opt === "all") return "All";
@@ -97,7 +88,16 @@ export function MonthRangeSelect({ options, value, onChange }: Props) {
         min={1}
         step={1}
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          const v = e.target.value;
+          setDraft(v);
+          cancelDebounce();
+          debounceRef.current = setTimeout(() => commit(v), 350);
+        }}
+        onBlur={(e) => {
+          cancelDebounce();
+          commit(e.target.value);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") inputRef.current?.blur();
         }}
