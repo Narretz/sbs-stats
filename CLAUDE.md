@@ -34,6 +34,11 @@ datasets for future views.
   a row is never overwritten; an edit/correction inserts a new row keyed by an
   ingest timestamp (`scraped_at`), and reads resolve the latest version. See the
   per-script READMEs for details.
+- **Tests** (`e2e/`): e2e tests for the frontend application. Uses fixtures in place of live data.
+  Add and run tests on your own discretion after features/fixes have been completed.
+  (`scripts/*/test_ingest.py`): ingest tests for scripts that parse data from unstructered sources.
+  Must always be run and updated when the parser is changed.
+
 
 ## CI / deploy
 

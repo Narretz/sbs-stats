@@ -47,6 +47,7 @@ budget-derived casualties, frontline weather, etc.).
   via sql.js-httpvfs.
 - **CI**: workflows in `.github/workflows/` schedule each ingest and `deploy.yml`
   builds and publishes to GitHub Pages.
+- **Tests** (`e2e/`): e2e tests for the frontend application. Uses fixtures in place of live data.
 
 ## Common commands
 
