@@ -28,11 +28,13 @@ const SOURCE_ORDER: MetricSource[] = [
 
 // Minimal local types — React 18's JSX types don't include the popover
 // attributes yet. We pass them through as data on the element and rely on the
-// browser to wire up popover behavior.
+// browser to wire up popover behavior. Names must be lowercase: React 18 logs
+// a "does not recognize the prop" warning for unknown camelCase props on DOM
+// elements but passes lowercase ones through as plain HTML attributes.
 type PopoverProps = {
   popover?: "auto" | "manual";
-  popoverTarget?: string;
-  popoverTargetAction?: "show" | "hide" | "toggle";
+  popovertarget?: string;
+  popovertargetaction?: "show" | "hide" | "toggle";
 };
 
 export function MetricPicker({ selected, onChange, view }: Props) {
@@ -126,9 +128,9 @@ export function MetricPicker({ selected, onChange, view }: Props) {
     else onChange([...selected, id]);
   };
 
-  const triggerProps: PopoverProps = { popoverTarget: popoverId };
+  const triggerProps: PopoverProps = { popovertarget: popoverId };
   const popoverProps: PopoverProps = { popover: "auto" };
-  const closeProps: PopoverProps = { popoverTarget: popoverId, popoverTargetAction: "hide" };
+  const closeProps: PopoverProps = { popovertarget: popoverId, popovertargetaction: "hide" };
 
   const btnStyle = {
     background: t.bgAlt,
