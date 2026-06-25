@@ -114,13 +114,29 @@ function makeDefaultCharts(globalDaysOverride?: number): ChartConfig[] {
 // URL encoding for `charts=`:
 //   <encName>[:<spec>]:<id>,<id>;<encName>:<id>;...
 //
-// - name is encodeURIComponent'd so it can contain anything safely
+// - name is escaped MINIMALLY — only our delimiters (`:`, `;`) and `%` itself.
+//   URLSearchParams handles the rest (spaces → +, unicode, etc) with its own
+//   single encode/decode pass, so encoding the full name with encodeURIComponent
+//   on top would double-encode common chars (e.g. " " → "%20" → "%2520").
 // - spec is `d<days>` or `m<months|all>` (e.g. `d60`, `m12`, `mall`)
 // - when omitted (legacy URL shape), defaults to daily + DEFAULT_DAYS
 // - spec is also omitted on output when the chart matches the per-granularity
 //   default window (so default-window URLs stay short)
 // - empty metric list is allowed (chart created but no metrics yet)
 const SPEC_RE = /^([dm])(\d+|all)$/;
+
+function encodeChartName(s: string): string {
+  // Just our 3 problem chars — encodeURIComponent of `:`/`;`/`%` yields
+  // `%3A`/`%3B`/`%25`. After URLSearchParams.set/.get one-pass round-trip,
+  // those escapes survive intact so chunk/field splits stay unambiguous.
+  return s.replace(/[%:;]/g, encodeURIComponent);
+}
+
+function decodeChartName(s: string): string {
+  // Reverse encodeChartName. URLSearchParams.get has already done one decode
+  // pass, so our `%25`/`%3A`/`%3B` literals are what's left to undo.
+  return s.replace(/%(25|3A|3B)/gi, (m) => decodeURIComponent(m));
+}
 
 function parseSpec(raw: string): { granularity: ChartGranularity; window: DayOption | MonthOption } | null {
   const m = SPEC_RE.exec(raw);
@@ -184,7 +200,7 @@ function parseCharts(raw: string | null, legacyMetrics: string[], legacyDays: nu
     }
     let name = defaultChartName(idx + 1);
     try {
-      const decoded = decodeURIComponent(nameRaw);
+      const decoded = decodeChartName(nameRaw);
       if (decoded) name = decoded;
     } catch {
       // Malformed encoding — keep the default name.
@@ -213,8 +229,8 @@ function serializeCharts(charts: ChartConfig[]): string {
       // legacy shape so unchanged links stay unchanged.
       const isLegacyShape = c.granularity === "daily" && c.window === DEFAULT_DAYS;
       const head = isLegacyShape
-        ? encodeURIComponent(c.name)
-        : `${encodeURIComponent(c.name)}:${formatSpec(c)}`;
+        ? encodeChartName(c.name)
+        : `${encodeChartName(c.name)}:${formatSpec(c)}`;
       return `${head}:${c.metricIds.join(",")}`;
     })
     .join(";");
