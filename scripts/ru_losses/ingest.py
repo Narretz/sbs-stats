@@ -125,6 +125,16 @@ REPORT_TO_LOSS_DAY = -1
 # well over a year of days. Below this means a broken/partial fetch — refuse it.
 MIN_ROWS_FLOOR = 365
 
+# Catastrophic cumulative regression — a one-day cum that drops below this
+# fraction of the prior day's cum is almost certainly an upstream typo, not a
+# real GS correction. Real corrections shift by ≪1% of the running total;
+# Petro's 2026-06-24 typo dropped vehicles by ~90% (110827 → 11257). We treat
+# affected metrics as missing for that day rather than emitting a nonsensical
+# negative per-day delta. `MIN_PREV_FOR_GUARD` keeps the rule from firing in
+# the early-war noise where small absolute values produce big relative swings.
+SUSPECT_DROP_RATIO = 0.5
+MIN_PREV_FOR_GUARD = 100
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_DB_NAME = os.environ.get("RU_LOSSES_DB_NAME", "ru-losses-gsua-petroivaniuk.db")
 
@@ -217,7 +227,10 @@ def parse_rows(equip: list[dict], personnel: list[dict]) -> dict[str, dict]:
     Merges both files into a per-report-day cumulative record, diffs consecutive
     days into per-day increments, then re-keys each increment to its loss day
     (report day − 1). A column appearing mid-series (UGS backfill) yields None on
-    its first day. Negative values are real GS corrections, passed through.
+    its first day. Real GS corrections (modest negatives) are passed through;
+    a catastrophic cumulative drop (see SUSPECT_DROP_RATIO) is treated as
+    missing for the affected metric and `prev` is held at the last good value
+    so the next day's delta is taken against pre-typo reality.
     """
     cum: dict[str, dict[str, int | None]] = {}
     for rec in equip:
@@ -248,11 +261,64 @@ def parse_rows(equip: list[dict], personnel: list[dict]) -> dict[str, dict]:
             elif prev[m] is None:
                 rec[m] = cur if rd == first else None  # baseline vs mid-war backfill
                 prev[m] = cur
+            elif prev[m] > MIN_PREV_FOR_GUARD and cur < prev[m] * SUSPECT_DROP_RATIO:
+                msg = (
+                    f"Petro cumulative for {m} on report-day {rd} dropped from "
+                    f"{prev[m]} to {cur} (>{int((1 - SUSPECT_DROP_RATIO) * 100)}% "
+                    f"regression); treating as missing for loss-day {loss_date}. "
+                    f"Likely upstream typo — verify and re-fetch once the upstream "
+                    f"JSON is corrected."
+                )
+                print(f"\n⚠️  SUSPECT DROP: {msg}\n", file=sys.stderr)
+                if os.environ.get("GITHUB_ACTIONS") == "true":
+                    print(f"::warning title=ru_losses suspect drop::{msg}")
+                rec[m] = None
+                # Hold prev at the last good value so the next day's delta is
+                # taken against pre-typo reality, not the bogus low cum.
             else:
                 rec[m] = cur - prev[m]
                 prev[m] = cur
         out[loss_date] = rec
     return out
+
+
+def _is_meaningful_change(
+    stored: tuple | None, fetched_values: list[int | None],
+) -> bool:
+    """Decide whether to write a new version row.
+
+    A `None` in `fetched_values` means "we don't have data for this metric
+    right now" (either because the source omitted it or because the
+    suspect-drop guard filtered it). We never want a missing value to
+    *overwrite* a real one in the latest snapshot, so a `None` is treated
+    as "no information; keep what's stored."
+
+    Returns True if the date is new, OR if any metric the fetch actually has
+    a real value for differs from what's stored.
+    """
+    if stored is None:
+        return True
+    for f, s in zip(fetched_values, stored):
+        if f is None:
+            continue
+        if f != s:
+            return True
+    return False
+
+
+def _merge_with_stored(
+    fetched_values: list[int | None], stored: tuple | None,
+) -> list[int | None]:
+    """Per-metric fallback: where fetched is None and stored has a real value,
+    keep the stored value in the row we're about to insert.
+
+    Inserts are row-level, so when *some other* metric triggers a write, a
+    None in `fetched_values` would otherwise clobber a real stored value
+    (e.g. a manual correction for a metric the suspect-drop guard nulled).
+    """
+    if stored is None:
+        return fetched_values
+    return [s if f is None else f for f, s in zip(fetched_values, stored)]
 
 
 def build(
@@ -319,11 +385,14 @@ def build(
             )
 
         scraped_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        to_insert = [
-            [date, scraped_at, rec["reported_at"], *[rec[m] for m in METRICS]]
-            for date, rec in fetched.items()
-            if stored.get(date) != tuple(rec[m] for m in METRICS)  # new date, or changed
-        ]
+        to_insert = []
+        for date, rec in fetched.items():
+            fetched_values = [rec[m] for m in METRICS]
+            s = stored.get(date)
+            if not _is_meaningful_change(s, fetched_values):
+                continue
+            merged = _merge_with_stored(fetched_values, s)
+            to_insert.append([date, scraped_at, rec["reported_at"], *merged])
 
         if to_insert:
             placeholders = ", ".join(["?"] * (len(METRICS) + 3))
