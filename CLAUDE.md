@@ -52,6 +52,10 @@ GitHub Actions in `.github/workflows/`:
 - `update-missile-attacks-db.yml` — RU missile & UAV attacks. Daily (06:00 UTC);
   pulls piterfm's Kaggle dataset (needs `KAGGLE_USERNAME` / `KAGGLE_KEY`
   secrets), append-on-change so an unchanged ~weekly re-publish inserts nothing.
+- `update-mediazona-db.yml` — Mediazona named-deaths + probate estimate. Every
+  3 days (07:00 UTC); pulls directly from the live article's JS bundle
+  (`--from-article` mode), append-on-change. Article URL is a workflow env var
+  (`MEDIAZONA_ARTICLE_URL`) — bump it when Mediazona publishes at a new path.
 - `deploy.yml` — builds and publishes to GitHub Pages.
 
 ## Common commands

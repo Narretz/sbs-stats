@@ -1,0 +1,73 @@
+name: Update Mediazona Database
+
+on:
+  workflow_dispatch: # allow manual trigger from GitHub UI
+  schedule:
+    # Mediazona publishes a fresh release ~every 2 weeks. Running every 3 days
+    # catches a new release within a couple of days at most; the in-between
+    # runs are no-ops (append-on-change skips when nothing differs from the
+    # stored latest version), so wasted work is minimal.
+    - cron: "0 7 */3 * *"
+
+env:
+  R2_BUCKET: russia-ukraine-war
+  MEDIAZONA_DB_NAME: mediazona.db
+  # The article URL is date-coded and rotates per release. If Mediazona retires
+  # an old URL (historically they leave them alive), update this env var and
+  # `DEFAULT_ARTICLE_URL` in scripts/mediazona/ingest.py. Override here so the
+  # workflow needs only an env-var edit, no code change, when the URL moves.
+  MEDIAZONA_ARTICLE_URL: "https://en.zona.media/article/2026/06/19/casualties_eng-trl"
+
+jobs:
+  update-mediazona-db:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # Pull the current DB so the build appends into it (append-only / edit-
+      # versioned — a stored row is never mutated). `continue-on-error` covers
+      # the first run, when the object may not yet exist in R2; ingest then
+      # creates the DB fresh.
+      - name: Download current Mediazona DB from R2
+        id: download
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          mkdir -p scripts/mediazona/output
+          npx --yes wrangler@4 r2 object get \
+            "$R2_BUCKET/$MEDIAZONA_DB_NAME" \
+            --file "scripts/mediazona/output/$MEDIAZONA_DB_NAME" \
+            --remote
+
+      # ingest.py fetches the article + JS bundle, identifies the data blobs
+      # by shape, runs the drift guard (cross-checks blob 5 indices against
+      # blob 3 totals — aborts on >1 miss), and appends only weeks whose
+      # values changed against the latest stored version. A guard-triggered
+      # abort fails this step and the upload below is skipped, leaving R2
+      # untouched. stdlib only — no pip install needed.
+      - name: Build Mediazona DB from the live article
+        run: |
+          mkdir -p scripts/mediazona/output
+          python3 scripts/mediazona/ingest.py \
+            --from-article "$MEDIAZONA_ARTICLE_URL" \
+            --out "scripts/mediazona/output/$MEDIAZONA_DB_NAME"
+
+      - name: Upload Mediazona DB to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/$MEDIAZONA_DB_NAME" \
+            --file "scripts/mediazona/output/$MEDIAZONA_DB_NAME" \
+            --content-type application/vnd.sqlite3 \
+            --remote
