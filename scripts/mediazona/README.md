@@ -4,15 +4,52 @@ Builds **`mediazona.db`** from two weekly CSV exports of
 [Mediazona](https://en.zona.media/) + Meduza's count of Russian war dead — the
 **RU DEATHS — MEDIAZONA** view of the app.
 
-**stdlib only** (`csv` + `sqlite3`), no extra dependencies.
+**stdlib only** (`urllib` + `csv` + `sqlite3`), no extra dependencies.
 
 ```sh
-# Re-export the two CSVs from a new Mediazona article into source/, then:
-python3 scripts/mediazona/ingest.py --published-at 2026-05-22 --out data/mediazona.db
+# Default: fetch & parse the live Mediazona article bundle directly. The
+# article URL changes per release; the script knows a known URL and discovers
+# the hashed JS-bundle path inside it at runtime.
+python3 scripts/mediazona/ingest.py --from-article --out data/mediazona.db
+
+# Or override the URL (Mediazona's previous-release URLs stay alive):
+python3 scripts/mediazona/ingest.py --from-article https://en.zona.media/article/2026/06/19/casualties_eng-trl
+
+# Local-CSV mode (manual export workflow) — still supported:
+python3 scripts/mediazona/ingest.py \
+    --roles source/confirmed_losses_per_week.csv \
+    --estimate source/probate_registry_estimate.csv \
+    --published-at 2026-05-22
 ```
 
 `--published-at` (YYYY-MM-DD) is the Mediazona article's publication date — the
-source vintage the CSVs come from. It's analogous to `ru_losses`' `reported_at`.
+source vintage the data comes from. It's analogous to `ru_losses`' `reported_at`.
+In `--from-article` mode it's auto-derived from the bundle's `current_date`
+metadata row; in local-CSV mode it's required.
+
+## How the article fetch works
+
+Mediazona embeds all chart data as inline `JSON.parse('…')` literals in the
+chart's JS bundle (no XHR/fetch). The article HTML references that bundle by a
+hashed S3 URL (`https://s3.zona.media/infographics/bodycount/main.<hash>.js.gz`)
+that changes with each release. The ingest:
+
+1. Fetches the article HTML and regexes out the bundle URL.
+2. Downloads + gunzips the bundle, extracts every `JSON.parse('…')` literal.
+3. Identifies the two relevant blobs **by shape** (not by index), so a
+   reordering inside the bundle doesn't break us:
+   - probate estimate: list of `{w, rnd, real}` dicts
+   - roles daily series: dict-of-equal-length-int-lists
+   - per-category summary (used only for the drift guard, below): list of
+     `{k, o, v}` dicts.
+4. Aggregates the roles' per-day series into Thursday-anchored weekly buckets
+   matching `confirmed_losses_per_week.csv`'s layout.
+5. **Drift guard** (`_check_blob5_drift`): each role index's all-time sum must
+   match a per-category total in the summary blob within 10 %. One known
+   tolerated miss (the `nd` / "нет данных" index — blob 5 omits a residual
+   bucket present in the summary, ~21 % gap). More than one miss aborts the
+   build — that's the signal Mediazona added/removed/renamed a role category
+   and `BLOB5_COLUMN_MAP` in `ingest.py` needs revalidating.
 
 ## Two independent series (two tables)
 
@@ -102,13 +139,18 @@ upload step is skipped: an absolute row-count floor (`MIN_ROWS_FLOOR`) and a
 
 ## Source / refresh
 
-The two CSVs in `source/` are exports from Mediazona's published count. Automated
-refresh from a live Mediazona source is **not wired** — Mediazona publishes via
-infrequent articles, not a continuously-updated feed, so refresh is manual: drop
-new CSVs into `source/` and re-run the ingest with the new article's
-`--published-at`.
+Two paths:
 
-Mediazona also waits a long time between releases (e.g. the 2026-05-22 release
+- **`--from-article`** (default): pulls from the live article bundle and
+  drops the manual CSV step entirely. Suitable for an automated bi-weekly
+  workflow. The known article URL is hardcoded; if Mediazona retires it
+  (historically they leave old URLs alive and publish new releases at fresh
+  paths), update `DEFAULT_ARTICLE_URL` in `ingest.py`.
+- **Local CSVs in `source/`**: the historical workflow — drop fresh exports
+  in and run with `--roles --estimate --published-at`. Useful for one-off
+  reproductions against an exact archived release.
+
+Mediazona waits a long time between releases (e.g. the 2026-05-22 release
 covers data through 2025-12-22 — a ~5-month gap, long enough for late-filing
 probate records to start completing for H2 2025 so they can revise their flash
 estimate before publishing).

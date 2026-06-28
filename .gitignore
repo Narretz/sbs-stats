@@ -48,6 +48,8 @@ playwright-report/
 scripts/ru_mod/output/
 # Wartears ingest local artifacts
 scripts/wartears/output/
+# Mediazona ingest local artifacts
+scripts/mediazona/output/
 .pytest_cache/
 
 # SBU Alfa: article HTMLs are mirror copies, re-fetchable via ingest.py — too

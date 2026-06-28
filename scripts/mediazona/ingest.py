@@ -44,11 +44,14 @@ from __future__ import annotations
 
 import argparse
 import csv
+import gzip
+import json
 import os
 import re
 import sqlite3
 import sys
-from datetime import date as date_cls, datetime, timezone
+import urllib.request
+from datetime import date as date_cls, datetime, timedelta, timezone
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -67,6 +70,29 @@ ROLE_COLS = [
 # A war that started 2022-02-24 yields ~200 weeks by 2026 — a healthy CSV has
 # well over a year of rows. Far below this means a truncated/empty export.
 MIN_ROWS_FLOOR = 100
+
+# ── Article-fetch mode (--from-article) ───────────────────────────────────────
+# Mediazona republishes the same casualty count under a new date-coded URL
+# every ~2 weeks. The URL below is a known release; if Mediazona rotates it,
+# they have historically kept old URLs alive (and the new release just lives
+# at a fresher path), so the workflow should be re-pointed when that changes.
+DEFAULT_ARTICLE_URL = "https://en.zona.media/article/2026/06/19/casualties_eng-trl"
+
+# Week-1 anchor for the roles series — same as the CSV's `week_start` anchor.
+WAR_START = date_cls(2022, 2, 24)
+
+# Blob 5 inside the bundle is a dict {'0'..'N-1': [int, …]} of per-day deaths
+# per role. Indices 0..15 follow the chart's display order; 16..20 are a
+# slightly different ordering of the last 5 cells than our CSV layout. Verified
+# by matching blob 5's per-index sums against blob 3's per-Russian-name totals
+# (see _check_blob5_drift below). If upstream re-shuffles, the drift check
+# fires and the build aborts.
+BLOB5_COLUMN_MAP = [
+    "nguard", "rifle", "air", "pilot", "seaman", "marine",
+    "tank", "art", "eng", "other", "nd", "special",
+    "vol", "mob", "signal", "airdef",
+    "groundavia", "pmc", "fsb", "chem", "inmates",
+]
 
 
 def iso(ddmmyyyy: str) -> str:
@@ -100,6 +126,177 @@ def parse_roles(path: Path) -> list[tuple]:
             vals = [to_int(rec.get(c, "")) or 0 for c in ROLE_COLS]
             rows.append((week, *vals))
     return rows
+
+
+def _fetch(url: str) -> bytes:
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "Mozilla/5.0 (sbs-stats-ingest)"},
+    )
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return r.read()
+
+
+def fetch_bundle(article_url: str) -> str:
+    """Resolve the bodycount JS bundle URL from the article HTML and return
+    its decoded source.
+
+    The article HTML embeds the bundle via a hashed S3 path
+    (`.../main.<hash>.js.gz`); the hash changes with each release, so we
+    discover it dynamically. The .js.gz is served gzip-compressed regardless
+    of Accept-Encoding, so we decompress unconditionally on the magic bytes.
+    """
+    html = _fetch(article_url).decode("utf-8", errors="replace")
+    m = re.search(
+        r'(https://s3\.zona\.media/infographics/bodycount/main\.[a-f0-9]+\.js\.gz)',
+        html,
+    )
+    if not m:
+        raise RuntimeError(f"no bodycount bundle URL found in {article_url}")
+    bundle_url = m.group(1)
+    print(f"[fetch] article {article_url}\n         -> bundle {bundle_url}")
+    raw = _fetch(bundle_url)
+    if raw[:2] == b"\x1f\x8b":  # gzip magic
+        raw = gzip.decompress(raw)
+    return raw.decode("utf-8")
+
+
+def _extract_json_blobs(bundle: str) -> list[object]:
+    """Mediazona inlines all chart data as JSON.parse('…') literals in the
+    bundle — there are no XHR/fetch calls. Pull every such literal out."""
+    out: list[object] = []
+    for m in re.finditer(r"JSON\.parse\('((?:\\.|[^\\'])*)'\)", bundle, re.DOTALL):
+        body = m.group(1).encode("utf-8").decode("unicode_escape")
+        try:
+            out.append(json.loads(body))
+        except Exception as e:
+            print(f"[warn] JSON.parse blob at offset {m.start()} failed: {e!r}",
+                  file=sys.stderr)
+    return out
+
+
+def _find_estimate_blob(blobs: list[object]) -> list[dict]:
+    """Probate estimate: list of dicts whose keys are exactly {w, rnd, real}.
+    Identified by shape so a reordering of blobs in the bundle doesn't break us."""
+    for b in blobs:
+        if (isinstance(b, list) and b and isinstance(b[0], dict)
+                and set(b[0]) == {"w", "rnd", "real"}):
+            return b
+    raise RuntimeError("no probate-estimate blob ({w,rnd,real} list) in bundle")
+
+
+def _find_roles_blob(blobs: list[object]) -> dict[str, list[int]]:
+    """Roles daily series: dict of equal-length int lists."""
+    for b in blobs:
+        if (isinstance(b, dict) and len(b) >= 10
+                and all(isinstance(v, list) for v in b.values())
+                and len(set(len(v) for v in b.values())) == 1
+                and all(isinstance(x, int) for x in next(iter(b.values()))[:20])):
+            return b
+    raise RuntimeError("no roles blob (dict of equal-length int lists) in bundle")
+
+
+def _find_roles_summary_blob(blobs: list[object]) -> list[dict]:
+    """Per-category summary: list of {k:str, o:int, v:int}. Cross-validates
+    blob 5 in _check_blob5_drift."""
+    for b in blobs:
+        if (isinstance(b, list) and b and isinstance(b[0], dict)
+                and set(b[0]) == {"k", "o", "v"}):
+            return b
+    raise RuntimeError("no roles-summary blob ({k,o,v} list) in bundle")
+
+
+def _check_blob5_drift(daily: dict[str, list[int]], summary: list[dict]) -> None:
+    """Guard: each blob 5 index's all-time sum should match the per-category
+    `v` of some entry in blob 3, within 10%. If not, the column taxonomy or
+    ordering drifted and BLOB5_COLUMN_MAP is no longer trustworthy — abort
+    rather than write a silently-shuffled dataset.
+
+    A single tolerated miss (currently: index 10 = 'nd' / "нет данных", where
+    blob 5 omits a residual bucket present in blob 3 — ~21% gap) is allowed;
+    more than that means real drift.
+    """
+    summary_totals = sorted(r["v"] for r in summary)
+    misses = []
+    for k in sorted(daily.keys(), key=int):
+        s = sum(daily[k])
+        if not any(abs(s - v) <= max(10, 0.10 * max(s, v)) for v in summary_totals):
+            misses.append((k, s))
+    if len(misses) > 1:
+        msg = (f"blob 5 / blob 3 drift: {len(misses)} indices have no within-10% "
+               f"match in the summary blob ({misses}). The role taxonomy or "
+               f"ordering changed upstream — re-validate BLOB5_COLUMN_MAP "
+               f"before re-running.")
+        raise RuntimeError(msg)
+    if misses:
+        print(f"[check] tolerated drift on 1 blob 5 index (expected for nd): {misses}")
+
+
+def _aggregate_roles_blob_to_rows(daily: dict[str, list[int]]) -> list[tuple]:
+    """Daily per-role → tuples in the shape `parse_roles()` would produce —
+    `(week_iso, *ROLE_COLS values)`, Thursday-anchored from 2022-02-24."""
+    keys = sorted(daily.keys(), key=int)
+    if len(keys) != len(BLOB5_COLUMN_MAP):
+        raise RuntimeError(
+            f"blob 5 has {len(keys)} keys but BLOB5_COLUMN_MAP has "
+            f"{len(BLOB5_COLUMN_MAP)} — re-validate the column mapping.")
+    n_days = len(next(iter(daily.values())))
+    rows: list[tuple] = []
+    for wi in range(0, n_days, 7):
+        wend = min(wi + 7, n_days)
+        per_col = {col: sum(daily[k][wi:wend]) for col, k in zip(BLOB5_COLUMN_MAP, keys)}
+        per_col["total"] = sum(per_col.values())
+        week_iso = (WAR_START + timedelta(days=wi)).isoformat()
+        rows.append((week_iso, *[per_col[c] for c in ROLE_COLS]))
+    return rows
+
+
+def _estimate_blob_to_rows(blob: list[dict]) -> list[tuple]:
+    """Probate estimate blob → tuples matching `parse_estimate()`'s shape.
+    Skip the 4 metadata rows ({last_date, current_date, last_total,
+    current_total}) — they aren't weekly observations."""
+    rows: list[tuple] = []
+    for rec in blob:
+        w = str(rec.get("w", ""))
+        if not re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", w):
+            continue
+        documented = int(rec["real"]) if rec.get("real") is not None else None
+        estimate = float(rec["rnd"]) if rec.get("rnd") is not None else None
+        if documented is None and estimate is None:
+            continue
+        rows.append((iso(w), documented, estimate))
+    return rows
+
+
+def _published_at_from_blob(blob: list[dict]) -> str:
+    """Derive the article's publication date from the estimate blob's
+    `current_date` metadata row (the `real` field is the article date in
+    DD.MM.YYYY)."""
+    for rec in blob:
+        if rec.get("w") == "current_date":
+            return iso(rec["real"])
+    raise RuntimeError("estimate blob missing the `current_date` metadata row")
+
+
+def fetch_from_article(article_url: str) -> tuple[list[tuple], list[tuple], str]:
+    """End-to-end: article URL → (roles_rows, estimate_rows, published_at_iso).
+
+    `roles_rows` and `estimate_rows` are in the same shape as `parse_roles()`
+    and `parse_estimate()` return, so they drop straight into build().
+    """
+    bundle = fetch_bundle(article_url)
+    blobs = _extract_json_blobs(bundle)
+    estimate_blob = _find_estimate_blob(blobs)
+    roles_blob = _find_roles_blob(blobs)
+    summary_blob = _find_roles_summary_blob(blobs)
+    print(f"[parse] {len(blobs)} JSON blobs; roles={len(roles_blob)} cats × "
+          f"{len(next(iter(roles_blob.values())))} days; "
+          f"estimate={len(estimate_blob)} rows; summary={len(summary_blob)} cats")
+    _check_blob5_drift(roles_blob, summary_blob)
+    return (
+        _aggregate_roles_blob_to_rows(roles_blob),
+        _estimate_blob_to_rows(estimate_blob),
+        _published_at_from_blob(estimate_blob),
+    )
 
 
 def parse_estimate(path: Path) -> list[tuple]:
@@ -271,26 +468,45 @@ def build(
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Append-version mediazona.db from the two weekly CSV exports")
+    ap = argparse.ArgumentParser(
+        description="Append-version mediazona.db from the live article (default) "
+        "or from local CSV exports (--roles/--estimate).",
+    )
+    ap.add_argument(
+        "--from-article", nargs="?", const=DEFAULT_ARTICLE_URL, default=None,
+        metavar="URL",
+        help=("fetch & parse the live Mediazona article bundle; pass with no value "
+              "to use the default URL (%s)" % DEFAULT_ARTICLE_URL),
+    )
     ap.add_argument("--roles", default=str(DEFAULT_SOURCE / "confirmed_losses_per_week.csv"),
-                    help="path to the confirmed-losses-by-role CSV")
+                    help="(local CSV mode) path to the confirmed-losses-by-role CSV")
     ap.add_argument("--estimate", default=str(DEFAULT_SOURCE / "probate_registry_estimate.csv"),
-                    help="path to the probate-registry-estimate CSV")
-    ap.add_argument("--published-at", required=True,
-                    help="Mediazona article publication date (YYYY-MM-DD) — the source vintage these CSVs come from")
+                    help="(local CSV mode) path to the probate-registry-estimate CSV")
+    ap.add_argument("--published-at", default=None,
+                    help="Mediazona article publication date (YYYY-MM-DD). Required in "
+                         "local CSV mode; auto-derived from the bundle in --from-article mode "
+                         "unless overridden.")
     ap.add_argument("--out", default=os.environ.get(
         "MEDIAZONA_DB_PATH", str(SCRIPT_DIR / "output" / DEFAULT_DB_NAME)),
         help="output SQLite path (default: scripts/mediazona/output/%s)" % DEFAULT_DB_NAME)
     args = ap.parse_args()
 
-    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args.published_at):
-        raise SystemExit(f"--published-at must be YYYY-MM-DD, got {args.published_at!r}")
+    if args.from_article:
+        roles, estimate, derived_published_at = fetch_from_article(args.from_article)
+        published_at = args.published_at or derived_published_at
+    else:
+        if not args.published_at:
+            raise SystemExit("--published-at is required in local CSV mode")
+        roles = parse_roles(Path(args.roles))
+        estimate = parse_estimate(Path(args.estimate))
+        published_at = args.published_at
+
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", published_at):
+        raise SystemExit(f"published_at must be YYYY-MM-DD, got {published_at!r}")
 
     scraped_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    roles = parse_roles(Path(args.roles))
-    estimate = parse_estimate(Path(args.estimate))
     out = Path(args.out)
-    r, e = build(out, roles, estimate, scraped_at, args.published_at)
+    r, e = build(out, roles, estimate, scraped_at, published_at)
     fmt = lambda s: (
         f"{s['new']:>4} new, {s['revised']:>4} revised, {s['unchanged']:>4} unchanged "
         f"-> {s['new'] + s['revised']} inserted; {s['distinct']} distinct weeks"
@@ -298,7 +514,7 @@ def main() -> int:
     print(
         f"==> roles:    {fmt(r)}\n"
         f"==> estimate: {fmt(e)}\n"
-        f"==> published_at={args.published_at}  scraped_at={scraped_at}\n"
+        f"==> published_at={published_at}  scraped_at={scraped_at}\n"
         f"==> {out} ({out.stat().st_size} bytes)"
     )
     return 0
