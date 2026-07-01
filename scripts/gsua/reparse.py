@@ -90,26 +90,25 @@ def _reparse_one(conn: sqlite3.Connection, row, dry_run: bool) -> str:
         if old != new:
             diffs.append(f"{col}={_fmt(old)} → {_fmt(new)}")
     existing_dirs = conn.execute(
-        "SELECT direction, attacks, ongoing FROM directions "
+        "SELECT direction, attacks, ongoing, attacks_group_size FROM directions "
         "WHERE source = ? AND source_id = ? AND scraped_at = ?",
         (src, sid, row["scraped_at"]),
     ).fetchall()
-    old_map = {d[0]: (d[1], d[2]) for d in existing_dirs}
-    new_map = {d.direction: (d.attacks, d.ongoing) for d in directions}
+    # Compare (attacks, ongoing, group_size) to detect both value changes AND
+    # a shift from solo to paired (or vice versa) on the same direction.
+    old_map = {d[0]: (d[1], d[2], d[3]) for d in existing_dirs}
+    new_map = {d.direction: (d.attacks, d.ongoing, d.attacks_group_size) for d in directions}
     dir_changes = []
+    def _fmt_dir(t):
+        a, o, gs = t
+        return f"{_fmt(a)}/{_fmt(o)}" + (f"×{gs}" if gs > 1 else "")
     for k in sorted(set(old_map) | set(new_map)):
         if k not in new_map:
-            oa, oo = old_map[k]
-            dir_changes.append(f"-{k} ({_fmt(oa)}/{_fmt(oo)})")
+            dir_changes.append(f"-{k} ({_fmt_dir(old_map[k])})")
         elif k not in old_map:
-            na, no = new_map[k]
-            dir_changes.append(f"+{k} ({_fmt(na)}/{_fmt(no)})")
+            dir_changes.append(f"+{k} ({_fmt_dir(new_map[k])})")
         elif old_map[k] != new_map[k]:
-            oa, oo = old_map[k]
-            na, no = new_map[k]
-            dir_changes.append(
-                f"{k} {_fmt(oa)}/{_fmt(oo)} → {_fmt(na)}/{_fmt(no)}"
-            )
+            dir_changes.append(f"{k} {_fmt_dir(old_map[k])} → {_fmt_dir(new_map[k])}")
     if dir_changes:
         diffs.append(f"dirs[{'; '.join(dir_changes)}]")
 
@@ -147,10 +146,12 @@ def _reparse_one(conn: sqlite3.Connection, row, dry_run: bool) -> str:
     if directions:
         conn.executemany(
             """
-            INSERT INTO directions (source, source_id, scraped_at, direction, attacks, ongoing)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO directions (source, source_id, scraped_at, direction,
+                attacks, ongoing, attacks_group_size, attacks_group_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            [(src, sid, latest_at, d.direction, d.attacks, d.ongoing) for d in directions],
+            [(src, sid, latest_at, d.direction, d.attacks, d.ongoing,
+              d.attacks_group_size, d.attacks_group_id) for d in directions],
         )
     return f"{tag}: updated [{', '.join(diffs)}] (date={summary.date})"
 

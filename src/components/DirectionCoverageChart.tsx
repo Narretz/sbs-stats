@@ -128,9 +128,9 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
         Each {granularity === "monthly" ? "month's" : "day's"} combat engagements
         split by the direction named in the General Staff report. "Unattributed"
         is the gap between the report's total and the sum of its per-direction
-        counts. In an <a href="https://youtu.be/2loliH9Hy9w?si=axY4UMLFFsObcIah&t=1133" rel="nofollow external">interview by TCH published on 2026-06-30</a>,
-        commander in chief of the AFU Syrskyi said up to 45% of recorded attacks are carried out by Ukrainian
-        forces, so it's likely they are "unattributed" and not further specified for opsec reasons.
+        counts. Directions with decimal places are from reports that summarize multiple directions.
+        In an <a href="https://youtu.be/2loliH9Hy9w?si=axY4UMLFFsObcIah&t=1133" rel="nofollow external">interview by TCH published on 2026-06-30</a>,
+        commander in chief of the AFU Syrskyi said up to 45% of recorded attacks are carried out by Ukraine, so it's likely they are "unattributed" and not further specified for opsec reasons.
       </div>
       <div style={{
         display: "flex", flexWrap: "wrap", gap: "6px 14px", marginBottom: 10,

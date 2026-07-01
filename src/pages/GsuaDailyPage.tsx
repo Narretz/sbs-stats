@@ -191,6 +191,25 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       { keepDate },
     );
 
+  // For the combat_engagements chart in overview mode: show `attributed`
+  // (sum of per-direction attacks for the canonical daily report) as a
+  // stacked subset of the total. The chart's pairMode="subset" then draws
+  // the "unattributed" band as `combat_engagements − attributed` on top,
+  // so the reader sees at a glance how big the directionless portion is.
+  // Note: paired-direction over-attribution ("На X і Y напрямках N ...")
+  // inflates `attributed` on ~75% of days, so the unattributed band is a
+  // conservative lower bound of the true directionless share.
+  const attributedDataset = fillDailyRange(
+    filteredCoverageRows.map((d) => ({
+      date: d.date,
+      value: d.attributed,
+      is_today: d.is_today,
+    })),
+    startDate,
+    endDate,
+    { keepDate },
+  );
+
   const directionAttacksDataset = fillDailyRange(
     filteredDirectionRows.map((d) => ({
       date: d.date,
@@ -276,18 +295,29 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
       {(loadState === "ready" || hasData) && !selectedDirection && (
         <ChartGrid>
-          {GSUA_METRIC_KEYS.map((k) => (
-            <DailyLineChart
-              key={k}
-              title={GSUA_METRIC_LABELS[k]}
-              data={makeDataset(k)}
-              globalMax={globalStats[k]?.max ?? 0}
-              globalMedian={globalStats[k]?.median ?? 0}
-              globalTotal={globalStats[k]?.total ?? 0}
-              wfull={k === "combat_engagements"}
-              eod={eod[k] ?? null}
-            />
-          ))}
+          {GSUA_METRIC_KEYS.map((k) => {
+            // The combat_engagements chart gets the attributed/unattributed
+            // stacked split when coverage data is available; other metrics
+            // render as plain single-series line charts unchanged.
+            const isCombat = k === "combat_engagements";
+            const pair = isCombat && filteredCoverageRows.length > 0;
+            return (
+              <DailyLineChart
+                key={k}
+                title={GSUA_METRIC_LABELS[k]}
+                data={makeDataset(k)}
+                globalMax={globalStats[k]?.max ?? 0}
+                globalMedian={globalStats[k]?.median ?? 0}
+                globalTotal={globalStats[k]?.total ?? 0}
+                wfull={isCombat}
+                eod={eod[k] ?? null}
+                data2={pair ? attributedDataset : undefined}
+                primaryLabel={pair ? "Unattributed" : undefined}
+                label2={pair ? "With direction" : undefined}
+                pairMode={pair ? "subset" : undefined}
+              />
+            );
+          })}
           {filteredCoverageRows.length > 0 && (
             <DirectionCoverageChart data={filteredCoverageRows} wfull />
           )}

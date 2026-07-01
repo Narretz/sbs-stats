@@ -63,6 +63,15 @@ CREATE TABLE IF NOT EXISTS directions (
     direction   TEXT    NOT NULL,
     attacks     INTEGER,
     ongoing     INTEGER,
+    -- Paired-anchor bookkeeping: Ukrainian sentences like "На X і Y напрямках
+    -- N боєзіткнень" are grammatically a plural summary — the raw N is a
+    -- total for the pair, not "N per each". `attacks_group_size` = # directions
+    -- sharing the same N under one anchor (1 = solo, ≥2 = paired). Fair-share
+    -- in queries: `attacks * 1.0 / attacks_group_size`. `attacks_group_id` is
+    -- per-post and shared by every row in the same anchor, so a query can
+    -- reconstruct which rows came from the same sentence; NULL when size=1.
+    attacks_group_size INTEGER NOT NULL DEFAULT 1,
+    attacks_group_id   INTEGER,
     PRIMARY KEY (source, source_id, scraped_at, direction),
     FOREIGN KEY (source, source_id, scraped_at)
         REFERENCES posts(source, source_id, scraped_at) ON DELETE CASCADE

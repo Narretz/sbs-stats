@@ -128,13 +128,25 @@ class DailySummary:
 
 @dataclass
 class DirectionEntry:
-    """Per-direction breakdown from an operational report."""
+    """Per-direction breakdown from an operational report.
+
+    `attacks_group_size` / `attacks_group_id` capture paired-anchor prose like
+    "На X і Y напрямках відбулося N боєзіткнень" — Ukrainian grammatically
+    marks these as a plural summary ("on the directions"), not "N per each",
+    so the raw N is a total shared across the group. Solo mentions have
+    `group_size = 1` and `group_id = NULL`; paired mentions get
+    `group_size = k` (number of directions in that anchor) and a per-post
+    `group_id` shared by all rows in the group. Downstream queries compute
+    fair-share as `attacks * 1.0 / attacks_group_size`.
+    """
     date: str = ""
     source: str = "telegram"
     source_id: str = ""
     direction: str = ""
     attacks: int | None = None
     ongoing: int | None = None
+    attacks_group_size: int = 1
+    attacks_group_id: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -947,6 +959,12 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
                 r"[\s\w]{0,30}\bтрива",
             )
 
+        # Two-pass: first collect the direction names in THIS anchor that
+        # survive stopword/dedupe filtering, so we know the effective group
+        # size (paired anchors with one stopword — "На X, цих та Y" — count
+        # as k=2, not k=3). Then emit each entry with the shared group_size
+        # and, when k>1, a shared group_id (the match index, unique per post).
+        anchor_names: list[str] = []
         for raw in (match.group(1), match.group(2), match.group(3)):
             if not raw:
                 continue
@@ -955,6 +973,10 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
             dir_name = _normalize_direction(raw)
             if (msg.id, dir_name) in seen:
                 continue
+            anchor_names.append(dir_name)
+        group_size = len(anchor_names)
+        group_id = i if group_size > 1 else None
+        for dir_name in anchor_names:
             seen.add((msg.id, dir_name))
             entries.append(DirectionEntry(
                 date=report_date,
@@ -963,6 +985,8 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
                 direction=dir_name,
                 attacks=attacks,
                 ongoing=ongoing,
+                attacks_group_size=group_size,
+                attacks_group_id=group_id,
             ))
 
     return entries
@@ -1148,9 +1172,34 @@ def open_db(path: Path) -> sqlite3.Connection:
     # FK enforcement back on after both tables have been rebuilt.
     _migrate_to_source_keyed_schema(conn)
     _migrate_to_versioned_schema(conn)
+    _migrate_add_direction_group_columns(conn)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
     return conn
+
+
+def _migrate_add_direction_group_columns(conn: sqlite3.Connection) -> None:
+    """Add `attacks_group_size` / `attacks_group_id` to `directions` on DBs
+    that predate paired-anchor bookkeeping (2026-07). Additive: existing rows
+    keep the safe default (`group_size=1`, `group_id=NULL`) until a
+    `reparse.py --all` run repopulates them from parsed post text. No-op on
+    fresh DBs (SCHEMA's CREATE TABLE already has the columns) and on any DB
+    where the columns are already present."""
+    info = list(conn.execute("PRAGMA table_info(directions)"))
+    if not info:
+        return  # directions doesn't exist yet — SCHEMA creates it with the columns
+    cols = {r[1] for r in info}
+    if "attacks_group_size" in cols:
+        return  # already migrated
+    log.info("Adding attacks_group_size / attacks_group_id to `directions`…")
+    with conn:
+        conn.execute(
+            "ALTER TABLE directions ADD COLUMN "
+            "attacks_group_size INTEGER NOT NULL DEFAULT 1"
+        )
+        conn.execute(
+            "ALTER TABLE directions ADD COLUMN attacks_group_id INTEGER"
+        )
 
 
 def _sanity_check(
@@ -1324,11 +1373,13 @@ def upsert_report(
     if directions:
         conn.executemany(
             """
-            INSERT INTO directions (source, source_id, scraped_at, direction, attacks, ongoing)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO directions (source, source_id, scraped_at, direction,
+                attacks, ongoing, attacks_group_size, attacks_group_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
-                (summary.source, summary.source_id, scraped_at, d.direction, d.attacks, d.ongoing)
+                (summary.source, summary.source_id, scraped_at, d.direction,
+                 d.attacks, d.ongoing, d.attacks_group_size, d.attacks_group_id)
                 for d in directions
             ],
         )

@@ -468,7 +468,13 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
           b.date,
           b.combat_engagements AS total,
           d.direction         AS direction,
-          SUM(d.attacks)      AS attacks
+          -- Fair-share: paired-anchor sentences ("На X і Y напрямках N ...")
+          -- store the raw N on each row with attacks_group_size = k; the
+          -- honest per-direction contribution is N/k, so k=2 halves the
+          -- credit each direction takes. Solo entries have group_size=1
+          -- and pass through unchanged. NB the SUM is over multiple posts
+          -- (multipart telegram) — we sum the shares.
+          SUM(d.attacks * 1.0 / d.attacks_group_size) AS attacks
         FROM best_per_date b
         LEFT JOIN latest_posts p
           ON p.source = b.source AND p.date = b.date AND p.snapshot_at = b.snapshot_at
@@ -552,9 +558,12 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
           GROUP BY substr(date, 1, 7)
         ),
         month_direction_attacks AS (
+          -- Fair-share for paired-anchor rows; see comment in the daily
+          -- variant. attacks * 1.0 / attacks_group_size gives the per-
+          -- direction credit and SUM across the month rolls it up.
           SELECT substr(b.date, 1, 7) AS month,
                  d.direction AS direction,
-                 SUM(d.attacks) AS attacks
+                 SUM(d.attacks * 1.0 / d.attacks_group_size) AS attacks
           FROM best_per_date b
           LEFT JOIN latest_posts p
             ON p.source = b.source AND p.date = b.date AND p.snapshot_at = b.snapshot_at

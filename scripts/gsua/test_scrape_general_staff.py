@@ -1139,6 +1139,49 @@ class TestDirections:
         assert lyman.attacks == 10
         assert pokrovsk.attacks is None
 
+    def test_paired_anchor_marks_group_size_and_id(self):
+        # "На X і Y напрямках N ..." is grammatically a plural summary — N is
+        # a total for the pair, not per each. Parser records that via
+        # `attacks_group_size = 2` and a shared `attacks_group_id` on both
+        # rows; solo entries in the same report stay at size=1, id=NULL.
+        text = _wrap_evening(
+            "На Північно-Слобожанському і Курському напрямках "
+            "відбулося девʼять боєзіткнень. "
+            "На Покровському напрямку ворог здійснив сорок чотири атаки."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-06-23")
+        by_dir = {d.direction: d for d in dirs}
+
+        # Paired: both rows carry the same N (unchanged raw value), size=2,
+        # and the same non-null group_id.
+        assert by_dir["N-Slobozhanshchyna"].attacks == 9
+        assert by_dir["Kursk"].attacks == 9
+        assert by_dir["N-Slobozhanshchyna"].attacks_group_size == 2
+        assert by_dir["Kursk"].attacks_group_size == 2
+        assert by_dir["N-Slobozhanshchyna"].attacks_group_id is not None
+        assert by_dir["N-Slobozhanshchyna"].attacks_group_id == by_dir["Kursk"].attacks_group_id
+
+        # Solo: group_size=1, group_id=None.
+        assert by_dir["Pokrovsk"].attacks == 44
+        assert by_dir["Pokrovsk"].attacks_group_size == 1
+        assert by_dir["Pokrovsk"].attacks_group_id is None
+
+    def test_triple_paired_anchor_group_size_3(self):
+        # "На X, Y та Z напрямках" — three-way group.
+        text = _wrap_evening(
+            "На Краматорському, Времівському та Оріхівському напрямках "
+            "ворог здійснив дві спроби."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        for name in ("Kramatorsk", "Vremivka", "Orikhiv"):
+            d = next(x for x in dirs if x.direction == name)
+            assert d.attacks_group_size == 3, name
+            assert d.attacks_group_id is not None, name
+        # All three share the same group_id.
+        ids = {next(x for x in dirs if x.direction == n).attacks_group_id
+               for n in ("Kramatorsk", "Vremivka", "Orikhiv")}
+        assert len(ids) == 1
+
     def test_no_activity_sturmovyh_dii(self):
         # "штурмових дій не проводив" — variant of the no-activity
         # sentinel not covered by the legacy "активних дій не проводив".
