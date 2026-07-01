@@ -760,14 +760,30 @@ DIRECTION_NAMES = {
 }
 
 
+# DIRECTION_NAMES matching order: longest key first so more-specific keys
+# beat shorter substrings. Slobozhanshchyna is subdivided by the General
+# Staff into `північнослобожанськ` / `південнослобожанськ` — both contain
+# `слобожанськ` as a substring, so iterating in dict-insertion order lets
+# the generic key win, collapsing the three sectors into one bucket. This
+# list is small, so re-sorting on every lookup is fine; if it ever grows
+# to hundreds of entries, cache it at module load.
+_DIRECTION_NAMES_BY_LEN = sorted(DIRECTION_NAMES.items(), key=lambda kv: -len(kv[0]))
+
+
 def _normalize_direction(raw: str) -> str:
     """Map a Ukrainian direction mention to its English label.
 
-    Apostrophe variants (U+02BC ʼ, U+2019 ’) are normalised to ASCII '
-    before lookup so headers like "Куп'янському" / "Слов'янському" match.
+    Apostrophe variants (U+02BC ʼ, U+2019 ’) are normalised to ASCII '.
+    Interior hyphens and dashes are stripped so hyphenated headers like
+    "Північно-Слобожанському" / "Південно–Слобожанському" match the flat
+    DIRECTION_NAMES keys (`північнослобожанськ`, `південнослобожанськ`).
+    Longest-key-first ensures those N-/S- prefixed variants win against
+    the parent key (see `_DIRECTION_NAMES_BY_LEN` above).
     """
-    lower = raw.lower().replace("ʼ", "'").replace("’", "'")
-    for pattern, label in DIRECTION_NAMES.items():
+    lower = (raw.lower()
+             .replace("ʼ", "'").replace("’", "'")
+             .replace("-", "").replace("–", "").replace("—", ""))
+    for pattern, label in _DIRECTION_NAMES_BY_LEN:
         if pattern in lower:
             return label
     return raw.strip().title()

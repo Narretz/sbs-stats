@@ -1184,6 +1184,18 @@ class TestNormalizeDirection:
         # No DIRECTION_NAMES match → returns Title-cased original
         assert gs._normalize_direction("Невідомому") == "Невідомому"
 
+    def test_slobozhanshchyna_north_south_specificity(self):
+        # Regression: DIRECTION_NAMES contains both "слобожанськ" and its
+        # N-/S- prefixed cousins. Because `_normalize_direction` does a
+        # substring match, iterating in dict-insertion order let the
+        # generic key win — all three sectors collapsed into
+        # "Slobozhanshchyna". Longest-key-first fixes it. These are
+        # geographically distinct General Staff sectors (Sumy border
+        # for North, Kharkiv border for South), not the same axis.
+        assert gs._normalize_direction("Слобожанському") == "Slobozhanshchyna"
+        assert gs._normalize_direction("Північно-Слобожанському") == "N-Slobozhanshchyna"
+        assert gs._normalize_direction("Південно-Слобожанському") == "S-Slobozhanshchyna"
+
 
 # ---------------------------------------------------------------------------
 # Sanity-check warnings (via pytest's caplog)
