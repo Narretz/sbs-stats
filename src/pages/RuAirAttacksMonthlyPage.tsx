@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRuAirAttacksDatabaseContext } from "@/context/useRuAirAttacksDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
-import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
+import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/components/MonthlyTargetPairChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
-import { YearRangeSelect } from "@/components/YearRangeSelect";
+import { MonthRangeSelect } from "@/components/MonthRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
@@ -37,7 +37,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
   const [breakdowns, setBreakdowns] = useState<Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>>({} as Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>);
   const [allBreakdown, setAllBreakdown] = useState<Map<string, ModelBreakdownEntry[]>>(new Map());
   const [hasData, setHasData] = useState(false);
-  const yr = useMonthlyYearRange(allRows.length);
+  const yr = useMonthlyMonthRange(allRows.length);
 
   useEffect(() => {
     if (loadState === "ready") {
@@ -158,7 +158,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
       </div>
       <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
         {!yr.hidden && (
-          <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
+          <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
         )}
         <StatScopeToggle />
       </div>

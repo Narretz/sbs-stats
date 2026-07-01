@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRuModDatabaseContext } from "@/context/useRuModDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
-import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
+import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
-import { YearRangeSelect } from "@/components/YearRangeSelect";
+import { MonthRangeSelect } from "@/components/MonthRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
@@ -24,7 +24,7 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const [allRows, setAllRows] = useState<RuAdMonthlyRow[]>([]);
   const [hasData, setHasData] = useState(false);
-  const yr = useMonthlyYearRange(allRows.length);
+  const yr = useMonthlyMonthRange(allRows.length);
   const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
 
   useEffect(() => {
@@ -81,7 +81,7 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
       </div>
       <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
         {!yr.hidden && (
-          <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
+          <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
         )}
         <StatScopeToggle />
       </div>

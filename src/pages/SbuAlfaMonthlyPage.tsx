@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSbuAlfaDatabaseContext } from "@/context/useSbuAlfaDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
-import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
+import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { TargetsStackedChart, type TargetsStackPoint } from "@/components/TargetsStackedChart";
-import { YearRangeSelect } from "@/components/YearRangeSelect";
+import { MonthRangeSelect } from "@/components/MonthRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { extendMonthsTo, resolvedEndMonth } from "@/utils/padTrailing";
@@ -75,7 +75,7 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
   // Time-window picker. The hook auto-hides when there are ≤12 periods, so this
   // is a no-op today (3 months) and the picker appears automatically once SBU
   // has published 13+ monthly recaps.
-  const yr = useMonthlyYearRange(allPeriods.length);
+  const yr = useMonthlyMonthRange(allPeriods.length);
   const periods = useMemo(
     () => extendMonthsTo(yr.slice(allPeriods), resolvedEndMonth()),
     [allPeriods, yr],
@@ -148,7 +148,7 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
       </div>
       <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
         {!yr.hidden && (
-          <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
+          <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
         )}
         <StatScopeToggle />
       </div>

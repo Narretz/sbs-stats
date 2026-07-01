@@ -1,12 +1,12 @@
 import { useMemo, useEffect, useState } from "react";
 import { useDatabaseContext } from "@/context/useDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
-import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
+import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/components/MonthlyTargetPairChart";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
-import { YearRangeSelect } from "@/components/YearRangeSelect";
+import { MonthRangeSelect } from "@/components/MonthRangeSelect";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { buildMetrics } from "@/utils/metrics";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
@@ -25,7 +25,7 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const [allRows, setAllRows] = useState<MonthlyRow[]>([]);
   const [hasData, setHasData] = useState(false);
-  const yr = useMonthlyYearRange(allRows.length);
+  const yr = useMonthlyMonthRange(allRows.length);
   const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
 
   useEffect(() => {
@@ -160,7 +160,7 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
       </div>
       <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
         {!yr.hidden && (
-          <YearRangeSelect options={yr.yearOptions} value={yr.years} onChange={yr.setYears} />
+          <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
         )}
         <StatScopeToggle />
       </div>
