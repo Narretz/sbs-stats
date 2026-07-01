@@ -3,6 +3,7 @@ import { Temporal } from "temporal-polyfill";
 import { useGsuaDatabaseContext } from "@/context/useGsuaDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
+import { DirectionCoverageChart } from "@/components/DirectionCoverageChart";
 import { DataWindow } from "@/components/DataWindow";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
@@ -16,6 +17,7 @@ import {
   GSUA_METRIC_LABELS,
   type GsuaDailyRow,
   type GsuaDirectionRow,
+  type GsuaDirectionCoverageRow,
   type GsuaGlobalStats,
   type GsuaMetricKey,
   type EodEstimate,
@@ -60,7 +62,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
   const {
     loadState, error, queryDaily, queryGlobalStats, queryEodProjection,
-    queryDirectionList, queryDirectionDaily, queryDataWindow,
+    queryDirectionList, queryDirectionDaily, queryDirectionCoverage, queryDataWindow,
   } = useGsuaDatabaseContext();
   const [dataWindow, setDataWindow] = useState<{ minDate: string | null; maxDate: string | null; latestSnapshotAt: string | null }>({ minDate: null, maxDate: null, latestSnapshotAt: null });
   useEffect(() => { queryDataWindow().then(setDataWindow); }, [queryDataWindow]);
@@ -75,6 +77,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   const [globalStats, setGlobalStats] = useState<GsuaGlobalStats>({} as GsuaGlobalStats);
   const [directionList, setDirectionList] = useState<string[]>([]);
   const [directionRows, setDirectionRows] = useState<GsuaDirectionRow[]>([]);
+  const [coverageRows, setCoverageRows] = useState<GsuaDirectionCoverageRow[]>([]);
   const [eod, setEod] = useState<Partial<Record<GsuaMetricKey, EodEstimate>>>({});
   const [hasData, setHasData] = useState(false);
 
@@ -113,13 +116,17 @@ export function GsuaDailyPage({ refreshKey }: Props) {
         const dir = await queryDirectionDaily(selectedDirection, days, selectedDate || undefined);
         if (cancelled) return;
         setDirectionRows(dir);
+        setCoverageRows([]);
       } else {
         setDirectionRows([]);
+        const cov = await queryDirectionCoverage(days, selectedDate || undefined);
+        if (cancelled) return;
+        setCoverageRows(cov);
       }
       setHasData(true);
     })();
     return () => { cancelled = true; };
-  }, [loadState, days, selectedDate, selectedDirection, queryDaily, queryDirectionDaily, refreshKey]);
+  }, [loadState, days, selectedDate, selectedDirection, queryDaily, queryDirectionDaily, queryDirectionCoverage, refreshKey]);
 
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00").getDay();
   const maxSelectableDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
@@ -142,6 +149,18 @@ export function GsuaDailyPage({ refreshKey }: Props) {
     }
     return r;
   }, [rows, selectedDate, selectedWeekdays, days]);
+
+  const filteredCoverageRows = useMemo(() => {
+    let r = coverageRows;
+    if (selectedDate) {
+      const startDate = windowStartDate(selectedDate, days);
+      r = r.filter((row) => row.date >= startDate && row.date <= selectedDate);
+    }
+    if (selectedWeekdays.length > 0) {
+      r = r.filter((row) => selectedWeekdays.includes(new Date(row.date + "T12:00:00").getDay()));
+    }
+    return r;
+  }, [coverageRows, selectedDate, selectedWeekdays, days]);
 
   const filteredDirectionRows = useMemo(() => {
     let r = directionRows;
@@ -269,6 +288,9 @@ export function GsuaDailyPage({ refreshKey }: Props) {
               eod={eod[k] ?? null}
             />
           ))}
+          {filteredCoverageRows.length > 0 && (
+            <DirectionCoverageChart data={filteredCoverageRows} wfull />
+          )}
         </ChartGrid>
       )}
       {(loadState === "ready" || hasData) && selectedDirection && (

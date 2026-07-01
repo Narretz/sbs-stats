@@ -3,6 +3,7 @@ import { createDbWorker, type WorkerHttpvfs } from "sql.js-httpvfs";
 import type {
   GsuaDailyRow,
   GsuaDirectionRow,
+  GsuaDirectionCoverageRow,
   GsuaGlobalStats,
   GsuaMetricKey,
   GsuaMonthlyRow,
@@ -414,6 +415,188 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
     [worker]
   );
 
+  // Per-date "how much of today's `combat_engagements` count is broken down
+  // into named directions, and which ones?" — for the coverage/composition
+  // chart. Picks ONE canonical post per date (prefer telegram, then latest
+  // snapshot) and reads both its aggregate and its per-direction attacks from
+  // the SAME post, so the delta (`unattributed`) is honest — we're not
+  // comparing totals from one report with directions from another.
+  //
+  // Query returns flat (date, direction, attacks) rows plus a per-date total;
+  // the caller pivots into `{ date, total, unattributed, byDirection: {...} }`.
+  const queryDirectionCoverage = useCallback(
+    async (days: number, endDate?: string): Promise<GsuaDirectionCoverageRow[]> => {
+      if (!worker) return [];
+      const todayStr = getKyivDateString();
+      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
+
+      const sql = `
+        WITH latest_posts AS (
+          SELECT p.* FROM posts p
+          WHERE NOT EXISTS (
+            SELECT 1 FROM posts n
+            WHERE n.source = p.source AND n.source_id = p.source_id
+              AND n.scraped_at > p.scraped_at
+          )
+        ),
+        per_date_source_snap AS (
+          -- One row per (date, source, snapshot_at), collapsing multipart posts;
+          -- MAX(combat_engagements) mirrors the daily_combined view's merge.
+          SELECT date, source, snapshot_at,
+                 MAX(combat_engagements) AS combat_engagements
+          FROM latest_posts
+          WHERE date >= ${windowStartSql(endDateSql, days)}
+            AND date <= '${endDateSql}'
+            AND snapshot_at IS NOT NULL
+          GROUP BY date, source, snapshot_at
+        ),
+        best_per_date AS (
+          -- Pick the canonical row per date: prefer telegram, then latest snapshot.
+          SELECT date, source, snapshot_at, combat_engagements
+          FROM (
+            SELECT *,
+                   ROW_NUMBER() OVER (
+                     PARTITION BY date
+                     ORDER BY CASE source WHEN 'telegram' THEN 0 ELSE 1 END,
+                              snapshot_at DESC
+                   ) AS rn
+            FROM per_date_source_snap
+          ) t
+          WHERE rn = 1
+        )
+        SELECT
+          b.date,
+          b.combat_engagements AS total,
+          d.direction         AS direction,
+          SUM(d.attacks)      AS attacks
+        FROM best_per_date b
+        LEFT JOIN latest_posts p
+          ON p.source = b.source AND p.date = b.date AND p.snapshot_at = b.snapshot_at
+        LEFT JOIN directions d
+          ON d.source = p.source AND d.source_id = p.source_id AND d.scraped_at = p.scraped_at
+        GROUP BY b.date, d.direction
+        ORDER BY b.date ASC
+      `;
+      const rows = (await worker.db.query(sql)) as Record<string, unknown>[];
+
+      // Pivot to one row per date.
+      const byDate = new Map<string, GsuaDirectionCoverageRow>();
+      for (const r of rows) {
+        const date = String(r.date);
+        const total = typeof r.total === "number" ? r.total : null;
+        let row = byDate.get(date);
+        if (!row) {
+          row = {
+            date, total, attributed: 0, unattributed: 0,
+            byDirection: {}, is_today: date === todayStr,
+          };
+          byDate.set(date, row);
+        }
+        const dir = r.direction == null ? null : String(r.direction);
+        const attacks = typeof r.attacks === "number" ? r.attacks : 0;
+        if (dir && attacks > 0) {
+          row.byDirection[dir] = (row.byDirection[dir] ?? 0) + attacks;
+          row.attributed += attacks;
+        }
+      }
+      for (const row of byDate.values()) {
+        row.unattributed = row.total == null ? 0 : Math.max(0, row.total - row.attributed);
+      }
+      return [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+    },
+    [worker]
+  );
+
+  // Monthly-aggregated variant of queryDirectionCoverage. Same canonical-post
+  // selection logic (prefer telegram, latest snapshot per date), then rolls
+  // both `combat_engagements` and per-direction `attacks` up to the month.
+  // Month totals and per-direction sums come from two side-by-side CTEs so
+  // the outer JOIN doesn't multiply the month total by the number of
+  // directions in it.
+  const queryDirectionCoverageMonthly = useCallback(
+    async (): Promise<GsuaDirectionCoverageRow[]> => {
+      if (!worker) return [];
+      const sql = `
+        WITH latest_posts AS (
+          SELECT p.* FROM posts p
+          WHERE NOT EXISTS (
+            SELECT 1 FROM posts n
+            WHERE n.source = p.source AND n.source_id = p.source_id
+              AND n.scraped_at > p.scraped_at
+          )
+        ),
+        per_date_source_snap AS (
+          SELECT date, source, snapshot_at,
+                 MAX(combat_engagements) AS combat_engagements
+          FROM latest_posts
+          WHERE snapshot_at IS NOT NULL
+          GROUP BY date, source, snapshot_at
+        ),
+        best_per_date AS (
+          SELECT date, source, snapshot_at, combat_engagements
+          FROM (
+            SELECT *,
+                   ROW_NUMBER() OVER (
+                     PARTITION BY date
+                     ORDER BY CASE source WHEN 'telegram' THEN 0 ELSE 1 END,
+                              snapshot_at DESC
+                   ) AS rn
+            FROM per_date_source_snap
+          ) t
+          WHERE rn = 1
+        ),
+        month_totals AS (
+          SELECT substr(date, 1, 7) AS month,
+                 SUM(combat_engagements) AS total
+          FROM best_per_date
+          GROUP BY substr(date, 1, 7)
+        ),
+        month_direction_attacks AS (
+          SELECT substr(b.date, 1, 7) AS month,
+                 d.direction AS direction,
+                 SUM(d.attacks) AS attacks
+          FROM best_per_date b
+          LEFT JOIN latest_posts p
+            ON p.source = b.source AND p.date = b.date AND p.snapshot_at = b.snapshot_at
+          LEFT JOIN directions d
+            ON d.source = p.source AND d.source_id = p.source_id
+            AND d.scraped_at = p.scraped_at
+          GROUP BY substr(b.date, 1, 7), d.direction
+        )
+        SELECT m.month AS date, m.total,
+               a.direction, a.attacks
+        FROM month_totals m
+        LEFT JOIN month_direction_attacks a ON a.month = m.month
+        ORDER BY m.month ASC
+      `;
+      const rows = (await worker.db.query(sql)) as Record<string, unknown>[];
+      const byMonth = new Map<string, GsuaDirectionCoverageRow>();
+      for (const r of rows) {
+        const date = String(r.date);
+        const total = typeof r.total === "number" ? r.total : null;
+        let row = byMonth.get(date);
+        if (!row) {
+          row = {
+            date, total, attributed: 0, unattributed: 0,
+            byDirection: {}, is_today: false,
+          };
+          byMonth.set(date, row);
+        }
+        const dir = r.direction == null ? null : String(r.direction);
+        const attacks = typeof r.attacks === "number" ? r.attacks : 0;
+        if (dir && attacks > 0) {
+          row.byDirection[dir] = (row.byDirection[dir] ?? 0) + attacks;
+          row.attributed += attacks;
+        }
+      }
+      for (const row of byMonth.values()) {
+        row.unattributed = row.total == null ? 0 : Math.max(0, row.total - row.attributed);
+      }
+      return [...byMonth.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+    },
+    [worker]
+  );
+
   // Full covered date range (first/last day) plus the newest snapshot on the last
   // day, for the "Data … – …" freshness note in the page header — the latest
   // snapshot's time tells a finished day (≥22:00 post in) from a partial one.
@@ -442,6 +625,7 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
     loadState, error,
     queryDaily, querySnapshots, queryGlobalStats, queryMonthly, queryEodProjection, queryDataWindow,
     queryDirectionList, queryDirectionDaily, queryDirectionSnapshots,
+    queryDirectionCoverage, queryDirectionCoverageMonthly,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs,
   };

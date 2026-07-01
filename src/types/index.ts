@@ -182,6 +182,19 @@ export interface GsuaDirectionRow {
   is_today: boolean;
 }
 
+// Per-date breakdown of the day's `combat_engagements` count by direction.
+// `attributed` is the sum of `byDirection`; `unattributed` = max(0, total -
+// attributed). All fields come from the SAME canonical post per date so the
+// delta is an honest per-report gap, not a cross-report subtraction.
+export interface GsuaDirectionCoverageRow {
+  date: string;
+  total: number | null;                    // combat_engagements from canonical post
+  attributed: number;                      // SUM(byDirection)
+  unattributed: number;                    // total - attributed, clamped to 0
+  byDirection: Record<string, number>;     // direction → attacks (>0 only)
+  is_today: boolean;
+}
+
 export type GsuaGlobalStats = Record<GsuaMetricKey, Stat>;
 
 export type GsuaMonthlyRow = {

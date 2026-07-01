@@ -3,6 +3,7 @@ import { useGsuaDatabaseContext } from "@/context/useGsuaDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyYearRange } from "@/hooks/useMonthlyYearRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
+import { DirectionCoverageChart } from "@/components/DirectionCoverageChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { YearRangeSelect } from "@/components/YearRangeSelect";
@@ -14,6 +15,7 @@ import {
   GSUA_METRIC_LABELS,
   type GsuaMetricKey,
   type GsuaMonthlyRow,
+  type GsuaDirectionCoverageRow,
   type MonthlyDataPoint,
 } from "@/types";
 import { FONTS } from "@/theme";
@@ -24,10 +26,11 @@ interface Props {
 
 export function GsuaMonthlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryMonthly, queryDataWindow } = useGsuaDatabaseContext();
+  const { loadState, error, queryMonthly, queryDirectionCoverageMonthly, queryDataWindow } = useGsuaDatabaseContext();
   const [dataWindow, setDataWindow] = useState<{ minDate: string | null; maxDate: string | null; latestSnapshotAt: string | null }>({ minDate: null, maxDate: null, latestSnapshotAt: null });
   useEffect(() => { queryDataWindow().then(setDataWindow); }, [queryDataWindow]);
   const [allRows, setAllRows] = useState<GsuaMonthlyRow[]>([]);
+  const [coverageRows, setCoverageRows] = useState<GsuaDirectionCoverageRow[]>([]);
   const [hasData, setHasData] = useState(false);
   const yr = useMonthlyYearRange(allRows.length);
   const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
@@ -36,13 +39,25 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
     if (loadState !== "ready") return;
     let cancelled = false;
     (async () => {
-      const monthly = await queryMonthly();
+      const [monthly, coverage] = await Promise.all([
+        queryMonthly(),
+        queryDirectionCoverageMonthly(),
+      ]);
       if (cancelled) return;
       setAllRows(monthly);
+      setCoverageRows(coverage);
       setHasData(true);
     })();
     return () => { cancelled = true; };
-  }, [loadState, queryMonthly, refreshKey]);
+  }, [loadState, queryMonthly, queryDirectionCoverageMonthly, refreshKey]);
+
+  // Coverage rows are keyed by "YYYY-MM"; filter to the same year-range slice
+  // the metric grid uses so the two views agree on what's shown.
+  const filteredCoverageRows = useMemo(() => {
+    if (rows.length === 0) return coverageRows;
+    const months = new Set(rows.map((r) => r.date));
+    return coverageRows.filter((r) => months.has(r.date));
+  }, [coverageRows, rows]);
 
   // Whole-dataset stats per metric, from un-sliced rows so the "all" stat
   // scope reflects the full history (not just the year-range window).
@@ -105,6 +120,13 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
               globalTotal={allStats[k]?.total ?? 0}
             />
           ))}
+          {filteredCoverageRows.length > 0 && (
+            <DirectionCoverageChart
+              data={filteredCoverageRows}
+              wfull
+              granularity="monthly"
+            />
+          )}
         </ChartGrid>
       )}
     </div>
