@@ -212,6 +212,23 @@ The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:
     renamed columns. Build should abort on unrecognised headers (drift check) rather
     than silently dropping them.
   - Confirm license / attribution with the maintainer before publishing.
+- **`UAVs (Daily)` vs `LR OWA UAVs (Daily)` — subset relationship, empirically:**
+  Analysed against the 2026-06-30 snapshot of the sheet (1131 days where both fields
+  are populated):
+  - `UAVs (Daily)` ≥ `LR OWA UAVs (Daily)` on 98.3% of shared rows. The broader field
+    is (almost always) a superset that contains the LR-OWA subset.
+  - Pearson r = +0.911; typical ratio `UAV / LR_OWA` ≈ 2.7× (25/75th pct: 1.7×–6.1×),
+    so LR OWA accounts for ~35–40% of the daily UAV number, with the rest being
+    non-LR (tactical, ISR, FPV) UAV claims.
+  - The 19 rows where `UAV < LR OWA` (plus 4 exact ties) are spread across 2023–2026
+    (2:6:9:6 by year), so they're probably persistent RU-MoD reporting inconsistencies.
+    Most Δs are single-digit; three outliers (−46, −47,
+    −61) look like source-side errors in the daily bulletin, not sheet-transcription
+    slips.
+  - **Ingest implication:** don't sum `UAVs (Daily)` and `LR OWA UAVs (Daily)` — that
+    double-counts by construction. Store both, expose them as related-but-distinct
+    metrics in any downstream view, and pass through the ~2% negative-delta anomalies
+    without correction (they're properties of the source, not our parser).
 - **Pipeline shape if pursued:** daily CI snapshot of the CSV → header-driven long-format
   SQLite → R2, append-only/versioned-on-edit like our other ingest scripts. Treat as a
   **bootstrap** for stream 1 — the long-term authoritative path is still our own scraper
