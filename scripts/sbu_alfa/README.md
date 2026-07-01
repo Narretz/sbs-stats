@@ -5,26 +5,42 @@ MONTHLY RECAP** view of the app. Source: monthly "ТОП-1 серед підро
 оборони" recaps the SBU's Centre of Special Operations «А» (Alfa) publishes at
 [ssu.gov.ua/novyny](https://ssu.gov.ua/novyny), starting March 2026.
 
-**Manual ingest, no scheduled workflow.** Unlike the other datasets, this has
-no API and no Telegram channel we can subscribe to. When SBU publishes a new
-monthly recap (usually mid-month, for the previous month), run:
+**Two paths, both stdlib-only:**
 
-```sh
-python3 scripts/sbu_alfa/ingest.py <article-url> --out data/sbu-alfa.db
-git add data/sbu-alfa.db
-git commit -m "feat(sbu-alfa): add <month> recap"
-```
+- **Automated discovery** (`discover.py` + `update-sbu-alfa-db.yml`) polls the
+  SBU news listing daily during the plausible publication window (5th–20th of
+  each month, ~16 runs) and ingests any new recap:
 
-The deploy workflow's `paths:` filter watches `data/sbu-alfa.db`, so the push
-triggers a GitHub Pages build automatically. The DB is committed to the repo
-(not on R2) — small file, infrequent edits, diffable in git.
+  ```sh
+  python3 scripts/sbu_alfa/discover.py --out data/sbu-alfa.db --pages 3
+  ```
+
+- **Manual ingest** for one-off backfills or when the discovery filter needs
+  supervision (a themed article slipped through, an early canonical URL):
+
+  ```sh
+  python3 scripts/sbu_alfa/ingest.py <article-url> --out data/sbu-alfa.db
+  ```
+
+The DB lives on R2 (bucket `russia-ukraine-war`, key `sbu-alfa.db`), pulled at
+runtime by the frontend and by the workflow. Not committed to the repo.
 
 **Source quirks.** The SBU site is fronted by Akamai which 403s most automated
 requests (sitemap, search, pagination, `robots.txt`). `ingest.py` uses a
-browser-like UA + headers that works for direct article URLs. If a canonical
-SBU URL is unreachable, you can ingest from a mirror site that reproduces the
-SBU text verbatim — the URL stored in `reports.url` becomes the mirror's URL
-in that case.
+browser-like UA + headers that works for direct article URLs and for the
+paginated news listing that `discover.py` scans. When SBU publishes a recap
+via a mirror before it lands on ssu.gov.ua (early 2026 had this pattern —
+[gorsovet.com.ua](https://gorsovet.com.ua/) and [5.ua](https://www.5.ua/)),
+ingest the mirror manually as a stopgap and re-ingest from the canonical
+`ssu.gov.ua` URL later; the older mirror row can then be deleted.
+
+**Discovery filter.** `discover.py` matches slugs containing
+`alf[ay]` + `top1` + `sered-pidrozdiliv-syl-oborony` (loose enough to survive
+minor wording changes across the three known 2026 recaps, strict enough to
+reject daily SBU news). Any candidate is parsed and gated on
+`report_type == 'monthly_top1'` with a valid `period` before insertion, so a
+false-positive slug can't land garbage — it surfaces as a skip warning in the
+workflow log for manual review.
 
 ## Schema
 

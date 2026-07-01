@@ -1,0 +1,75 @@
+name: Update SBU Alfa Database
+
+on:
+  workflow_dispatch: # allow manual trigger from GitHub UI
+  schedule:
+    # SBU publishes each monthly recap between the 6th and the 17th of the
+    # following month (three known data points; wider than that in practice).
+    # Run once a day between days 5 and 20 of every month — 16 runs/mo — which
+    # covers the whole plausible window with a couple of days of slack.
+    # Fetching ~3 listing pages per run is ~230 KB total; negligible.
+    - cron: "0 8 5-20 * *"
+
+env:
+  R2_BUCKET: russia-ukraine-war
+  SBU_ALFA_DB_NAME: sbu-alfa.db
+
+jobs:
+  update-sbu-alfa-db:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # Pull the current DB so discover.py can dedupe against `reports.url`
+      # and so newly-ingested rows land alongside the existing history.
+      # `continue-on-error` covers the first run when the object may not
+      # yet exist — discover.py would then just have an empty seen-set.
+      - name: Download current SBU Alfa DB from R2
+        id: download
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          mkdir -p data
+          npx --yes wrangler@4 r2 object get \
+            "$R2_BUCKET/$SBU_ALFA_DB_NAME" \
+            --file "data/$SBU_ALFA_DB_NAME" \
+            --remote
+
+      # discover.py: scan the SBU news listing for candidate Alfa monthly-
+      # recap URLs, filter out ones already stored, ingest each new one.
+      # Slug-filter false positives are gated (parser must recognise
+      # report_type='monthly_top1' with a valid period) so a drifted slug
+      # can't land garbage in the DB. stdlib only.
+      #
+      # `id:` + $GITHUB_OUTPUT: discover.py writes `changed=true|false`,
+      # which the upload step below reads to skip no-op runs. Unlike the
+      # other datasets, SBU Alfa publishes ~once/month and we poll ~16×/mo
+      # — so ≥94% of runs would otherwise upload an unchanged DB and bust
+      # the CDN cache for zero benefit.
+      - name: Discover + ingest new SBU Alfa recaps
+        id: discover
+        run: |
+          python3 scripts/sbu_alfa/discover.py \
+            --out "data/$SBU_ALFA_DB_NAME" \
+            --pages 3
+
+      - name: Upload SBU Alfa DB to R2
+        if: steps.discover.outputs.changed == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/$SBU_ALFA_DB_NAME" \
+            --file "data/$SBU_ALFA_DB_NAME" \
+            --content-type application/vnd.sqlite3 \
+            --remote

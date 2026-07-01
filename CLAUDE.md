@@ -15,7 +15,7 @@ via sql.js / sql.js-httpvfs.
 | RU LOSSES — GSUA | `ru-losses-gsua` | Ukrainian General Staff national totals (PetroIvaniuk dataset) | [`scripts/ru_losses/`](scripts/ru_losses/README.md) → `ru-losses-gsua-petroivaniuk.db` |
 | RU AIR DEFENSE — RU MoD | `ru-airdef-mod` | Russian MoD air-defense claims (Telegram) | [`scripts/ru_mod/`](scripts/ru_mod/README.md) → `ru-mod-ad.db` |
 | RU MISSILE & UAV ATTACKS — GSUA | `ru-air-attacks-gsua` | UA Air Force Command + General Staff strike reports (piterfm / Kaggle) | [`scripts/missile_attacks/`](scripts/missile_attacks/README.md) → `ru-air-attacks-gsua.db` |
-| UA SBU ALFA — MONTHLY RECAP | `sbu-alfa` | SBU press releases (Centre of Special Operations «А» monthly TOP-1 recap) | [`scripts/sbu_alfa/`](scripts/sbu_alfa/README.md) → `sbu-alfa.db` (manual ingest) |
+| UA SBU ALFA — MONTHLY RECAP | `sbu-alfa` | SBU press releases (Centre of Special Operations «А» monthly TOP-1 recap) | [`scripts/sbu_alfa/`](scripts/sbu_alfa/README.md) → `sbu-alfa.db` |
 | RU DEATHS — MEDIAZONA | `mediazona` | Mediazona + Meduza confirmed named deaths + probate-registry estimate (CSV exports) | [`scripts/mediazona/`](scripts/mediazona/README.md) → `mediazona.db` |
 
 [`DATASETS.md`](DATASETS.md) tracks source research, recency, and candidate
@@ -56,6 +56,11 @@ GitHub Actions in `.github/workflows/`:
   3 days (07:00 UTC); pulls directly from the live article's JS bundle
   (`--from-article` mode), append-on-change. Article URL is a workflow env var
   (`MEDIAZONA_ARTICLE_URL`) — bump it when Mediazona publishes at a new path.
+- `update-sbu-alfa-db.yml` — SBU Alfa monthly recap. Daily 08:00 UTC on days
+  5–20 of each month (~16 runs). `scripts/sbu_alfa/discover.py` scans the SBU
+  news listing, slug-filters candidate URLs, and ingests any not already in
+  the DB. Slug-drift-safe: matches only insert if the parser recognises
+  `report_type='monthly_top1'` with a valid `period`.
 - `deploy.yml` — builds and publishes to GitHub Pages.
 
 ## Common commands
@@ -78,7 +83,8 @@ pip install -r scripts/requirements.txt   # the devcontainer does this on create
 - All dates are reconciled to **Kyiv** (GSUA/SBS) or **MSK** (RU MoD) local time —
   see the per-script date models. `scraped_at` is always UTC.
 - All DBs under `data/` are gitignored and pulled from R2 (see
-  `scripts/fetch_prod_dbs.sh`, which reads URLs from `.env.production`).
-  `scripts/setup-dev.cjs` copies `sbs.db` and `sbu-alfa.db` from `data/` into
-  `public/data/` so vite serves them in dev and bundles them in production;
-  the rest are range-fetched from R2 at runtime via sql.js-httpvfs.
+  `scripts/fetch_prod_dbs.sh`, which reads URLs from `.env.production`). In
+  dev, `data/*.db` is served by a vite middleware directly from the project
+  root; in production the frontend reads from R2 via `VITE_*_DB_URL` env
+  vars. Small DBs are fetched whole via sql.js; larger ones (GSUA attacks)
+  are range-fetched via sql.js-httpvfs.
