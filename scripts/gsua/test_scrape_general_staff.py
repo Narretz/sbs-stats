@@ -1041,6 +1041,113 @@ class TestDirections:
         assert all(d.direction.lower() != "північному" for d in dirs)
         assert all(d.direction != "Pivnichnomu" for d in dirs)
 
+    # ── Attack-count patterns added 2026-07 after the 2026-06-23 audit ─────
+
+    def test_attacks_multiword_number(self):
+        # Pokrovsk 44: "зупинили сорок чотири атаки" — verb "зупинили"
+        # (past pl., previously missing) + compound number "сорок чотири"
+        # (previously NUMWORD only accepted a single token).
+        text = _wrap_evening(
+            "На Покровському напрямку наші захисники зупинили сорок чотири атаки."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        pokrovsk = next(d for d in dirs if d.direction == "Pokrovsk")
+        assert pokrovsk.attacks == 44
+
+    def test_attacks_subject_first_word_form(self):
+        # Lyman 16: "де окупанти шістнадцять разів атакували" — number
+        # precedes the verb, so the leading-verb pattern doesn't fire.
+        # Extraction anchors on `разів + attack verb`.
+        text = _wrap_evening(
+            "На Лиманському напрямку, де окупанти шістнадцять разів "
+            "атакували в районах населених пунктів Озерне, Новоселівка."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        lyman = next(d for d in dirs if d.direction == "Lyman")
+        assert lyman.attacks == 16
+
+    def test_attacks_subject_first_digit_rasy(self):
+        # Huliaipole 24: "24 рази атакували" — same subject-first shape
+        # in digit form. "рази" (nom. pl.) previously wasn't in the noun
+        # list; only "разів" (gen. pl.) was.
+        text = _wrap_evening(
+            "На Гуляйпільському напрямку окупанти 24 рази атакували."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        huliai = next(d for d in dirs if d.direction == "Huliaipole")
+        assert huliai.attacks == 24
+
+    def test_attacks_verb_provely(self):
+        # Kramatorsk 1: "провели одну атаку" — verb "провели" (past pl.)
+        # wasn't a prefix of anything in the legacy list.
+        text = _wrap_evening(
+            "На Краматорському напрямку окупанти провели одну атаку у напрямку Малинівки."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        kram = next(d for d in dirs if d.direction == "Kramatorsk")
+        assert kram.attacks == 1
+
+    def test_attacks_bare_shturm_noun(self):
+        # Oleksandrivka 1: "здійснили один штурм у бік Х" — bare "штурм"
+        # (nom./acc. singular) instead of "штурмових" (adj. genitive plural).
+        text = _wrap_evening(
+            "На Олександрівському напрямку загарбники здійснили "
+            "один штурм у напрямку населеного пункту Олександроград."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        oleks = next(d for d in dirs if d.direction == "Oleksandrivka")
+        assert oleks.attacks == 1
+
+    def test_attacks_verb_plural_stems(self):
+        # Sanity: the past-plural forms of the pre-existing verbs
+        # (`здійснили`, `атакували`, `штурмували`) share only "здійсн"/
+        # "атакува"/"штурмува" prefixes with the -ив/-ав masculine forms.
+        # The legacy list carried only the -в forms, so plural surface
+        # forms silently failed.
+        text = _wrap_evening(
+            "На Слов'янському напрямку противник здійснили шістнадцять штурмових дій."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        slov = next(d for d in dirs if d.direction == "Sloviansk")
+        assert slov.attacks == 16
+
+    def test_no_activity_sturmovyh_dii(self):
+        # "штурмових дій не проводив" — variant of the no-activity
+        # sentinel not covered by the legacy "активних дій не проводив".
+        text = _wrap_evening(
+            "На Оріхівському та Придніпровському напрямках минулої доби "
+            "ворог штурмових дій не проводив."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        orikh = next(d for d in dirs if d.direction == "Orikhiv")
+        prydn = next(d for d in dirs if d.direction == "Prydniprovske")
+        assert orikh.attacks is None
+        assert prydn.attacks is None
+
+
+# ---------------------------------------------------------------------------
+# _ua_word_to_num — compound Ukrainian numbers
+# ---------------------------------------------------------------------------
+
+class TestUaWordToNum:
+    def test_single_word(self):
+        assert gs._ua_word_to_num("тринадцять") == 13
+
+    def test_compound_tens_units(self):
+        assert gs._ua_word_to_num("сорок чотири") == 44
+        assert gs._ua_word_to_num("двадцять один") == 21
+        assert gs._ua_word_to_num("тридцять сім") == 37
+
+    def test_drops_leading_non_number(self):
+        # Multi-word NUMWORD regex can capture "окупанти шістнадцять"
+        # when the noun ("разів") comes after; drop leading non-number tokens.
+        assert gs._ua_word_to_num("окупанти шістнадцять") == 16
+
+    def test_trailing_non_number_fails(self):
+        # But a trailing non-number word means the tail isn't a compound
+        # — bail out rather than silently accepting a partial match.
+        assert gs._ua_word_to_num("тринадцять днів") is None
+
 
 # ---------------------------------------------------------------------------
 # _normalize_direction — apostrophe variants

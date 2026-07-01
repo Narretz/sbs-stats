@@ -323,9 +323,31 @@ def _extract_count(
     if word_re:
         m = re.search(word_re, text, re.IGNORECASE)
         if m:
-            word = m.group(1).lower().replace("\u02bc", "'").replace("\u2019", "'")
-            return UA_NUM.get(word)
+            return _ua_word_to_num(m.group(1))
     return None
+
+
+def _ua_word_to_num(word: str) -> int | None:
+    """Ukrainian number word \u2192 int. Supports compound forms like '\u0441\u043e\u0440\u043e\u043a
+    \u0447\u043e\u0442\u0438\u0440\u0438' (44) by summing tokens. Also drops leading non-number tokens \u2014
+    the multi-word NUMWORD regex is a superset of "NN" and "SUBJ NN"
+    ("\u043e\u043a\u0443\u043f\u0430\u043d\u0442\u0438 \u0448\u0456\u0441\u0442\u043d\u0430\u0434\u0446\u044f\u0442\u044c"), and the regex engine can't distinguish which
+    words are numbers, so we shrink from the left until a numeric token
+    appears. Returns None if no numeric tokens survive or any *trailing*
+    token isn't a number."""
+    word = word.lower().replace("\u02bc", "'").replace("\u2019", "'")
+    parts = word.split()
+    while parts and UA_NUM.get(parts[0]) is None:
+        parts.pop(0)
+    if not parts:
+        return None
+    total = 0
+    for p in parts:
+        n = UA_NUM.get(p)
+        if n is None:
+            return None
+        total += n
+    return total
 
 
 def _branch_4_only(text: str) -> int | None:
@@ -806,7 +828,7 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
 
         # "No activity" sentinel. When the section opens with a phrase that
         # says nothing happened on this direction (e.g. "ознак формування
-        # наступальних угруповань ворога не виявлено", "активних дій не
+        # наступальних угруповань ворога не виявлено", "штурмових дій не
         # проводив"), counts must be None. Otherwise an unrelated cumulative
         # paragraph that follows (msg 37227: a ceasefire-regime aggregate
         # with "провів 119 штурмових дій") gets falsely attributed to this
@@ -814,7 +836,7 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
         first_sentence = section.split(".", 1)[0]
         no_activity = re.search(
             r"ознак формування[^.]{0,80}не виявлено|"
-            r"активних дій не проводив",
+            r"(?:активних|штурмових|бойових|наступальних)\s+дій\s+не\s+проводив",
             first_sentence,
             re.IGNORECASE | re.UNICODE,
         )
@@ -825,17 +847,58 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
         # \w doesn't include the apostrophe variants Ukrainian uses inside
         # number words ("п'ять", "дев'ять"), so the word-capture group has to
         # include them explicitly or the regex stops at "п".
-        _NUMWORD = r"[\w'ʼ’]+"
+        # Compound Ukrainian numbers use two space-separated tokens
+        # ("сорок чотири" = 44 for Pokrovsk-style "де захисники зупинили
+        # сорок чотири атаки"), so NUMWORD allows an optional second token
+        # and _ua_word_to_num sums them.
+        _NUMWORD = r"[\w'ʼ’]+(?:\s+[\w'ʼ’]+)?"
         if no_activity:
             attacks = None
         else:
             attacks = _extract_count(
                 section,
-                r"(\d[\d\s]*\d|\d)\s*(?:штурмов|атак|бойов|боєзіткнен|разів|спроб)",
-                r"(?:відбили|відбито|відбила|здійснив|штурмував|атакував|наступав|"
-                r"намагалися|спроб[уи]вав)\w*\s+(" + _NUMWORD + r")\s+(?:штурмов|атак|"
-                r"бойов|боєзіткнен|разів|раз[иі]|спроб|боєзіткнень)",
+                # Digit: "N штурмов[ых|их дій]" / "N атак" / "N раз(ів|и)" / "N спроб"
+                # / bare "N штурм[у|ів]" (accusative singular, seen with
+                # "здійснили один штурм у напрямку"). "раз[ов]?[ив]" would
+                # over-match "разу"; `раз(?:ів|и)` catches "разів" (gen. pl.)
+                # and "рази" (nom. pl., "24 рази атакували").
+                r"(\d[\d\s]*\d|\d)\s*(?:штурм|атак|бойов|боєзіткнен|раз(?:ів|и)|спроб)",
+                # Verb + NUMWORD + noun. Stems are chosen so `\w*` covers
+                # every past-tense gender/number form:
+                # - Past-tense root of "відбити" (repel) is "відбил-" for
+                #   pl/f/n and "відбив" for m; also "відбито" (impersonal).
+                # - `здійсн` covers здійснив / здійснила / здійснили /
+                #   здійснене (the -в form isn't a prefix of the -л form,
+                #   so `здійснив` alone missed the plural — the actual
+                #   surface form used most in reports).
+                # - `зупин` covers зупинив/зупинила/зупинили.
+                # - `зафіксов` covers зафіксовано / зафіксували.
+                # - `штурмува`, `атакува`, `наступа`, `намага`, `спробува`
+                #   are the shared roots — again, the -в form of these is
+                #   NOT a prefix of the -ла/-ли forms.
+                # - `провів|провел` don't share a root prefix and are
+                #   listed separately.
+                # `штурм` (bare) matches singular "штурм" in addition to
+                # "штурмових" — needed for "здійснили один штурм у бік Х".
+                r"(?:відбил|відбито|відбив|відбул|здійсн|штурмува|атакува|"
+                r"наступа|намага|спробува|зупин|зафіксов|провів|провел)\w*\s+"
+                r"(" + _NUMWORD + r")\s+"
+                r"(?:штурм|атак|бойов|боєзіткнен|раз(?:ів|и)|спроб)",
             )
+            if attacks is None:
+                # Subject-first shape used by the channel when the verb
+                # follows the count: "де окупанти шістнадцять разів
+                # атакували" (Lyman 16) / "24 рази атакували" (Huliaipole).
+                # No leading verb — anchor is `раз(ів|и)` + attack verb.
+                # Verb stems trimmed like above so plural/feminine past
+                # forms are covered.
+                attacks = _extract_count(
+                    section,
+                    r"(\d[\d\s]*\d|\d)\s+раз(?:ів|и)\s+"
+                    r"(?:атакува|штурмува|намага|наступа|нападав)\w*",
+                    r"(" + _NUMWORD + r")\s+раз(?:ів|и)\s+"
+                    r"(?:атакува|штурмува|намага|наступа|нападав)\w*",
+                )
             if attacks is None:
                 attacks = _extract_count(
                     section,
