@@ -1111,6 +1111,34 @@ class TestDirections:
         slov = next(d for d in dirs if d.direction == "Sloviansk")
         assert slov.attacks == 16
 
+    def test_attacks_number_precedes_direction(self):
+        # 2026-06-30 msg 40587: "Усього 25 атак здійснив ворог на Покровському
+        # напрямку." The number sits BEFORE the direction anchor, so the
+        # forward-only section slice used to miss it. `count_section`
+        # extends backwards to the start of the sentence containing the
+        # anchor.
+        text = _wrap_evening(
+            "Усього 25 атак здійснив ворог на Покровському напрямку. "
+            "Окупанти намагалися просунутися у бік Сергіївки."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-06-30")
+        pokrovsk = next(d for d in dirs if d.direction == "Pokrovsk")
+        assert pokrovsk.attacks == 25
+
+    def test_leading_number_does_not_leak_across_directions(self):
+        # Sanity: if a leading-number sentence anchors on X's direction,
+        # the NEXT direction Y's backwards-scan must not reach past X's
+        # anchor and grab X's number.
+        text = _wrap_evening(
+            "Усього 10 атак здійснив ворог на Лиманському напрямку. "
+            "На Покровському напрямку тривають бойові дії."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-06-30")
+        lyman = next(d for d in dirs if d.direction == "Lyman")
+        pokrovsk = next(d for d in dirs if d.direction == "Pokrovsk")
+        assert lyman.attacks == 10
+        assert pokrovsk.attacks is None
+
     def test_no_activity_sturmovyh_dii(self):
         # "штурмових дій не проводив" — variant of the no-activity
         # sentinel not covered by the legacy "активних дій не проводив".

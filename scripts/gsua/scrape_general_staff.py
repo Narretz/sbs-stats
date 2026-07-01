@@ -842,6 +842,17 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
         end = matches[i + 1].start() if i + 1 < len(matches) else min(start + 600, len(text))
         section = text[start:end]
 
+        # Count-extraction sub-section extended backwards to the start of the
+        # sentence containing the anchor. Some reports lead with the number
+        # and put the direction last (2026-06-30: "Усього 25 атак здійснив
+        # ворог на Покровському напрямку"), so a forward-only slice misses
+        # the count. Cap the backwards range at the previous direction's
+        # anchor end so its number can't leak into this direction.
+        prev_end = matches[i - 1].end() if i > 0 else 0
+        last_period = text.rfind(".", prev_end, start)
+        count_start = last_period + 1 if last_period != -1 else prev_end
+        count_section = text[count_start:end]
+
         # "No activity" sentinel. When the section opens with a phrase that
         # says nothing happened on this direction (e.g. "ознак формування
         # наступальних угруповань ворога не виявлено", "штурмових дій не
@@ -849,6 +860,8 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
         # paragraph that follows (msg 37227: a ceasefire-regime aggregate
         # with "провів 119 штурмових дій") gets falsely attributed to this
         # direction and trips the global combat_engagements sanity check.
+        # Runs on `section` (forward-only) so a leading-number pre-sentence
+        # can't trip the sentinel.
         first_sentence = section.split(".", 1)[0]
         no_activity = re.search(
             r"ознак формування[^.]{0,80}не виявлено|"
@@ -872,7 +885,7 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
             attacks = None
         else:
             attacks = _extract_count(
-                section,
+                count_section,
                 # Digit: "N штурмов[ых|их дій]" / "N атак" / "N раз(ів|и)" / "N спроб"
                 # / bare "N штурм[у|ів]" (accusative singular, seen with
                 # "здійснили один штурм у напрямку"). "раз[ов]?[ив]" would
@@ -917,7 +930,7 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
                 )
             if attacks is None:
                 attacks = _extract_count(
-                    section,
+                    count_section,
                     r"відби(?:то|ла|ли)\s*(\d[\d\s]*\d|\d)",
                     r"відби(?:то|ла|ли)\s+(" + _NUMWORD + r")",
                 )
@@ -927,7 +940,7 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
             ongoing = None
         else:
             ongoing = _extract_count(
-                section,
+                count_section,
                 r"(\d[\d\s]*\d|\d)\s*(?:зіткнен|бо[ії]в|боєзіткнен|атак|спроб)"
                 r"[\w\s]{0,30}трива",
                 r"(" + _NUMWORD + r")\s+(?:зіткнен|бо[ії]в|боєзіткнен|атак|спроб)\w*"
