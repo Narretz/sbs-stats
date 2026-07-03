@@ -162,6 +162,10 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
               data2={m.pairedKey ? makeDataset(m.pairedKey) : undefined}
               primaryLabel={m.primaryLabel}
               label2={m.pairedLabel}
+              // SBS is a hit/destroyed pair — the `%` on the Destroyed row is
+              // the destruction rate. Spelled out so it doesn't collide with
+              // `%` meaning "share of total" on the GSUA / SBU Alfa charts.
+              pctLabel={m.pairedKey ? "% dest" : undefined}
               globalMax2={m.pairedKey ? globalStats[m.pairedKey]?.max ?? 0 : undefined}
               globalMedian2={m.pairedKey ? globalStats[m.pairedKey]?.median ?? 0 : undefined}
               globalTotal2={m.pairedKey ? globalStats[m.pairedKey]?.total ?? 0 : undefined}

@@ -63,6 +63,16 @@ interface Props {
   // wrong. Leaves the SBS-style hit/destroyed tooltips unchanged (they use
   // `primaryLabel="Hit"`, which IS the total, so no diff row is needed).
   primaryIsDiff?: boolean;
+  /** Header for the tooltip's % column — spelled out because the same column
+   *  means different things on different charts. `%` (default) for
+   *  composition (Combat Engagements shares); `% dest` on SBS-style
+   *  hit/destroyed; `% int` on RU air-attacks launched/intercepted. */
+  pctLabel?: string;
+  /** Header for the Intercepted column (auto-drops if no row populates it —
+   *  primarily set by callers that pass a `breakdownByDate`). Follows the
+   *  chart's vocabulary: `Dest` on hit/destroyed pairs, `Int` on
+   *  launched/intercepted pairs. */
+  interceptedLabel?: string;
 }
 
 function CustomDot(props: DotProps & { payload?: PairedRow; accentColor: string; primaryColor: string; bgColor: string; noteColor: string }) {
@@ -136,7 +146,7 @@ function NoteAndFooter({
 }
 
 function SingleTooltip({
-  active, payload, t, primaryColor, primaryLabel, breakdownByDate,
+  active, payload, t, primaryColor, primaryLabel, breakdownByDate, pctLabel, interceptedLabel,
 }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
@@ -144,6 +154,8 @@ function SingleTooltip({
   primaryColor: string;
   primaryLabel: string;
   breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
+  pctLabel?: string;
+  interceptedLabel?: string;
 }) {
   if (!active || !payload?.length || !payload[0].payload) return null;
   const d = payload[0].payload;
@@ -157,14 +169,14 @@ function SingleTooltip({
     <TooltipCard header={formatDate(d.date)} minWidth={180} footer={
       <NoteAndFooter d={d} t={t} eodRows={eodRows} />
     }>
-      <TooltipTable rows={rows} />
+      <TooltipTable rows={rows} pctLabel={pctLabel} interceptedLabel={interceptedLabel} />
     </TooltipCard>
   );
 }
 
 function PairedTooltip({
   active, payload, t, primaryColor, primaryLabel, secondaryLabel, pairMode,
-  primaryIsDiff, breakdownByDate,
+  primaryIsDiff, breakdownByDate, pctLabel, interceptedLabel,
 }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
@@ -175,6 +187,8 @@ function PairedTooltip({
   pairMode: PairMode;
   primaryIsDiff: boolean;
   breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
+  pctLabel?: string;
+  interceptedLabel?: string;
 }) {
   if (!active || !payload?.length || !payload[0].payload) return null;
   const d = payload[0].payload;
@@ -227,7 +241,7 @@ function PairedTooltip({
     <TooltipCard header={formatDate(d.date)} minWidth={240} footer={
       <NoteAndFooter d={d} t={t} eodRows={eodRows} />
     }>
-      <TooltipTable rows={rows} />
+      <TooltipTable rows={rows} pctLabel={pctLabel} interceptedLabel={interceptedLabel} />
     </TooltipCard>
   );
 }
@@ -237,7 +251,7 @@ function PairedTooltip({
 export function DailyLineChart({
   title, data, globalMax, globalMedian, globalTotal, wfull,
   data2, primaryLabel, label2, globalMax2, globalMedian2, globalTotal2, pairMode = "subset",
-  eod, eod2, breakdownByDate, primaryIsDiff = false,
+  eod, eod2, breakdownByDate, primaryIsDiff = false, pctLabel, interceptedLabel,
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
@@ -357,6 +371,8 @@ export function DailyLineChart({
                   pairMode={pairMode}
                   primaryIsDiff={primaryIsDiff}
                   breakdownByDate={breakdownByDate}
+                  pctLabel={pctLabel}
+                  interceptedLabel={interceptedLabel}
                 />
               )}
             />
@@ -389,6 +405,8 @@ export function DailyLineChart({
                   primaryColor={primaryColor}
                   primaryLabel={resolvedPrimaryLabel}
                   breakdownByDate={breakdownByDate}
+                  pctLabel={pctLabel}
+                  interceptedLabel={interceptedLabel}
                 />
               )}
             />

@@ -39,6 +39,13 @@ interface Props {
   // the tooltip appends per-model continuation rows under the standard
   // hit/destroyed rows. Used by the RU air-attacks category charts.
   breakdownByMonth?: Map<string, ModelBreakdownEntry[]>;
+  /** Header for the tooltip's % column (default `%`). Set to `% dest` /
+   *  `% int` on ratio charts so the meaning of the ratio is explicit. */
+  pctLabel?: string;
+  /** Header for the Intercepted column (auto-drops if no row populates it —
+   *  populated on breakdown rows). `Dest` on hit/destroyed, `Int` on
+   *  launched/intercepted. */
+  interceptedLabel?: string;
   // Whole-dataset stats for the "all" stat scope, primary (hit/launched) and
   // optional secondary (destroyed/intercepted). When omitted on either side
   // the chart falls back to the window-scoped values computed from `data`.
@@ -52,6 +59,7 @@ interface Props {
 
 const MonthlyPairTooltip = ({
   active, payload, t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth,
+  pctLabel, interceptedLabel,
 }: {
   active?: boolean;
   payload?: Array<{ payload: MonthlyTargetPairDataPoint }>;
@@ -61,6 +69,8 @@ const MonthlyPairTooltip = ({
   secondaryLabel: string;
   showRatio: boolean;
   breakdownByMonth?: Map<string, ModelBreakdownEntry[]>;
+  pctLabel?: string;
+  interceptedLabel?: string;
 }) => {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
@@ -100,7 +110,7 @@ const MonthlyPairTooltip = ({
   ) : d.date;
   return (
     <TooltipCard header={header} minWidth={240}>
-      <TooltipTable rows={rows} />
+      <TooltipTable rows={rows} pctLabel={pctLabel} interceptedLabel={interceptedLabel} />
     </TooltipCard>
   );
 };
@@ -116,6 +126,7 @@ export function MonthlyTargetPairChart({
   breakdownByMonth,
   globalMax, globalMedian, globalTotal,
   globalMax2, globalMedian2, globalTotal2,
+  pctLabel, interceptedLabel,
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
@@ -190,6 +201,8 @@ export function MonthlyTargetPairChart({
                 secondaryLabel={secondaryLabel}
                 showRatio={showRatio}
                 breakdownByMonth={breakdownByMonth}
+                pctLabel={pctLabel}
+                interceptedLabel={interceptedLabel}
               />
             )}
             allowEscapeViewBox={{ x: false, y: true }}

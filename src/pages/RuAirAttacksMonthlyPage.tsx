@@ -175,6 +175,8 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
             title={`${ATTACK_CATEGORY_LABELS.all} · Launched`}
             data={makeDataset("all")}
             breakdownByMonth={allBreakdown}
+            pctLabel="% int"
+            interceptedLabel="Int"
             wfull
             globalMax={allStats.cat.all?.max ?? 0}
             globalMedian={allStats.cat.all?.median ?? 0}
@@ -189,6 +191,8 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
               secondaryLabel="Intercepted"
               showRatio
               ratioLabel="% intercepted"
+              pctLabel="% int"
+              interceptedLabel="Int"
               breakdownByMonth={breakdowns[k]}
               globalMax={allStats.cat[k]?.max ?? 0}
               globalMedian={allStats.cat[k]?.median ?? 0}
@@ -207,6 +211,8 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
               secondaryLabel="Intercepted"
               showRatio
               ratioLabel="% intercepted"
+              pctLabel="% int"
+              interceptedLabel="Int"
               globalMax={allStats.model[model]?.max ?? 0}
               globalMedian={allStats.model[model]?.median ?? 0}
               globalTotal={allStats.model[model]?.total ?? 0}

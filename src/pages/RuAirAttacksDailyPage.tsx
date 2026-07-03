@@ -190,6 +190,8 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
             globalMedian={globalStats.all?.launched.median ?? 0}
             globalTotal={globalStats.all?.launched.total ?? 0}
             breakdownByDate={allBreakdown}
+            pctLabel="% int"
+            interceptedLabel="Int"
             wfull
           />
           {/* Per category: launched (area) with intercepted as a filled subset.
@@ -203,6 +205,8 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
               primaryLabel="Launched"
               label2="Intercepted"
               pairMode="subset"
+              pctLabel="% int"
+              interceptedLabel="Int"
               globalMax={globalStats[cat]?.launched.max ?? 0}
               globalMedian={globalStats[cat]?.launched.median ?? 0}
               globalTotal={globalStats[cat]?.launched.total ?? 0}

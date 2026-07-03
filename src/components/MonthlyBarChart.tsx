@@ -23,6 +23,13 @@ interface Props {
   // tooltip. Used by the RU air-attacks aggregate "All" monthly bar chart
   // to break the total into drone / cruise / ballistic.
   breakdownByMonth?: Map<string, ModelBreakdownEntry[]>;
+  /** Header for the tooltip's % column (default `%`). Set to `% int` on
+   *  RU air-attacks charts to disambiguate from composition-share `%`. */
+  pctLabel?: string;
+  /** Header for the Intercepted column (auto-drops when no row populates
+   *  it — populated on breakdown rows). `Int` on RU air-attacks, `Dest`
+   *  on SBS-style pairs. */
+  interceptedLabel?: string;
 }
 
 // Cap bar width so a chart with few data points (e.g. SBU Alfa's 3 months)
@@ -32,7 +39,7 @@ const MAX_BAR_SIZE = 70;
 
 export function MonthlyBarChart({
   title, data, wfull, breakdownByMonth,
-  globalMax, globalMedian, globalTotal,
+  globalMax, globalMedian, globalTotal, pctLabel, interceptedLabel,
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
@@ -80,7 +87,7 @@ export function MonthlyBarChart({
     ) : null;
     return (
       <TooltipCard header={header} minWidth={200} footer={footer}>
-        <TooltipTable rows={rows} />
+        <TooltipTable rows={rows} pctLabel={pctLabel} interceptedLabel={interceptedLabel} />
       </TooltipCard>
     );
   };

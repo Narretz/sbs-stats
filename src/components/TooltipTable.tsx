@@ -27,6 +27,12 @@ export interface TooltipTableRow {
   /** 0..100. Rendered as "42%" and drives the fair-share column. Leave
    *  undefined on rows that shouldn't contribute a %. */
   pct?: number | null;
+  /** Subset count paired with `value` on ratio charts — the "how many of
+   *  this row's launched were destroyed/intercepted" number. Populated
+   *  primarily on model-breakdown rows so the absolute intercept count is
+   *  visible per model (the ratio alone hides the underlying magnitudes).
+   *  Column auto-drops on charts where no row populates it. */
+  intercepted?: number | null;
   /** Linear-regression trend for this row's series, if any. */
   trend?: number | null;
   /** End-of-period projection (e.g., projected month-end value on the
@@ -48,10 +54,20 @@ interface TableProps {
   formatValue?: (n: number) => string;
   /** Format the trend column. Default matches `formatValue`. */
   formatTrend?: (n: number) => string;
+  /** Header label for the % column. `%` is overloaded across the app —
+   *  sometimes it means "share of total" (composition charts like Combat
+   *  Engagements, SBU Alfa targets, Mediazona force types), sometimes
+   *  "interception/destruction rate" (SBS hit/destroyed, RU air-attacks).
+   *  Callers spell it out to disambiguate: `%`, `% dest`, `% int`, etc. */
+  pctLabel?: string;
+  /** Header label for the Intercepted column. Follows the chart's own
+   *  vocabulary — `Dest` on SBS-style pairs, `Int` on RU air-attacks. */
+  interceptedLabel?: string;
 }
 
 const VALUE_MIN = 52;
 const PCT_MIN = 44;
+const INT_MIN = 52;
 const TREND_MIN = 52;
 const PROJ_MIN = 56;
 
@@ -69,6 +85,8 @@ export function TooltipTable({
   rows,
   formatValue = (n) => n.toLocaleString(),
   formatTrend,
+  pctLabel = "%",
+  interceptedLabel = "Int",
 }: TableProps) {
   const { theme: t } = useTheme();
   const trendFmt = formatTrend ?? formatValue;
@@ -76,6 +94,7 @@ export function TooltipTable({
   // just gets Value + Trend, a composition tooltip gets Value + %, and the
   // current-month bar on projection-aware charts adds Projected.
   const hasPct = rows.some((r) => r.pct != null);
+  const hasIntercepted = rows.some((r) => r.intercepted != null);
   const hasTrend = rows.some((r) => r.trend != null);
   const hasProjected = rows.some((r) => r.projected != null);
 
@@ -87,14 +106,15 @@ export function TooltipTable({
 
   return (
     <div>
-      {(hasPct || hasTrend || hasProjected) && (
+      {(hasPct || hasIntercepted || hasTrend || hasProjected) && (
         <div style={{
           display: "flex", gap: 12, color: t.textMuted, fontSize: 10,
           marginBottom: 3, paddingBottom: 3, borderBottom: `1px solid ${t.border}`,
         }}>
           <span style={{ flex: 1 }} />
           <span style={numericCell(VALUE_MIN)}>Value</span>
-          {hasPct && <span style={numericCell(PCT_MIN)}>%</span>}
+          {hasPct && <span style={numericCell(PCT_MIN)}>{pctLabel}</span>}
+          {hasIntercepted && <span style={numericCell(INT_MIN)}>{interceptedLabel}</span>}
           {hasProjected && <span style={numericCell(PROJ_MIN)}>Projected</span>}
           {hasTrend && <span style={numericCell(TREND_MIN)}>Trend</span>}
         </div>
@@ -118,6 +138,11 @@ export function TooltipTable({
             {hasPct && (
               <span style={{ ...numericCell(PCT_MIN), color: t.textMuted }}>
                 {fmtPct(r.pct)}
+              </span>
+            )}
+            {hasIntercepted && (
+              <span style={{ ...numericCell(INT_MIN), color: t.textMuted }}>
+                {r.intercepted != null ? formatValue(r.intercepted) : ""}
               </span>
             )}
             {hasProjected && (
@@ -166,6 +191,7 @@ export function breakdownToRows(
     color,
     value: e.launched,
     pct: e.launched > 0 ? (e.intercepted / e.launched) * 100 : null,
+    intercepted: e.intercepted,
     separatorAbove: i === 0,
   }));
 }
