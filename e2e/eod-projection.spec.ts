@@ -50,7 +50,7 @@ const GSUA_HOURLY = "/?site=ru-attacks-gsua&page=hourly";
 test.describe("End-of-day projection", () => {
   test("SBS daily — single-series tooltip shows a projected value", async ({ page }) => {
     await page.goto(SBS_DAILY);
-    const txt = await eodTooltip(page, 0); // Personnel Casualties (full-width, single line)
+    const txt = await eodTooltip(page, 2); // Strike Sorties (single line)
     expect(txt).toMatch(/EoD est/);
     expect(txt).toMatch(/~[\d,]+/);   // a projected number
     expect(txt).toMatch(/\(\d+%\)/);  // completion share
@@ -58,7 +58,7 @@ test.describe("End-of-day projection", () => {
 
   test("SBS daily — paired chart projects both series", async ({ page }) => {
     await page.goto(SBS_DAILY);
-    const txt = await eodTooltip(page, 2); // Targets — Hit / Destroyed
+    const txt = await eodTooltip(page, 0); // Personnel Hit / Killed (paired, full-width)
     expect((txt.match(/EoD est/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 

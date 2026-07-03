@@ -117,6 +117,7 @@ export interface Metric {
   pairedLabel?: string;
   primaryLabel?: string;
   pairMode?: PairMode;
+  subsetLabel?: string;
 }
 
 // ─── App state ────────────────────────────────────────────────────────────────

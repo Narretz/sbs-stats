@@ -30,22 +30,14 @@ interface Props {
   primaryLabel?: string;
   secondaryLabel?: string;
   showRatio?: boolean;
-  /** Legacy inline label for the destroyed/hit ratio row ("% destroyed").
-   *  The ratio is now surfaced as a `%` cell on the Destroyed row in the
-   *  shared TooltipTable, so the label isn't rendered — kept in the type
-   *  so existing callers that pass it don't need to change. */
-  ratioLabel?: string;
   // Optional per-month model breakdown (YYYY-MM → entries). When provided,
   // the tooltip appends per-model continuation rows under the standard
   // hit/destroyed rows. Used by the RU air-attacks category charts.
   breakdownByMonth?: Map<string, ModelBreakdownEntry[]>;
-  /** Header for the tooltip's % column (default `%`). Set to `% dest` /
-   *  `% int` on ratio charts so the meaning of the ratio is explicit. */
-  pctLabel?: string;
-  /** Header for the Intercepted column (auto-drops if no row populates it —
-   *  populated on breakdown rows). `Dest` on hit/destroyed, `Int` on
-   *  launched/intercepted. */
-  interceptedLabel?: string;
+  /** Vocabulary for the subset absolute + subset rate columns (`Dest` on
+   *  hit/destroyed, `interc` on launched/intercepted, `Killed` on
+   *  Personnel). See TooltipTable for the two-column derivation. */
+  subsetLabel?: string;
   // Whole-dataset stats for the "all" stat scope, primary (hit/launched) and
   // optional secondary (destroyed/intercepted). When omitted on either side
   // the chart falls back to the window-scoped values computed from `data`.
@@ -59,7 +51,7 @@ interface Props {
 
 const MonthlyPairTooltip = ({
   active, payload, t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth,
-  pctLabel, interceptedLabel,
+  subsetLabel,
 }: {
   active?: boolean;
   payload?: Array<{ payload: MonthlyTargetPairDataPoint }>;
@@ -69,31 +61,23 @@ const MonthlyPairTooltip = ({
   secondaryLabel: string;
   showRatio: boolean;
   breakdownByMonth?: Map<string, ModelBreakdownEntry[]>;
-  pctLabel?: string;
-  interceptedLabel?: string;
+  subsetLabel?: string;
 }) => {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
-  // `pct` on the destroyed row = destroyed / hit * 100. That's the same
-  // number the old inline "% destroyed" line surfaced; ratioLabel is dropped
-  // because the row's context (Destroyed with a % cell) reads unambiguously.
-  const destroyedPct = showRatio && d.hit_value > 0
-    ? (d.destroyed_value / d.hit_value) * 100
-    : null;
   const entries = breakdownByMonth?.get(d.date.slice(0, 7)) ?? [];
-  // Collapse to one aggregate row when the chart uses the Intercepted
-  // column (hit/destroyed or launched/intercepted semantic). Same rationale
-  // as DailyLineChart: the standalone Destroyed / Intercepted row becomes
-  // redundant with the Intercepted column that breakdown rows already fill.
-  // Sum-mode / composition callers don't set interceptedLabel and keep the
-  // two-row structure.
-  const useCollapsedIntercept = interceptedLabel !== undefined;
-  const rows: TooltipTableRow[] = useCollapsedIntercept
+  // Collapse to one aggregate row when the chart uses the Subset column
+  // (hit/destroyed or launched/intercepted semantic). Same rationale as
+  // DailyLineChart: the standalone Destroyed / Intercepted row becomes
+  // redundant with the Subset column that breakdown rows already fill.
+  // The subset/hit rate is derived by TooltipTable from `subset/value`,
+  // so `showRatio=false` needs to explicitly null out `subset` to hide it.
+  const useCollapsedSubset = subsetLabel !== undefined;
+  const rows: TooltipTableRow[] = useCollapsedSubset
     ? [{
         label: primaryLabel, color: c.damaged,
         value: d.hit_value ?? null,
-        pct: destroyedPct,
-        intercepted: d.destroyed_value ?? null,
+        subset: showRatio ? (d.destroyed_value ?? null) : null,
         projected: d.hit_projected ?? null,
       }]
     : [
@@ -105,11 +89,10 @@ const MonthlyPairTooltip = ({
         {
           label: secondaryLabel, color: c.destroyed,
           value: d.destroyed_value ?? null,
-          pct: destroyedPct,
           projected: d.destroyed_projected ?? null,
         },
       ];
-  rows.push(...breakdownToRows(entries, t.textMuted));
+  rows.push(...breakdownToRows(entries, t.textMuted, { totalForShare: d.hit_value ?? undefined }));
   // "Day X of Y" is appended to the date so it reads as month-in-progress
   // context alongside the tile label, not as a bolted-on footer caption.
   // Rendered smaller (fontSize 10) so the primary date stays the anchor.
@@ -125,7 +108,7 @@ const MonthlyPairTooltip = ({
   ) : d.date;
   return (
     <TooltipCard header={header} minWidth={240}>
-      <TooltipTable rows={rows} pctLabel={pctLabel} interceptedLabel={interceptedLabel} />
+      <TooltipTable rows={rows} subsetLabel={subsetLabel} />
     </TooltipCard>
   );
 };
@@ -137,11 +120,10 @@ export function MonthlyTargetPairChart({
   primaryLabel = "Hit",
   secondaryLabel = "Destroyed",
   showRatio = true,
-  ratioLabel: _ratioLabel = "% destroyed",  // legacy prop, no longer rendered
   breakdownByMonth,
   globalMax, globalMedian, globalTotal,
   globalMax2, globalMedian2, globalTotal2,
-  pctLabel, interceptedLabel,
+  subsetLabel,
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
@@ -216,8 +198,7 @@ export function MonthlyTargetPairChart({
                 secondaryLabel={secondaryLabel}
                 showRatio={showRatio}
                 breakdownByMonth={breakdownByMonth}
-                pctLabel={pctLabel}
-                interceptedLabel={interceptedLabel}
+                subsetLabel={subsetLabel}
               />
             )}
             allowEscapeViewBox={{ x: false, y: true }}

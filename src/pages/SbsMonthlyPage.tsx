@@ -1,4 +1,5 @@
 import { useMemo, useEffect, useState } from "react";
+import { SUBSET_LABEL } from "@/tooltipLabels";
 import { useDatabaseContext } from "@/context/useDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
@@ -187,9 +188,7 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
             primaryLabel="Hit"
             secondaryLabel="Killed"
             showRatio={true}
-            ratioLabel="% killed"
-            pctLabel="% killed"
-            interceptedLabel="Killed"
+            subsetLabel={SUBSET_LABEL.killed}
             globalMax={allStats["total_personnel_casualties"]?.max ?? 0}
             globalMedian={allStats["total_personnel_casualties"]?.median ?? 0}
             globalTotal={allStats["total_personnel_casualties"]?.total ?? 0}
@@ -201,8 +200,7 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
             key="targets-hit-destroyed"
             title="Targets Hit / Destroyed"
             data={makeTargetsPairDataset()}
-            pctLabel="% dest"
-            interceptedLabel="Dest"
+            subsetLabel={SUBSET_LABEL.destroyed}
             globalMax={allStats["total_targets_hit"]?.max ?? 0}
             globalMedian={allStats["total_targets_hit"]?.median ?? 0}
             globalTotal={allStats["total_targets_hit"]?.total ?? 0}
@@ -215,8 +213,7 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
               key={`target-pair-${targetId}`}
               title={TARGET_LABELS[targetId]}
               data={makeTargetPairDataset(targetId)}
-              pctLabel="% dest"
-              interceptedLabel="Dest"
+              subsetLabel={SUBSET_LABEL.destroyed}
               globalMax={allStats[`hit_${targetId}`]?.max ?? 0}
               globalMedian={allStats[`hit_${targetId}`]?.median ?? 0}
               globalTotal={allStats[`hit_${targetId}`]?.total ?? 0}

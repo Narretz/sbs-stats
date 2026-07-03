@@ -63,16 +63,11 @@ interface Props {
   // wrong. Leaves the SBS-style hit/destroyed tooltips unchanged (they use
   // `primaryLabel="Hit"`, which IS the total, so no diff row is needed).
   primaryIsDiff?: boolean;
-  /** Header for the tooltip's % column — spelled out because the same column
-   *  means different things on different charts. `%` (default) for
-   *  composition (Combat Engagements shares); `% dest` on SBS-style
-   *  hit/destroyed; `% int` on RU air-attacks launched/intercepted. */
-  pctLabel?: string;
-  /** Header for the Intercepted column (auto-drops if no row populates it —
-   *  primarily set by callers that pass a `breakdownByDate`). Follows the
-   *  chart's vocabulary: `Dest` on hit/destroyed pairs, `Int` on
-   *  launched/intercepted pairs. */
-  interceptedLabel?: string;
+  /** Vocabulary for the subset absolute + subset rate columns (e.g. `Dest`
+   *  on hit/destroyed pairs, `Int` on launched/intercepted, `Killed` on
+   *  Personnel). TooltipTable renders `<label>` for the count and
+   *  `<label> %` for the derived rate. Undefined on non-subset charts. */
+  subsetLabel?: string;
 }
 
 function CustomDot(props: DotProps & { payload?: PairedRow; accentColor: string; primaryColor: string; bgColor: string; noteColor: string }) {
@@ -146,7 +141,7 @@ function NoteAndFooter({
 }
 
 function SingleTooltip({
-  active, payload, t, primaryColor, primaryLabel, breakdownByDate, pctLabel, interceptedLabel,
+  active, payload, t, primaryColor, primaryLabel, breakdownByDate, subsetLabel,
 }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
@@ -154,8 +149,7 @@ function SingleTooltip({
   primaryColor: string;
   primaryLabel: string;
   breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
-  pctLabel?: string;
-  interceptedLabel?: string;
+  subsetLabel?: string;
 }) {
   if (!active || !payload?.length || !payload[0].payload) return null;
   const d = payload[0].payload;
@@ -163,20 +157,20 @@ function SingleTooltip({
   const eodRows = d.is_today && d.eod ? [{ color: t.accent, label: primaryLabel, e: d.eod }] : [];
   const rows: TooltipTableRow[] = [
     { label: primaryLabel, color: primaryColor, value: d.value, trend: d.trend1 },
-    ...breakdownToRows(entries, t.textMuted),
+    ...breakdownToRows(entries, t.textMuted, { totalForShare: typeof d.value === "number" ? d.value : undefined }),
   ];
   return (
     <TooltipCard header={formatDate(d.date)} minWidth={180} footer={
       <NoteAndFooter d={d} t={t} eodRows={eodRows} />
     }>
-      <TooltipTable rows={rows} pctLabel={pctLabel} interceptedLabel={interceptedLabel} />
+      <TooltipTable rows={rows} subsetLabel={subsetLabel} />
     </TooltipCard>
   );
 }
 
 function PairedTooltip({
   active, payload, t, primaryColor, primaryLabel, secondaryLabel, pairMode,
-  primaryIsDiff, breakdownByDate, pctLabel, interceptedLabel,
+  primaryIsDiff, breakdownByDate, subsetLabel,
 }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
@@ -187,8 +181,7 @@ function PairedTooltip({
   pairMode: PairMode;
   primaryIsDiff: boolean;
   breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
-  pctLabel?: string;
-  interceptedLabel?: string;
+  subsetLabel?: string;
 }) {
   if (!active || !payload?.length || !payload[0].payload) return null;
   const d = payload[0].payload;
@@ -220,53 +213,55 @@ function PairedTooltip({
   if (d.is_today && d.eod2) eodRows.push({ color: COLOR_DESTROYED, label: secondaryLabel, e: d.eod2 });
 
   // When the chart is a hit/destroyed or launched/intercepted pair (signal:
-  // `interceptedLabel` is set) AND we're in the classic subset-primary-is-
-  // total mode, roll up the two aggregate rows into one. The standalone
-  // "Intercepted" / "Destroyed" row becomes redundant with the Intercepted
-  // column, which the breakdown rows below already populate. Combat
-  // Engagements (primaryIsDiff=true) doesn't have an interceptedLabel and
-  // keeps its Total / Unattributed / With direction three-row structure.
+  // `subsetLabel` is set) AND we're in the classic subset-primary-is-total
+  // mode, roll up the two aggregate rows into one. The standalone
+  // "Intercepted" / "Destroyed" row becomes redundant with the Subset
+  // column that breakdown rows already populate. Combat Engagements
+  // (primaryIsDiff=true) doesn't have a subsetLabel and keeps its Total /
+  // Unattributed / With direction three-row structure.
   //
   // Cost of the collapse: the secondary trend (tr2) has no place on a
   // single row (the Trend column can only hold one value). The primary
   // trend is what most viewers care about on these charts, so tr2 is
   // dropped. Uncollapsed callers keep both trends.
-  const useCollapsedIntercept =
-    pairMode === "subset" && !primaryIsDiff && interceptedLabel !== undefined;
+  const useCollapsedSubset =
+    pairMode === "subset" && !primaryIsDiff && subsetLabel !== undefined;
 
   const rows: TooltipTableRow[] = [];
   if (showTotalRow) {
     rows.push({ label: "Total", color: t.text, value: total, trend: tr1, emphasis: "bold" });
   }
-  if (useCollapsedIntercept) {
+  if (useCollapsedSubset) {
+    // Rate = v2/v is derived by TooltipTable from `subset/value`.
     rows.push({
       label: primaryLabel, color: primaryColor,
       value: v,
-      pct: pctOf(typeof v2 === "number" ? v2 : null),
-      intercepted: v2,
+      subset: v2,
       trend: tr1,
     });
   } else {
     rows.push({
       label: primaryLabel, color: primaryColor,
       value: primaryDisplayValue,
-      pct: showTotalRow ? pctOf(typeof primaryDisplayValue === "number" ? primaryDisplayValue : null) : null,
+      share: showTotalRow ? pctOf(typeof primaryDisplayValue === "number" ? primaryDisplayValue : null) : null,
       trend: primaryTrend,
     });
     rows.push({
       label: secondaryLabel, color: COLOR_DESTROYED,
       value: v2,
-      pct: pctOf(typeof v2 === "number" ? v2 : null),
+      share: pctOf(typeof v2 === "number" ? v2 : null),
       trend: tr2,
     });
   }
-  rows.push(...breakdownToRows(entries, t.textMuted));
+  // The primary aggregate `v` (category-launched on RU air-attacks pairs)
+  // is the natural denominator for each model's part-of-total share.
+  rows.push(...breakdownToRows(entries, t.textMuted, { totalForShare: typeof v === "number" ? v : undefined }));
 
   return (
     <TooltipCard header={formatDate(d.date)} minWidth={240} footer={
       <NoteAndFooter d={d} t={t} eodRows={eodRows} />
     }>
-      <TooltipTable rows={rows} pctLabel={pctLabel} interceptedLabel={interceptedLabel} />
+      <TooltipTable rows={rows} subsetLabel={subsetLabel} />
     </TooltipCard>
   );
 }
@@ -276,7 +271,7 @@ function PairedTooltip({
 export function DailyLineChart({
   title, data, globalMax, globalMedian, globalTotal, wfull,
   data2, primaryLabel, label2, globalMax2, globalMedian2, globalTotal2, pairMode = "subset",
-  eod, eod2, breakdownByDate, primaryIsDiff = false, pctLabel, interceptedLabel,
+  eod, eod2, breakdownByDate, primaryIsDiff = false, subsetLabel,
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
@@ -356,7 +351,7 @@ export function DailyLineChart({
       <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 12, color: t.textMuted, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 4 }}>
         {title}
       </div>
-      <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 12, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
         {hasPair && <span style={{ color: hitFill }}>● {resolvedPrimaryLabel}</span>}
         <span style={{ color: t.accent }}>▲ MAX {max.toLocaleString()}</span>
         <span style={{ color: t.muted }}>~ MED {median.toLocaleString()}</span>
@@ -396,8 +391,7 @@ export function DailyLineChart({
                   pairMode={pairMode}
                   primaryIsDiff={primaryIsDiff}
                   breakdownByDate={breakdownByDate}
-                  pctLabel={pctLabel}
-                  interceptedLabel={interceptedLabel}
+                  subsetLabel={subsetLabel}
                 />
               )}
             />
@@ -430,8 +424,7 @@ export function DailyLineChart({
                   primaryColor={primaryColor}
                   primaryLabel={resolvedPrimaryLabel}
                   breakdownByDate={breakdownByDate}
-                  pctLabel={pctLabel}
-                  interceptedLabel={interceptedLabel}
+                  subsetLabel={subsetLabel}
                 />
               )}
             />

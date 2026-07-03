@@ -5,17 +5,24 @@ import type { ModelBreakdownEntry } from "@/types";
 
 // Shared tooltip building blocks for every chart-tooltip in the app.
 //
-// The tabular layout was retrofitted 2026-07 after paired-subset tooltips
-// (SBS hit/destroyed, GSUA combat-engagements with an "Unattributed" band,
-// Mediazona composition views, SBU Alfa targets) grew enough columns that
-// hand-rolled `label · value` rows started jumping around when you hovered
-// between adjacent cards.
+// Columns are opt-in per row. A caller populates whichever fields make sense
+// for its data; columns with no populated cells auto-drop so single-metric
+// tooltips don't render empty cells and paired tooltips stay compact.
 //
-// A single-metric tooltip and a 3-row paired tooltip go through the same
-// component; TooltipTable drops the % column when no row supplies a value
-// for it, and drops the Trend column likewise, so single-metric callers
-// don't render awkward empty cells. Numeric columns are right-aligned with
-// a `min-width` so the alignment holds across hover moves.
+// Numeric semantics, disambiguated so callers don't have to name-check each
+// column header individually:
+//   value    — the row's primary quantity (always shown, right-aligned).
+//   share    — part-of-total percentage. Independent axis from subset. Column
+//              header defaults to "%"; caller can override via `shareLabel`.
+//   subset   — an absolute secondary count paired with `value` (destroyed of
+//              hit, intercepted of launched, killed of casualties). Column
+//              header comes from `subsetLabel`; the same label with " %"
+//              appended derives the adjacent rate column (subset/value*100).
+//              A single `subsetLabel` prop yields two columns because the
+//              count and the rate are two views of the same concept.
+//   trend    — linear-regression trend over the row's series (day-to-day
+//              charts).
+//   projected — end-of-period projection (current tile on projection charts).
 
 /** One row in a tooltip table. */
 export interface TooltipTableRow {
@@ -24,15 +31,13 @@ export interface TooltipTableRow {
   /** Either a number (rendered with `toLocaleString`) or a pre-formatted
    *  string (used for values like "×2.3" that don't fit the numeric renderer). */
   value: number | string | null;
-  /** 0..100. Rendered as "42%" and drives the fair-share column. Leave
-   *  undefined on rows that shouldn't contribute a %. */
-  pct?: number | null;
-  /** Subset count paired with `value` on ratio charts — the "how many of
-   *  this row's launched were destroyed/intercepted" number. Populated
-   *  primarily on model-breakdown rows so the absolute intercept count is
-   *  visible per model (the ratio alone hides the underlying magnitudes).
-   *  Column auto-drops on charts where no row populates it. */
-  intercepted?: number | null;
+  /** 0..100. Part-of-total percentage. Rendered under the Share column. */
+  share?: number | null;
+  /** Absolute count of a secondary series that lives on the same row as
+   *  `value` (destroyed vs hit, intercepted vs launched, killed vs
+   *  casualties). Renders in the "<subsetLabel>" column; the rate
+   *  subset/value*100 renders in the adjacent "<subsetLabel> %" column. */
+  subset?: number | null;
   /** Linear-regression trend for this row's series, if any. */
   trend?: number | null;
   /** End-of-period projection (e.g., projected month-end value on the
@@ -54,22 +59,21 @@ interface TableProps {
   formatValue?: (n: number) => string;
   /** Format the trend column. Default matches `formatValue`. */
   formatTrend?: (n: number) => string;
-  /** Header label for the % column. `%` is overloaded across the app —
-   *  sometimes it means "share of total" (composition charts like Combat
-   *  Engagements, SBU Alfa targets, Mediazona force types), sometimes
-   *  "interception/destruction rate" (SBS hit/destroyed, RU air-attacks).
-   *  Callers spell it out to disambiguate: `%`, `% dest`, `% int`, etc. */
-  pctLabel?: string;
-  /** Header label for the Intercepted column. Follows the chart's own
-   *  vocabulary — `Dest` on SBS-style pairs, `Int` on RU air-attacks. */
-  interceptedLabel?: string;
+  /** Header for the Share column. Default `%`. Only rendered when at least
+   *  one row populates `share`. */
+  shareLabel?: string;
+  /** Header for the Subset absolute column; when set, an adjacent
+   *  "<label> %" column shows the subset/value rate. Follows chart
+   *  vocabulary — `Dest` on SBS pairs, `Int` on RU air-attacks, `Killed`
+   *  on Personnel. Neither column renders when this is undefined. */
+  subsetLabel?: string;
 }
 
 const VALUE_MIN = 52;
 const PCT_MIN = 44;
-const INT_MIN = 52;
-const TREND_MIN = 52;
-const PROJ_MIN = 56;
+const SUBSET_MIN = 44;
+const TREND_MIN = 44;
+const PROJ_MIN = 44;
 
 function fmtNum(v: number | string | null | undefined, formatValue: (n: number) => string): string {
   if (typeof v === "string") return v;
@@ -81,20 +85,26 @@ function fmtPct(v: number | null | undefined): string {
   return typeof v === "number" ? `${v.toFixed(1)}%` : "";
 }
 
+function subsetRate(r: TooltipTableRow): number | null {
+  if (r.subset == null || typeof r.value !== "number" || r.value <= 0) return null;
+  return (r.subset / r.value) * 100;
+}
+
 export function TooltipTable({
   rows,
   formatValue = (n) => n.toLocaleString(),
   formatTrend,
-  pctLabel = "%",
-  interceptedLabel = "Int",
+  shareLabel = "Share %",
+  subsetLabel,
 }: TableProps) {
   const { theme: t } = useTheme();
   const trendFmt = formatTrend ?? formatValue;
-  // Dynamically drop columns nothing populates — a single-metric caller
-  // just gets Value + Trend, a composition tooltip gets Value + %, and the
-  // current-month bar on projection-aware charts adds Projected.
-  const hasPct = rows.some((r) => r.pct != null);
-  const hasIntercepted = rows.some((r) => r.intercepted != null);
+  // Dynamically drop columns nothing populates. Subset count and subset
+  // rate track separately so a row with subset=0 still shows a rate cell,
+  // and a row with value=0 doesn't force a nonsense rate column.
+  const hasShare = rows.some((r) => r.share != null);
+  const hasSubset = subsetLabel !== undefined && rows.some((r) => r.subset != null);
+  const hasSubsetRate = subsetLabel !== undefined && rows.some((r) => subsetRate(r) != null);
   const hasTrend = rows.some((r) => r.trend != null);
   const hasProjected = rows.some((r) => r.projected != null);
 
@@ -106,58 +116,67 @@ export function TooltipTable({
 
   return (
     <div>
-      {(hasPct || hasIntercepted || hasTrend || hasProjected) && (
+      {(hasShare || hasSubset || hasSubsetRate || hasTrend || hasProjected) && (
         <div style={{
           display: "flex", gap: 12, color: t.textMuted, fontSize: 10,
           marginBottom: 3, paddingBottom: 3, borderBottom: `1px solid ${t.border}`,
         }}>
           <span style={{ flex: 1 }} />
           <span style={numericCell(VALUE_MIN)}>Value</span>
-          {hasPct && <span style={numericCell(PCT_MIN)}>{pctLabel}</span>}
-          {hasIntercepted && <span style={numericCell(INT_MIN)}>{interceptedLabel}</span>}
+          {hasShare && <span style={numericCell(PCT_MIN)}>{shareLabel}</span>}
+          {hasSubset && <span style={numericCell(SUBSET_MIN)}>{subsetLabel}</span>}
+          {hasSubsetRate && <span style={numericCell(PCT_MIN)}>{subsetLabel} %</span>}
           {hasProjected && <span style={numericCell(PROJ_MIN)}>Projected</span>}
           {hasTrend && <span style={numericCell(TREND_MIN)}>Trend</span>}
         </div>
       )}
-      {rows.map((r, i) => (
-        <div key={i}>
-          {r.separatorAbove && (
-            <div style={{ borderTop: `1px solid ${t.border}`, margin: "3px 0" }} />
-          )}
-          <div style={{
-            display: "flex", gap: 12, color: r.color,
-            fontWeight: r.emphasis === "bold" ? 700 : 400,
-            padding: "1px 0",
-          }}>
-            <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {r.label}
-            </span>
-            <span style={{ ...numericCell(VALUE_MIN), color: t.text, fontWeight: r.emphasis === "bold" ? 700 : 700 }}>
-              {fmtNum(r.value, formatValue)}
-            </span>
-            {hasPct && (
-              <span style={{ ...numericCell(PCT_MIN), color: t.textMuted }}>
-                {fmtPct(r.pct)}
-              </span>
+      {rows.map((r, i) => {
+        const rate = hasSubsetRate ? subsetRate(r) : null;
+        return (
+          <div key={i}>
+            {r.separatorAbove && (
+              <div style={{ borderTop: `1px solid ${t.border}`, margin: "3px 0" }} />
             )}
-            {hasIntercepted && (
-              <span style={{ ...numericCell(INT_MIN), color: t.textMuted }}>
-                {r.intercepted != null ? formatValue(r.intercepted) : ""}
+            <div style={{
+              display: "flex", gap: 12, color: r.color,
+              fontWeight: r.emphasis === "bold" ? 700 : 400,
+              padding: "1px 0",
+            }}>
+              <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {r.label}
               </span>
-            )}
-            {hasProjected && (
-              <span style={{ ...numericCell(PROJ_MIN), color: t.textMuted }}>
-                {r.projected != null ? formatValue(r.projected) : ""}
+              <span style={{ ...numericCell(VALUE_MIN), color: t.text, fontWeight: 700 }}>
+                {fmtNum(r.value, formatValue)}
               </span>
-            )}
-            {hasTrend && (
-              <span style={{ ...numericCell(TREND_MIN), color: t.muted }}>
-                {r.trend != null ? trendFmt(r.trend) : ""}
-              </span>
-            )}
+              {hasShare && (
+                <span style={{ ...numericCell(PCT_MIN), color: t.textMuted }}>
+                  {fmtPct(r.share)}
+                </span>
+              )}
+              {hasSubset && (
+                <span style={{ ...numericCell(SUBSET_MIN), color: t.textMuted }}>
+                  {r.subset != null ? formatValue(r.subset) : ""}
+                </span>
+              )}
+              {hasSubsetRate && (
+                <span style={{ ...numericCell(PCT_MIN), color: t.textMuted }}>
+                  {fmtPct(rate)}
+                </span>
+              )}
+              {hasProjected && (
+                <span style={{ ...numericCell(PROJ_MIN), color: t.textMuted }}>
+                  {r.projected != null ? formatValue(r.projected) : ""}
+                </span>
+              )}
+              {hasTrend && (
+                <span style={{ ...numericCell(TREND_MIN), color: t.muted }}>
+                  {r.trend != null ? trendFmt(r.trend) : ""}
+                </span>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -174,24 +193,25 @@ interface CardProps {
 }
 
 // Turn a per-model launched/intercepted breakdown into continuation rows
-// appended to a chart tooltip's main TooltipTable. Formerly rendered as a
-// nested `<ModelBreakdownTable>` beneath the main table with its own header
-// and column widths — the alignment mismatch (offset value/% columns, 📈/🎯
-// icon headers) was jarring, so we now inline the breakdown into the same
-// table, distinguished only by row color (muted) and a `separatorAbove: true`
-// border above the first entry. `%` maps naturally onto the interception
-// rate, matching how paired charts already use the % column.
+// appended to a chart tooltip's main TooltipTable. The interception rate
+// is derived by TooltipTable from `subset/value`, so we only populate the
+// absolute count here. Pass `totalForShare` (e.g. the aggregate launched
+// count for the same period) to also surface each model's part-of-total
+// share alongside the launched count.
 // eslint-disable-next-line react-refresh/only-export-components
 export function breakdownToRows(
   entries: ModelBreakdownEntry[],
   color: string,
+  opts?: { totalForShare?: number },
 ): TooltipTableRow[] {
+  const total = opts?.totalForShare;
+  const hasShare = total != null && total > 0;
   return entries.map((e, i) => ({
     label: e.model,
     color,
     value: e.launched,
-    pct: e.launched > 0 ? (e.intercepted / e.launched) * 100 : null,
-    intercepted: e.intercepted,
+    subset: e.intercepted,
+    share: hasShare ? (e.launched / total) * 100 : undefined,
     separatorAbove: i === 0,
   }));
 }

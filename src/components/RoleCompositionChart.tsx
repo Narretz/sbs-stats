@@ -49,7 +49,7 @@ function CompositionTooltip({
   const rows: TooltipTableRow[] = [...MEDIAZONA_ROLE_GROUP_KEYS].reverse().map((k) => {
     const v = row[k] ?? 0;
     const g = MEDIAZONA_ROLE_GROUPS[k];
-    return { label: g.label, color: g.color, value: v, pct: (v / total) * 100 };
+    return { label: g.label, color: g.color, value: v, share: (v / total) * 100 };
   });
   return (
     <TooltipCard header={header} minWidth={240}>

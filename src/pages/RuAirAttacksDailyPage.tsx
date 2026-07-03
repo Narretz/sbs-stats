@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { Temporal } from "temporal-polyfill";
+import { SUBSET_LABEL } from "@/tooltipLabels";
 import { useRuAirAttacksDatabaseContext } from "@/context/useRuAirAttacksDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
@@ -190,8 +191,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
             globalMedian={globalStats.all?.launched.median ?? 0}
             globalTotal={globalStats.all?.launched.total ?? 0}
             breakdownByDate={allBreakdown}
-            pctLabel="% int"
-            interceptedLabel="Int"
+            subsetLabel={SUBSET_LABEL.intercepted}
             wfull
           />
           {/* Per category: launched (area) with intercepted as a filled subset.
@@ -205,8 +205,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
               primaryLabel="Launched"
               label2="Intercepted"
               pairMode="subset"
-              pctLabel="% int"
-              interceptedLabel="Int"
+              subsetLabel={SUBSET_LABEL.intercepted}
               globalMax={globalStats[cat]?.launched.max ?? 0}
               globalMedian={globalStats[cat]?.launched.median ?? 0}
               globalTotal={globalStats[cat]?.launched.total ?? 0}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { SUBSET_LABEL } from "@/tooltipLabels";
 import { useRuAirAttacksDatabaseContext } from "@/context/useRuAirAttacksDatabaseContext";
 import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
@@ -175,8 +176,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
             title={`${ATTACK_CATEGORY_LABELS.all} · Launched`}
             data={makeDataset("all")}
             breakdownByMonth={allBreakdown}
-            pctLabel="% int"
-            interceptedLabel="Int"
+            subsetLabel={SUBSET_LABEL.intercepted}
             wfull
             globalMax={allStats.cat.all?.max ?? 0}
             globalMedian={allStats.cat.all?.median ?? 0}
@@ -190,9 +190,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
               primaryLabel="Launched"
               secondaryLabel="Intercepted"
               showRatio
-              ratioLabel="% intercepted"
-              pctLabel="% int"
-              interceptedLabel="Int"
+              subsetLabel={SUBSET_LABEL.intercepted}
               breakdownByMonth={breakdowns[k]}
               globalMax={allStats.cat[k]?.max ?? 0}
               globalMedian={allStats.cat[k]?.median ?? 0}
@@ -210,9 +208,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
               primaryLabel="Launched"
               secondaryLabel="Intercepted"
               showRatio
-              ratioLabel="% intercepted"
-              pctLabel="% int"
-              interceptedLabel="Int"
+              subsetLabel={SUBSET_LABEL.intercepted}
               globalMax={allStats.model[model]?.max ?? 0}
               globalMedian={allStats.model[model]?.median ?? 0}
               globalTotal={allStats.model[model]?.total ?? 0}

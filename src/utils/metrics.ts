@@ -1,5 +1,6 @@
 import type { Metric } from "@/types";
 import { TARGET_IDS, TARGET_LABELS } from "@/types";
+import { SUBSET_LABEL } from "@/tooltipLabels";
 
 export function buildMetrics(options?: { paired?: boolean }): Metric[] {
   const paired = options?.paired ?? false;
@@ -8,20 +9,22 @@ export function buildMetrics(options?: { paired?: boolean }): Metric[] {
     ? [
         { key: "total_personnel_casualties", label: "Personnel Casualties", wfull: true },
         {
-          key: "personnel_wounded",
-          label: "Personnel — Wounded / Killed",
-          pairedKey: "personnel_killed",
-          primaryLabel: "Wounded",
-          pairedLabel: "Killed",
-          pairMode: "sum",
-        },
-        {
           key: "total_targets_hit",
-          label: "Targets — Hit / Destroyed",
+          label: "Targets Hit / Destroyed",
           pairedKey: "total_targets_destroyed",
           primaryLabel: "Hit",
           pairedLabel: "Destroyed",
           pairMode: "subset",
+          subsetLabel: SUBSET_LABEL.destroyed,
+        },
+        {
+          key: "total_personnel_casualties",
+          label: "Personnel Hit / Killed",
+          pairedKey: "personnel_killed",
+          primaryLabel: "Hit",
+          pairedLabel: "Killed",
+          pairMode: "subset",
+          subsetLabel: SUBSET_LABEL.killed,
         },
         { key: "flights_strike", label: "Strike Sorties" },
         { key: "flights_recon", label: "Recon Sorties" },
@@ -44,6 +47,7 @@ export function buildMetrics(options?: { paired?: boolean }): Metric[] {
         primaryLabel: "Hit",
         pairedLabel: "Destroyed",
         pairMode: "subset" as const,
+        subsetLabel: SUBSET_LABEL.destroyed,
       }))
     : TARGET_IDS.flatMap((id) => [
         { key: `hit_${id}` as Metric["key"], label: `${TARGET_LABELS[id]} — Hit` },

@@ -33,13 +33,13 @@ export function TargetsStackedChart({ title, data, wfull }: Props) {
     const totalN = d.total ?? 0;
     const pctOf = (v: number | null): number | null =>
       v != null && totalN > 0 ? (v / totalN) * 100 : null;
-    // Total on top (bold), components below with per-component %. The %
-    // column is added automatically by TooltipTable because the component
-    // rows populate `pct`.
+    // Total on top (bold), components below with per-component share of
+    // total. The share column is added automatically because the component
+    // rows populate `share`.
     const rows: TooltipTableRow[] = [
       { label: "Total", color: t.text, value: d.total, emphasis: "bold" },
-      { label: "Destroyed", color: c.destroyed, value: d.destroyed, pct: pctOf(d.destroyed), separatorAbove: true },
-      { label: "Damaged", color: c.damaged, value: d.damaged, pct: pctOf(d.damaged) },
+      { label: "Destroyed", color: c.destroyed, value: d.destroyed, share: pctOf(d.destroyed), separatorAbove: true },
+      { label: "Damaged", color: c.damaged, value: d.damaged, share: pctOf(d.damaged) },
     ];
     return (
       <TooltipCard header={d.date} minWidth={220}>
