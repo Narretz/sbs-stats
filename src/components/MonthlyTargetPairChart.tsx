@@ -81,20 +81,35 @@ const MonthlyPairTooltip = ({
     ? (d.destroyed_value / d.hit_value) * 100
     : null;
   const entries = breakdownByMonth?.get(d.date.slice(0, 7)) ?? [];
-  const rows: TooltipTableRow[] = [
-    {
-      label: primaryLabel, color: c.damaged,
-      value: d.hit_value ?? null,
-      projected: d.hit_projected ?? null,
-    },
-    {
-      label: secondaryLabel, color: c.destroyed,
-      value: d.destroyed_value ?? null,
-      pct: destroyedPct,
-      projected: d.destroyed_projected ?? null,
-    },
-    ...breakdownToRows(entries, t.textMuted),
-  ];
+  // Collapse to one aggregate row when the chart uses the Intercepted
+  // column (hit/destroyed or launched/intercepted semantic). Same rationale
+  // as DailyLineChart: the standalone Destroyed / Intercepted row becomes
+  // redundant with the Intercepted column that breakdown rows already fill.
+  // Sum-mode / composition callers don't set interceptedLabel and keep the
+  // two-row structure.
+  const useCollapsedIntercept = interceptedLabel !== undefined;
+  const rows: TooltipTableRow[] = useCollapsedIntercept
+    ? [{
+        label: primaryLabel, color: c.damaged,
+        value: d.hit_value ?? null,
+        pct: destroyedPct,
+        intercepted: d.destroyed_value ?? null,
+        projected: d.hit_projected ?? null,
+      }]
+    : [
+        {
+          label: primaryLabel, color: c.damaged,
+          value: d.hit_value ?? null,
+          projected: d.hit_projected ?? null,
+        },
+        {
+          label: secondaryLabel, color: c.destroyed,
+          value: d.destroyed_value ?? null,
+          pct: destroyedPct,
+          projected: d.destroyed_projected ?? null,
+        },
+      ];
+  rows.push(...breakdownToRows(entries, t.textMuted));
   // "Day X of Y" is appended to the date so it reads as month-in-progress
   // context alongside the tile label, not as a bolted-on footer caption.
   // Rendered smaller (fontSize 10) so the primary date stays the anchor.

@@ -219,22 +219,47 @@ function PairedTooltip({
   if (d.is_today && d.eod) eodRows.push({ color: primaryColor, label: primaryLabel, e: d.eod });
   if (d.is_today && d.eod2) eodRows.push({ color: COLOR_DESTROYED, label: secondaryLabel, e: d.eod2 });
 
+  // When the chart is a hit/destroyed or launched/intercepted pair (signal:
+  // `interceptedLabel` is set) AND we're in the classic subset-primary-is-
+  // total mode, roll up the two aggregate rows into one. The standalone
+  // "Intercepted" / "Destroyed" row becomes redundant with the Intercepted
+  // column, which the breakdown rows below already populate. Combat
+  // Engagements (primaryIsDiff=true) doesn't have an interceptedLabel and
+  // keeps its Total / Unattributed / With direction three-row structure.
+  //
+  // Cost of the collapse: the secondary trend (tr2) has no place on a
+  // single row (the Trend column can only hold one value). The primary
+  // trend is what most viewers care about on these charts, so tr2 is
+  // dropped. Uncollapsed callers keep both trends.
+  const useCollapsedIntercept =
+    pairMode === "subset" && !primaryIsDiff && interceptedLabel !== undefined;
+
   const rows: TooltipTableRow[] = [];
   if (showTotalRow) {
     rows.push({ label: "Total", color: t.text, value: total, trend: tr1, emphasis: "bold" });
   }
-  rows.push({
-    label: primaryLabel, color: primaryColor,
-    value: primaryDisplayValue,
-    pct: showTotalRow ? pctOf(typeof primaryDisplayValue === "number" ? primaryDisplayValue : null) : null,
-    trend: primaryTrend,
-  });
-  rows.push({
-    label: secondaryLabel, color: COLOR_DESTROYED,
-    value: v2,
-    pct: pctOf(typeof v2 === "number" ? v2 : null),
-    trend: tr2,
-  });
+  if (useCollapsedIntercept) {
+    rows.push({
+      label: primaryLabel, color: primaryColor,
+      value: v,
+      pct: pctOf(typeof v2 === "number" ? v2 : null),
+      intercepted: v2,
+      trend: tr1,
+    });
+  } else {
+    rows.push({
+      label: primaryLabel, color: primaryColor,
+      value: primaryDisplayValue,
+      pct: showTotalRow ? pctOf(typeof primaryDisplayValue === "number" ? primaryDisplayValue : null) : null,
+      trend: primaryTrend,
+    });
+    rows.push({
+      label: secondaryLabel, color: COLOR_DESTROYED,
+      value: v2,
+      pct: pctOf(typeof v2 === "number" ? v2 : null),
+      trend: tr2,
+    });
+  }
   rows.push(...breakdownToRows(entries, t.textMuted));
 
   return (
