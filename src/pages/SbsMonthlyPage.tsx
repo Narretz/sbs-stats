@@ -104,25 +104,17 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
       };
     });
 
-  // Personnel casualties = wounded + killed. Mirror the SBS daily chart's
-  // sum-mode composition (primary=wounded, secondary=killed) rather than the
-  // prior subset framing (primary=total casualties, secondary=killed) — same
-  // underlying data, but the two components are peer contributions to the
-  // total, so both charts now read the same way in the tooltip.
   const makePersonnelPairDataset = (): MonthlyTargetPairDataPoint[] =>
     rows.map((d: MonthlyRow) => {
-      const woundedValue = (d["personnel_wounded"] as number) ?? 0;
-      const woundedProjected = d["personnel_wounded_projected"] as number | undefined;
+      const hitValue = (d["total_personnel_casualties"] as number) ?? 0;
+      const hitProjected = d["total_personnel_casualties_projected"] as number | undefined;
       const killedValue = (d["personnel_killed"] as number) ?? 0;
       const killedProjected = d["personnel_killed_projected"] as number | undefined;
       return {
         date: d.date,
-        // primary = wounded, secondary = killed. In sum-mode the stack
-        // renders secondary at the bottom, primary on top — matches the
-        // daily area chart.
-        hit_value: woundedValue,
-        hit_gap: woundedProjected != null ? woundedProjected - woundedValue : undefined,
-        hit_projected: woundedProjected,
+        hit_value: hitValue,
+        hit_gap: hitProjected != null ? hitProjected - hitValue : undefined,
+        hit_projected: hitProjected,
         destroyed_value: killedValue,
         destroyed_gap: killedProjected != null ? killedProjected - killedValue : undefined,
         destroyed_projected: killedProjected,
@@ -189,20 +181,18 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
             />
           ))}
           <MonthlyTargetPairChart
-            key="personnel-wounded-killed"
-            title="Personnel Casualties — Wounded / Killed"
+            key="personnel-killed-wounded"
+            title="Personnel Hit / Killed"
             data={makePersonnelPairDataset()}
-            primaryLabel="Wounded"
+            primaryLabel="Hit"
             secondaryLabel="Killed"
-            // Composition, not subset — same treatment as the SBS daily
-            // wounded/killed area chart. Bars stack (killed at bottom,
-            // wounded on top), tooltip shows Total + Wounded + Killed with
-            // per-component shares of the total.
-            pairMode="sum"
-            showRatio={false}
-            globalMax={allStats["personnel_wounded"]?.max ?? 0}
-            globalMedian={allStats["personnel_wounded"]?.median ?? 0}
-            globalTotal={allStats["personnel_wounded"]?.total ?? 0}
+            showRatio={true}
+            ratioLabel="% killed"
+            pctLabel="% killed"
+            interceptedLabel="Killed"
+            globalMax={allStats["total_personnel_casualties"]?.max ?? 0}
+            globalMedian={allStats["total_personnel_casualties"]?.median ?? 0}
+            globalTotal={allStats["total_personnel_casualties"]?.total ?? 0}
             globalMax2={allStats["personnel_killed"]?.max ?? 0}
             globalMedian2={allStats["personnel_killed"]?.median ?? 0}
             globalTotal2={allStats["personnel_killed"]?.total ?? 0}

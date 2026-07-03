@@ -9,7 +9,7 @@ import { maxMedian } from "@/utils/windowStats";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { TooltipCard, TooltipTable, breakdownToRows, type TooltipTableRow } from "@/components/TooltipTable";
-import type { ModelBreakdownEntry, PairMode } from "@/types";
+import type { ModelBreakdownEntry } from "@/types";
 
 export interface MonthlyTargetPairDataPoint {
   date: string;
@@ -30,14 +30,6 @@ interface Props {
   primaryLabel?: string;
   secondaryLabel?: string;
   showRatio?: boolean;
-  /** How the two series relate. Default `subset` = destroyed/intercepted
-   *  is a subset of hit/launched, rendered as side-by-side bars with a
-   *  ratio in the tooltip. `sum` = both are peer components of a Total
-   *  (e.g. Wounded + Killed = Casualties), rendered as stacked bars with
-   *  a Total row above the two components in the tooltip. Mirrors
-   *  DailyLineChart's pairMode so daily and monthly views of the same
-   *  compositional data (personnel wounded/killed) match. */
-  pairMode?: PairMode;
   /** Legacy inline label for the destroyed/hit ratio row ("% destroyed").
    *  The ratio is now surfaced as a `%` cell on the Destroyed row in the
    *  shared TooltipTable, so the label isn't rendered — kept in the type
@@ -67,7 +59,7 @@ interface Props {
 
 const MonthlyPairTooltip = ({
   active, payload, t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth,
-  pctLabel, interceptedLabel, pairMode,
+  pctLabel, interceptedLabel,
 }: {
   active?: boolean;
   payload?: Array<{ payload: MonthlyTargetPairDataPoint }>;
@@ -79,64 +71,44 @@ const MonthlyPairTooltip = ({
   breakdownByMonth?: Map<string, ModelBreakdownEntry[]>;
   pctLabel?: string;
   interceptedLabel?: string;
-  pairMode: PairMode;
 }) => {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
+  // `pct` on the destroyed row = destroyed / hit * 100. That's the same
+  // number the old inline "% destroyed" line surfaced; ratioLabel is dropped
+  // because the row's context (Destroyed with a % cell) reads unambiguously.
+  const destroyedPct = showRatio && d.hit_value > 0
+    ? (d.destroyed_value / d.hit_value) * 100
+    : null;
   const entries = breakdownByMonth?.get(d.date.slice(0, 7)) ?? [];
-  // `pct` semantics change by pairMode:
-  //   subset → secondary / primary (destruction/interception rate)
-  //   sum    → each component / total (share of composition)
-  const isSum = pairMode === "sum";
-  const total = isSum ? (d.hit_value ?? 0) + (d.destroyed_value ?? 0) : (d.hit_value ?? 0);
-  const totalProjected = isSum
-    ? ((d.hit_projected ?? 0) + (d.destroyed_projected ?? 0)) || null
-    : d.hit_projected;
-  const pctOf = (v: number | null): number | null =>
-    v != null && total > 0 ? (v / total) * 100 : null;
-  const destroyedPct = showRatio && total > 0 ? pctOf(d.destroyed_value ?? null) : null;
-  // Row layout by mode:
-  //   sum      → Total (bold) + primary + secondary. Matches DailyLineChart
-  //              sum-mode composition (e.g. Wounded/Killed on SBS daily).
-  //   subset + interceptedLabel → collapsed single row with Value + % + Int.
-  //   subset without interceptedLabel → two rows (primary + secondary).
-  const rows: TooltipTableRow[] = isSum
-    ? [
-        { label: "Total", color: t.text, value: total, projected: totalProjected, emphasis: "bold" },
+  // Collapse to one aggregate row when the chart uses the Intercepted
+  // column (hit/destroyed or launched/intercepted semantic). Same rationale
+  // as DailyLineChart: the standalone Destroyed / Intercepted row becomes
+  // redundant with the Intercepted column that breakdown rows already fill.
+  // Sum-mode / composition callers don't set interceptedLabel and keep the
+  // two-row structure.
+  const useCollapsedIntercept = interceptedLabel !== undefined;
+  const rows: TooltipTableRow[] = useCollapsedIntercept
+    ? [{
+        label: primaryLabel, color: c.damaged,
+        value: d.hit_value ?? null,
+        pct: destroyedPct,
+        intercepted: d.destroyed_value ?? null,
+        projected: d.hit_projected ?? null,
+      }]
+    : [
         {
           label: primaryLabel, color: c.damaged,
           value: d.hit_value ?? null,
-          pct: pctOf(d.hit_value ?? null),
           projected: d.hit_projected ?? null,
         },
         {
           label: secondaryLabel, color: c.destroyed,
           value: d.destroyed_value ?? null,
-          pct: pctOf(d.destroyed_value ?? null),
+          pct: destroyedPct,
           projected: d.destroyed_projected ?? null,
         },
-      ]
-    : interceptedLabel !== undefined
-      ? [{
-          label: primaryLabel, color: c.damaged,
-          value: d.hit_value ?? null,
-          pct: destroyedPct,
-          intercepted: d.destroyed_value ?? null,
-          projected: d.hit_projected ?? null,
-        }]
-      : [
-          {
-            label: primaryLabel, color: c.damaged,
-            value: d.hit_value ?? null,
-            projected: d.hit_projected ?? null,
-          },
-          {
-            label: secondaryLabel, color: c.destroyed,
-            value: d.destroyed_value ?? null,
-            pct: destroyedPct,
-            projected: d.destroyed_projected ?? null,
-          },
-        ];
+      ];
   rows.push(...breakdownToRows(entries, t.textMuted));
   // "Day X of Y" is appended to the date so it reads as month-in-progress
   // context alongside the tile label, not as a bolted-on footer caption.
@@ -170,7 +142,6 @@ export function MonthlyTargetPairChart({
   globalMax, globalMedian, globalTotal,
   globalMax2, globalMedian2, globalTotal2,
   pctLabel, interceptedLabel,
-  pairMode = "subset",
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
@@ -247,65 +218,33 @@ export function MonthlyTargetPairChart({
                 breakdownByMonth={breakdownByMonth}
                 pctLabel={pctLabel}
                 interceptedLabel={interceptedLabel}
-                pairMode={pairMode}
               />
             )}
             allowEscapeViewBox={{ x: false, y: true }}
             wrapperStyle={{ zIndex: 9999 }}
           />
 
-          {/* pairMode="sum": both series share one stackId so the bars
-              stack together (composition). Render destroyed first so it sits
-              on the bottom — matches DailyLineChart sum-mode where value2
-              (secondary) is the base. pairMode="subset": each series gets
-              its own stackId so they render side-by-side. */}
-          {pairMode === "sum" ? (
-            <>
-              <Bar dataKey="destroyed_value" stackId="a" name={secondaryLabel}>
-                {data.map((_, i) => (
-                  <Cell key={`des-val-${i}`} fill={i === lastIdx ? c.destroyedCurrent : c.destroyed} />
-                ))}
-              </Bar>
-              <Bar dataKey="destroyed_gap" stackId="a" name={`${secondaryLabel} Projected`}>
-                {data.map((_, i) => (
-                  <Cell key={`des-gap-${i}`} fill={i === lastIdx ? destroyedProjectedFill : "transparent"} />
-                ))}
-              </Bar>
-              <Bar dataKey="hit_value" stackId="a" name={primaryLabel}>
-                {data.map((_, i) => (
-                  <Cell key={`hit-val-${i}`} fill={i === lastIdx ? c.barCurrent : c.damaged} />
-                ))}
-              </Bar>
-              <Bar dataKey="hit_gap" stackId="a" name={`${primaryLabel} Projected`} radius={[3, 3, 0, 0]}>
-                {data.map((_, i) => (
-                  <Cell key={`hit-gap-${i}`} fill={i === lastIdx ? hitProjectedFill : "transparent"} />
-                ))}
-              </Bar>
-            </>
-          ) : (
-            <>
-              <Bar dataKey="hit_value" stackId="hit" name={primaryLabel}>
-                {data.map((_, i) => (
-                  <Cell key={`hit-val-${i}`} fill={i === lastIdx ? c.barCurrent : c.damaged} />
-                ))}
-              </Bar>
-              <Bar dataKey="hit_gap" stackId="hit" name={`${primaryLabel} Projected`} radius={[3, 3, 0, 0]}>
-                {data.map((_, i) => (
-                  <Cell key={`hit-gap-${i}`} fill={i === lastIdx ? hitProjectedFill : "transparent"} />
-                ))}
-              </Bar>
-              <Bar dataKey="destroyed_value" stackId="destroyed" name={secondaryLabel}>
-                {data.map((_, i) => (
-                  <Cell key={`des-val-${i}`} fill={i === lastIdx ? c.destroyedCurrent : c.destroyed} />
-                ))}
-              </Bar>
-              <Bar dataKey="destroyed_gap" stackId="destroyed" name={`${secondaryLabel} Projected`} radius={[3, 3, 0, 0]}>
-                {data.map((_, i) => (
-                  <Cell key={`des-gap-${i}`} fill={i === lastIdx ? destroyedProjectedFill : "transparent"} />
-                ))}
-              </Bar>
-            </>
-          )}
+          <Bar dataKey="hit_value" stackId="hit" name={primaryLabel}>
+            {data.map((_, i) => (
+              <Cell key={`hit-val-${i}`} fill={i === lastIdx ? c.barCurrent : c.damaged} />
+            ))}
+          </Bar>
+          <Bar dataKey="hit_gap" stackId="hit" name={`${primaryLabel} Projected`} radius={[3, 3, 0, 0]}>
+            {data.map((_, i) => (
+              <Cell key={`hit-gap-${i}`} fill={i === lastIdx ? hitProjectedFill : "transparent"} />
+            ))}
+          </Bar>
+
+          <Bar dataKey="destroyed_value" stackId="destroyed" name={secondaryLabel}>
+            {data.map((_, i) => (
+              <Cell key={`des-val-${i}`} fill={i === lastIdx ? c.destroyedCurrent : c.destroyed} />
+            ))}
+          </Bar>
+          <Bar dataKey="destroyed_gap" stackId="destroyed" name={`${secondaryLabel} Projected`} radius={[3, 3, 0, 0]}>
+            {data.map((_, i) => (
+              <Cell key={`des-gap-${i}`} fill={i === lastIdx ? destroyedProjectedFill : "transparent"} />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
