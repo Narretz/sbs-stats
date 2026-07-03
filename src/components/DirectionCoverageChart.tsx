@@ -5,6 +5,7 @@ import {
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
+import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
 import type { GsuaDirectionCoverageRow } from "@/types";
 
 // Per-day stacked bar of combat engagements, broken down by direction with
@@ -102,8 +103,6 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
     return { stacks, flat, summary };
   }, [data]);
 
-  const num = (n: number | null | undefined) =>
-    typeof n === "number" ? n.toLocaleString() : "n/a";
 
   return (
     <div className="chart-card" style={{
@@ -169,42 +168,34 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
             content={({ active, payload }) => {
               if (!active || !payload?.length) return null;
               const d = payload[0].payload as FlatRow;
-              // Show stacks in reverse render order (top-of-bar first) with
-              // zero-valued entries hidden.
-              const rows = [...stacks].reverse().filter((s) => {
-                const v = d[s.key];
-                return typeof v === "number" && v > 0;
-              });
-              return (
-                <div style={{
-                  background: t.surface, border: `1px solid ${t.border}`,
-                  borderRadius: 6, padding: "10px 14px",
-                  fontFamily: FONTS.mono, fontSize: 12,
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-                }}>
-                  <div style={{ color: t.textMuted, marginBottom: 6 }}>{d.date}</div>
-                  {rows.map((s) => {
+              const totalN = typeof d.total === "number" ? d.total : 0;
+              // Total (bold) on top, then stacks in reverse render order
+              // (top-of-bar first) with zero-valued entries hidden. Every
+              // row surfaces a share-of-total now, not just Unattributed —
+              // the Share column stays put and each direction's gap-share
+              // becomes readable at a glance.
+              const rows: TooltipTableRow[] = [
+                { label: "Total", color: t.text, value: d.total, emphasis: "bold" },
+                ...[...stacks].reverse()
+                  .filter((s) => {
+                    const v = d[s.key];
+                    return typeof v === "number" && v > 0;
+                  })
+                  .map((s, i) => {
                     const v = d[s.key] as number;
-                    const totalN = typeof d.total === "number" ? d.total : 0;
-                    // Show % of the day's total next to the Unattributed row —
-                    // that's the reader's "how big is the gap" reference.
-                    // Skip on other stacks to keep the tooltip compact.
-                    const showPct = s.key === UNATTRIBUTED_KEY && totalN > 0;
-                    return (
-                      <div key={s.key} style={{ color: s.color }}>
-                        {s.label}: <span style={{ color: t.text, fontWeight: 700 }}>{num(v)}</span>
-                        {showPct && (
-                          <span style={{ color: t.textMuted, fontWeight: 400 }}>
-                            {" "}({((v / totalN) * 100).toFixed(0)}%)
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                  <div style={{ color: t.textMuted, marginTop: 6, paddingTop: 6, borderTop: `1px solid ${t.border}` }}>
-                    Total: <span style={{ color: t.text, fontWeight: 700 }}>{num(d.total)}</span>
-                  </div>
-                </div>
+                    return {
+                      label: s.label,
+                      color: s.color,
+                      value: v,
+                      share: totalN > 0 ? (v / totalN) * 100 : null,
+                      separatorAbove: i === 0,
+                    };
+                  }),
+              ];
+              return (
+                <TooltipCard header={d.date} minWidth={240}>
+                  <TooltipTable rows={rows} />
+                </TooltipCard>
               );
             }}
           />
