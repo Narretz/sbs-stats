@@ -9,6 +9,7 @@ import { maxMedian } from "@/utils/windowStats";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { ModelBreakdownTable } from "@/components/ModelBreakdownTable";
+import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
 import type { ModelBreakdownEntry } from "@/types";
 
 export interface MonthlyTargetPairDataPoint {
@@ -30,6 +31,10 @@ interface Props {
   primaryLabel?: string;
   secondaryLabel?: string;
   showRatio?: boolean;
+  /** Legacy inline label for the destroyed/hit ratio row ("% destroyed").
+   *  The ratio is now surfaced as a `%` cell on the Destroyed row in the
+   *  shared TooltipTable, so the label isn't rendered — kept in the type
+   *  so existing callers that pass it don't need to change. */
   ratioLabel?: string;
   // Optional per-month model breakdown (YYYY-MM → entries). When provided,
   // the tooltip renders the shared ModelBreakdownTable under the standard
@@ -47,7 +52,7 @@ interface Props {
 }
 
 const MonthlyPairTooltip = ({
-  active, payload, t, c, primaryLabel, secondaryLabel, showRatio, ratioLabel, breakdownByMonth,
+  active, payload, t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth,
 }: {
   active?: boolean;
   payload?: Array<{ payload: MonthlyTargetPairDataPoint }>;
@@ -56,47 +61,44 @@ const MonthlyPairTooltip = ({
   primaryLabel: string;
   secondaryLabel: string;
   showRatio: boolean;
-  ratioLabel: string;
   breakdownByMonth?: Map<string, ModelBreakdownEntry[]>;
 }) => {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
-  const destroyedPct = d.hit_value > 0 ? (d.destroyed_value / d.hit_value) * 100 : null;
+  // `pct` on the destroyed row = destroyed / hit * 100. That's the same
+  // number the old inline "% destroyed" line surfaced; ratioLabel is dropped
+  // because the row's context (Destroyed with a % cell) reads unambiguously.
+  const destroyedPct = showRatio && d.hit_value > 0
+    ? (d.destroyed_value / d.hit_value) * 100
+    : null;
   const entries = breakdownByMonth?.get(d.date.slice(0, 7)) ?? [];
-  return (
-    <div style={{
-      background: t.surface, border: `1px solid ${t.border}`,
-      borderRadius: 6, padding: "10px 14px",
-      fontFamily: FONTS.mono, fontSize: 12,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-    }}>
-      <div style={{ color: t.textMuted, marginBottom: 6 }}>{d.date}</div>
-      <div style={{ color: c.damaged }}>
-        {primaryLabel}: <span style={{ color: t.text, fontWeight: 700 }}>{d.hit_value?.toLocaleString()}</span>
-        {d.hit_projected != null ? (
-          <span style={{ color: t.textMuted }}> / {d.hit_projected.toLocaleString()} projected</span>
-        ) : null}
-      </div>
-      <div style={{ color: c.destroyed }}>
-        {secondaryLabel}: <span style={{ color: t.text, fontWeight: 700 }}>{d.destroyed_value?.toLocaleString()}</span>
-        {d.destroyed_projected != null ? (
-          <span style={{ color: t.textMuted }}> / {d.destroyed_projected.toLocaleString()} projected</span>
-        ) : null}
-      </div>
-      {showRatio ? (
-        <div style={{ color: t.textMuted, marginTop: 4 }}>
-          {ratioLabel}: <span style={{ color: t.text, fontWeight: 700 }}>
-            {destroyedPct == null ? "n/a" : `${destroyedPct.toFixed(1)}%`}
-          </span>
-        </div>
-      ) : null}
-      {d.projection_day != null && d.projection_days_in_month != null ? (
+  const rows: TooltipTableRow[] = [
+    {
+      label: primaryLabel, color: c.damaged,
+      value: d.hit_value ?? null,
+      projected: d.hit_projected ?? null,
+    },
+    {
+      label: secondaryLabel, color: c.destroyed,
+      value: d.destroyed_value ?? null,
+      pct: destroyedPct,
+      projected: d.destroyed_projected ?? null,
+    },
+  ];
+  const footer = (
+    <>
+      {d.projection_day != null && d.projection_days_in_month != null && (
         <div style={{ color: t.textMuted, fontSize: 10, marginTop: 4 }}>
           Day {d.projection_day} of {d.projection_days_in_month}
         </div>
-      ) : null}
+      )}
       {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} />}
-    </div>
+    </>
+  );
+  return (
+    <TooltipCard header={d.date} minWidth={240} footer={footer}>
+      <TooltipTable rows={rows} />
+    </TooltipCard>
   );
 };
 
@@ -107,7 +109,7 @@ export function MonthlyTargetPairChart({
   primaryLabel = "Hit",
   secondaryLabel = "Destroyed",
   showRatio = true,
-  ratioLabel = "% destroyed",
+  ratioLabel: _ratioLabel = "% destroyed",  // legacy prop, no longer rendered
   breakdownByMonth,
   globalMax, globalMedian, globalTotal,
   globalMax2, globalMedian2, globalTotal2,
@@ -184,7 +186,6 @@ export function MonthlyTargetPairChart({
                 primaryLabel={primaryLabel}
                 secondaryLabel={secondaryLabel}
                 showRatio={showRatio}
-                ratioLabel={ratioLabel}
                 breakdownByMonth={breakdownByMonth}
               />
             )}

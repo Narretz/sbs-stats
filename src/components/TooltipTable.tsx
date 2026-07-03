@@ -21,14 +21,17 @@ export interface TooltipTableRow {
   label: string;
   color: string;
   /** Either a number (rendered with `toLocaleString`) or a pre-formatted
-   *  string (used for values like "×2.3" or "142 named" that don't fit
-   *  the numeric renderer). */
+   *  string (used for values like "×2.3" that don't fit the numeric renderer). */
   value: number | string | null;
   /** 0..100. Rendered as "42%" and drives the fair-share column. Leave
    *  undefined on rows that shouldn't contribute a %. */
   pct?: number | null;
   /** Linear-regression trend for this row's series, if any. */
   trend?: number | null;
+  /** End-of-period projection (e.g., projected month-end value on the
+   *  current month's bar). Only populated on the tile-in-progress, so the
+   *  column auto-drops on all other tooltips. */
+  projected?: number | null;
   /** Bold this row — typically the "Total" row above component rows. */
   emphasis?: "bold" | "normal";
   /** Draw a thin separator above this row (e.g., between Total and its
@@ -49,6 +52,7 @@ interface TableProps {
 const VALUE_MIN = 64;
 const PCT_MIN = 52;
 const TREND_MIN = 64;
+const PROJ_MIN = 68;
 
 function fmtNum(v: number | string | null | undefined, formatValue: (n: number) => string): string {
   if (typeof v === "string") return v;
@@ -68,9 +72,11 @@ export function TooltipTable({
   const { theme: t } = useTheme();
   const trendFmt = formatTrend ?? formatValue;
   // Dynamically drop columns nothing populates — a single-metric caller
-  // just gets Value + Trend, a composition tooltip gets Value + %, etc.
+  // just gets Value + Trend, a composition tooltip gets Value + %, and the
+  // current-month bar on projection-aware charts adds Projected.
   const hasPct = rows.some((r) => r.pct != null);
   const hasTrend = rows.some((r) => r.trend != null);
+  const hasProjected = rows.some((r) => r.projected != null);
 
   const numericCell = (min: number): React.CSSProperties => ({
     minWidth: min,
@@ -80,7 +86,7 @@ export function TooltipTable({
 
   return (
     <div>
-      {(hasPct || hasTrend) && (
+      {(hasPct || hasTrend || hasProjected) && (
         <div style={{
           display: "flex", gap: 12, color: t.textMuted, fontSize: 10,
           marginBottom: 3, paddingBottom: 3, borderBottom: `1px solid ${t.border}`,
@@ -88,6 +94,7 @@ export function TooltipTable({
           <span style={{ flex: 1 }} />
           <span style={numericCell(VALUE_MIN)}>Value</span>
           {hasPct && <span style={numericCell(PCT_MIN)}>%</span>}
+          {hasProjected && <span style={numericCell(PROJ_MIN)}>Projected</span>}
           {hasTrend && <span style={numericCell(TREND_MIN)}>Trend</span>}
         </div>
       )}
@@ -110,6 +117,11 @@ export function TooltipTable({
             {hasPct && (
               <span style={{ ...numericCell(PCT_MIN), color: t.textMuted }}>
                 {fmtPct(r.pct)}
+              </span>
+            )}
+            {hasProjected && (
+              <span style={{ ...numericCell(PROJ_MIN), color: t.textMuted }}>
+                {r.projected != null ? formatValue(r.projected) : ""}
               </span>
             )}
             {hasTrend && (
