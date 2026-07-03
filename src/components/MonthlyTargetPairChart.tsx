@@ -85,18 +85,24 @@ const MonthlyPairTooltip = ({
       projected: d.destroyed_projected ?? null,
     },
   ];
-  const footer = (
+  // "Day X of Y" is appended to the date so it reads as month-in-progress
+  // context alongside the tile label, not as a bolted-on footer caption.
+  // Rendered smaller (fontSize 10) so the primary date stays the anchor.
+  const header = d.projection_day != null && d.projection_days_in_month != null ? (
     <>
-      {d.projection_day != null && d.projection_days_in_month != null && (
-        <div style={{ color: t.textMuted, fontSize: 10, marginTop: 4 }}>
-          Day {d.projection_day} of {d.projection_days_in_month}
-        </div>
-      )}
-      {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} />}
+      <div style={{display: 'flex', justifyContent: 'space-between'}}>
+      <span>{d.date}</span>
+      <span style={{ fontSize: 10, marginLeft: 6 }}>
+        Day {d.projection_day} of {d.projection_days_in_month}
+      </span>
+    </div>
     </>
-  );
+  ) : d.date;
+  const footer = entries.length > 0
+    ? <ModelBreakdownTable entries={entries} t={t} />
+    : null;
   return (
-    <TooltipCard header={d.date} minWidth={240} footer={footer}>
+    <TooltipCard header={header} minWidth={240} footer={footer}>
       <TooltipTable rows={rows} />
     </TooltipCard>
   );

@@ -49,10 +49,10 @@ interface TableProps {
   formatTrend?: (n: number) => string;
 }
 
-const VALUE_MIN = 64;
-const PCT_MIN = 52;
-const TREND_MIN = 64;
-const PROJ_MIN = 68;
+const VALUE_MIN = 52;
+const PCT_MIN = 44;
+const TREND_MIN = 52;
+const PROJ_MIN = 56;
 
 function fmtNum(v: number | string | null | undefined, formatValue: (n: number) => string): string {
   if (typeof v === "string") return v;

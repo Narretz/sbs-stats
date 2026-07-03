@@ -124,7 +124,7 @@ export type Page = "daily" | "hourly" | "monthly" | "weekly";
 export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa" | "mediazona" | "ru-missiles-hur";
 export const SITE_LABELS: Record<Site, string> = {
   sbs: "UA SBS STATISTICS - SBS",
-  "ru-attacks-gsua": "RU ATTACKS - GSUA",
+  "ru-attacks-gsua": "COMBAT STATS - GSUA",
   "ru-losses-gsua": "RU LOSSES - GSUA",
   "ru-air-attacks-gsua": "RU MISSILE & UAV ATTACKS - GSUA",
   "sbu-alfa": "UA SBU ALFA MONTHLY RECAP - SBU",

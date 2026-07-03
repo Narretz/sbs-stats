@@ -8,6 +8,7 @@ import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { MonthlyChartCard, type TooltipRenderProps } from "@/components/MonthlyChartCard";
 import { ModelBreakdownTable } from "@/components/ModelBreakdownTable";
+import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
 
 interface Props {
   title: string;
@@ -59,34 +60,36 @@ export function MonthlyBarChart({
     if (!active || !payload?.length) return null;
     const d = payload[0].payload;
     const entries = breakdownByMonth?.get(d.date.slice(0, 7)) ?? [];
-    return (
-      <div style={{
-        background: t.surface, border: `1px solid ${t.border}`,
-        borderRadius: 6, padding: "10px 14px",
-        fontFamily: FONTS.mono, fontSize: 12,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-      }}>
-        <div style={{ color: t.textMuted, marginBottom: 6 }}>{d.date}</div>
-        <div style={{ color: t.primary }}>
-          Actual: <span style={{ color: t.text, fontWeight: 700 }}>{d.value == null ? "n/a" : d.value.toLocaleString()}</span>
-        </div>
-        {d.projected != null && (
-          <>
-            <div style={{ color: t.accent }}>
-              Projected: <span style={{ color: t.text, fontWeight: 700 }}>{d.projected.toLocaleString()}</span>
-            </div>
-            <div style={{ color: t.textMuted, fontSize: 10, marginTop: 4 }}>
-              Day {d.projection_day} of {d.projection_days_in_month}
-            </div>
-          </>
-        )}
+    // "Day X of Y" pushed to the right of the header — smaller (fontSize 10)
+    // suffix aligned to the tooltip's trailing edge. See the sibling
+    // MonthlyTargetPairChart comment for why width:100% is required (recharts
+    // wraps tooltips in a shrink-to-fit container so space-between needs an
+    // explicit width to distribute).
+    const header = d.projected != null && d.projection_day != null && d.projection_days_in_month != null ? (
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", width: "100%" }}>
+        <span>{d.date}</span>
+        <span style={{ fontSize: 10 }}>
+          Day {d.projection_day} of {d.projection_days_in_month}
+        </span>
+      </div>
+    ) : d.date;
+    const rows: TooltipTableRow[] = [
+      { label: "Actual", color: t.primary, value: d.value ?? null, projected: d.projected ?? null },
+    ];
+    const footer = (
+      <>
         {d.note && (
           <div style={{ color: t.textImportant, fontSize: 10, marginTop: 6, maxWidth: 220 }}>
             ⚠ {d.note}
           </div>
         )}
         {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} header={breakdownHeader} />}
-      </div>
+      </>
+    );
+    return (
+      <TooltipCard header={header} minWidth={200} footer={footer}>
+        <TooltipTable rows={rows} />
+      </TooltipCard>
     );
   };
 
