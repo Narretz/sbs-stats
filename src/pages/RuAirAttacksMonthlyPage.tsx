@@ -175,7 +175,6 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
             title={`${ATTACK_CATEGORY_LABELS.all} · Launched`}
             data={makeDataset("all")}
             breakdownByMonth={allBreakdown}
-            breakdownHeader="Category"
             wfull
             globalMax={allStats.cat.all?.max ?? 0}
             globalMedian={allStats.cat.all?.median ?? 0}

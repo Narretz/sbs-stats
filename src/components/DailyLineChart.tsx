@@ -9,8 +9,7 @@ import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
 import { FONTS, type Theme } from "@/theme";
 import { AREA_FILL_OPACITY, COLOR_DESTROYED, chartColors } from "@/chartColors";
-import { ModelBreakdownTable } from "@/components/ModelBreakdownTable";
-import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
+import { TooltipCard, TooltipTable, breakdownToRows, type TooltipTableRow } from "@/components/TooltipTable";
 
 function linearRegression(data: DailyDataPoint[]): Array<number | null> {
   const points = data
@@ -50,13 +49,11 @@ interface Props {
   // End-of-day estimate for the "today" point (primary / paired series).
   eod?: EodEstimate | null;
   eod2?: EodEstimate | null;
-  // Optional per-date model breakdown rendered under the tooltip body. Used by
-  // the RU air-attacks daily category charts to show "what models drove this
-  // day's number"; also used on the aggregate "All" chart with `breakdownHeader`
-  // = "Category" to break the total into drone / cruise / ballistic.
+  // Optional per-date model breakdown rendered as continuation rows below
+  // the main tooltip table. Used by the RU air-attacks daily category charts
+  // to show "what models drove this day's number" (and by the aggregate "All"
+  // chart to break the total into drone / cruise / ballistic categories).
   breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
-  // First-column header for the breakdown table. Default "Model".
-  breakdownHeader?: string;
   // Subset-mode only: interpret `primaryLabel` as the label of the *difference*
   // (data − data2) rather than as the total. When true, the tooltip renders an
   // extra explicit "Total" row and shows the diff — not the raw `value` — under
@@ -139,7 +136,7 @@ function NoteAndFooter({
 }
 
 function SingleTooltip({
-  active, payload, t, primaryColor, primaryLabel, breakdownByDate, breakdownHeader,
+  active, payload, t, primaryColor, primaryLabel, breakdownByDate,
 }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
@@ -147,29 +144,27 @@ function SingleTooltip({
   primaryColor: string;
   primaryLabel: string;
   breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
-  breakdownHeader?: string;
 }) {
   if (!active || !payload?.length || !payload[0].payload) return null;
   const d = payload[0].payload;
   const entries = breakdownByDate?.get(d.date) ?? [];
   const eodRows = d.is_today && d.eod ? [{ color: t.accent, label: primaryLabel, e: d.eod }] : [];
+  const rows: TooltipTableRow[] = [
+    { label: primaryLabel, color: primaryColor, value: d.value, trend: d.trend1 },
+    ...breakdownToRows(entries, t.textMuted),
+  ];
   return (
     <TooltipCard header={formatDate(d.date)} minWidth={180} footer={
-      <>
-        <NoteAndFooter d={d} t={t} eodRows={eodRows} />
-        {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} header={breakdownHeader} />}
-      </>
+      <NoteAndFooter d={d} t={t} eodRows={eodRows} />
     }>
-      <TooltipTable rows={[
-        { label: primaryLabel, color: primaryColor, value: d.value, trend: d.trend1 },
-      ]} />
+      <TooltipTable rows={rows} />
     </TooltipCard>
   );
 }
 
 function PairedTooltip({
   active, payload, t, primaryColor, primaryLabel, secondaryLabel, pairMode,
-  primaryIsDiff, breakdownByDate, breakdownHeader,
+  primaryIsDiff, breakdownByDate,
 }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
@@ -180,7 +175,6 @@ function PairedTooltip({
   pairMode: PairMode;
   primaryIsDiff: boolean;
   breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
-  breakdownHeader?: string;
 }) {
   if (!active || !payload?.length || !payload[0].payload) return null;
   const d = payload[0].payload;
@@ -227,13 +221,11 @@ function PairedTooltip({
     pct: pctOf(typeof v2 === "number" ? v2 : null),
     trend: tr2,
   });
+  rows.push(...breakdownToRows(entries, t.textMuted));
 
   return (
     <TooltipCard header={formatDate(d.date)} minWidth={240} footer={
-      <>
-        <NoteAndFooter d={d} t={t} eodRows={eodRows} />
-        {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} header={breakdownHeader} />}
-      </>
+      <NoteAndFooter d={d} t={t} eodRows={eodRows} />
     }>
       <TooltipTable rows={rows} />
     </TooltipCard>
@@ -245,7 +237,7 @@ function PairedTooltip({
 export function DailyLineChart({
   title, data, globalMax, globalMedian, globalTotal, wfull,
   data2, primaryLabel, label2, globalMax2, globalMedian2, globalTotal2, pairMode = "subset",
-  eod, eod2, breakdownByDate, breakdownHeader, primaryIsDiff = false,
+  eod, eod2, breakdownByDate, primaryIsDiff = false,
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
@@ -365,7 +357,6 @@ export function DailyLineChart({
                   pairMode={pairMode}
                   primaryIsDiff={primaryIsDiff}
                   breakdownByDate={breakdownByDate}
-                  breakdownHeader={breakdownHeader}
                 />
               )}
             />
@@ -398,7 +389,6 @@ export function DailyLineChart({
                   primaryColor={primaryColor}
                   primaryLabel={resolvedPrimaryLabel}
                   breakdownByDate={breakdownByDate}
-                  breakdownHeader={breakdownHeader}
                 />
               )}
             />

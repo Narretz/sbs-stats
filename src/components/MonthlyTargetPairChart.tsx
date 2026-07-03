@@ -8,8 +8,7 @@ import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
-import { ModelBreakdownTable } from "@/components/ModelBreakdownTable";
-import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
+import { TooltipCard, TooltipTable, breakdownToRows, type TooltipTableRow } from "@/components/TooltipTable";
 import type { ModelBreakdownEntry } from "@/types";
 
 export interface MonthlyTargetPairDataPoint {
@@ -37,7 +36,7 @@ interface Props {
    *  so existing callers that pass it don't need to change. */
   ratioLabel?: string;
   // Optional per-month model breakdown (YYYY-MM → entries). When provided,
-  // the tooltip renders the shared ModelBreakdownTable under the standard
+  // the tooltip appends per-model continuation rows under the standard
   // hit/destroyed rows. Used by the RU air-attacks category charts.
   breakdownByMonth?: Map<string, ModelBreakdownEntry[]>;
   // Whole-dataset stats for the "all" stat scope, primary (hit/launched) and
@@ -84,6 +83,7 @@ const MonthlyPairTooltip = ({
       pct: destroyedPct,
       projected: d.destroyed_projected ?? null,
     },
+    ...breakdownToRows(entries, t.textMuted),
   ];
   // "Day X of Y" is appended to the date so it reads as month-in-progress
   // context alongside the tile label, not as a bolted-on footer caption.
@@ -98,11 +98,8 @@ const MonthlyPairTooltip = ({
     </div>
     </>
   ) : d.date;
-  const footer = entries.length > 0
-    ? <ModelBreakdownTable entries={entries} t={t} />
-    : null;
   return (
-    <TooltipCard header={header} minWidth={240} footer={footer}>
+    <TooltipCard header={header} minWidth={240}>
       <TooltipTable rows={rows} />
     </TooltipCard>
   );

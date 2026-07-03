@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
+import type { ModelBreakdownEntry } from "@/types";
 
 // Shared tooltip building blocks for every chart-tooltip in the app.
 //
@@ -145,6 +146,28 @@ interface CardProps {
   footer?: ReactNode;
   children: ReactNode;
   minWidth?: number;
+}
+
+// Turn a per-model launched/intercepted breakdown into continuation rows
+// appended to a chart tooltip's main TooltipTable. Formerly rendered as a
+// nested `<ModelBreakdownTable>` beneath the main table with its own header
+// and column widths — the alignment mismatch (offset value/% columns, 📈/🎯
+// icon headers) was jarring, so we now inline the breakdown into the same
+// table, distinguished only by row color (muted) and a `separatorAbove: true`
+// border above the first entry. `%` maps naturally onto the interception
+// rate, matching how paired charts already use the % column.
+// eslint-disable-next-line react-refresh/only-export-components
+export function breakdownToRows(
+  entries: ModelBreakdownEntry[],
+  color: string,
+): TooltipTableRow[] {
+  return entries.map((e, i) => ({
+    label: e.model,
+    color,
+    value: e.launched,
+    pct: e.launched > 0 ? (e.intercepted / e.launched) * 100 : null,
+    separatorAbove: i === 0,
+  }));
 }
 
 export function TooltipCard({ header, footer, children, minWidth = 220 }: CardProps) {

@@ -190,7 +190,6 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
             globalMedian={globalStats.all?.launched.median ?? 0}
             globalTotal={globalStats.all?.launched.total ?? 0}
             breakdownByDate={allBreakdown}
-            breakdownHeader="Category"
             wfull
           />
           {/* Per category: launched (area) with intercepted as a filled subset.

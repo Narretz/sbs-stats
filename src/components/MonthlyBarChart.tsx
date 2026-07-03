@@ -7,8 +7,7 @@ import { maxMedian } from "@/utils/windowStats";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { MonthlyChartCard, type TooltipRenderProps } from "@/components/MonthlyChartCard";
-import { ModelBreakdownTable } from "@/components/ModelBreakdownTable";
-import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
+import { TooltipCard, TooltipTable, breakdownToRows, type TooltipTableRow } from "@/components/TooltipTable";
 
 interface Props {
   title: string;
@@ -20,13 +19,10 @@ interface Props {
   globalMax?: number;
   globalMedian?: number;
   globalTotal?: number;
-  // Optional per-month breakdown rendered below the standard tooltip rows.
-  // Used by the RU air-attacks aggregate "All" monthly bar chart to break the
-  // total into drone / cruise / ballistic.
+  // Optional per-month breakdown appended as continuation rows on the
+  // tooltip. Used by the RU air-attacks aggregate "All" monthly bar chart
+  // to break the total into drone / cruise / ballistic.
   breakdownByMonth?: Map<string, ModelBreakdownEntry[]>;
-  // First-column header for the breakdown table. Default "Model"; pass
-  // "Category" for the all-attacks aggregate.
-  breakdownHeader?: string;
 }
 
 // Cap bar width so a chart with few data points (e.g. SBU Alfa's 3 months)
@@ -35,7 +31,7 @@ interface Props {
 const MAX_BAR_SIZE = 70;
 
 export function MonthlyBarChart({
-  title, data, wfull, breakdownByMonth, breakdownHeader,
+  title, data, wfull, breakdownByMonth,
   globalMax, globalMedian, globalTotal,
 }: Props) {
   const { theme: t } = useTheme();
@@ -75,17 +71,13 @@ export function MonthlyBarChart({
     ) : d.date;
     const rows: TooltipTableRow[] = [
       { label: "Actual", color: t.primary, value: d.value ?? null, projected: d.projected ?? null },
+      ...breakdownToRows(entries, t.textMuted),
     ];
-    const footer = (
-      <>
-        {d.note && (
-          <div style={{ color: t.textImportant, fontSize: 10, marginTop: 6, maxWidth: 220 }}>
-            ⚠ {d.note}
-          </div>
-        )}
-        {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} header={breakdownHeader} />}
-      </>
-    );
+    const footer = d.note ? (
+      <div style={{ color: t.textImportant, fontSize: 10, marginTop: 6, maxWidth: 220 }}>
+        ⚠ {d.note}
+      </div>
+    ) : null;
     return (
       <TooltipCard header={header} minWidth={200} footer={footer}>
         <TooltipTable rows={rows} />
