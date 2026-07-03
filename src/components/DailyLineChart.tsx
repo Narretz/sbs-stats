@@ -8,8 +8,9 @@ import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
 import { FONTS, type Theme } from "@/theme";
-import { AREA_FILL_OPACITY, COLOR_DESTROYED, COLOR_DESTROYED_TREND, chartColors } from "@/chartColors";
+import { AREA_FILL_OPACITY, COLOR_DESTROYED, chartColors } from "@/chartColors";
 import { ModelBreakdownTable } from "@/components/ModelBreakdownTable";
+import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
 
 function linearRegression(data: DailyDataPoint[]): Array<number | null> {
   const points = data
@@ -108,17 +109,33 @@ function formatDate(v: string): string {
   return `${d}.${m}.${y}`;
 }
 
-function tipRow(color: string, label: string, val: string) {
+// Small helper — the "warning" note and EoD estimate rows live below the
+// main TooltipTable in a footer slot, not inside the row grid, because
+// they're prose/annotations rather than another value column.
+function NoteAndFooter({
+  d, t, eodRows,
+}: {
+  d: PairedRow;
+  t: Theme;
+  eodRows: { color: string; label: string; e: EodEstimate }[];
+}) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, color }}>
-      <span>{label}</span><span>{val}</span>
-    </div>
+    <>
+      {eodRows.map((r, i) => (
+        <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12, color: r.color, marginTop: 2, fontSize: 11 }}>
+          <span>{r.label} · EoD est</span>
+          <span style={{ fontVariantNumeric: "tabular-nums" }}>
+            ~{fmt(r.e.projected)} ({Math.round(r.e.fraction * 100)}%)
+          </span>
+        </div>
+      ))}
+      {d.note && (
+        <div style={{ color: chartColors(t).noteText, fontSize: 10, marginTop: 6, maxWidth: 280, whiteSpace: "pre-line" }}>
+          ⚠ {d.note}
+        </div>
+      )}
+    </>
   );
-}
-
-// Tooltip line for the end-of-day estimate (only shown on the "today" point).
-function eodRow(color: string, label: string, e: EodEstimate) {
-  return tipRow(color, `${label} · EoD est`, `~${fmt(e.projected)} (${Math.round(e.fraction * 100)}%)`);
 }
 
 function SingleTooltip({
@@ -135,28 +152,18 @@ function SingleTooltip({
   if (!active || !payload?.length || !payload[0].payload) return null;
   const d = payload[0].payload;
   const entries = breakdownByDate?.get(d.date) ?? [];
+  const eodRows = d.is_today && d.eod ? [{ color: t.accent, label: primaryLabel, e: d.eod }] : [];
   return (
-    <div style={{
-      background: t.surface,
-      border: `1px solid ${t.border}`,
-      borderRadius: 6,
-      padding: "8px 10px",
-      fontFamily: FONTS.mono,
-      fontSize: 12,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-      minWidth: 160,
-    }}>
-      <div style={{ color: t.textMuted, marginBottom: 4 }}>{formatDate(d.date)}</div>
-      {tipRow(primaryColor, primaryLabel, fmt(d.value))}
-      {tipRow(t.muted, "Trend", fmt(d.trend1))}
-      {d.is_today && d.eod && eodRow(t.accent, primaryLabel, d.eod)}
-      {d.note && (
-        <div style={{ color: chartColors(t).noteText, fontSize: 10, marginTop: 6, maxWidth: 280, whiteSpace: "pre-line" }}>
-          ⚠ {d.note}
-        </div>
-      )}
-      {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} header={breakdownHeader} />}
-    </div>
+    <TooltipCard header={formatDate(d.date)} minWidth={180} footer={
+      <>
+        <NoteAndFooter d={d} t={t} eodRows={eodRows} />
+        {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} header={breakdownHeader} />}
+      </>
+    }>
+      <TooltipTable rows={[
+        { label: primaryLabel, color: primaryColor, value: d.value, trend: d.trend1 },
+      ]} />
+    </TooltipCard>
   );
 }
 
@@ -188,49 +195,48 @@ function PairedTooltip({
   // When primary is the diff, its displayed value is (v − v2), not v itself,
   // and its trend is `trendDiff` (regression over the diffs) rather than
   // `trend1` (which is the regression over the total — surfaced separately
-  // as "Trend (Total)" below).
+  // as a Total row below).
   const primaryDisplayValue = pairMode === "subset" && primaryIsDiff
     ? (typeof v === "number" && typeof v2 === "number" ? v - v2 : null)
     : v;
   const primaryTrend = pairMode === "subset" && primaryIsDiff ? trDiff : tr1;
-  // % row: what fraction of the total is the secondary (subset)?
-  const pct = typeof total === "number" && total > 0 && typeof v2 === "number"
-    ? (v2 / total) * 100
-    : null;
-  const entries = breakdownByDate?.get(d.date) ?? [];
-  // Show an explicit "Total" row whenever the primary label refers to a
-  // component (either the diff in subset+primaryIsDiff, or one of two
-  // stacked series in sum mode). In the classic subset case (primary = the
-  // total itself, like SBS "Hit"), the primaryLabel row already carries it.
+  // Per-component % (fair-share of the total). Solo pair-mode primary (SBS
+  // "Hit") is the total itself → no % on it; component rows get pct.
+  const totNum = typeof total === "number" ? total : null;
+  const pctOf = (val: number | null): number | null =>
+    val != null && totNum != null && totNum > 0 ? (val / totNum) * 100 : null;
   const showTotalRow = pairMode === "sum" || (pairMode === "subset" && primaryIsDiff);
+  const entries = breakdownByDate?.get(d.date) ?? [];
+  const eodRows: { color: string; label: string; e: EodEstimate }[] = [];
+  if (d.is_today && d.eod) eodRows.push({ color: primaryColor, label: primaryLabel, e: d.eod });
+  if (d.is_today && d.eod2) eodRows.push({ color: COLOR_DESTROYED, label: secondaryLabel, e: d.eod2 });
+
+  const rows: TooltipTableRow[] = [];
+  if (showTotalRow) {
+    rows.push({ label: "Total", color: t.text, value: total, trend: tr1, emphasis: "bold" });
+  }
+  rows.push({
+    label: primaryLabel, color: primaryColor,
+    value: primaryDisplayValue,
+    pct: showTotalRow ? pctOf(typeof primaryDisplayValue === "number" ? primaryDisplayValue : null) : null,
+    trend: primaryTrend,
+  });
+  rows.push({
+    label: secondaryLabel, color: COLOR_DESTROYED,
+    value: v2,
+    pct: pctOf(typeof v2 === "number" ? v2 : null),
+    trend: tr2,
+  });
+
   return (
-    <div style={{
-      background: t.surface,
-      border: `1px solid ${t.border}`,
-      borderRadius: 6,
-      padding: "8px 10px",
-      fontFamily: FONTS.mono,
-      fontSize: 12,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-      minWidth: 180,
-    }}>
-      <div style={{ color: t.textMuted, marginBottom: 4 }}>{formatDate(d.date)}</div>
-      {showTotalRow && tipRow(t.text, "Total", fmt(total))}
-      {tipRow(primaryColor, primaryLabel, fmt(primaryDisplayValue))}
-      {tipRow(COLOR_DESTROYED, secondaryLabel, fmt(v2))}
-      {pct !== null && tipRow(t.textMuted, `% ${secondaryLabel}`, `${pct.toFixed(1)}%`)}
-      {showTotalRow && tipRow(t.muted, "Trend (Total)", fmt(tr1))}
-      {tipRow(t.muted, `Trend (${primaryLabel})`, fmt(primaryTrend))}
-      {tipRow(COLOR_DESTROYED_TREND, `Trend (${secondaryLabel})`, fmt(tr2))}
-      {d.is_today && d.eod && eodRow(primaryColor, primaryLabel, d.eod)}
-      {d.is_today && d.eod2 && eodRow(COLOR_DESTROYED, secondaryLabel, d.eod2)}
-      {d.note && (
-        <div style={{ color: chartColors(t).noteText, fontSize: 10, marginTop: 6, maxWidth: 280, whiteSpace: "pre-line" }}>
-          ⚠ {d.note}
-        </div>
-      )}
-      {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} header={breakdownHeader} />}
-    </div>
+    <TooltipCard header={formatDate(d.date)} minWidth={240} footer={
+      <>
+        <NoteAndFooter d={d} t={t} eodRows={eodRows} />
+        {entries.length > 0 && <ModelBreakdownTable entries={entries} t={t} header={breakdownHeader} />}
+      </>
+    }>
+      <TooltipTable rows={rows} />
+    </TooltipCard>
   );
 }
 

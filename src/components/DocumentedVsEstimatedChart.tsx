@@ -3,8 +3,9 @@ import {
 } from "recharts";
 import { useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
-import { FONTS, type Theme } from "@/theme";
+import { FONTS } from "@/theme";
 import type { MediazonaEstimateRow } from "@/types";
+import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
 
 // The most recent ~6 months are provisional on BOTH series: the estimate is only
 // partly registry-backed there (probate filings take 180+ days to complete) and
@@ -45,11 +46,10 @@ function fmt(n: number | null | undefined): string {
 }
 
 function BandTooltip({
-  active, payload, t, bucket,
+  active, payload, bucket,
 }: {
   active?: boolean;
   payload?: { payload?: Row }[];
-  t: Theme;
   bucket: "weekly" | "monthly";
 }) {
   if (!active || !payload?.length || !payload[0].payload) return null;
@@ -58,25 +58,20 @@ function BandTooltip({
   const header = bucket === "monthly"
     ? `Month of ${fmtMonthYear(row.week)}`
     : `Week of ${fmtFullDate(row.week)}`;
+  const fmtInt = (n: number) => Math.round(n).toLocaleString();
+  const rows: TooltipTableRow[] = [
+    { label: "Estimated losses", color: ESTIMATE, value: row.estimate },
+    { label: "Recorded names",  color: NAMES,    value: row.documented },
+  ];
+  if (mult != null) {
+    // Pre-formatted string value — the "×N.N" ratio doesn't fit the numeric
+    // formatter and stands apart from the counts above.
+    rows.push({ label: "Undercount", color: "#9ca3af", value: `×${mult.toFixed(1)}` });
+  }
   return (
-    <div style={{
-      background: t.surface, border: `1px solid ${t.border}`, borderRadius: 6,
-      padding: "8px 10px", fontFamily: FONTS.mono, fontSize: 12,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.12)", minWidth: 200,
-    }}>
-      <div style={{ color: t.textMuted, marginBottom: 4 }}>{header}</div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, color: ESTIMATE }}>
-        <span>Estimated losses</span><span>{fmt(row.estimate)}</span>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, color: NAMES }}>
-        <span>Recorded names</span><span>{fmt(row.documented)}</span>
-      </div>
-      {mult != null && (
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, color: t.textMuted, marginTop: 2 }}>
-          <span>Undercount</span><span>×{mult.toFixed(1)}</span>
-        </div>
-      )}
-    </div>
+    <TooltipCard header={header} minWidth={220}>
+      <TooltipTable rows={rows} formatValue={fmtInt} />
+    </TooltipCard>
   );
 }
 
@@ -130,7 +125,7 @@ export function DocumentedVsEstimatedChart({
           <Tooltip
             cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
             content={(props) => (
-              <BandTooltip active={props.active} payload={props.payload as { payload?: Row }[] | undefined} t={t} bucket={bucket} />
+              <BandTooltip active={props.active} payload={props.payload as { payload?: Row }[] | undefined} bucket={bucket} />
             )}
           />
           {provisionalFrom && lastWeek && (

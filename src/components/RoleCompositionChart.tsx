@@ -3,11 +3,12 @@ import {
 } from "recharts";
 import { useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
-import { FONTS, type Theme } from "@/theme";
+import { FONTS } from "@/theme";
 import {
   MEDIAZONA_ROLE_GROUP_KEYS, MEDIAZONA_ROLE_GROUPS,
   type MediazonaRolesRow, type MediazonaRoleGroupKey,
 } from "@/types";
+import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
 
 // No forecast region here (forecast belongs to the estimate, not the named list).
 // Recent weeks ARE still sparse — names not yet identified — but that's already
@@ -33,39 +34,27 @@ function fmtMonthYear(v: string): string {
 }
 
 function CompositionTooltip({
-  active, payload, t, bucket,
+  active, payload, bucket,
 }: {
   active?: boolean;
   payload?: { payload?: MediazonaRolesRow }[];
-  t: Theme;
   bucket: "weekly" | "monthly";
 }) {
   if (!active || !payload?.length || !payload[0].payload) return null;
   const row = payload[0].payload;
   const total = row.total || 1;
   const header = bucket === "monthly"
-    ? `Month of ${fmtMonthYear(row.week)}`
-    : `Week of ${fmtFullDate(row.week)}`;
+    ? `Month of ${fmtMonthYear(row.week)} · ${row.total.toLocaleString()} named`
+    : `Week of ${fmtFullDate(row.week)} · ${row.total.toLocaleString()} named`;
+  const rows: TooltipTableRow[] = [...MEDIAZONA_ROLE_GROUP_KEYS].reverse().map((k) => {
+    const v = row[k] ?? 0;
+    const g = MEDIAZONA_ROLE_GROUPS[k];
+    return { label: g.label, color: g.color, value: v, pct: (v / total) * 100 };
+  });
   return (
-    <div style={{
-      background: t.surface, border: `1px solid ${t.border}`, borderRadius: 6,
-      padding: "8px 10px", fontFamily: FONTS.mono, fontSize: 12,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.12)", minWidth: 210,
-    }}>
-      <div style={{ color: t.textMuted, marginBottom: 4 }}>
-        {header} · {row.total.toLocaleString()} named
-      </div>
-      {[...MEDIAZONA_ROLE_GROUP_KEYS].reverse().map((k) => {
-        const v = row[k] ?? 0;
-        const g = MEDIAZONA_ROLE_GROUPS[k];
-        return (
-          <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, color: g.color }}>
-            <span>{g.label}</span>
-            <span>{((v / total) * 100).toFixed(0)}% · {v.toLocaleString()}</span>
-          </div>
-        );
-      })}
-    </div>
+    <TooltipCard header={header} minWidth={240}>
+      <TooltipTable rows={rows} />
+    </TooltipCard>
   );
 }
 
@@ -111,7 +100,7 @@ export function RoleCompositionChart({
           <Tooltip
             cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
             content={(props) => (
-              <CompositionTooltip active={props.active} payload={props.payload as { payload?: MediazonaRolesRow }[] | undefined} t={t} bucket={bucket} />
+              <CompositionTooltip active={props.active} payload={props.payload as { payload?: MediazonaRolesRow }[] | undefined} bucket={bucket} />
             )}
           />
           {MEDIAZONA_ROLE_GROUP_KEYS.map((k: MediazonaRoleGroupKey) => (

@@ -1,8 +1,8 @@
 import { Bar, Cell } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
-import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { MonthlyChartCard, type TooltipRenderProps } from "@/components/MonthlyChartCard";
+import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
 
 // `total` is included so the tooltip can show it explicitly, even though
 // (destroyed + damaged) equals it by construction (SBU's own phrasing).
@@ -30,25 +30,21 @@ export function TargetsStackedChart({ title, data, wfull }: Props) {
   const renderTooltip = ({ active, payload }: TooltipRenderProps<TargetsStackPoint>) => {
     if (!active || !payload?.length) return null;
     const d = payload[0].payload;
-    const num = (n: number | null) => (n == null ? "n/a" : n.toLocaleString());
+    const totalN = d.total ?? 0;
+    const pctOf = (v: number | null): number | null =>
+      v != null && totalN > 0 ? (v / totalN) * 100 : null;
+    // Total on top (bold), components below with per-component %. The %
+    // column is added automatically by TooltipTable because the component
+    // rows populate `pct`.
+    const rows: TooltipTableRow[] = [
+      { label: "Total", color: t.text, value: d.total, emphasis: "bold" },
+      { label: "Destroyed", color: c.destroyed, value: d.destroyed, pct: pctOf(d.destroyed), separatorAbove: true },
+      { label: "Damaged", color: c.damaged, value: d.damaged, pct: pctOf(d.damaged) },
+    ];
     return (
-      <div style={{
-        background: t.surface, border: `1px solid ${t.border}`,
-        borderRadius: 6, padding: "10px 14px",
-        fontFamily: FONTS.mono, fontSize: 12,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-      }}>
-        <div style={{ color: t.textMuted, marginBottom: 6 }}>{d.date}</div>
-        <div style={{ color: c.destroyed }}>
-          Destroyed: <span style={{ color: t.text, fontWeight: 700 }}>{num(d.destroyed)}</span>
-        </div>
-        <div style={{ color: c.damaged }}>
-          Damaged: <span style={{ color: t.text, fontWeight: 700 }}>{num(d.damaged)}</span>
-        </div>
-        <div style={{ color: t.textMuted, marginTop: 6, paddingTop: 6, borderTop: `1px solid ${t.border}` }}>
-          Total: <span style={{ color: t.text, fontWeight: 700 }}>{num(d.total)}</span>
-        </div>
-      </div>
+      <TooltipCard header={d.date} minWidth={220}>
+        <TooltipTable rows={rows} />
+      </TooltipCard>
     );
   };
 
