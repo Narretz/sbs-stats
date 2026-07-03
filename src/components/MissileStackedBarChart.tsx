@@ -4,6 +4,7 @@ import {
 import { useMemo, useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS, type Theme } from "@/theme";
+import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
 import type { MissileSeries } from "@/data/missiles";
 
 const MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -25,34 +26,31 @@ function BarTooltip({ active, payload, label, t, unit, hovered, labelFor, colorF
   colorFor: Map<string, string>;
 }) {
   if (!active || !payload?.length || label == null) return null;
-  const rows = payload
+  const items = payload
     .filter((p): p is { dataKey: string; value: number } => typeof p.value === "number" && !!p.dataKey)
     .sort((a, b) => b.value - a.value);
-  if (!rows.length) return null;
-  const total = rows.reduce((s, r) => s + r.value, 0);
+  if (!items.length) return null;
+  const total = items.reduce((s, r) => s + r.value, 0);
+  // Total on top (bold), items below with share of total. Non-hovered
+  // items are dimmed to preserve the segment-focus behaviour of the
+  // stacked bars.
+  const rows: TooltipTableRow[] = [
+    { label: "itemised total*", color: t.text, value: total, emphasis: "bold" },
+    ...items.map((r, i) => ({
+      label: labelFor.get(r.dataKey) ?? r.dataKey,
+      color: colorFor.get(r.dataKey) ?? t.textMuted,
+      value: r.value,
+      share: total > 0 ? (r.value / total) * 100 : null,
+      emphasis: (hovered === r.dataKey ? "bold" : "normal") as "bold" | "normal",
+      dimmed: hovered != null && hovered !== r.dataKey,
+      separatorAbove: i === 0,
+    })),
+  ];
+  const header = `${fmtTick(label)} · ${items.length} types · ${unit}`;
   return (
-    <div style={{
-      background: t.surface, border: `1px solid ${t.border}`, borderRadius: 6,
-      padding: "8px 10px", fontFamily: FONTS.mono, fontSize: 12,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.12)", minWidth: 200,
-    }}>
-      <div style={{ color: t.textMuted, marginBottom: 4 }}>
-        {fmtTick(label)} · {rows.length} types · {unit}
-      </div>
-      {rows.map((r) => (
-        <div key={r.dataKey} style={{
-          display: "flex", justifyContent: "space-between", gap: 12,
-          color: colorFor.get(r.dataKey),
-          fontWeight: hovered === r.dataKey ? 700 : 400,
-          opacity: hovered && hovered !== r.dataKey ? 0.5 : 1,
-        }}>
-          <span>{labelFor.get(r.dataKey) ?? r.dataKey}</span><span>{r.value}</span>
-        </div>
-      ))}
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, color: t.textMuted, borderTop: `1px solid ${t.border}`, marginTop: 4, paddingTop: 4 }}>
-        <span>itemised total*</span><span>{total.toLocaleString()}</span>
-      </div>
-    </div>
+    <TooltipCard header={header} minWidth={220}>
+      <TooltipTable rows={rows} />
+    </TooltipCard>
   );
 }
 

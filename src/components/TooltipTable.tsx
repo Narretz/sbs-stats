@@ -49,6 +49,9 @@ export interface TooltipTableRow {
   /** Draw a thin separator above this row (e.g., between Total and its
    *  components on stacked charts). */
   separatorAbove?: boolean;
+  /** Reduce opacity to indicate this row is out-of-focus (used on the
+   *  missile stacked chart where hovering one segment dims the others). */
+  dimmed?: boolean;
 }
 
 interface TableProps {
@@ -140,6 +143,7 @@ export function TooltipTable({
             <div style={{
               display: "flex", gap: 12, color: r.color,
               fontWeight: r.emphasis === "bold" ? 700 : 400,
+              opacity: r.dimmed ? 0.5 : 1,
               padding: "1px 0",
             }}>
               <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
