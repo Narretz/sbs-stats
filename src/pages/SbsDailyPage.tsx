@@ -162,10 +162,18 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
               data2={m.pairedKey ? makeDataset(m.pairedKey) : undefined}
               primaryLabel={m.primaryLabel}
               label2={m.pairedLabel}
-              // SBS is a hit/destroyed pair — the `%` on the Destroyed row is
-              // the destruction rate. Spelled out so it doesn't collide with
-              // `%` meaning "share of total" on the GSUA / SBU Alfa charts.
-              pctLabel={m.pairedKey ? "% dest" : undefined}
+              // pctLabel + interceptedLabel semantics depend on pairMode:
+              //   subset (Hit/Destroyed, per-target Hit/Destroyed) — the `%`
+              //     on the Destroyed row is a destruction rate; the Intercepted
+              //     column carries the absolute Destroyed count so we can also
+              //     collapse the two aggregate rows to one via the shared
+              //     TooltipTable's rollup logic (`% dest`, `Dest`).
+              //   sum (Wounded/Killed) — composition, both rows are peers of a
+              //     Total row above. `%` means share of total; we neither
+              //     rename the column nor set an Intercepted column (killed
+              //     isn't a destruction of wounded, it's a co-component).
+              pctLabel={m.pairedKey && m.pairMode !== "sum" ? "% dest" : undefined}
+              interceptedLabel={m.pairedKey && m.pairMode !== "sum" ? "Dest" : undefined}
               globalMax2={m.pairedKey ? globalStats[m.pairedKey]?.max ?? 0 : undefined}
               globalMedian2={m.pairedKey ? globalStats[m.pairedKey]?.median ?? 0 : undefined}
               globalTotal2={m.pairedKey ? globalStats[m.pairedKey]?.total ?? 0 : undefined}
