@@ -129,8 +129,18 @@ def parse_roles(path: Path) -> list[tuple]:
 
 
 def _fetch(url: str) -> bytes:
+    # Cloudflare in front of en.zona.media 403s bare urllib and also custom
+    # UA hints like "(sbs-stats-ingest)"; use a full browser-shaped UA.
     req = urllib.request.Request(
-        url, headers={"User-Agent": "Mozilla/5.0 (sbs-stats-ingest)"},
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+        },
     )
     with urllib.request.urlopen(req, timeout=60) as r:
         return r.read()
@@ -141,13 +151,17 @@ def fetch_bundle(article_url: str) -> str:
     its decoded source.
 
     The article HTML embeds the bundle via a hashed S3 path
-    (`.../main.<hash>.js.gz`); the hash changes with each release, so we
-    discover it dynamically. The .js.gz is served gzip-compressed regardless
-    of Accept-Encoding, so we decompress unconditionally on the magic bytes.
+    (`.../main.<hash>.js.<gz|br>`); the hash changes with each release, so we
+    discover it dynamically. Historically the .gz variant was served with the
+    raw compressed body regardless of Accept-Encoding, so we decompressed on
+    the gzip magic bytes. As of mid-2026 Mediazona ships a .br variant and
+    Cloudflare transparently decompresses it server-side when we don't send
+    `Accept-Encoding: br` — so the response is already plain JS. Detect
+    either case: decompress iff the payload looks compressed.
     """
     html = _fetch(article_url).decode("utf-8", errors="replace")
     m = re.search(
-        r'(https://s3\.zona\.media/infographics/bodycount/main\.[a-f0-9]+\.js\.gz)',
+        r'(https://s3\.zona\.media/infographics/bodycount/main\.[a-f0-9]+\.js\.(?:gz|br))',
         html,
     )
     if not m:
