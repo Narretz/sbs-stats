@@ -315,6 +315,11 @@ export function GsuaDailyPage({ refreshKey }: Props) {
                 primaryLabel={pair ? "Unattributed" : undefined}
                 label2={pair ? "With direction" : undefined}
                 pairMode={pair ? "subset" : undefined}
+                // The top area labelled "Unattributed" is the diff between
+                // combat_engagements (data) and attributed (data2), NOT the
+                // raw `data` value. Tell the tooltip to show that explicitly:
+                // Total, With direction, Unattributed as three separate rows.
+                primaryIsDiff={pair ? true : undefined}
               />
             );
           })}

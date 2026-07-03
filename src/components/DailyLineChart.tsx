@@ -56,6 +56,15 @@ interface Props {
   breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
   // First-column header for the breakdown table. Default "Model".
   breakdownHeader?: string;
+  // Subset-mode only: interpret `primaryLabel` as the label of the *difference*
+  // (data − data2) rather than as the total. When true, the tooltip renders an
+  // extra explicit "Total" row and shows the diff — not the raw `value` — under
+  // the primary label. Used on the GSUA combat-engagements chart where the two
+  // stacked areas are "With direction" (subset) and "Unattributed" (diff), so
+  // calling the total "Unattributed" (default subset-mode behaviour) would be
+  // wrong. Leaves the SBS-style hit/destroyed tooltips unchanged (they use
+  // `primaryLabel="Hit"`, which IS the total, so no diff row is needed).
+  primaryIsDiff?: boolean;
 }
 
 function CustomDot(props: DotProps & { payload?: PairedRow; accentColor: string; primaryColor: string; bgColor: string; noteColor: string }) {
@@ -75,6 +84,11 @@ type PairedRow = {
   valueDiff: number | null;
   trend1: number | null;
   trend2: number | null;
+  // Trend over the diff (v − v2) series. Only populated in subset mode when
+  // the top area represents a computed difference rather than a raw series;
+  // the paired tooltip surfaces it as "Trend (primaryLabel)" instead of
+  // trend1 (which is the trend of the *total*, not the diff).
+  trendDiff: number | null;
   is_today: boolean;
   eod: EodEstimate | null;
   eod2: EodEstimate | null;
@@ -147,7 +161,8 @@ function SingleTooltip({
 }
 
 function PairedTooltip({
-  active, payload, t, primaryColor, primaryLabel, secondaryLabel, pairMode, breakdownByDate, breakdownHeader,
+  active, payload, t, primaryColor, primaryLabel, secondaryLabel, pairMode,
+  primaryIsDiff, breakdownByDate, breakdownHeader,
 }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
@@ -156,6 +171,7 @@ function PairedTooltip({
   primaryLabel: string;
   secondaryLabel: string;
   pairMode: PairMode;
+  primaryIsDiff: boolean;
   breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
   breakdownHeader?: string;
 }) {
@@ -165,13 +181,28 @@ function PairedTooltip({
   const v2 = d.value2;
   const tr1 = d.trend1;
   const tr2 = d.trend2;
+  const trDiff = d.trendDiff;
   const total = pairMode === "subset"
     ? v
     : (typeof v === "number" && typeof v2 === "number" ? v + v2 : null);
+  // When primary is the diff, its displayed value is (v − v2), not v itself,
+  // and its trend is `trendDiff` (regression over the diffs) rather than
+  // `trend1` (which is the regression over the total — surfaced separately
+  // as "Trend (Total)" below).
+  const primaryDisplayValue = pairMode === "subset" && primaryIsDiff
+    ? (typeof v === "number" && typeof v2 === "number" ? v - v2 : null)
+    : v;
+  const primaryTrend = pairMode === "subset" && primaryIsDiff ? trDiff : tr1;
+  // % row: what fraction of the total is the secondary (subset)?
   const pct = typeof total === "number" && total > 0 && typeof v2 === "number"
     ? (v2 / total) * 100
     : null;
   const entries = breakdownByDate?.get(d.date) ?? [];
+  // Show an explicit "Total" row whenever the primary label refers to a
+  // component (either the diff in subset+primaryIsDiff, or one of two
+  // stacked series in sum mode). In the classic subset case (primary = the
+  // total itself, like SBS "Hit"), the primaryLabel row already carries it.
+  const showTotalRow = pairMode === "sum" || (pairMode === "subset" && primaryIsDiff);
   return (
     <div style={{
       background: t.surface,
@@ -184,11 +215,12 @@ function PairedTooltip({
       minWidth: 180,
     }}>
       <div style={{ color: t.textMuted, marginBottom: 4 }}>{formatDate(d.date)}</div>
-      {pairMode === "sum" && tipRow(t.text, "Total", fmt(total))}
-      {tipRow(primaryColor, primaryLabel, fmt(v))}
+      {showTotalRow && tipRow(t.text, "Total", fmt(total))}
+      {tipRow(primaryColor, primaryLabel, fmt(primaryDisplayValue))}
       {tipRow(COLOR_DESTROYED, secondaryLabel, fmt(v2))}
       {pct !== null && tipRow(t.textMuted, `% ${secondaryLabel}`, `${pct.toFixed(1)}%`)}
-      {tipRow(t.muted, `Trend (${primaryLabel})`, fmt(tr1))}
+      {showTotalRow && tipRow(t.muted, "Trend (Total)", fmt(tr1))}
+      {tipRow(t.muted, `Trend (${primaryLabel})`, fmt(primaryTrend))}
       {tipRow(COLOR_DESTROYED_TREND, `Trend (${secondaryLabel})`, fmt(tr2))}
       {d.is_today && d.eod && eodRow(primaryColor, primaryLabel, d.eod)}
       {d.is_today && d.eod2 && eodRow(COLOR_DESTROYED, secondaryLabel, d.eod2)}
@@ -207,7 +239,7 @@ function PairedTooltip({
 export function DailyLineChart({
   title, data, globalMax, globalMedian, globalTotal, wfull,
   data2, primaryLabel, label2, globalMax2, globalMedian2, globalTotal2, pairMode = "subset",
-  eod, eod2, breakdownByDate, breakdownHeader,
+  eod, eod2, breakdownByDate, breakdownHeader, primaryIsDiff = false,
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
@@ -234,6 +266,20 @@ export function DailyLineChart({
   const chartData = useMemo(() => {
     const trend1 = linearRegression(data);
     const trend2 = data2 ? linearRegression(data2) : null;
+    // Fold the diff into its own series so we can regress on it. Only used
+    // when `primaryIsDiff` — otherwise the tooltip's "primary trend" IS
+    // just trend1 (SBS-style "Hit" is the total, so its trend is trend1).
+    const diffSeries: DailyDataPoint[] = data.map((d, i) => {
+      const v = d.value;
+      const v2 = data2?.[i]?.value ?? null;
+      return {
+        ...d,
+        value: pairMode === "subset" && typeof v === "number" && typeof v2 === "number"
+          ? Math.max(0, v - v2)
+          : null,
+      };
+    });
+    const trendDiff = data2 && pairMode === "subset" ? linearRegression(diffSeries) : null;
     return data.map<PairedRow>((d, i) => {
       const v2 = data2?.[i]?.value ?? null;
       const v = d.value;
@@ -247,6 +293,7 @@ export function DailyLineChart({
         value2: v2,
         trend1: trend1[i] ?? null,
         trend2: trend2?.[i] ?? null,
+        trendDiff: trendDiff?.[i] ?? null,
         valueDiff: diff,
         eod: d.is_today ? (eod ?? null) : null,
         eod2: d.is_today ? (eod2 ?? null) : null,
@@ -310,6 +357,7 @@ export function DailyLineChart({
                   primaryLabel={resolvedPrimaryLabel}
                   secondaryLabel={resolvedSecondaryLabel}
                   pairMode={pairMode}
+                  primaryIsDiff={primaryIsDiff}
                   breakdownByDate={breakdownByDate}
                   breakdownHeader={breakdownHeader}
                 />
