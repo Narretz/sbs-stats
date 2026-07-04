@@ -50,7 +50,7 @@ const GSUA_HOURLY = "/?site=ru-attacks-gsua&page=hourly";
 test.describe("End-of-day projection", () => {
   test("SBS daily — single-series tooltip shows a projected value", async ({ page }) => {
     await page.goto(SBS_DAILY);
-    const txt = await eodTooltip(page, 2); // Strike Sorties (single line)
+    const txt = await eodTooltip(page, 0); // Personnel Casualties (single line, full-width)
     expect(txt).toMatch(/EoD est/);
     expect(txt).toMatch(/~[\d,]+/);   // a projected number
     expect(txt).toMatch(/\(\d+%\)/);  // completion share
@@ -58,8 +58,12 @@ test.describe("End-of-day projection", () => {
 
   test("SBS daily — paired chart projects both series", async ({ page }) => {
     await page.goto(SBS_DAILY);
-    const txt = await eodTooltip(page, 0); // Personnel Hit / Killed (paired, full-width)
-    expect((txt.match(/EoD est/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    const txt = await eodTooltip(page, 1); // Targets Hit / Destroyed (paired, collapsed subset)
+    // Collapsed-subset EoD row carries one "EoD est" label with both
+    // projections in Value + Subset cells — so match on the pattern
+    // "~<n> (<pct>%)" occurring twice, once per series.
+    expect(txt).toMatch(/EoD est/);
+    expect((txt.match(/~[\d,]+\s*\(\d+%\)/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 
   test("SBS daily — hovered card is elevated so the tooltip isn't clipped", async ({ page }) => {
