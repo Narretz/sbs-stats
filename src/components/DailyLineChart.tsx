@@ -2,7 +2,7 @@ import {
   LineChart, Line, ComposedChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ReferenceLine, ResponsiveContainer, type DotProps,
 } from "recharts";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { DailyDataPoint, EodEstimate, ModelBreakdownEntry, PairMode } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
@@ -111,32 +111,28 @@ function formatDate(v: string): string {
   return `${d}.${m}.${y}`;
 }
 
-// Small helper — the "warning" note and EoD estimate rows live below the
-// main TooltipTable in a footer slot, not inside the row grid, because
-// they're prose/annotations rather than another value column.
-function NoteAndFooter({
-  d, t, eodRows,
-}: {
-  d: PairedRow;
-  t: Theme;
-  eodRows: { color: string; label: string; e: EodEstimate }[];
-}) {
+// Format an EoD estimate as a single cell node — the value/subset cell
+// carries the projected total with the historical completion fraction
+// (the share of the day's eventual total typically already reported by
+// this hour). Percentage doubles as a confidence indicator; rendered
+// smaller so the projected total stays the primary read.
+function fmtEod(e: EodEstimate): ReactNode {
   return (
     <>
-      {eodRows.map((r, i) => (
-        <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12, color: r.color, marginTop: 2, fontSize: 11 }}>
-          <span>{r.label} · EoD est</span>
-          <span style={{ fontVariantNumeric: "tabular-nums" }}>
-            ~{fmt(r.e.projected)} ({Math.round(r.e.fraction * 100)}%)
-          </span>
-        </div>
-      ))}
-      {d.note && (
-        <div style={{ color: chartColors(t).noteText, fontSize: 10, marginTop: 6, maxWidth: 280, whiteSpace: "pre-line" }}>
-          ⚠ {d.note}
-        </div>
-      )}
+      <span style={{ fontSize: 11}}>~{fmt(e.projected)}</span><span style={{ fontSize: 10, opacity: 0.9 }}> ({Math.round(e.fraction * 100)}%)</span>
     </>
+  );
+}
+
+// Prose-only footer: the warning note lives below the TooltipTable, not
+// inside its row grid. EoD estimates used to live here too but moved into
+// the table so their projected + fraction align with the actual columns.
+function NoteFooter({ d, t }: { d: PairedRow; t: Theme }) {
+  if (!d.note) return null;
+  return (
+    <div style={{ color: chartColors(t).noteText, fontSize: 10, marginTop: 6, maxWidth: 280, whiteSpace: "pre-line" }}>
+      ⚠ {d.note}
+    </div>
   );
 }
 
@@ -154,15 +150,15 @@ function SingleTooltip({
   if (!active || !payload?.length || !payload[0].payload) return null;
   const d = payload[0].payload;
   const entries = breakdownByDate?.get(d.date) ?? [];
-  const eodRows = d.is_today && d.eod ? [{ color: t.accent, label: primaryLabel, e: d.eod }] : [];
   const rows: TooltipTableRow[] = [
     { label: primaryLabel, color: primaryColor, value: d.value, trend: d.trend1 },
-    ...breakdownToRows(entries, t.textMuted, { totalForShare: typeof d.value === "number" ? d.value : undefined }),
   ];
+  if (d.is_today && d.eod) {
+    rows.push({ label: "EoD est", color: t.textMuted, value: fmtEod(d.eod) });
+  }
+  rows.push(...breakdownToRows(entries, t.textMuted, { totalForShare: typeof d.value === "number" ? d.value : undefined }));
   return (
-    <TooltipCard header={formatDate(d.date)} minWidth={180} footer={
-      <NoteAndFooter d={d} t={t} eodRows={eodRows} />
-    }>
+    <TooltipCard header={formatDate(d.date)} minWidth={180} footer={<NoteFooter d={d} t={t} />}>
       <TooltipTable rows={rows} subsetLabel={subsetLabel} />
     </TooltipCard>
   );
@@ -208,9 +204,6 @@ function PairedTooltip({
     val != null && totNum != null && totNum > 0 ? (val / totNum) * 100 : null;
   const showTotalRow = pairMode === "sum" || (pairMode === "subset" && primaryIsDiff);
   const entries = breakdownByDate?.get(d.date) ?? [];
-  const eodRows: { color: string; label: string; e: EodEstimate }[] = [];
-  if (d.is_today && d.eod) eodRows.push({ color: primaryColor, label: primaryLabel, e: d.eod });
-  if (d.is_today && d.eod2) eodRows.push({ color: COLOR_DESTROYED, label: secondaryLabel, e: d.eod2 });
 
   // When the chart is a hit/destroyed or launched/intercepted pair (signal:
   // `subsetLabel` is set) AND we're in the classic subset-primary-is-total
@@ -253,14 +246,28 @@ function PairedTooltip({
       trend: tr2,
     });
   }
+  // On collapsed subset (hit/destroyed etc.), fold both EoDs into one row
+  // where value = primary EoD, subset = secondary EoD (mirroring the
+  // actual row above). Uncollapsed callers get one EoD row per series in
+  // the Value column since the subset column doesn't apply to them.
+  if (d.is_today && (d.eod || d.eod2)) {
+    if (useCollapsedSubset) {
+      rows.push({
+        label: "EoD est", color: t.textMuted,
+        value: d.eod ? fmtEod(d.eod) : null,
+        subset: d.eod2 ? fmtEod(d.eod2) : null,
+      });
+    } else {
+      if (d.eod) rows.push({ label: `${primaryLabel} · EoD est`, color: t.textMuted, value: fmtEod(d.eod) });
+      if (d.eod2) rows.push({ label: `${secondaryLabel} · EoD est`, color: t.textMuted, value: fmtEod(d.eod2) });
+    }
+  }
   // The primary aggregate `v` (category-launched on RU air-attacks pairs)
   // is the natural denominator for each model's part-of-total share.
   rows.push(...breakdownToRows(entries, t.textMuted, { totalForShare: typeof v === "number" ? v : undefined }));
 
   return (
-    <TooltipCard header={formatDate(d.date)} minWidth={240} footer={
-      <NoteAndFooter d={d} t={t} eodRows={eodRows} />
-    }>
+    <TooltipCard header={formatDate(d.date)} minWidth={240} footer={<NoteFooter d={d} t={t} />}>
       <TooltipTable rows={rows} subsetLabel={subsetLabel} />
     </TooltipCard>
   );

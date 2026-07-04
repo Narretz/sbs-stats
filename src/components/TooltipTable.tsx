@@ -28,16 +28,19 @@ import type { ModelBreakdownEntry } from "@/types";
 export interface TooltipTableRow {
   label: string;
   color: string;
-  /** Either a number (rendered with `toLocaleString`) or a pre-formatted
-   *  string (used for values like "×2.3" that don't fit the numeric renderer). */
-  value: number | string | null;
+  /** Number → rendered with `toLocaleString` (via `formatValue`). Anything
+   *  else (string, JSX fragment) is passed through — used for values like
+   *  "×2.3" that don't fit the numeric renderer, or an EoD estimate whose
+   *  parenthetical fraction is styled smaller. */
+  value: number | ReactNode | null;
   /** 0..100. Part-of-total percentage. Rendered under the Share column. */
   share?: number | null;
   /** Absolute count of a secondary series that lives on the same row as
    *  `value` (destroyed vs hit, intercepted vs launched, killed vs
-   *  casualties). Renders in the "<subsetLabel>" column; the rate
-   *  subset/value*100 renders in the adjacent "<subsetLabel> %" column. */
-  subset?: number | null;
+   *  casualties). Number → the rate subset/value*100 renders in the
+   *  adjacent "<subsetLabel> %" column. Anything else (string, JSX
+   *  fragment) renders as-is and skips the rate cell. */
+  subset?: number | ReactNode | null;
   /** Linear-regression trend for this row's series, if any. */
   trend?: number | null;
   /** End-of-period projection (e.g., projected month-end value on the
@@ -72,16 +75,16 @@ interface TableProps {
   subsetLabel?: string;
 }
 
-const VALUE_MIN = 52;
+const VALUE_MIN = 56;
 const PCT_MIN = 44;
-const SUBSET_MIN = 44;
+const SUBSET_MIN = 56;
 const TREND_MIN = 44;
 const PROJ_MIN = 44;
 
-function fmtNum(v: number | string | null | undefined, formatValue: (n: number) => string): string {
-  if (typeof v === "string") return v;
+function renderCell(v: number | ReactNode | null | undefined, formatValue: (n: number) => string, empty: string): ReactNode {
+  if (v == null) return empty;
   if (typeof v === "number") return formatValue(v);
-  return "—";
+  return v;
 }
 
 function fmtPct(v: number | null | undefined): string {
@@ -89,9 +92,13 @@ function fmtPct(v: number | null | undefined): string {
 }
 
 function subsetRate(r: TooltipTableRow): number | null {
-  if (r.subset == null || typeof r.value !== "number" || r.value <= 0) return null;
+  if (typeof r.subset !== "number" || typeof r.value !== "number" || r.value <= 0) return null;
   return (r.subset / r.value) * 100;
 }
+
+// The dashed fill for "no data" on the value cell. Subset cell uses an
+// empty string so an absent subset doesn't push a dash into the layout.
+const VALUE_EMPTY = "—";
 
 export function TooltipTable({
   rows,
@@ -150,7 +157,7 @@ export function TooltipTable({
                 {r.label}
               </span>
               <span style={{ ...numericCell(VALUE_MIN), color: t.text, fontWeight: 700 }}>
-                {fmtNum(r.value, formatValue)}
+                {renderCell(r.value, formatValue, VALUE_EMPTY)}
               </span>
               {hasShare && (
                 <span style={{ ...numericCell(PCT_MIN), color: t.textMuted }}>
@@ -159,7 +166,7 @@ export function TooltipTable({
               )}
               {hasSubset && (
                 <span style={{ ...numericCell(SUBSET_MIN), color: t.textMuted }}>
-                  {r.subset != null ? formatValue(r.subset) : ""}
+                  {renderCell(r.subset, formatValue, "")}
                 </span>
               )}
               {hasSubsetRate && (
