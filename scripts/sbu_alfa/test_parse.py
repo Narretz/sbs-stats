@@ -80,25 +80,25 @@ MAY_EXPECTED = {
     "watercraft":           (22,    "exact"),
     "mlrs":                 (11,    "exact"),
 }
-# June 2026 uses different phrasings for a few categories so they fall out
-# of the current regexes (documented as follow-ups, not blockers):
-#   comms       "антени та вузли" (nom.) vs regex's "антен та вузлів" (gen.)
-#   depots      "склад із боєприпасами" vs "склад з боєприпасами"
-#   air_defense "засобів протиповітряної оборони" vs "засобів ППО"
-#   aircraft    "одиниць авіаційної техніки" vs "літак"
-# Plus a new "розрахунки БпЛА" (UAV-crew) category we don't track. The 10
-# we DO parse are locked in below — the important thing this fixture proves
-# is that the locative period detection ('У червні') now works.
+# June 2026 uses varied phrasings the earlier months didn't (nominative
+# case after 2/3/4 numerals, alternate long-form air-defense wording,
+# "одиниць авіаційної техніки" instead of "літак") — the regexes are
+# widened to cover both. A new "розрахунки БпЛА" (UAV-crew) category
+# appears in this month but isn't tracked.
 JUNE_EXPECTED = {
     "enemy_kia":            (5_500, "at_least"),
     "drones":               (6_909, "exact"),
     "vehicles_auto_total":  (2_402, "exact"),
+    "comms":                (1_722, "exact"),
     "fortifications":       (1_395, "exact"),
+    "depots":               (161,   "exact"),
     "artillery":            (78,    "exact"),
     "armored_total":        (33,    "exact"),
     "tanks":                (7,     "exact"),
     "ifvs":                 (26,    "exact"),
+    "air_defense":          (14,    "exact"),
     "mlrs":                 (16,    "exact"),
+    "aircraft":             (2,     "exact"),
     "watercraft":           (8,     "exact"),
 }
 

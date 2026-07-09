@@ -218,10 +218,12 @@ CATEGORIES: list[tuple[str, list[re.Pattern[str]]]] = [
         re.compile(rf"{_NUM}\s+(?:БпЛА|безпілотник\w+)", re.I),
     ]),
 
-    # Comms / surveillance. Two distinct phrasings — "антен та вузлів зв'язку"
-    # (May) and "засобів спостереження (та|і) зв'язку" (Mar/Apr) — same category.
+    # Comms / surveillance. Two distinct phrasings — "антен(и) та вузл(ів|и)
+    # зв'язку" (May/Jun) and "засобів спостереження (та|і) зв'язку" (Mar/Apr).
+    # Case endings vary with the preceding numeral (gen. after 5–20/0; nom.
+    # after 2/3/4), so both regexes are permissive on the suffixes.
     ("comms", [
-        re.compile(rf"{_NUM}\s+антен\s+та\s+вузлів\s+зв", re.I),
+        re.compile(rf"{_NUM}\s+антен\w*\s+та\s+вузл\w+\s+зв", re.I),
         re.compile(rf"{_NUM}\s+засобів\s+спостереження", re.I),
     ]),
 
@@ -267,6 +269,7 @@ CATEGORIES: list[tuple[str, list[re.Pattern[str]]]] = [
 
     ("air_defense", [
         re.compile(rf"{_NUM}\s+засобів\s+ППО", re.I),
+        re.compile(rf"{_NUM}\s+засобів\s+протиповітрян\w+\s+оборони", re.I),
     ]),
     ("radar", [
         re.compile(rf"{_NUM}\s+РЛС", re.I),
@@ -277,12 +280,13 @@ CATEGORIES: list[tuple[str, list[re.Pattern[str]]]] = [
     ]),
     ("aircraft", [
         re.compile(rf"{_NUM}\s+літак", re.I),
+        re.compile(rf"{_NUM}\s+одиниц\w+\s+авіаційн\w+\s+техніки", re.I),
     ]),
     ("watercraft", [
         re.compile(rf"{_NUM}\s+одиниц\w+\s+водн\w+\s+транспорт", re.I),
     ]),
     ("depots", [
-        re.compile(rf"{_NUM}\s+склад\w+\s+з\s+боєприпасами", re.I),
+        re.compile(rf"{_NUM}\s+склад\w*\s+(?:з|із)\s+боєприпасами", re.I),
     ]),
 ]
 
