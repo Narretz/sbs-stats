@@ -79,9 +79,15 @@ def scan_pages(pages: int) -> list[str]:
             _abs(m.group(1)) for m in _HREF_RE.finditer(html)
             if SLUG_FILTER.search(m.group(1))
         ]
-        new = [c for c in candidates if c not in seen]
-        for c in new:
+        # Dedupe within the page as well as across pages: the same article on
+        # /novyny is linked twice per card (image + title), so a naive
+        # `if c not in seen` before updating `seen` would yield both copies.
+        new: list[str] = []
+        for c in candidates:
+            if c in seen:
+                continue
             seen.add(c)
+            new.append(c)
             out.append(c)
         print(f"[scan] page {page}: {len(candidates)} candidate(s), {len(new)} new")
     return out

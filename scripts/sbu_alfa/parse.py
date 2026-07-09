@@ -106,9 +106,21 @@ _UA_MONTH_GEN = {
     "січня": 1, "лютого": 2, "березня": 3, "квітня": 4, "травня": 5, "червня": 6,
     "липня": 7, "серпня": 8, "вересня": 9, "жовтня": 10, "листопада": 11, "грудня": 12,
 }
+# Locative fallback — the June 2026 recap opens with "У червні наші..." and
+# nowhere uses the "за підсумками/результатами <month>" phrasing, so we need
+# to recognise the locative form too. Anchored on preceding "у "/"в " to
+# avoid grabbing unrelated locatives that share the -і/-у ending.
+_UA_MONTH_LOC = {
+    "січні": 1, "лютому": 2, "березні": 3, "квітні": 4, "травні": 5, "червні": 6,
+    "липні": 7, "серпні": 8, "вересні": 9, "жовтні": 10, "листопаді": 11, "грудні": 12,
+}
 
 _PERIOD_RE = re.compile(
     r"(?:за\s+(?:підсумками|результатами)\s+(\w+)|за\s+минулий\s+місяць)",
+    re.I,
+)
+_PERIOD_RE_LOC = re.compile(
+    r"\b[ув]\s+(" + "|".join(_UA_MONTH_LOC) + r")\b",
     re.I,
 )
 # Year hint from article date stamps like "9 червня 2026" or "12 Травня, 2026".
@@ -118,11 +130,15 @@ _YEAR_RE = re.compile(r"\b(20\d{2})\b")
 def _detect_period(text: str) -> tuple[str | None, str | None]:
     """Return (period, precision) — ('2026-05','month') etc., or (None,None).
 
+    Two phrasings seen so far:
+      Mar/Apr/May: 'за підсумками <month-genitive>' or 'за результатами …'
+      Jun:         'У <month-locative>' with no 'за підсумками' anywhere
+
     The headline often contains 'за результатами бойової роботи у квітні'
-    (genitive 'квітні' is locative not in our map; group(1) captures the
-    *first* word after 'результатами', which here is 'бойової') BEFORE the
-    body's true 'За підсумками квітня'. So we iterate matches and accept
-    the first one whose captured word is a known month genitive.
+    (group(1) here captures 'бойової', not a month) BEFORE the body's true
+    'За підсумками квітня'. So we iterate matches and accept the first one
+    whose captured word is a known month genitive. If no genitive is found,
+    fall back to the "[у|в] <locative>" pattern.
     """
     month = None
     for m in _PERIOD_RE.finditer(text):
@@ -130,6 +146,10 @@ def _detect_period(text: str) -> tuple[str | None, str | None]:
         month = _UA_MONTH_GEN.get(word)
         if month:
             break
+    if not month:
+        m = _PERIOD_RE_LOC.search(text)
+        if m:
+            month = _UA_MONTH_LOC.get(m.group(1).lower())
     if not month:
         return None, None
     year_m = _YEAR_RE.search(text)

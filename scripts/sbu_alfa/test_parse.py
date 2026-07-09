@@ -80,12 +80,34 @@ MAY_EXPECTED = {
     "watercraft":           (22,    "exact"),
     "mlrs":                 (11,    "exact"),
 }
+# June 2026 uses different phrasings for a few categories so they fall out
+# of the current regexes (documented as follow-ups, not blockers):
+#   comms       "антени та вузли" (nom.) vs regex's "антен та вузлів" (gen.)
+#   depots      "склад із боєприпасами" vs "склад з боєприпасами"
+#   air_defense "засобів протиповітряної оборони" vs "засобів ППО"
+#   aircraft    "одиниць авіаційної техніки" vs "літак"
+# Plus a new "розрахунки БпЛА" (UAV-crew) category we don't track. The 10
+# we DO parse are locked in below — the important thing this fixture proves
+# is that the locative period detection ('У червні') now works.
+JUNE_EXPECTED = {
+    "enemy_kia":            (5_500, "at_least"),
+    "drones":               (6_909, "exact"),
+    "vehicles_auto_total":  (2_402, "exact"),
+    "fortifications":       (1_395, "exact"),
+    "artillery":            (78,    "exact"),
+    "armored_total":        (33,    "exact"),
+    "tanks":                (7,     "exact"),
+    "ifvs":                 (26,    "exact"),
+    "mlrs":                 (16,    "exact"),
+    "watercraft":           (8,     "exact"),
+}
 
 
 @pytest.mark.parametrize("name, expected, period", [
     ("march", MARCH_EXPECTED, "2026-03"),
     ("april", APRIL_EXPECTED, "2026-04"),
     ("may",   MAY_EXPECTED,   "2026-05"),
+    ("june",  JUNE_EXPECTED,  "2026-06"),
 ])
 def test_parse_counters(name, expected, period):
     report = _parsed(name)
@@ -99,7 +121,12 @@ def test_parse_counters(name, expected, period):
 
 def test_no_unexpected_categories():
     """If we silently start matching extra categories, surface that."""
-    for name, expected in [("march", MARCH_EXPECTED), ("april", APRIL_EXPECTED), ("may", MAY_EXPECTED)]:
+    for name, expected in [
+        ("march", MARCH_EXPECTED),
+        ("april", APRIL_EXPECTED),
+        ("may",   MAY_EXPECTED),
+        ("june",  JUNE_EXPECTED),
+    ]:
         got = _by_cat(_parsed(name))
         extra = set(got) - set(expected)
         assert not extra, f"{name}: unexpected categories {extra}"
