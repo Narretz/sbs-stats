@@ -36,7 +36,15 @@ function toDataset(
     const value = r ? r.value : null;
     let note: string | undefined;
     if (r) {
-      if (r.derived) {
+      // The radar counter's phrasing shifted in June 2026: earlier months
+      // reported bare "N РЛС"; from June the SBU bundles electronic warfare
+      // into the same counter ("N засоби РЛС та РЕБ"). Values stay in the
+      // same low-tens range so we keep them under the same `radar` key for
+      // continuity — but flag it so the bar draws its dashed-outline marker
+      // and the tooltip is explicit about the widened scope.
+      if (r.category === "radar" && r.raw_label?.includes("РЕБ")) {
+        note = `Includes EW ("РЕБ" / electronic warfare) from this month onwards — earlier months' radar counter is bare РЛС. Source phrasing: "${r.raw_label}"`;
+      } else if (r.derived) {
         note = r.derivation_note ?? "Derived from other counters (not stated by SBU).";
       } else if (r.bound === "at_least") {
         note = `Self-reported floor (понад / "over") — actual may be higher. Source phrasing: "${r.raw_label ?? ""}"`;
