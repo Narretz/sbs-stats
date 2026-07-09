@@ -22,7 +22,7 @@ export const TARGET_LABELS: Record<TargetId, string> = {
   23: "Drone Launch Points (until 2026-03)",
   24: 'Copter UAVs',
   25: "Fixed-wing UAVs",
-  26: "Guided missiles",
+  26: "UGVs",
   29: 'Helicopters',
   30: 'Shaheds',
   31: "Gerberas",
