@@ -29,12 +29,23 @@ function pagesFor(site: Site): Page[] {
   return SBS_PAGES;
 }
 
+// Registry of unlisted `?view=…` pages. These are reachable by URL only
+// (not surfaced in the site picker or homepage) and typically render a
+// standalone comparison across multiple datasets.
+export const SPECIAL_VIEWS = ["sbs-vs-sbu-alfa"] as const;
+export type SpecialView = (typeof SPECIAL_VIEWS)[number];
+
 export type Route =
   | { kind: "home" }
-  | { kind: "site"; site: Site; page: Page };
+  | { kind: "site"; site: Site; page: Page }
+  | { kind: "special"; view: SpecialView };
 
 function readUrl(): Route {
   const p = new URLSearchParams(window.location.search);
+  const rawView = p.get("view");
+  if (rawView && (SPECIAL_VIEWS as readonly string[]).includes(rawView)) {
+    return { kind: "special", view: rawView as SpecialView };
+  }
   const rawSite = p.get("site");
   if (rawSite === null) return { kind: "home" };
   const site: Site =

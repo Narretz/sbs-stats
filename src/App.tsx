@@ -30,6 +30,7 @@ import { RuAirAttacksDailyPage } from "@/pages/RuAirAttacksDailyPage";
 import { RuAirAttacksMonthlyPage } from "@/pages/RuAirAttacksMonthlyPage";
 import { RuModMonthlyPage } from "@/pages/RuModMonthlyPage";
 import { SbuAlfaMonthlyPage } from "@/pages/SbuAlfaMonthlyPage";
+import { SbsVsSbuAlfaPage } from "@/pages/SbsVsSbuAlfaPage";
 import { SbsDailyPage } from "@/pages/SbsDailyPage";
 import { SbsHourlyPage } from "@/pages/SbsHourlyPage";
 import { SbsMonthlyPage } from "@/pages/SbsMonthlyPage";
@@ -313,7 +314,16 @@ function AppInner() {
           <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
             <MissilesRoot site={site} setSite={setSite} setPage={setPage} />
           </ErrorBoundary>
-        )}        
+        )}
+        {route.kind === "special" && route.view === "sbs-vs-sbu-alfa" && (
+          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
+            <DatabaseProvider>
+              <SbuAlfaDatabaseProvider>
+                <PageShell><SbsVsSbuAlfaPage /></PageShell>
+              </SbuAlfaDatabaseProvider>
+            </DatabaseProvider>
+          </ErrorBoundary>
+        )}
       </div>
     </RouteProvider>
   );
