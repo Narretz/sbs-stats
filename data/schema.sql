@@ -50,6 +50,8 @@ CREATE TABLE daily_stats (
     hit_38      INTEGER,  destroyed_38      INTEGER,  -- Ammo depot (ОТ Склад БК)
     hit_39      INTEGER,  destroyed_39      INTEGER,  -- Fuel depot (ОТ Склад ПММ)
     hit_40      INTEGER,  destroyed_40      INTEGER,  -- Equipment depot (ОТ Склад майна)
+    hit_41      INTEGER,  destroyed_41      INTEGER,  -- Fixed-wing planes (Літаки)
+    hit_42      INTEGER,  destroyed_42      INTEGER,  -- Fleet / naval (Флот)
     PRIMARY KEY (date, hour)
 );
 
@@ -89,7 +91,7 @@ CREATE TABLE monthly_stats (
     hit_23      INTEGER,  destroyed_23      INTEGER,  -- Точки вильоту дронів (Drone launch points) — split: anti-drone hits moved to 35
     hit_24      INTEGER,  destroyed_24      INTEGER,  -- Ворожі коптери (Enemy copters)
     hit_25      INTEGER,  destroyed_25      INTEGER,  -- Ворожі крила (Enemy fixed-wing UAVs)
-    hit_26      INTEGER,  destroyed_26      INTEGER,  -- Ворожі НРК (Enemy guided missiles)
+    hit_26      INTEGER,  destroyed_26      INTEGER,  -- Ворожі НРК (Enemy Ground robotic complexes / UGVs)
     hit_27      INTEGER,  destroyed_27      INTEGER,  -- Камери (Cameras)
     hit_28      INTEGER,  destroyed_28      INTEGER,  -- Інше (Other)
     hit_29      INTEGER,  destroyed_29      INTEGER,  -- Гелікоптер (Helicopter)
@@ -104,5 +106,7 @@ CREATE TABLE monthly_stats (
     hit_38      INTEGER,  destroyed_38      INTEGER,  -- ОТ Склад БК (Ammo depot)
     hit_39      INTEGER,  destroyed_39      INTEGER,  -- ОТ Склад ПММ (Fuel depot)
     hit_40      INTEGER,  destroyed_40      INTEGER,  -- ОТ Склад майна (Equipment depot)
+    hit_41      INTEGER,  destroyed_41      INTEGER,  -- Літаки (Fixed-wing planes)
+    hit_42      INTEGER,  destroyed_42      INTEGER,  -- Флот (Fleet / naval)
     PRIMARY KEY (date, data_collected_at)
 );
