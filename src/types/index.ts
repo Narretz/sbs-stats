@@ -4,7 +4,7 @@
 // endpoint, but their previous-month rollup endpoint still folds the total
 // back into 23 — so id 23 reads ~0 on daily charts but big monthly numbers on
 // the monthly chart. Both ids are charted so the discrepancy is visible.
-export const TARGET_IDS = [1, 2, 32, 9, 7, 18, 3, 4, 5, 6, 21, 22, 24, 25, 30, 31, 37, 23, 33, 35, 26, 29] as const;
+export const TARGET_IDS = [1, 2, 32, 9, 7, 18, 19, 3, 4, 5, 6, 21, 22, 24, 25, 30, 31, 37, 23, 33, 35, 26, 29] as const;
 export type TargetId = (typeof TARGET_IDS)[number];
 
 export const TARGET_LABELS: Record<TargetId, string> = {
@@ -16,7 +16,8 @@ export const TARGET_LABELS: Record<TargetId, string> = {
   6: 'Mortars',
   7: "Vehicles",
   9: 'Radars (Vehicles)',
-  18: "Motorcycles & Buggies",
+  18: "Motorcycles",
+  19: "Military buggies",
   21: "Shelters",
   22: "Dugouts",
   23: "Drone Launch Points (until 2026-03)",
