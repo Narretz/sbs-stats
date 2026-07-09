@@ -148,17 +148,35 @@ def _migrate_flight_columns(conn: sqlite3.Connection) -> None:
 
 
 def ensure_columns(conn: sqlite3.Connection, table: str, target_ids: list[int]) -> None:
-    """Dynamically add hit_X / destroyed_X columns if they don't exist yet."""
+    """Dynamically add hit_X / destroyed_X columns if they don't exist yet.
+
+    An ALTER here means the source published a targetClassId we've never
+    stored — either brand new (surface it so we know to label it in
+    src/types/index.ts) or previously-unseen ordering. The warning banner
+    makes the "new source category" case impossible to miss on the CI log
+    or in a local run.
+    """
     cur = conn.cursor()
     cur.execute(f"PRAGMA table_info({table})")
     existing = {row[1] for row in cur.fetchall()}
+    added: list[int] = []
     for tid in target_ids:
+        tid_added = False
         for prefix in ("hit", "destroyed"):
             col = f"{prefix}_{tid}"
             if col not in existing:
                 print(f"  Adding column {table}.{col}")
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} INTEGER")
+                tid_added = True
+        if tid_added:
+            added.append(tid)
     conn.commit()
+    if added:
+        print(
+            f"  ⚠ NEW targetClassId(s) in {table}: {sorted(set(added))}. "
+            "Add label(s) to TARGET_LABELS in src/types/index.ts or the "
+            "frontend will silently ignore this data."
+        )
 
 
 # ─── HTTP fetch with retries ──────────────────────────────────────────────────
