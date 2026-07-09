@@ -71,7 +71,7 @@ export function MediazonaWeeklyPage({ refreshKey }: Props) {
           Weekly Russian war dead — Mediazona &amp; Meduza
         </h1>
         <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-          Confirmed, individually-named deaths and the probate-registry statistical estimate · source: Mediazona / Meduza{" "}
+          Confirmed deaths with <b>name and date of death</b> only, and the probate-registry statistical estimate · source: Mediazona / Meduza{" "}
             <a href="https://en.zona.media/article/2026/05/22/casualties_eng-trl" rel="nofollow external" target="_blank">Russian losses in the war with Ukraine</a> · {" "}
             <a href="https://en.zona.media/article/2026/05/09/losses" rel="nofollow external" target="_blank">352,000 deaths in four years</a>
         </p>
