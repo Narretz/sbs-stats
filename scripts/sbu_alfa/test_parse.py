@@ -97,6 +97,7 @@ JUNE_EXPECTED = {
     "tanks":                (7,     "exact"),
     "ifvs":                 (26,    "exact"),
     "air_defense":          (14,    "exact"),
+    "radar":                (34,    "exact"),
     "mlrs":                 (16,    "exact"),
     "aircraft":             (2,     "exact"),
     "watercraft":           (8,     "exact"),

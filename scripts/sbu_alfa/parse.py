@@ -271,8 +271,15 @@ CATEGORIES: list[tuple[str, list[re.Pattern[str]]]] = [
         re.compile(rf"{_NUM}\s+засобів\s+ППО", re.I),
         re.compile(rf"{_NUM}\s+засобів\s+протиповітрян\w+\s+оборони", re.I),
     ]),
+    # "N РЛС" (Apr/May) and "N засоби РЛС [та РЕБ]" (Jun). The latter bundles
+    # EW into the same counter — we treat as one radar category since (a)
+    # earlier months don't report EW separately, and (b) the values remain
+    # in the same low-tens range (21/23/34), consistent with "same category
+    # with a small widening" rather than a step-change. raw_label preserves
+    # the "та РЕБ" phrasing so the audit note is honest.
     ("radar", [
         re.compile(rf"{_NUM}\s+РЛС", re.I),
+        re.compile(rf"{_NUM}\s+засоб\w+\s+РЛС", re.I),
     ]),
     ("mlrs", [
         re.compile(rf"{_NUM}\s+РСЗВ", re.I),
