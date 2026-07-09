@@ -91,9 +91,14 @@ const ROWS: Row[] = [
     sbuScope: "РЛС (Apr/May); від Jun bundles РЕБ (EW)",
   },
   {
-    group: "struck", label: "Aircraft", sbu: "aircraft", sbs: ["hit_29"],
-    sbsScope: "Helicopters only — no fixed-wing category",
+    group: "struck", label: "Aircraft", sbu: "aircraft", sbs: ["hit_29", "hit_41"],
+    sbsScope: "Helicopters + Fixed-wing planes",
     sbuScope: "літак / одиниць авіаційної техніки",
+  },
+  {
+    group: "struck", label: "Fleet / watercraft", sbu: "watercraft", sbs: ["hit_42"],
+    sbsScope: "Флот (id 42) — naval targets",
+    sbuScope: "одиниць водного транспорту",
   },
 ];
 

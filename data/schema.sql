@@ -35,7 +35,7 @@ CREATE TABLE daily_stats (
     hit_23      INTEGER,  destroyed_23      INTEGER,  -- Drone launch points (Точки вильоту дронів) — split: anti-drone hits moved to 35 (split was 2026-03-20)
     hit_24      INTEGER,  destroyed_24      INTEGER,  -- Enemy copters (Ворожі коптери)
     hit_25      INTEGER,  destroyed_25      INTEGER,  -- Enemy fixed-wing UAVs (Ворожі крила)
-    hit_26      INTEGER,  destroyed_26      INTEGER,  -- Enemy guided missiles (Ворожі НРК)
+    hit_26      INTEGER,  destroyed_26      INTEGER,  -- Enemy Ground robotic complexes (UGVs) (Ворожі НРК)
     hit_27      INTEGER,  destroyed_27      INTEGER,  -- Cameras (Камери)
     hit_28      INTEGER,  destroyed_28      INTEGER,  -- Other (Інше)
     hit_29      INTEGER,  destroyed_29      INTEGER,  -- Helicopter (Гелікоптер)
