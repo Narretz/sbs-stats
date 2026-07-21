@@ -2,6 +2,11 @@ node_modules/
 dist/
 tmp/
 
+# TypeScript project-reference build outputs (tsc -b / build:clean); regenerable
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+
 # Local env only — never commit this
 .env.local
 .env.*.local
