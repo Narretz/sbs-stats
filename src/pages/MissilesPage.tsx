@@ -191,8 +191,23 @@ export function MissilesPage() {
                         >
                           source ↗
                         </a>
+                        {r.source.paywalled && <span style={{ color: t.textFaint }}> (paywalled)</span>}
                       </>
                     )}
+                    {r.source.secondary?.map((s) => (
+                      <span key={s.url}>
+                        {" · "}
+                        <a
+                          href={s.url}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                          style={{ color: t.primary, textDecoration: "underline" }}
+                        >
+                          {s.via}
+                          {s.covers ? ` (${s.covers})` : ""} ↗
+                        </a>
+                      </span>
+                    ))}
                     {r.reported_at !== r.as_of && (
                       <span style={{ color: t.textFaint }}> · disclosed {r.reported_at}</span>
                     )}

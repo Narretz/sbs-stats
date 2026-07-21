@@ -7,6 +7,8 @@
       "reported_at": "Date the estimate was published/disclosed.",
       "source.org": "HUR (Defence Intelligence) | GUR | MoD — the issuing body.",
       "source.via": "Outlet that published it.",
+      "source.paywalled": "true when source.url is paywalled — the figures are read from source.secondary instead.",
+      "source.secondary[]": "Other outlets that re-reported the SAME disclosure; { via, url, covers }. covers notes which part they carry (e.g. 'stockpiles' / 'production'). Used when the primary is paywalled.",
       "stockpile[] / production_monthly[]": "measurements; production is units/month.",
       "type": "single canonical key from missile_types.",
       "types": "array of canonical keys when ONE number lumps several systems (combined=true).",
@@ -182,8 +184,15 @@
     },
     {
       "as_of": "2026-04-15", "as_of_precision": "mid_month", "reported_at": "2026-05-05",
-      "source": { "org": "HUR", "via": "NV (The New Voice of Ukraine)", "url": "https://english.nv.ua/nation/may-9-parade-how-putin-might-strike-back-at-kyiv-in-response-to-potential-drone-attack-list-50605543.html", "local_file": "sources/May 9 Parade — How Putin Might Strike Back at Kyiv in Response to Potential Drone Attack_ List _ The New Voice of Ukraine.htm" },
-      "note": "First report to break out the Kh-29/31/35/58/59 tactical pool and Oreshnik.",
+      "source": {
+        "org": "HUR", "via": "NV (The New Voice of Ukraine)",
+        "url": "https://english.nv.ua/nation/may-9-parade-how-putin-might-strike-back-at-kyiv-in-response-to-potential-drone-attack-list-50605543.html",
+        "local_file": "sources/May 9 Parade — How Putin Might Strike Back at Kyiv in Response to Potential Drone Attack_ List _ The New Voice of Ukraine.htm",
+        "secondary": [
+          { "via": "UNIAN", "url": "https://www.unian.ua/weapons/skilki-raket-zalishilosya-u-rosiji-u-gur-dali-vidpovid-13372605.html", "covers": "stockpiles + production" }
+        ]
+      },
+      "note": "First report to break out the Kh-29/31/35/58/59 tactical pool and Oreshnik. UNIAN (2026-05-05) re-reports the same mid-April figures as an open mirror of the NV disclosure.",
       "stockpile": [
         { "type": "iskander_m", "raw_label": "Iskander-M ballistic", "value": 200, "bound": "up_to" },
         { "type": "iskander_k", "raw_label": "Iskander-K cruise", "value": 110, "bound": "up_to" },
@@ -212,6 +221,37 @@
         { "type": "kh69",       "raw_label": "Kh-69 guided air-launched", "value": 5, "bound": "up_to" },
         { "type": "rm48u",      "raw_label": "RM-48U strike", "value": 40, "bound": "up_to" },
         { "type": "kh_tactical","raw_label": "Kh-29/31/35/58/59", "value": 50, "bound": "up_to", "combined": true }
+      ]
+    },
+    {
+      "as_of": "2026-07-15", "as_of_precision": "mid_month", "reported_at": "2026-07-18",
+      "source": {
+        "org": "GUR", "via": "NV (The New Voice of Ukraine)",
+        "url": "https://nv.ua/ukr/ukraine/events/rosiyski-zapasi-raket-skilki-iskanderiv-kindaliv-ta-cirkoniv-maye-moskva-ta-skilki-viroblyaye-50625111.html",
+        "paywalled": true,
+        "secondary": [
+          { "via": "gazeta.ua", "url": "https://gazeta.ua/articles/np/_rosiya-nakopichila-sotni-raket-gur-rozkrilo-informaciyu/1254874", "covers": "stockpiles" },
+          { "via": "ZN.ua", "url": "https://zn.ua/ukr/war/zlili-dvi-tretini-vid-richnoho-planu-jaku-defitsitnu-zbroju-rosija-masovo-vistriljuje-v-lipni.html", "covers": "production" },
+          { "via": "UNIAN", "url": "https://www.unian.ua/weapons/viyna-v-ukrajini-u-lipni-rf-vitratila-dvi-tretini-richnogo-obsyagu-virobnictva-raket-cirkon-13445481.html", "covers": "production" }
+        ]
+      },
+      "note": "Figures as of mid-July 2026, before the 2026-07-19 attack. Original GUR comment to NV is paywalled; the open re-reports carrying the figures are in source.secondary (gazeta.ua = stockpiles, ZN.ua + UNIAN = production). Kh-69 named but given only as 'a certain quantity' (no figure) — omitted as a gap, not a zero. Kh-32 keyed to the fused kh22_32 family. Zircon production stated as a 2026 ANNUAL plan of 30 → normalised to 2.5/month (bound=planned) to match the units/month array. Usage context (not a stockpile/production figure): GUR says 200+ missiles fired at Ukraine since early June; 107 ballistic + 20 Zircon in the first 19 days of July — the ~two-thirds-of-the-yearly-Zircon-plan framing behind the ZN.ua/UNIAN headlines.",
+      "stockpile": [
+        { "type": "iskander_m", "raw_label": "Iskander-M ballistic (100+)", "value": 100, "bound": "at_least" },
+        { "type": "iskander_k", "raw_label": "Iskander-K cruise (60+)", "value": 60, "bound": "at_least" },
+        { "type": "kinzhal",    "raw_label": "Kinzhal (~100)", "value": 100, "bound": "approx" },
+        { "type": "kalibr",     "raw_label": "Kalibr (450+)", "value": 450, "bound": "at_least" },
+        { "type": "oniks",      "raw_label": "Oniks (600+)", "value": 600, "bound": "at_least" },
+        { "type": "kh101",      "raw_label": "Kh-101 (~100)", "value": 100, "bound": "approx" },
+        { "type": "kh22_32",    "raw_label": "Kh-32 (250+)", "value": 250, "bound": "at_least" },
+        { "type": "zircon",     "raw_label": "Zircon (120+)", "value": 120, "bound": "at_least" },
+        { "type": "kn23",       "raw_label": "KN-23 (DPRK) (~50)", "value": 50, "bound": "approx" },
+        { "type": "rm48u",      "raw_label": "RM-48U strike (S-300PM/S-400) (400+)", "value": 400, "bound": "at_least" }
+      ],
+      "production_monthly": [
+        { "type": "iskander_m", "raw_label": "9M723 Iskander-M (~60/month)", "value": 60, "bound": "approx" },
+        { "type": "rm48u",      "raw_label": "RM-48U (~40/month)", "value": 40, "bound": "approx" },
+        { "type": "zircon",     "raw_label": "Zircon (2026 annual plan 30 -> 2.5/month)", "value": 2.5, "bound": "planned" }
       ]
     }
   ]

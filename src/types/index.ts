@@ -543,7 +543,14 @@ export interface MissileReport {
   as_of: string;        // date the figures describe
   as_of_precision: "day" | "mid_month" | "month";
   reported_at: string;  // date the estimate was disclosed
-  source: { org: string; via: string; url?: string; local_file?: string };
+  source: {
+    org: string;
+    via: string;
+    url?: string;
+    local_file?: string;
+    paywalled?: boolean; // primary url is behind a paywall — see secondary[] for the open re-reports carrying the figures
+    secondary?: { via: string; url: string; covers?: string }[]; // outlets that re-reported the same disclosure; `covers` notes which part (e.g. "stockpiles" / "production")
+  };
   note?: string;
   stockpile: MissileMeasurement[];
   production_monthly: MissileMeasurement[];
