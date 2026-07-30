@@ -437,7 +437,7 @@ GIS area-diffing on a periodic (not daily-scalar) cadence.
 
 ### HUR/GUR missile-stockpile disclosures — PROTOTYPE (branch `ru-missiles-hur`, not merged)
 - Hand-curated `scripts/missile_stockpile/reports.json`: irregular (~2×/yr) Ukrainian-intelligence
-  estimates of Russian missile **stockpiles + monthly production**. 8 disclosures Nov 2022 – Apr 2026
+  estimates of Russian missile **stockpiles + monthly production**. 9 disclosures Nov 2022 – Jul 2026
   (HUR/GUR via RBC, NV, Defense Express, Euromaidan — each report keeps `source` + a `note`).
 - Read **directly from JSON** in the frontend (no DB/R2 — prototype). Site key `ru-missiles-hur`.
   Views: per-type grid (bound-shaped dots, shared/fit y-axis) + stacked-by-type bars on a time axis.
@@ -447,6 +447,12 @@ GIS area-diffing on a periodic (not daily-scalar) cadence.
 - **Not productionized:** no ingest pipeline (hand-edited); `sources/` HTML dumps kept out of the repo.
 
 ### TODO — reconcile with §2 attacks (piterfm) for a "consumption vs inventory" view
+> **Worked example (Zircon):** `scripts/missile_stockpile/zircon-reconciliation.md` walks the
+> stockpile-vs-attacks cross-check for one type — the Jul-2026 GUR disclosure vs recorded piterfm
+> launches — including the ceiling-vs-floor bound trap, the Jul-18 bundle (category flip +
+> unsplittable attribution), and why the ~70-missile gap is underdetermined (soft bounds + AFU
+> launch-underreporting). Read it before wiring the view.
+
 Both track the **same rounds** (Kh-101, Kalibr, Iskander-M/K, Kinzhal, Oniks, Zircon, KN-23…), so
 attacks-`launched` (consumption) could be charted against stockpile/production (inventory). Checked
 against the live `ru-air-attacks-gsua.db` (2022-09 → 2026-05): of the 17 stockpile types, all but
