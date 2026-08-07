@@ -207,6 +207,22 @@ def test_shrink_guard_aborts(tmp_path):
         _build(tmp_path, shrunk)
 
 
+def test_single_column_rename_orphan_excluded(tmp_path, monkeypatch, capsys):
+    # Upstream renames one key column (here launch_place) on an existing attack.
+    # The old key is orphaned in our append-only DB, but the download still
+    # carries a sibling matching every *other* key column — so it must be
+    # recognised as a normalization and excluded from the shrink guard, even
+    # under the tightest tolerance (this abort would otherwise fire).
+    monkeypatch.setattr(ingest, "SHRINK_TOLERANCE_ABS", 1)
+    monkeypatch.setattr(ingest, "SHRINK_TOLERANCE_FRAC", 0.01)
+    _build(tmp_path, CSV_V1)
+    renamed = CSV_V1.replace("Caspian Sea", "Black Sea")  # Kh-101 row's launch_place
+    inserted, distinct, _ = _build(tmp_path, renamed)
+    assert inserted == 1  # the renamed key is a new version
+    assert distinct == 4  # orphan (Caspian Sea) remains alongside the 3 fetched
+    assert "single-column siblings" in capsys.readouterr().err
+
+
 def test_small_shrink_within_tolerance_warns(tmp_path, monkeypatch, capsys):
     # A 1-key drop on a large stored set is within tolerance (e.g. upstream
     # normalized casing of a key column) — should warn and proceed.

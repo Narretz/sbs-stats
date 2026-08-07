@@ -96,7 +96,7 @@ DRONE_MODELS = {
 }
 CRUISE_MODELS = {
     "X-101/X-555", "Kalibr", "X-59", "X-69", "X-59/X-69", "X-59MK2", "X-22",
-    "X-32", "X-35", "X-55", "P-800 Oniks", "3M22 Zircon", "Iskander-K",
+    "X-32", "X-35", "X-35Y", "X-55", "P-800 Oniks", "3M22 Zircon", "Iskander-K",
     "Banderol", "X-31", "X-31P", "X-31PD",
 }
 BALLISTIC_MODELS = {
@@ -144,7 +144,11 @@ MIN_ROWS_FLOOR = int(os.environ.get("MISSILE_MIN_ROWS", "1000"))
 # casing, time window, target spelling), which under our append-only model
 # orphans the previous key in the DB and looks like "one fewer key upstream".
 # Tolerate small shrinkages (warn but proceed); abort only when a meaningful
-# fraction disappears, which would still catch a truncated/broken download.
+# fraction disappears, which would still catch a truncated/broken download. Note
+# this tolerance only applies to *unexplained* missing keys — orphans left behind
+# by upstream single-column key normalizations are detected and excluded first
+# (see the guard), so these bounds stay tight instead of chasing the running
+# orphan count.
 SHRINK_TOLERANCE_FRAC = float(os.environ.get("MISSILE_SHRINK_TOL_FRAC", "0.01"))
 SHRINK_TOLERANCE_ABS = int(os.environ.get("MISSILE_SHRINK_TOL_ABS", "20"))
 
@@ -294,27 +298,54 @@ def build(db_path: Path, header: list[str], rows: list[dict]) -> tuple[int, int,
             n = len(key_cols)
             stored[tuple(r[:n])] = tuple(r[n:])
 
-        # Guard 2: tolerate small shrinkages (upstream key-column normalizations
-        # leave orphans in our append-only DB); abort only on a meaningful drop.
+        # Guard 2: a shrink in distinct keys only matters if it's *unexplained*.
+        # The DB is append-only, so when upstream normalizes a single key-column
+        # value (model casing/spelling, time window, target/launch spelling) the
+        # old key is orphaned here while the download still carries a sibling that
+        # matches on every *other* key column. Detect those siblings and exclude
+        # them: a missing key is "explained" when, for some column, blanking that
+        # column makes it equal a downloaded key (i.e. they differ in exactly that
+        # one column). A truncated/broken download drops whole rows with no such
+        # sibling, so only genuine loss counts against the tolerance.
         fetched_keys = {tuple(row[c] for c in key_cols) for row in rows}
-        shrink = len(stored) - len(fetched_keys)
-        if shrink > 0:
+        missing = stored.keys() - fetched_keys
+        if missing:
+            ncols = len(key_cols)
+            blanked = [set() for _ in range(ncols)]
+            for k in fetched_keys:
+                for i in range(ncols):
+                    blanked[i].add(k[:i] + k[i + 1:])
+            unexplained = {
+                k for k in missing
+                if not any(k[:i] + k[i + 1:] in blanked[i] for i in range(ncols))
+            }
+            explained = len(missing) - len(unexplained)
             tolerance = min(
                 SHRINK_TOLERANCE_ABS,
                 max(1, int(len(stored) * SHRINK_TOLERANCE_FRAC)),
             )
-            if shrink > tolerance:
+            if explained:
+                print(
+                    f"NOTE: {explained} stored key(s) missing from this download are "
+                    f"single-column siblings of a downloaded row (upstream key "
+                    f"normalization) — excluded from the shrink guard; the prior "
+                    f"version remains in the DB as an orphan.",
+                    file=sys.stderr,
+                )
+            if len(unexplained) > tolerance:
                 raise RuntimeError(
                     f"download has {len(fetched_keys)} distinct keys but DB already has "
-                    f"{len(stored)} ({shrink} missing, tolerance {tolerance}) — refusing "
-                    f"to write a shrinking dataset into {db_path}."
+                    f"{len(stored)} — {len(missing)} missing, {explained} explained as "
+                    f"upstream normalization, {len(unexplained)} unexplained (tolerance "
+                    f"{tolerance}) — refusing to write a shrinking dataset into {db_path}."
                 )
-            print(
-                f"WARNING: {shrink} stored key(s) missing from this download "
-                f"(within tolerance {tolerance}) — likely an upstream key-column "
-                f"normalization; the prior version remains in the DB as an orphan.",
-                file=sys.stderr,
-            )
+            if unexplained:
+                print(
+                    f"WARNING: {len(unexplained)} stored key(s) missing from this "
+                    f"download with no sibling (within tolerance {tolerance}) — the "
+                    f"prior version remains in the DB as an orphan.",
+                    file=sys.stderr,
+                )
 
         # Guard 3: keys must be unique WITHIN one download — every row in a run
         # shares one scraped_at, so colliding keys would fail the PK. If this
