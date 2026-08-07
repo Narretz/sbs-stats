@@ -118,6 +118,12 @@ def ingest_url(url: str, out: Path, dry_run: bool) -> str:
     published_at = ingest._extract_published_at(body)
 
     tag = f"period={report.period} type={report.report_type} counters={len(report.counters)}"
+    if report.unmatched:
+        # Counter line(s) the parser didn't recognise — a new/renamed category
+        # or wording drift. We still store what we DID parse (the recognised
+        # counters are correct), but surface this so the gap gets a pattern.
+        print(f"[drift] {url}\n        {len(report.unmatched)} unmatched counter "
+              f"line(s) — add a pattern in parse.py: {report.unmatched}", file=sys.stderr)
     if report.report_type != "monthly_top1" or not report.period:
         # Slug matched but content isn't a monthly recap — either a themed
         # article the slug filter mispicked, or the format has drifted. Do

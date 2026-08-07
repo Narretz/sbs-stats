@@ -259,6 +259,12 @@ def main(argv: list[str] | None = None) -> int:
     for c in report.counters:
         bracket = f" [{c.bound}]" if c.bound != "exact" else ""
         print(f"  {c.category:22s} {c.value:>8d}{bracket}")
+    if report.unmatched:
+        print(
+            f"WARNING: {len(report.unmatched)} counter line(s) matched no category "
+            f"(new or renamed?) — add a pattern in parse.py: {report.unmatched}",
+            file=sys.stderr,
+        )
 
     if args.dry_run:
         print("(dry-run; not writing)")

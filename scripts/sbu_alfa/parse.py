@@ -85,6 +85,11 @@ class ParsedReport:
     period_precision: str | None  # 'month' | 'year' | None
     report_type: str        # monthly_top1 | annual | themed | unknown
     counters: list[Counter] = field(default_factory=list)
+    # Counter-like items ("NUM <Ukrainian noun>") that no category claimed —
+    # SBU lists one counter per line in a fixed box, so an unclaimed line means
+    # either a brand-new category or wording drift. Surfaced as a warning by the
+    # callers (ingest.py / discover.py) so a silent drop can't hide.
+    unmatched: list[str] = field(default_factory=list)
 
 
 # --- helpers ---------------------------------------------------------------
@@ -268,8 +273,11 @@ CATEGORIES: list[tuple[str, list[re.Pattern[str]]]] = [
     ]),
 
     ("air_defense", [
-        re.compile(rf"{_NUM}\s+засобів\s+ППО", re.I),
-        re.compile(rf"{_NUM}\s+засобів\s+протиповітрян\w+\s+оборони", re.I),
+        # Suffix on "засоб" varies with the numeral (nom. pl. "засоби" after
+        # 2/3/4 → "23 засоби ППО"; gen. pl. "засобів" after 5+/0 → "35 засобів
+        # ППО"), so match the stem with \w+ rather than the hard-coded genitive.
+        re.compile(rf"{_NUM}\s+засоб\w+\s+ППО", re.I),
+        re.compile(rf"{_NUM}\s+засоб\w+\s+протиповітрян\w+\s+оборони", re.I),
     ]),
     # "N РЛС" (Apr/May) and "N засоби РЛС [та РЕБ]" (Jun). The latter bundles
     # EW into the same counter — we treat as one radar category since (a)
@@ -293,9 +301,62 @@ CATEGORIES: list[tuple[str, list[re.Pattern[str]]]] = [
         re.compile(rf"{_NUM}\s+одиниц\w+\s+водн\w+\s+транспорт", re.I),
     ]),
     ("depots", [
-        re.compile(rf"{_NUM}\s+склад\w*\s+(?:з|із)\s+боєприпасами", re.I),
+        # "боєприпасами" is sometimes abbreviated "БК" (боєкомплект) —
+        # "233 склади з БК та майном" (Jul 2026) vs "склади з боєприпасами".
+        re.compile(rf"{_NUM}\s+склад\w*\s+(?:з|із)\s+(?:боєприпасами|БК)", re.I),
+    ]),
+
+    # UAV crews (drone-operator teams) — "N розрахунків БпЛА" (gen. pl. after
+    # 5+/0) / "N розрахунки БпЛА" (nom. pl. after 2/3/4). Distinct from `drones`
+    # (that pattern anchors the number directly on "БпЛА"; here "розрахунк\w+"
+    # sits between), so the two never collide.
+    ("drone_crews", [
+        re.compile(rf"{_NUM}\s+розрахунк\w+\s+БпЛА", re.I),
     ]),
 ]
+
+
+# --- drift detection -------------------------------------------------------
+#
+# The recap lists one counter per line ("NUM <unit-noun> …") in a fixed box.
+# We flag any such item that no category regex claimed, so a new/renamed
+# category surfaces as a warning instead of vanishing. A candidate item is a
+# number NOT preceded by a word char or hyphen (excludes model codes like
+# "Су-30" and phone digits) and directly followed by a Cyrillic word (the unit
+# noun — excludes "4444 (дзвінки", "24/7", bare dates like "9 червня").
+_ITEM_RE = re.compile(
+    rf"(?<![\w/-]){_NUM}\s+([А-ЯЄІЇҐа-яєіїґ][’'A-Za-zА-ЯЄІЇҐа-яєіїґ-]*)", re.U
+)
+# Followers that never denote a counter — month names and year words, which
+# appear in the article's date stamp ("7 серпня 2026 року").
+_NONCOUNTER_FOLLOWERS = (
+    set(_UA_MONTH_GEN) | set(_UA_MONTH_LOC) | {"року", "році", "рік"}
+)
+
+
+def _find_unmatched(text: str, claimed: list[tuple[int, int]]) -> list[str]:
+    """Counter-like items no category claimed, restricted to the region the
+    matched counters span. The recap page is wrapped in nav/related-article
+    chrome full of stray numbers ("5 каналу", "0 Коментарі", date stamps); a
+    genuinely-missed counter instead sits *among* the matched ones in the box,
+    so bounding to [first matched start, last matched end] drops the chrome
+    without needing to model the page layout. No matches → nothing to bound to,
+    so we skip (a non-recap article isn't our concern here)."""
+    if not claimed:
+        return []
+    lo = min(s for s, _ in claimed)
+    hi = max(e for _, e in claimed)
+    claimed_starts = {s for s, _ in claimed}
+    out: list[str] = []
+    for m in _ITEM_RE.finditer(text):
+        start = m.start(1)
+        if start < lo or start > hi or start in claimed_starts:
+            continue
+        if m.group(2).lower() in _NONCOUNTER_FOLLOWERS:
+            continue
+        end = min(len(text), m.end(2) + 25)
+        out.append(re.sub(r"\s+", " ", text[start:end]).strip())
+    return out
 
 
 def _raw_label_for(text: str, m: re.Match[str], num_start: int) -> str:
@@ -312,6 +373,7 @@ def parse(text: str) -> ParsedReport:
     report_type = "monthly_top1" if precision == "month" else "unknown"
 
     counters: list[Counter] = []
+    claimed: list[tuple[int, int]] = []
     for category, patterns in CATEGORIES:
         for pat in patterns:
             m = pat.search(text)
@@ -326,6 +388,7 @@ def parse(text: str) -> ParsedReport:
                 bound=bound,
                 raw_label=_raw_label_for(text, m, num_start),
             ))
+            claimed.append((num_start, m.end()))
             break  # first variant wins per category
 
     return ParsedReport(
@@ -333,4 +396,5 @@ def parse(text: str) -> ParsedReport:
         period_precision=precision,
         report_type=report_type,
         counters=counters,
+        unmatched=_find_unmatched(text, claimed),
     )
