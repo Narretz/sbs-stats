@@ -407,9 +407,6 @@ export const SBU_ALFA_CATEGORY_KEYS = [
   "comms",
   "fortifications",
   "vehicles_auto_total",
-  "vehicles_light",
-  "vehicles_moto",
-  "vehicles_trucks",
   "artillery",
   "armored_total",
   "tanks",
@@ -420,6 +417,9 @@ export const SBU_ALFA_CATEGORY_KEYS = [
   "aircraft",
   "watercraft",
   "depots",
+  "vehicles_light",
+  "vehicles_moto",
+  "vehicles_trucks",
 ] as const;
 export type SbuAlfaCategoryKey = (typeof SBU_ALFA_CATEGORY_KEYS)[number];
 

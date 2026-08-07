@@ -165,13 +165,6 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
       {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
       {(loadState === "ready" || hasData) && (
         <ChartGrid>
-          {hasTargetsData && (
-            <TargetsStackedChart
-              title="Other targets — destroyed + damaged"
-              data={targetsStack}
-              wfull
-            />
-          )}
           {presentCategories.map((k) => (
             <MonthlyBarChart
               key={k}
@@ -183,6 +176,13 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
               globalTotal={allStats[k]?.total ?? 0}
             />
           ))}
+          {hasTargetsData && (
+            <TargetsStackedChart
+              title="Other targets — destroyed + damaged"
+              data={targetsStack}
+              wfull
+            />
+          )}
         </ChartGrid>
       )}
     </div>
