@@ -134,6 +134,20 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
     return out;
   }, [rows]);
 
+  // Source list for the disclosures panel — one entry per published recap,
+  // linking back to the SBU article it was parsed from. Derived from the
+  // counter rows (each carries its source url + publish date); every recap has
+  // counters, so this covers them all.
+  const reports = useMemo(() => {
+    const byPeriod = new Map<string, { period: string; published_at: string | null; url: string }>();
+    for (const r of rows) {
+      if (!byPeriod.has(r.period)) {
+        byPeriod.set(r.period, { period: r.period, published_at: r.published_at, url: r.url });
+      }
+    }
+    return Array.from(byPeriod.values()).sort((a, b) => a.period.localeCompare(b.period));
+  }, [rows]);
+
   return (
     <div>
       <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 16 }}>
@@ -149,9 +163,32 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
           {" "}
         </p>
         {dataWindow.minPeriod && dataWindow.maxPeriod && (
-          <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6 }}>
-            Data Availability: {dataWindow.minPeriod} – {dataWindow.maxPeriod} · {allPeriods.length} month{allPeriods.length === 1 ? "" : "s"}
-          </p>
+          <details style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6 }}>
+            <summary style={{ cursor: "pointer", listStyle: "revert" }}>
+              Data Availability: {dataWindow.minPeriod} – {dataWindow.maxPeriod} · {allPeriods.length} recap{allPeriods.length === 1 ? "" : "s"}
+            </summary>
+            <ol style={{ listStyle: "none", padding: 0, margin: "8px 0 0", display: "flex", flexDirection: "column", gap: 6 }}>
+              {reports.map((r, i) => (
+                <li key={r.period} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+                  <span style={{ color: t.textFaint, minWidth: 24 }}>[{i + 1}]</span>
+                  <span style={{ color: t.text, minWidth: 70 }}>{r.period}</span>
+                  <span style={{ flex: 1 }}>
+                    SBU press release
+                    {r.published_at && <span style={{ color: t.textFaint }}> · published {r.published_at}</span>}
+                    {" · "}
+                    <a
+                      href={r.url}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      style={{ color: t.primary, textDecoration: "underline" }}
+                    >
+                      source ↗
+                    </a>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </details>
         )}
       </div>
       <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
