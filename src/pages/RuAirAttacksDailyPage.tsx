@@ -16,6 +16,8 @@ import {
   ATTACK_DB_CATEGORIES,
   ATTACK_CATEGORY_LABELS,
   FEATURED_MODELS,
+  UNDISCLOSED_NOTE,
+  UNDISCLOSED_PARTIAL_NOTE,
   type AttackCategoryKey,
   type AttackDbCategory,
   type ModelBreakdownEntry,
@@ -130,12 +132,23 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   const keepDate = selectedWeekdays.length === 0
     ? undefined
     : (iso: string) => selectedWeekdays.includes(new Date(iso + "T12:00:00").getDay());
+  // A category UA withheld arrives as null and charts as a gap; "all" still
+  // charts the sum of what *was* disclosed. Either way the point carries the
+  // caveat, so the tooltip explains the gap (or the understated total) rather
+  // than leaving the reader to infer a quiet day.
+  const undisclosedNote = (d: RuAirAttacksDailyRow, key: AttackCategoryKey): string | undefined => {
+    const withheld = d.undisclosed ?? [];
+    if (!withheld.length) return undefined;
+    if (key === "all") return UNDISCLOSED_PARTIAL_NOTE;
+    return withheld.includes(key as AttackDbCategory) ? UNDISCLOSED_NOTE : undefined;
+  };
   const series = (key: AttackCategoryKey, metric: "launched" | "intercepted") =>
     fillDailyRange(
       filteredRows.map((d) => ({
         date: d.date,
         value: typeof d[`${key}_${metric}`] === "number" ? (d[`${key}_${metric}`] as number) : null,
         is_today: d.is_today,
+        note: undisclosedNote(d, key),
       })),
       startDate,
       endDate,

@@ -289,6 +289,16 @@ export const ATTACK_CATEGORY_LABELS: Record<AttackCategoryKey, string> = {
 
 export type AttackMetricCol = `${AttackCategoryKey}_launched` | `${AttackCategoryKey}_intercepted`;
 
+// Ukraine's Air Force stopped publishing exact ballistic-missile launched /
+// intercepted figures on 2026-08-13, citing operational security. piterfm marks
+// those rows `status_data='hidden'` and carries a placeholder 0, so anything
+// that SUMs the raw column reads a withheld attack as "nothing was launched".
+// The hook maps them to null; this is the caveat the charts show in their place.
+export const UNDISCLOSED_NOTE =
+  "Ukrainian Air Force stopped publishing ballistic missile counts on 13.08.2026 — attacks on this date were reported without figures, so this is not a zero.";
+export const UNDISCLOSED_PARTIAL_NOTE =
+  "Excludes attacks reported without figures (UA stopped publishing ballistic missile counts on 13.08.2026) — a lower bound.";
+
 // Featured weapon models charted individually on the air-attacks pages.
 // Listed in the same `model` string the DB stores; the page renders a chart per
 // entry alongside the per-category charts. Extend as needed — purely additive,
@@ -303,8 +313,10 @@ export type FeaturedModel = (typeof FEATURED_MODELS)[number];
 export type RuAirAttacksModelDailyRow = {
   date: string; // YYYY-MM-DD
   is_today: boolean;
-  launched: number;
-  intercepted: number;
+  // null when this model's only rows for the date were withheld upstream
+  // (see UNDISCLOSED_NOTE) — charted as a gap, not as 0.
+  launched: number | null;
+  intercepted: number | null;
 };
 
 // One model's contribution to a single (date, category) cell, used to render
@@ -313,6 +325,11 @@ export type ModelBreakdownEntry = {
   model: string;
   launched: number;
   intercepted: number;
+  // True when every row behind this entry was flagged `status_data='hidden'`
+  // upstream — the attack was reported but its counts were withheld, so
+  // `launched`/`intercepted` are placeholders. Rendered as "not disclosed"
+  // rather than as the 0 the CSV carries. See UNDISCLOSED_NOTE.
+  undisclosed?: boolean;
 };
 
 export type RuAirAttacksModelMonthlyRow = {
@@ -329,6 +346,12 @@ export type RuAirAttacksModelMonthlyRow = {
 export type RuAirAttacksDailyRow = {
   date: string;        // YYYY-MM-DD (date of attack window start)
   is_today: boolean;
+  // Categories whose counts UA withheld on this date (see UNDISCLOSED_NOTE).
+  // Their `${cat}_launched` / `${cat}_intercepted` cells are null when nothing
+  // was disclosed at all, so the chart draws a gap instead of dropping to 0.
+  // `all_*` stays a number — the sum of what *was* disclosed, i.e. a lower
+  // bound — and this list is what tells the tooltip to say so.
+  undisclosed?: AttackDbCategory[];
 } & Record<AttackMetricCol, number | null>;
 
 export type RuAirAttacksGlobalStats = Record<
@@ -343,6 +366,10 @@ export type RuAirAttacksMonthlyRow = {
   is_current_month: boolean;
   projection_day: number | null;
   projection_days_in_month: number | null;
+  // Categories with at least one withheld day this month. Unlike the daily
+  // row these stay numbers: a month with some days disclosed still has a real
+  // partial sum, which this flags as a lower bound rather than blanking.
+  undisclosed?: AttackDbCategory[];
 } & Record<AttackCategoryKey, number>
   & Record<`${AttackCategoryKey}_intercepted`, number>
   & Partial<Record<`${AttackCategoryKey}_projected` | `${AttackCategoryKey}_intercepted_projected`, number>>;

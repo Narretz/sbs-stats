@@ -7,6 +7,9 @@ declare module "sql.js" {
 
   export interface Database {
     exec(sql: string): QueryExecResult[];
+    // Executes one or more statements, discarding any rows. Used to redefine
+    // views on the in-memory copy of a downloaded DB.
+    run(sql: string): Database;
     close(): void;
   }
 }

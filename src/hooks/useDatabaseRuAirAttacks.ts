@@ -62,7 +62,62 @@ async function loadDatabase(): Promise<Database> {
   if (head !== MAGIC) {
     throw new Error(`RU air-attacks database not available at ${DB_URL} (got ${bytes.byteLength} bytes that aren't a SQLite file — usually means the file is missing and the dev server returned index.html)`);
   }
-  return new SQL.Database(bytes);
+  const db = new SQL.Database(bytes);
+  installDisclosureAwareViews(db);
+  return db;
+}
+
+// piterfm added a `status_data` column in Aug 2026. A row flagged `'hidden'` is
+// an attack the Ukrainian Air Force reported *without* disclosing counts — it
+// stopped publishing ballistic missile launched/intercepted figures on
+// 2026-08-13 — and the CSV carries a placeholder `0`, which is
+// indistinguishable from a real zero once summed. The DB's own aggregate views
+// sum it, so redefine them over our in-memory copy (never written back to R2):
+// hidden rows contribute NULL instead of 0, and each group carries a `hidden`
+// count so the UI can render "not disclosed" rather than draw a zero.
+//
+// Doing this once at load keeps every downstream query correct without each
+// one restating the CASE. DBs built before the column existed — including the
+// e2e fixtures — get the same views with `hidden` pinned to 0, so the query
+// surface is identical either way.
+function installDisclosureAwareViews(db: Database): void {
+  const cols = db.exec("PRAGMA table_info(missile_attacks)");
+  const nameIdx = cols[0]?.columns.indexOf("name") ?? -1;
+  const hasStatus =
+    nameIdx >= 0 && (cols[0]?.values ?? []).some((r) => r[nameIdx] === "status_data");
+
+  const isHidden = hasStatus ? "status_data = 'hidden'" : "0";
+  const known = (c: string) => `SUM(CASE WHEN ${isHidden} THEN NULL ELSE ${c} END)`;
+  const hiddenCount = `SUM(CASE WHEN ${isHidden} THEN 1 ELSE 0 END)`;
+
+  db.run(`
+    DROP VIEW IF EXISTS daily_by_category;
+    CREATE VIEW daily_by_category AS
+      SELECT attack_date AS date, category,
+             ${known("launched")}  AS launched,
+             ${known("destroyed")} AS destroyed,
+             ${hiddenCount}        AS hidden
+      FROM missile_attacks_latest
+      GROUP BY attack_date, category;
+
+    DROP VIEW IF EXISTS daily_by_model;
+    CREATE VIEW daily_by_model AS
+      SELECT attack_date AS date, model,
+             ${known("launched")}  AS launched,
+             ${known("destroyed")} AS destroyed,
+             ${hiddenCount}        AS hidden
+      FROM missile_attacks_latest
+      GROUP BY attack_date, model;
+
+    DROP VIEW IF EXISTS daily_by_model_category;
+    CREATE VIEW daily_by_model_category AS
+      SELECT attack_date AS date, category, model,
+             ${known("launched")}  AS launched,
+             ${known("destroyed")} AS destroyed,
+             ${hiddenCount}        AS hidden
+      FROM missile_attacks_latest
+      GROUP BY attack_date, category, model;
+  `);
 }
 
 const dbCache = makeResourceCache<Database>();
@@ -78,15 +133,42 @@ function queryRows<T>(db: Database, sql: string): T[] {
   });
 }
 
-type CategoryRow = { date: string; category: string; launched: number | null; destroyed: number | null };
+type CategoryRow = {
+  date: string; category: string;
+  launched: number | null; destroyed: number | null;
+  // Rows in this (date, category) group whose counts upstream withheld. The
+  // view nulls their contribution, so `launched`/`destroyed` are null when
+  // *nothing* was disclosed and a partial sum when only some rows were.
+  hidden?: number | null;
+};
 
 function num(v: number | null | undefined): number {
   return typeof v === "number" ? v : 0;
 }
 
+// One breakdown row. `undisclosed` marks the case where every row behind the
+// entry was withheld, so its 0 is a placeholder rather than a count.
+function breakdownEntry(
+  model: string,
+  r: { launched: number | null; destroyed: number | null; hidden?: number | null },
+): ModelBreakdownEntry {
+  const entry: ModelBreakdownEntry = {
+    model,
+    launched: num(r.launched),
+    intercepted: num(r.destroyed),
+  };
+  if (num(r.hidden) > 0 && r.launched === null) entry.undisclosed = true;
+  return entry;
+}
+
 // Pivot the long `daily_by_category` rows into one wide row per date with
 // launched/intercepted for each category + a computed "all" (sum of every
 // category, including the small "other" bucket that has no chart of its own).
+//
+// Categories are zero-filled across every date that has any attack at all, so
+// a drones-only day charts cruise/ballistic as a real 0. The exception is a
+// category upstream withheld: that stays null so the chart draws a gap, since
+// "we aren't told" is not "none were launched".
 function pivotDaily(raw: CategoryRow[], todayStr: string): RuAirAttacksDailyRow[] {
   const byDate = new Map<string, RuAirAttacksDailyRow>();
   for (const r of raw) {
@@ -100,14 +182,20 @@ function pivotDaily(raw: CategoryRow[], todayStr: string): RuAirAttacksDailyRow[
       }
       byDate.set(date, row);
     }
-    const l = num(r.launched);
-    const d = num(r.destroyed);
-    row.all_launched = num(row.all_launched) + l;
-    row.all_intercepted = num(row.all_intercepted) + d;
+    const withheld = num(r.hidden) > 0;
+    const l = typeof r.launched === "number" ? r.launched : null;
+    const d = typeof r.destroyed === "number" ? r.destroyed : null;
+    // `all` accumulates only what was disclosed — a lower bound on withheld
+    // days rather than a gap, since drones dominate it and blanking the
+    // headline series over a handful of undisclosed missiles would mislead
+    // more than it corrects. `undisclosed` is what marks it as a lower bound.
+    row.all_launched = num(row.all_launched) + num(l);
+    row.all_intercepted = num(row.all_intercepted) + num(d);
     const cat = String(r.category) as (typeof ATTACK_DB_CATEGORIES)[number];
     if ((ATTACK_DB_CATEGORIES as readonly string[]).includes(cat)) {
-      row[`${cat}_launched`] = num(row[`${cat}_launched`]) + l;
-      row[`${cat}_intercepted`] = num(row[`${cat}_intercepted`]) + d;
+      row[`${cat}_launched`] = withheld && l === null ? null : num(row[`${cat}_launched`]) + num(l);
+      row[`${cat}_intercepted`] = withheld && d === null ? null : num(row[`${cat}_intercepted`]) + num(d);
+      if (withheld) row.undisclosed = [...(row.undisclosed ?? []), cat];
     }
   }
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
@@ -141,7 +229,7 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
       const todayStr = getKyivDateString();
       const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
       const sql = `
-        SELECT date, category, launched, destroyed
+        SELECT date, category, launched, destroyed, hidden
         FROM daily_by_category
         WHERE date >= ${windowStartSql(endDateSql, days)}
           AND date <= date('${endDateSql}')
@@ -156,7 +244,7 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
   const queryGlobalStats = useCallback((): RuAirAttacksGlobalStats => {
     if (!db) return {} as RuAirAttacksGlobalStats;
     const all = pivotDaily(
-      queryRows<CategoryRow>(db, `SELECT date, category, launched, destroyed FROM daily_by_category`),
+      queryRows<CategoryRow>(db, `SELECT date, category, launched, destroyed, hidden FROM daily_by_category`),
       ""
     );
     const result = {} as RuAirAttacksGlobalStats;
@@ -174,10 +262,11 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
   // the destroyed sum so the page can render side-by-side bars + a % rate.
   const queryMonthly = useCallback((): RuAirAttacksMonthlyRow[] => {
     if (!db) return [];
-    const raw = queryRows<{ month: string; category: string; launched: number | null; destroyed: number | null }>(
+    const raw = queryRows<{ month: string; category: string; launched: number | null; destroyed: number | null; hidden: number | null }>(
       db,
       `SELECT substr(date, 1, 7) AS month, category,
-              SUM(launched) AS launched, SUM(destroyed) AS destroyed
+              SUM(launched) AS launched, SUM(destroyed) AS destroyed,
+              SUM(hidden)   AS hidden
        FROM daily_by_category
        GROUP BY month, category
        ORDER BY month ASC`
@@ -206,6 +295,9 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
       if ((ATTACK_DB_CATEGORIES as readonly string[]).includes(cat)) {
         row[cat] = (row[cat] as number) + l;
         row[`${cat}_intercepted`] = (row[`${cat}_intercepted`] as number) + d;
+        // Months keep their partial sum — some days in the month were still
+        // disclosed — and carry the flag so the bar reads as a lower bound.
+        if (num(r.hidden) > 0) row.undisclosed = [...(row.undisclosed ?? []), cat];
       }
     }
 
@@ -250,7 +342,9 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
       const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
       const safeModel = model.replace(/'/g, "''");
       const sql = `
-        SELECT d.date, COALESCE(m.launched, 0) AS launched, COALESCE(m.destroyed, 0) AS destroyed
+        SELECT d.date,
+               CASE WHEN m.hidden > 0 AND m.launched  IS NULL THEN NULL ELSE COALESCE(m.launched, 0)  END AS launched,
+               CASE WHEN m.hidden > 0 AND m.destroyed IS NULL THEN NULL ELSE COALESCE(m.destroyed, 0) END AS destroyed
         FROM (
           SELECT DISTINCT date FROM daily_by_category
           WHERE date >= ${windowStartSql(endDateSql, days)}
@@ -260,11 +354,13 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
           ON m.date = d.date AND m.model = '${safeModel}'
         ORDER BY d.date ASC
       `;
+      // null survives here (rather than collapsing to 0) so a day whose only
+      // rows for this model were withheld charts as a gap, same as a category.
       return queryRows<{ date: string; launched: number | null; destroyed: number | null }>(db, sql).map((r) => ({
         date: String(r.date),
         is_today: String(r.date) === todayStr,
-        launched: num(r.launched),
-        intercepted: num(r.destroyed),
+        launched: typeof r.launched === "number" ? r.launched : null,
+        intercepted: typeof r.destroyed === "number" ? r.destroyed : null,
       }));
     },
     [db]
@@ -328,23 +424,20 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
       const todayStr = getKyivDateString();
       const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
       const safe = cat.replace(/'/g, "''");
-      const rows = queryRows<{ date: string; model: string; launched: number | null; destroyed: number | null }>(
+      const rows = queryRows<{ date: string; model: string; launched: number | null; destroyed: number | null; hidden: number | null }>(
         db,
-        `SELECT attack_date AS date, model,
-                SUM(launched)  AS launched,
-                SUM(destroyed) AS destroyed
-         FROM missile_attacks_latest
+        `SELECT date, model, launched, destroyed, hidden
+         FROM daily_by_model_category
          WHERE category = '${safe}'
-           AND attack_date >= ${windowStartSql(endDateSql, days)}
-           AND attack_date <= date('${endDateSql}')
-         GROUP BY attack_date, model
-         ORDER BY attack_date ASC, launched DESC`
+           AND date >= ${windowStartSql(endDateSql, days)}
+           AND date <= date('${endDateSql}')
+         ORDER BY date ASC, launched DESC`
       );
       const out = new Map<string, ModelBreakdownEntry[]>();
       for (const r of rows) {
         const date = String(r.date);
         const list = out.get(date) ?? [];
-        list.push({ model: String(r.model), launched: num(r.launched), intercepted: num(r.destroyed) });
+        list.push(breakdownEntry(String(r.model), r));
         out.set(date, list);
       }
       return out;
@@ -360,9 +453,9 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
       if (!db) return new Map();
       const todayStr = getKyivDateString();
       const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
-      const rows = queryRows<{ date: string; category: string; launched: number | null; destroyed: number | null }>(
+      const rows = queryRows<{ date: string; category: string; launched: number | null; destroyed: number | null; hidden: number | null }>(
         db,
-        `SELECT date, category, launched, destroyed
+        `SELECT date, category, launched, destroyed, hidden
          FROM daily_by_category
          WHERE date >= ${windowStartSql(endDateSql, days)}
            AND date <= date('${endDateSql}')
@@ -374,11 +467,7 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
         if (!(ATTACK_DB_CATEGORIES as readonly string[]).includes(cat)) continue;
         const date = String(r.date);
         const list = out.get(date) ?? [];
-        list.push({
-          model: ATTACK_CATEGORY_LABELS[cat],
-          launched: num(r.launched),
-          intercepted: num(r.destroyed),
-        });
+        list.push(breakdownEntry(ATTACK_CATEGORY_LABELS[cat], r));
         out.set(date, list);
       }
       return out;
@@ -390,11 +479,12 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
   const queryMonthlyAggBreakdown = useCallback(
     (): Map<string, ModelBreakdownEntry[]> => {
       if (!db) return new Map();
-      const rows = queryRows<{ month: string; category: string; launched: number | null; destroyed: number | null }>(
+      const rows = queryRows<{ month: string; category: string; launched: number | null; destroyed: number | null; hidden: number | null }>(
         db,
         `SELECT substr(date, 1, 7) AS month, category,
                 SUM(launched)  AS launched,
-                SUM(destroyed) AS destroyed
+                SUM(destroyed) AS destroyed,
+                SUM(hidden)    AS hidden
          FROM daily_by_category
          GROUP BY month, category
          ORDER BY month ASC, launched DESC`
@@ -405,11 +495,7 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
         if (!(ATTACK_DB_CATEGORIES as readonly string[]).includes(cat)) continue;
         const month = String(r.month);
         const list = out.get(month) ?? [];
-        list.push({
-          model: ATTACK_CATEGORY_LABELS[cat],
-          launched: num(r.launched),
-          intercepted: num(r.destroyed),
-        });
+        list.push(breakdownEntry(ATTACK_CATEGORY_LABELS[cat], r));
         out.set(month, list);
       }
       return out;
@@ -425,12 +511,13 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
     (cat: AttackDbCategory): Map<string, ModelBreakdownEntry[]> => {
       if (!db) return new Map();
       const safe = cat.replace(/'/g, "''");
-      const rows = queryRows<{ month: string; model: string; launched: number | null; destroyed: number | null }>(
+      const rows = queryRows<{ month: string; model: string; launched: number | null; destroyed: number | null; hidden: number | null }>(
         db,
-        `SELECT substr(attack_date, 1, 7) AS month, model,
+        `SELECT substr(date, 1, 7) AS month, model,
                 SUM(launched)  AS launched,
-                SUM(destroyed) AS destroyed
-         FROM missile_attacks_latest
+                SUM(destroyed) AS destroyed,
+                SUM(hidden)    AS hidden
+         FROM daily_by_model_category
          WHERE category = '${safe}'
          GROUP BY month, model
          ORDER BY month ASC, launched DESC`
@@ -439,7 +526,7 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
       for (const r of rows) {
         const month = String(r.month);
         const list = out.get(month) ?? [];
-        list.push({ model: String(r.model), launched: num(r.launched), intercepted: num(r.destroyed) });
+        list.push(breakdownEntry(String(r.model), r));
         out.set(month, list);
       }
       return out;

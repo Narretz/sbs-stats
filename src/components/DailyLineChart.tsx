@@ -127,27 +127,50 @@ function fmtEod(e: EodEstimate): ReactNode {
 // Prose-only footer: the warning note lives below the TooltipTable, not
 // inside its row grid. EoD estimates used to live here too but moved into
 // the table so their projected + fraction align with the actual columns.
-function NoteFooter({ d, t }: { d: PairedRow; t: Theme }) {
-  if (!d.note) return null;
+function NoteFooter({ note, t }: { note?: string; t: Theme }) {
+  if (!note) return null;
   return (
     <div style={{ color: chartColors(t).noteText, fontSize: 10, marginTop: 6, maxWidth: 280, whiteSpace: "pre-line" }}>
-      ⚠ {d.note}
+      ⚠ {note}
     </div>
   );
 }
 
+// Recharts drops null points from the tooltip payload, so a date where every
+// series is null — no data at all, or counts upstream withheld — would render
+// an empty tooltip and leave the gap in the line unexplained. When such a date
+// carries a note, show the note on its own; that gap is exactly where the
+// reader most needs to know it isn't a zero.
+function GapTooltip({ label, noteByDate, t }: {
+  label?: string | number;
+  noteByDate?: Map<string, string>;
+  t: Theme;
+}) {
+  const note = typeof label === "string" ? noteByDate?.get(label) : undefined;
+  if (!note) return null;
+  return (
+    <TooltipCard header={formatDate(label as string)} minWidth={180}>
+      <NoteFooter note={note} t={t} />
+    </TooltipCard>
+  );
+}
+
 function SingleTooltip({
-  active, payload, t, primaryColor, primaryLabel, breakdownByDate, subsetLabel,
+  active, payload, label, noteByDate, t, primaryColor, primaryLabel, breakdownByDate, subsetLabel,
 }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
+  label?: string | number;
+  noteByDate?: Map<string, string>;
   t: Theme;
   primaryColor: string;
   primaryLabel: string;
   breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
   subsetLabel?: string;
 }) {
-  if (!active || !payload?.length || !payload[0].payload) return null;
+  if (!active) return null;
+  if (!payload?.length || !payload[0].payload)
+    return <GapTooltip label={label} noteByDate={noteByDate} t={t} />;
   const d = payload[0].payload;
   const entries = breakdownByDate?.get(d.date) ?? [];
   const rows: TooltipTableRow[] = [
@@ -158,18 +181,20 @@ function SingleTooltip({
   }
   rows.push(...breakdownToRows(entries, t.textMuted, { totalForShare: typeof d.value === "number" ? d.value : undefined }));
   return (
-    <TooltipCard header={formatDate(d.date)} minWidth={180} footer={<NoteFooter d={d} t={t} />}>
+    <TooltipCard header={formatDate(d.date)} minWidth={180} footer={<NoteFooter note={d.note} t={t} />}>
       <TooltipTable rows={rows} subsetLabel={subsetLabel} />
     </TooltipCard>
   );
 }
 
 function PairedTooltip({
-  active, payload, t, primaryColor, primaryLabel, secondaryLabel, pairMode,
+  active, payload, label, noteByDate, t, primaryColor, primaryLabel, secondaryLabel, pairMode,
   primaryIsDiff, breakdownByDate, subsetLabel,
 }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
+  label?: string | number;
+  noteByDate?: Map<string, string>;
   t: Theme;
   primaryColor: string;
   primaryLabel: string;
@@ -179,7 +204,9 @@ function PairedTooltip({
   breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
   subsetLabel?: string;
 }) {
-  if (!active || !payload?.length || !payload[0].payload) return null;
+  if (!active) return null;
+  if (!payload?.length || !payload[0].payload)
+    return <GapTooltip label={label} noteByDate={noteByDate} t={t} />;
   const d = payload[0].payload;
   const v = d.value;
   const v2 = d.value2;
@@ -267,7 +294,7 @@ function PairedTooltip({
   rows.push(...breakdownToRows(entries, t.textMuted, { totalForShare: typeof v === "number" ? v : undefined }));
 
   return (
-    <TooltipCard header={formatDate(d.date)} minWidth={240} footer={<NoteFooter d={d} t={t} />}>
+    <TooltipCard header={formatDate(d.date)} minWidth={240} footer={<NoteFooter note={d.note} t={t} />}>
       <TooltipTable rows={rows} subsetLabel={subsetLabel} />
     </TooltipCard>
   );
@@ -301,6 +328,15 @@ export function DailyLineChart({
   const hitFill = t.primary;
   const resolvedPrimaryLabel = primaryLabel ?? (hasPair ? "Hit" : title);
   const resolvedSecondaryLabel = label2 ?? "Destroyed";
+
+  // Notes keyed by date, so a date whose every series is null can still show
+  // its caveat (recharts hands the tooltip only the x label in that case).
+  const noteByDate = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const d of data) if (d.note) m.set(d.date, d.note);
+    for (const d of data2 ?? []) if (d.note && !m.has(d.date)) m.set(d.date, d.note);
+    return m;
+  }, [data, data2]);
 
   const chartData = useMemo(() => {
     const trend1 = linearRegression(data);
@@ -385,12 +421,20 @@ export function DailyLineChart({
               domain={[0, (dataMax: number) => Math.max(dataMax, yMax)]} />
             <Tooltip
               allowEscapeViewBox={{ x: false, y: true }}
-              wrapperStyle={{ zIndex: 9999 }}
+              // Recharts hides the wrapper whenever the payload is empty —
+              // precisely the all-null date GapTooltip exists to explain. The
+              // content function below already returns null when there is
+              // nothing to show (leaving an empty, zero-size wrapper), so
+              // owning visibility here reveals the gap note without ever
+              // painting a stray tooltip.
+              wrapperStyle={{ zIndex: 9999, visibility: "visible" }}
               cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
               content={(props) => (
                 <PairedTooltip
                   active={props.active}
                   payload={props.payload as TooltipPayloadEntry[] | undefined}
+                  label={props.label}
+                  noteByDate={noteByDate}
                   t={t}
                   primaryColor={hitFill}
                   primaryLabel={resolvedPrimaryLabel}
@@ -421,12 +465,20 @@ export function DailyLineChart({
               domain={[0, (dataMax: number) => Math.max(dataMax, max)]} />
             <Tooltip
               allowEscapeViewBox={{ x: false, y: true }}
-              wrapperStyle={{ zIndex: 9999 }}
+              // Recharts hides the wrapper whenever the payload is empty —
+              // precisely the all-null date GapTooltip exists to explain. The
+              // content function below already returns null when there is
+              // nothing to show (leaving an empty, zero-size wrapper), so
+              // owning visibility here reveals the gap note without ever
+              // painting a stray tooltip.
+              wrapperStyle={{ zIndex: 9999, visibility: "visible" }}
               cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
               content={(props) => (
                 <SingleTooltip
                   active={props.active}
                   payload={props.payload as TooltipPayloadEntry[] | undefined}
+                  label={props.label}
+                  noteByDate={noteByDate}
                   t={t}
                   primaryColor={primaryColor}
                   primaryLabel={resolvedPrimaryLabel}

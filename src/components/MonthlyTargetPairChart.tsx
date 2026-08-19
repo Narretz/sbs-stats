@@ -21,6 +21,10 @@ export interface MonthlyTargetPairDataPoint {
   destroyed_projected?: number;
   projection_day?: number;
   projection_days_in_month?: number;
+  /** Optional caveat (e.g. this month contains attacks reported without
+   *  figures). Outlines the bar and shows the text under the tooltip rows —
+   *  same treatment MonthlyBarChart gives its notes. */
+  note?: string;
 }
 
 interface Props {
@@ -106,8 +110,13 @@ const MonthlyPairTooltip = ({
     </div>
     </>
   ) : d.date;
+  const footer = d.note ? (
+    <div style={{ color: t.textImportant, fontSize: 10, marginTop: 6, maxWidth: 240 }}>
+      ⚠ {d.note}
+    </div>
+  ) : null;
   return (
-    <TooltipCard header={header} minWidth={240}>
+    <TooltipCard header={header} minWidth={240} footer={footer}>
       <TooltipTable rows={rows} subsetLabel={subsetLabel} />
     </TooltipCard>
   );
@@ -206,8 +215,14 @@ export function MonthlyTargetPairChart({
           />
 
           <Bar dataKey="hit_value" stackId="hit" name={primaryLabel}>
-            {data.map((_, i) => (
-              <Cell key={`hit-val-${i}`} fill={i === lastIdx ? c.barCurrent : c.damaged} />
+            {data.map((d, i) => (
+              <Cell
+                key={`hit-val-${i}`}
+                fill={i === lastIdx ? c.barCurrent : c.damaged}
+                stroke={d.note ? c.noteText : undefined}
+                strokeWidth={d.note ? 1.5 : undefined}
+                strokeDasharray={d.note ? "3 2" : undefined}
+              />
             ))}
           </Bar>
           <Bar dataKey="hit_gap" stackId="hit" name={`${primaryLabel} Projected`} radius={[3, 3, 0, 0]}>

@@ -109,11 +109,61 @@ function buildGsua(SQL) {
   db.close();
 }
 
+// ── RU air attacks: append-versioned `missile_attacks` + the `_latest` view ────
+// Small by design: enough days to draw a line, plus the two cases the
+// disclosure handling has to tell apart on the *same* chart —
+//   day -2: ballistic 0 launched, disclosed  → a real zero, plots at 0
+//   day -1: ballistic withheld upstream      → unknown, plots as a gap
+// piterfm writes a placeholder 0 for the withheld row too, so a fixture that
+// only had one of these cases couldn't catch the two being confused.
+function buildRuAirAttacks(SQL) {
+  const db = new SQL.Database();
+  db.run(`
+    CREATE TABLE missile_attacks (
+      time_start TEXT, time_end TEXT, model TEXT, launch_place TEXT, target TEXT,
+      launched INTEGER, destroyed INTEGER, source TEXT,
+      attack_date TEXT, category TEXT, scraped_at TEXT, status_data TEXT DEFAULT ''
+    );
+    CREATE VIEW missile_attacks_latest AS
+      SELECT t.* FROM missile_attacks t JOIN (
+        SELECT time_start, time_end, model, launch_place, target, source, MAX(scraped_at) ms
+        FROM missile_attacks
+        GROUP BY time_start, time_end, model, launch_place, target, source
+      ) l ON t.time_start = l.time_start AND t.time_end = l.time_end AND t.model = l.model
+         AND t.launch_place = l.launch_place AND t.target = l.target AND t.source = l.source
+         AND t.scraped_at = l.ms;
+  `);
+  const cols = ["time_start", "time_end", "model", "launch_place", "target",
+    "launched", "destroyed", "source", "attack_date", "category", "scraped_at", "status_data"];
+  const ins = db.prepare(`INSERT INTO missile_attacks (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`);
+  const row = (date, model, category, launched, destroyed, status = "") =>
+    ins.run([`${date} 18:00`, `${date} 09:00`, model, "Kursk oblast", "Kyiv oblast",
+      launched, destroyed, `synthetic-${date}-${model}`, date, category, `${date}T12:00:00+00:00`, status]);
+
+  for (let d = HISTORY_DAYS; d >= 1; d--) {
+    const date = dayISO(-d);
+    row(date, "Shahed-136/131", "drone", 100 + d, 90 + d);
+    row(date, "X-101", "cruise", 10, 5);
+    if (d === 1) {
+      // Withheld: reported, but no figures — the 0s here are placeholders.
+      row(date, "Iskander-M and 3M22 Zircon", "ballistic", 0, 0, "hidden");
+    } else if (d === 2) {
+      row(date, "Iskander-M", "ballistic", 0, 0); // genuinely nothing launched
+    } else {
+      row(date, "Iskander-M", "ballistic", d, 1);
+    }
+  }
+  ins.free();
+  fs.writeFileSync(path.join(FIX_DIR, "ru-air-attacks-gsua.db"), Buffer.from(db.export()));
+  db.close();
+}
+
 export async function buildFixtures() {
   fs.mkdirSync(FIX_DIR, { recursive: true });
   const SQL = await initSqlJs({ locateFile: (f) => path.join(ROOT, "node_modules/sql.js/dist", f) });
   buildSbs(SQL);
   buildGsua(SQL);
+  buildRuAirAttacks(SQL);
 }
 
 // Run the build when invoked directly (`node e2e/build-fixtures.mjs`).

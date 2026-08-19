@@ -15,6 +15,7 @@ import {
   ATTACK_CATEGORY_LABELS,
   ATTACK_DB_CATEGORIES,
   FEATURED_MODELS,
+  UNDISCLOSED_PARTIAL_NOTE,
   type AttackCategoryKey,
   type AttackDbCategory,
   type ModelBreakdownEntry,
@@ -86,6 +87,15 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
   }, [allRows, allModelRows]);
 
   const endMonth = resolvedEndMonth();
+  // Months containing attacks UA reported without figures hold a real partial
+  // sum, so the bar still renders — flagged as a lower bound rather than
+  // blanked. "all" is a lower bound whenever any category was withheld.
+  const undisclosedNote = (d: RuAirAttacksMonthlyRow, key: AttackCategoryKey): string | undefined => {
+    const withheld = d.undisclosed ?? [];
+    if (!withheld.length) return undefined;
+    if (key === "all" || withheld.includes(key as AttackDbCategory)) return UNDISCLOSED_PARTIAL_NOTE;
+    return undefined;
+  };
   const makeDataset = (key: AttackCategoryKey): MonthlyDataPoint[] =>
     padTrailingMonthly(
       rows.map((d) => {
@@ -94,6 +104,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
         return {
           date: d.date,
           value,
+          note: undisclosedNote(d, key),
           gap: projected != null && value != null ? projected - value : undefined,
           projected,
           projection_day: d.projection_day ?? undefined,
@@ -114,6 +125,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
       const interceptedProjected = d[`${key}_intercepted_projected`];
       return {
         date: d.date,
+        note: undisclosedNote(d, key),
         hit_value: launched,
         hit_gap: launchedProjected != null ? launchedProjected - launched : undefined,
         hit_projected: launchedProjected,

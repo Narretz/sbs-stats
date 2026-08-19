@@ -54,6 +54,29 @@ in the query layer (see the views below).
   migration run doesn't re-version the whole dataset; rows upstream actually
   backfills differ for real and get a new version like any other edit.
 
+## `status_data` — attacks reported without figures
+
+Ukraine's Air Force stopped publishing exact ballistic-missile launched /
+intercepted figures on 2026-08-13, citing operational security. piterfm added
+`status_data` for this: a row flagged `'hidden'` is an attack that *was*
+reported (types, launch areas, targets) with the counts withheld. The CSV has
+no null for that, so it carries a placeholder `0` in `launched` / `destroyed` —
+indistinguishable from a real zero to anything that just sums the column.
+
+The ingest stores the flag verbatim, alongside the placeholder, so the table
+keeps mirroring upstream. **Resolving it is a read-side job**: the frontend
+(`src/hooks/useDatabaseRuAirAttacks.ts`) rebuilds the aggregate views over its
+in-memory copy so hidden rows contribute `NULL` rather than `0`, and carries a
+per-group `hidden` count. A withheld day then charts as a gap instead of a drop
+to zero, tooltips read "not disclosed", and monthly bars that contain one are
+flagged as lower bounds. `e2e/undisclosed-counts.spec.ts` guards the case that
+actually matters: a withheld day and a genuinely quiet day staying
+distinguishable, since both hold a literal 0 in the DB.
+
+Note the consequence for anyone querying `ru-air-attacks-gsua.db` directly: the
+`daily_*` views *in the file* still sum the placeholder, so they understate
+ballistic totals from 2026-08-13 on. Filter on `status_data` when reading them.
+
 ## Derived columns
 
 Added by the build (not in the CSV):
