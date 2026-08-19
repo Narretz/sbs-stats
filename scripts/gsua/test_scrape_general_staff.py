@@ -812,6 +812,41 @@ class TestMetrics:
         s = self._parse("Вчора противник завдав одного ракетного удару.")
         assert s.missile_strikes == 1
 
+    def test_missile_strikes_apostrophe_word(self):
+        # 2024-05-19: "завдав п'ять ракетних ударів" — apostrophe number word
+        # the old `(\w+)` capture stopped at.
+        s = self._parse("Вчора противник завдав п'ять ракетних ударів.")
+        assert s.missile_strikes == 5
+
+    def test_missile_strikes_singular_no_number(self):
+        # 2026-08-10: the GS dropped the "одного" — "завдав  ракетного удару"
+        # (note the double space). Singular form ⇒ exactly one strike.
+        s = self._parse(
+            "Вчора противник завдав  ракетного удару із застосуванням однієї ракети."
+        )
+        assert s.missile_strikes == 1
+        assert s.missiles_used == 1
+
+    def test_missile_strikes_doubled_verb_typo(self):
+        # 2026-03-08: "завдавав одного ракетного удару" — verb typo; the count
+        # is still adjacent to the strike noun.
+        s = self._parse("Вчора противник завдавав одного ракетного удару.")
+        assert s.missile_strikes == 1
+
+    def test_missile_strikes_behind_air_clause(self):
+        # The missile count can sit behind another clause — its number is still
+        # adjacent to "ракетного удару", so dropping the "завдав" anchor catches
+        # it. (When each clause keeps its own noun, air_strikes parses too.)
+        s = self._parse("Противник завдав 60 авіаційних ударів та одного ракетного удару.")
+        assert s.missile_strikes == 1
+        assert s.air_strikes == 60
+
+    def test_missile_strikes_not_tripped_by_threat_mention(self):
+        # A "загроза ракетного удару" (threat) with no "завдав" must not be read
+        # as an actual strike.
+        s = self._parse("Зберігається загроза ракетного удару по тилових районах.")
+        assert s.missile_strikes is None
+
     def test_missiles_used_word_form(self):
         # msg 38098
         s = self._parse(

@@ -584,12 +584,29 @@ def parse_summary(text: str, msg: Message) -> DailySummary | None:
     s.combat_engagements = _parse_combat_engagements(text)
 
     # --- Missile strikes ---
-    # "2 ракетних удари" / "ракетних ударів — 2" / "одного ракетного удару"
+    # "2 ракетних удари" / "ракетних ударів — 2" / "одного ракетного удару".
+    # The word branch captures the number word DIRECTLY before "ракетн(ого)
+    # удар" — not anchored on "завдав" — so it also survives a doubled-verb typo
+    # ("завдавав одного…") and a combined clause ("завдав 51 авіаційного та
+    # одного ракетного удару"), where the count sits next to the strike noun
+    # even though the verb doesn't. The number word may carry an apostrophe
+    # ("п'ять ракетних ударів").
     s.missile_strikes = _extract_count(
         text,
         r"(\d[\d\s]*\d|\d)\s*ракетн(?:их|і|ий|ого|ому)\s*удар",
-        r"завдав\s+(\w+)\s+ракетн(?:их|і|ий|ого|ому)\s*удар",
+        r"([\w'ʼ’]+)\s+ракетн(?:их|і|ий|ого|ому)\s*удар",
     )
+    # The General Staff often writes the SINGULAR "завдав [одного] ракетного
+    # удару" and drops the number word "одного" (2026-08-10 even leaves the
+    # tell-tale double space). The singular adjective form (ого/ому/ий/им, not
+    # the plural их/і) means exactly one strike, so infer 1 when nothing parsed.
+    # Anchored on завдав so a "загроза ракетного удару"-style mention can't trip
+    # it. Won't fire on plural phrasings — those carry the count the branches
+    # above catch, and "ракетних" isn't in the singular set here.
+    if s.missile_strikes is None and re.search(
+        r"завдав\w*[^.]{0,40}?ракетн(?:ого|ому|ий|им)\s+удар", text, re.IGNORECASE
+    ):
+        s.missile_strikes = 1
 
     # --- Missiles used ---
     # Count of missiles the enemy launched. It always follows a "use" verb —
