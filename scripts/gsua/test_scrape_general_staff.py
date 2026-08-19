@@ -833,6 +833,23 @@ class TestMetrics:
         s = self._parse("Вчора противник завдавав одного ракетного удару.")
         assert s.missile_strikes == 1
 
+    def test_missile_strikes_shared_noun_coordination(self):
+        # The dominant 2024–2025 form: "N ракетних та M авіаційних ударів" —
+        # the noun "ударів" is shared, so "ракетних" has no "удар" beside it.
+        s = self._parse("Вчора противник завдав два ракетних та 64 авіаційних ударів.")
+        assert s.missile_strikes == 2
+        assert s.air_strikes == 64
+
+    def test_missile_strikes_shared_noun_word_air(self):
+        # 2025-09-03: both counts word-form, connector "та".
+        s = self._parse("Противник завдав три ракетних та три авіаційні удари.")
+        assert s.missile_strikes == 3
+
+    def test_missile_strikes_shared_noun_connector_i(self):
+        # Connector "і" instead of "та" (2025-04-10 etc.).
+        s = self._parse("Противник завдав двох ракетних і 106 авіаційних ударів.")
+        assert s.missile_strikes == 2
+
     def test_missile_strikes_behind_air_clause(self):
         # The missile count can sit behind another clause — its number is still
         # adjacent to "ракетного удару", so dropping the "завдав" anchor catches

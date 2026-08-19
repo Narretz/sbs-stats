@@ -596,6 +596,20 @@ def parse_summary(text: str, msg: Message) -> DailySummary | None:
         r"(\d[\d\s]*\d|\d)\s*ракетн(?:их|і|ий|ого|ому)\s*удар",
         r"([\w'ʼ’]+)\s+ракетн(?:их|і|ий|ого|ому)\s*удар",
     )
+    if s.missile_strikes is None:
+        # Shared-noun coordination — the DOMINANT 2024–2025 form. The strike
+        # noun "ударів" is shared with the air-strike count, so "ракетних" has
+        # no "удар" beside it: "завдав N ракетних та M авіаційних ударів". The
+        # missile count is the number right before "ракетн(их) (та|і|й) <air>
+        # авіаційн… удар". Very specific, so no false positives; air_strikes
+        # still parses its own "M авіаційних ударів" separately.
+        s.missile_strikes = _extract_count(
+            text,
+            r"(\d[\d\s]*\d|\d)\s+ракетн(?:их|і|е)\s+(?:та|і|й)\s+"
+            r"(?:\d[\d\s]*\d|\d|[\w'ʼ’]+)\s+авіаційн\w*\s*удар",
+            r"([\w'ʼ’]+)\s+ракетн(?:их|і|е)\s+(?:та|і|й)\s+"
+            r"(?:\d[\d\s]*\d|\d|[\w'ʼ’]+)\s+авіаційн\w*\s*удар",
+        )
     # The General Staff often writes the SINGULAR "завдав [одного] ракетного
     # удару" and drops the number word "одного" (2026-08-10 even leaves the
     # tell-tale double space). The singular adjective form (ого/ому/ий/им, not
