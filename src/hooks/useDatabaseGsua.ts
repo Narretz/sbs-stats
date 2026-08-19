@@ -432,12 +432,22 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
 
       const sql = `
         WITH latest_posts AS (
+          -- The date window is applied HERE, not in per_date_source_snap below.
+          -- latest_posts is referenced twice (here + the final join), so SQLite
+          -- MATERIALISES it; without the window it would SCAN all of posts (all
+          -- history) to resolve every post's latest version, then filter. With
+          -- the window it SEARCHes idx_posts_date for just the window's rows —
+          -- ~75 for 30 days vs ~2600 total — a big cut in httpvfs range fetches.
+          -- Safe: 'date' is invariant across a post's edit-versions, so the
+          -- filter never splits a (source, source_id) version chain.
           SELECT p.* FROM posts p
-          WHERE NOT EXISTS (
-            SELECT 1 FROM posts n
-            WHERE n.source = p.source AND n.source_id = p.source_id
-              AND n.scraped_at > p.scraped_at
-          )
+          WHERE p.date >= ${windowStartSql(endDateSql, days)}
+            AND p.date <= '${endDateSql}'
+            AND NOT EXISTS (
+              SELECT 1 FROM posts n
+              WHERE n.source = p.source AND n.source_id = p.source_id
+                AND n.scraped_at > p.scraped_at
+            )
         ),
         per_date_source_snap AS (
           -- One row per (date, source, snapshot_at), collapsing multipart posts;
@@ -445,9 +455,7 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
           SELECT date, source, snapshot_at,
                  MAX(combat_engagements) AS combat_engagements
           FROM latest_posts
-          WHERE date >= ${windowStartSql(endDateSql, days)}
-            AND date <= '${endDateSql}'
-            AND snapshot_at IS NOT NULL
+          WHERE snapshot_at IS NOT NULL
           GROUP BY date, source, snapshot_at
         ),
         best_per_date AS (
