@@ -73,9 +73,11 @@ flagged as lower bounds. `e2e/undisclosed-counts.spec.ts` guards the case that
 actually matters: a withheld day and a genuinely quiet day staying
 distinguishable, since both hold a literal 0 in the DB.
 
-Note the consequence for anyone querying `ru-air-attacks-gsua.db` directly: the
-`daily_*` views *in the file* still sum the placeholder, so they understate
-ballistic totals from 2026-08-13 on. Filter on `status_data` when reading them.
+The `daily_*` views in the file resolve it the same way (see **Views** below), so
+direct SQL against `ru-air-attacks-gsua.db` gets nulls too — but only from the
+first build that ran this code. The frontend keeps installing its own views over
+its in-memory copy regardless, so the site stays correct against a DB of any
+vintage rather than depending on when the workflow last ran.
 
 ## Derived columns
 
@@ -93,9 +95,22 @@ Added by the build (not in the CSV):
 
 - **`missile_attacks_latest`** — the table with only the latest `scraped_at` per
   natural key (what every other view reads from).
-- **`daily_totals`** — `date, launched, destroyed, rows` (sum over all models).
-- **`daily_by_model`** — `date, model, launched, destroyed`.
-- **`daily_by_category`** — `date, category, launched, destroyed`.
+- **`daily_totals`** — `date, launched, destroyed, rows, hidden` (sum over all models).
+- **`daily_by_model`** — `date, model, launched, destroyed, hidden`.
+- **`daily_by_category`** — `date, category, launched, destroyed, hidden`.
+
+All three resolve `status_data='hidden'` (see above): a withheld row contributes
+NULL rather than its placeholder 0, so `SUM` skips it and a group with nothing
+disclosed reads NULL — unknown — instead of zero. `hidden` counts the withheld
+rows behind each group, so a partial sum can be read as the lower bound it is.
+In `daily_totals`, `rows` still counts a withheld attack (one *was* reported),
+so `rows` can exceed what `launched` accounts for; `hidden` says by how many.
+
+The aggregates are DROPped and recreated on every build, not
+`CREATE VIEW IF NOT EXISTS`ed. An existing DB already carries them, so the
+IF-NOT-EXISTS form is a no-op there and would pin whatever definition the file
+was first built with — a change would never reach R2 and would fail silently.
+(Same shape as the `status_data` header break above: the migration that isn't.)
 
 ## DB output
 

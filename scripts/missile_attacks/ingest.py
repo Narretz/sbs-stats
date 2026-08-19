@@ -88,6 +88,16 @@ DATE_COL = "attack_date"
 # two); the only mixed bundles are cruise+ballistic, which we resolve to ballistic
 # (the higher-tier threat, and the bundle always includes an Iskander-class round).
 CATEGORY_COL = "category"
+
+# Upstream disclosure flag (piterfm, Aug 2026). `'hidden'` marks an attack that
+# WAS reported but whose launched/intercepted counts the Ukrainian Air Force
+# withheld — it stopped publishing ballistic-missile figures on 2026-08-13. The
+# CSV has no null for that, so such a row carries a placeholder 0 that is
+# indistinguishable from a real zero once summed. We store the row verbatim (the
+# table keeps mirroring upstream) and resolve it in the aggregate views, which
+# count those rows as NULL — unknown — rather than as nothing launched.
+STATUS_COL = "status_data"
+HIDDEN_STATUS = "hidden"
 DRONE_MODELS = {
     "Shahed-136/131", "Orlan-10", "Orlan-30", "ZALA", "Supercam", "Lancet",
     "Merlin-VR", "Mohajer-6", "Orion", "Forpost", "Eleron", "Granat-4", "Kub",
@@ -440,38 +450,69 @@ def _add_missing_columns(conn, all_cols, col_type) -> list[str]:
 
 
 def _create_views(conn, key_cols, value_cols):
-    """Latest-per-key view + daily aggregates over the latest snapshot."""
+    """Latest-per-key view + daily aggregates over the latest snapshot.
+
+    Every view is DROPped and recreated rather than `CREATE VIEW IF NOT EXISTS`ed.
+    An existing DB already carries all of them, so the IF-NOT-EXISTS form is a
+    no-op there and would pin whatever definition was current when the file was
+    first built — a change here would then never reach R2, failing silently.
+    (Same shape as the `status_data` header break: the migration that isn't.)
+
+    The aggregates resolve `status_data='hidden'` (see STATUS_COL): a withheld
+    row contributes NULL, so SUM skips it and a day with nothing else disclosed
+    reads NULL rather than 0. Each aggregate also carries a `hidden` count, so a
+    consumer can tell "no attacks" from "figures not published" and treat a
+    partial sum as the lower bound it is. Guarded on the column actually being
+    present, so a DB built before piterfm added it still gets valid views.
+    """
     grp = ", ".join(_ident(c) for c in key_cols)
     joinon = " AND ".join(f"t.{_ident(c)} = l.{_ident(c)}" for c in key_cols)
+
+    has_status = any(r[1] == STATUS_COL for r in conn.execute(f"PRAGMA table_info({TABLE})"))
+    is_hidden = f"{_ident(STATUS_COL)} = '{HIDDEN_STATUS}'" if has_status else "0"
+    # A withheld count is unknown, not zero: NULL keeps it out of SUM entirely.
+    def known(c: str) -> str:
+        return f"SUM(CASE WHEN {is_hidden} THEN NULL ELSE {c} END)"
+
+    hidden_n = f"SUM(CASE WHEN {is_hidden} THEN 1 ELSE 0 END)"
+
+    for v in (f"{TABLE}_latest", "daily_totals", "daily_by_model", "daily_by_category"):
+        conn.execute(f"DROP VIEW IF EXISTS {v}")
+
     conn.execute(
-        f"CREATE VIEW IF NOT EXISTS {TABLE}_latest AS "
+        f"CREATE VIEW {TABLE}_latest AS "
         f"SELECT t.* FROM {TABLE} t "
         f"JOIN (SELECT {grp}, MAX(scraped_at) ms FROM {TABLE} GROUP BY {grp}) l "
         f"ON {joinon} AND t.scraped_at = l.ms"
     )
     # Daily totals (attribute each attack to the date of its time_start).
+    # `rows` still counts withheld attacks — one was reported — so `rows` can
+    # exceed what `launched` accounts for; `hidden` says by how many.
     conn.execute(
-        f"CREATE VIEW IF NOT EXISTS daily_totals AS "
+        f"CREATE VIEW daily_totals AS "
         f"SELECT {_ident(DATE_COL)} AS date, "
-        f"       SUM(launched)  AS launched, "
-        f"       SUM(destroyed) AS destroyed, "
-        f"       COUNT(*)       AS rows "
+        f"       {known('launched')}  AS launched, "
+        f"       {known('destroyed')} AS destroyed, "
+        f"       COUNT(*)             AS rows, "
+        f"       {hidden_n}           AS hidden "
         f"FROM {TABLE}_latest GROUP BY {_ident(DATE_COL)}"
     )
     conn.execute(
-        f"CREATE VIEW IF NOT EXISTS daily_by_model AS "
+        f"CREATE VIEW daily_by_model AS "
         f"SELECT {_ident(DATE_COL)} AS date, model, "
-        f"       SUM(launched)  AS launched, "
-        f"       SUM(destroyed) AS destroyed "
+        f"       {known('launched')}  AS launched, "
+        f"       {known('destroyed')} AS destroyed, "
+        f"       {hidden_n}           AS hidden "
         f"FROM {TABLE}_latest GROUP BY {_ident(DATE_COL)}, model"
     )
     # Daily launched/intercepted per weapon category — the frontend's main source
     # (drone / cruise / ballistic / other; combined = sum across categories).
     conn.execute(
-        f"CREATE VIEW IF NOT EXISTS daily_by_category AS "
+        f"CREATE VIEW daily_by_category AS "
         f"SELECT {_ident(DATE_COL)} AS date, {_ident(CATEGORY_COL)} AS category, "
-        f"       SUM(launched)  AS launched, "
-        f"       SUM(destroyed) AS destroyed "
+        f"       {known('launched')}  AS launched, "
+        f"       {known('destroyed')} AS destroyed, "
+        f"       {hidden_n}           AS hidden "
         f"FROM {TABLE}_latest GROUP BY {_ident(DATE_COL)}, {_ident(CATEGORY_COL)}"
     )
 
