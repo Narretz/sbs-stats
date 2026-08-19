@@ -309,11 +309,28 @@ The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:
   misleading "losses" line; recoverable by stacking the split).
 - **Data access:** Kaggle-only, HTTP Basic auth via KAGGLE_USERNAME / KAGGLE_KEY (`.env.kaggle`,
   gitignored) — same mechanism as piterfm §2. `--xlsx <path>` ingests a local workbook without creds.
-- **Person-level detail (future / not built):** the 212k-row `Database` sheet carries per-person
-  identity + status + rank/unit/oblast/nationality. Matching persons across versions proves
-  *individual* transitions (v14→v19: 6,439 missing→dead, 1,826 missing→POW, 764 POW→released, …).
-  A wartears-style versioned `persons` table would enable per-person transition tracking + the
-  demographic breakdowns — a much larger ingest, deferred.
+- **Person-level breakout (future / not built):** the 212k-row `Database` sheet carries per-person
+  identity + status + rank/unit/oblast/nationality (plus a `namefile` slug + link). Matching persons
+  across versions proves *individual* transitions (v14→v19: 6,439 missing→dead, 1,826 missing→POW,
+  764 POW→released, plus small correction reversals). A wartears-style **versioned `persons` table**
+  (keyed by identity, ~200k rows, append-on-`updated`) would enable per-person transition tracking
+  AND demographic breakdowns (by rank / branch / oblast / nationality / age) as new views —
+  everything the daily aggregate can't express. Much larger ingest (~200k-row streamed parse per
+  version, schema-adaptive across the version drift noted above); deferred.
+- **Cross-check "missing" vs the live MVS registry (research idea / heavy caveats):** ualosses
+  deep-links each missing person to Ukraine's MVS «безвісти» (missing-without-trace) registry at
+  `wanted.mvs.gov.ua/searchbezvesti` via a pre-filled search (`PRUFM`/`PRUIM`/`PRUOT` = surname /
+  name / patronymic, plus `BIRTH_DATE1` + `LOST_DATE1`). That registry is the authoritative
+  government "still actively searched" list, so a person who has **dropped off it** has likely been
+  resolved (found alive or identified dead). Cross-referencing our `missing` cohort against it could
+  (a) flag ualosses `missing` records that are already stale, and (b) give an independent, faster
+  signal on the missing→resolved transition than ualosses' ~bimonthly refresh. **Why it's an idea,
+  not a near-term ingest:** the registry is search-only (no per-record permalink — the deep link
+  lands on a filtered list, not a card), sits behind a WAF (403s automated fetches), matches only on
+  fuzzy П.І.Б.+DOB (transliteration / DOB corrections break joins), and is a government site holding
+  sensitive personal data — scraping it is invasive and legally/ethically weighty (cf. lostarmour
+  §5). Absence from the registry isn't a clean signal either (records can be removed for reasons
+  other than resolution). Treat as a **manual cross-check** at most until access terms are clear.
 - **NOT productionized:** no CI workflow + no R2 object yet (local `--xlsx` / `--version` only), and
   no dedicated site page (combined-charts only). Follow scripts/ru_losses + update-ru-losses-db.yml
   for the CI/R2 pattern.
@@ -532,8 +549,10 @@ Open work / candidate sources still on the board:
 - **UALosses (Ukrainian personnel losses)** (§5) — ingest built (`scripts/ua_losses/`) + wired into
   the combined charts (status split: dead/missing/POW/released), but NOT productionized: needs a
   Kaggle-pull CI workflow + R2 upload, and optionally a dedicated site page. Backfilling the Kaggle
-  version history reconstructs the status-reclassification history; the per-person `Database` sheet
-  (transitions + demographics) is a larger follow-on ingest.
+  version history reconstructs the status-reclassification history. Two follow-ons (see §5):
+  breaking out the per-person `Database` sheet (individual transitions + demographic views), and a
+  cross-check of `missing` records against the live MVS «безвісти» registry to spot already-resolved
+  cases (search-only + WAF + fuzzy-match caveats — a research idea, not a clean ingest).
 - **GSUA-Telegram-direct cumulative loss summaries** (§3 REVISIT) — same upstream channel
   the GSUA attacks scraper already targets, but the loss-summary posts are filtered out.
   Adding a second recogniser would give a parallel third source for §1, redundant with
