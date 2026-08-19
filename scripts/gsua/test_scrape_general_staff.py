@@ -819,6 +819,53 @@ class TestMetrics:
         )
         assert s.missiles_used == 1
 
+    def test_missiles_used_verb_form(self):
+        # The common phrasing the instrumental-only pattern missed: the count
+        # follows the VERB застосував/застосувавши, not "застосуванням".
+        # 2026-08-03: "завдав двох ракетних ударів, застосував три ракети".
+        s = self._parse("Завдав двох ракетних ударів, застосував три ракети.")
+        assert s.missile_strikes == 2
+        assert s.missiles_used == 3
+
+    def test_missiles_used_verb_form_singular(self):
+        # 2026-08-06: "застосувавши одну ракету".
+        s = self._parse("Завдав одного ракетного удару, застосувавши одну ракету.")
+        assert s.missiles_used == 1
+
+    def test_missiles_used_apostrophe_word(self):
+        # Number word carrying an apostrophe, genitive-plural noun ending.
+        s = self._parse("Застосував дев'ять ракет по позиціях наших військ.")
+        assert s.missiles_used == 9
+
+    def test_missiles_used_not_confused_with_strikes(self):
+        # "N ракетних ударів" is the STRIKE count — it must NOT leak into
+        # missiles_used when no missile count is stated.
+        s = self._parse("Учора противник завдав трьох ракетних ударів.")
+        assert s.missile_strikes == 3
+        assert s.missiles_used is None
+
+    def test_missiles_used_digit_after_use_verb(self):
+        # 2026-07-06: "застосував 71 ракету" (accusative singular ending -у).
+        s = self._parse("Завдав одного ракетного удару, застосував 71 ракету.")
+        assert s.missiles_used == 71
+
+    def test_missiles_used_alternate_use_verb(self):
+        # Rarer but real use verbs (використавши / випустив / задіявши).
+        s = self._parse("Противник випустив 12 ракет по позиціях наших військ.")
+        assert s.missiles_used == 12
+
+    def test_missiles_used_ignores_destroyed_missiles(self):
+        # The equipment-loss list counts enemy missiles DESTROYED by our forces
+        # ("знешкоджено N ракет") — a bare noun with no use verb. It must NOT be
+        # read as missiles used. Here the enemy launched (2 strikes) but the
+        # report never states how many missiles, so missiles_used stays None.
+        s = self._parse(
+            "Завдав двох ракетних ударів. Також українські воїни знешкодили "
+            "два танки, 13 ракет та 440 безпілотних літальних апаратів."
+        )
+        assert s.missile_strikes == 2
+        assert s.missiles_used is None
+
     def test_kamikaze_drones_en_dash(self):
         # msg 38096 — "дронів–камікадзе" with U+2013
         s = self._parse("Задіяв для ураження 5360 дронів–камікадзе.")

@@ -592,11 +592,22 @@ def parse_summary(text: str, msg: Message) -> DailySummary | None:
     )
 
     # --- Missiles used ---
-    # "застосувавши 3 ракети" / "із застосуванням однієї ракети"
+    # Count of missiles the enemy launched. It always follows a "use" verb —
+    # usually застосував/застосувавши/застосуванням, rarely використавши /
+    # випустив / задіявши — so BOTH branches anchor on that verb set. The
+    # anchor is essential, not cosmetic: the bare noun "N ракет" reappears later
+    # in the equipment-loss list ("знешкоджено 13 ракет" = enemy missiles
+    # DESTROYED by our forces), and an unanchored digit match grabbed that on
+    # days with no launches. Digit ("застосував 31 ракету") and word forms
+    # ("застосував три ракети" / instrumental "застосуванням шести ракет", whose
+    # number word may carry an apostrophe) are both covered; an optional "понад"
+    # sits between verb and count. `ракет(?!н)` keeps it off "N ракетних ударів"
+    # — the missile STRIKE count, a separate metric.
+    _USE = r"(?:застосу|використ|випуст|задія)\w+\s+(?:понад\s+)?"
     s.missiles_used = _extract_count(
         text,
-        r"(\d[\d\s]*\d|\d)\s*ракет[иі]?\b",
-        r"застосуванням\s+(\w+)\s+ракет",
+        _USE + r"(\d[\d\s]*\d|\d)\s*ракет(?!н)",
+        _USE + r"([\w'ʼ’]+)\s+ракет(?!н)",
     )
 
     # --- Air strikes ---
