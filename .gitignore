@@ -57,6 +57,8 @@ scripts/ru_mod/output/
 scripts/wartears/output/
 # Mediazona ingest local artifacts
 scripts/mediazona/output/
+# UA losses ingest local artifacts
+scripts/ua_losses/output/
 .pytest_cache/
 
 # SBU Alfa: article HTMLs are mirror copies, re-fetchable via ingest.py — too
