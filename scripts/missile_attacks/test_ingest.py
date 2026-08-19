@@ -377,3 +377,66 @@ class TestWithheldCounts:
         conn = sqlite3.connect(tmp_path / "old.db")
         assert _rows(conn, "SELECT hidden FROM daily_by_category WHERE date='2024-11-20'") == [(0,)]
         conn.close()
+
+
+# ── CI visibility when the upstream header grows ──────────────────────────────
+# Migrating a new column is only half the job — someone has to look at what it
+# means. `status_data` was migrated silently in Aug 2026 and nobody looked until
+# its placeholder 0s had been charted as real zeros. These lock in that the run
+# says so out loud, and that it stays quiet outside Actions.
+class TestHeaderGrowthAnnotation:
+    # Same rows as CSV_V1 with one column appended — the shrink guard rejects a
+    # download that drops keys, so header growth has to be tested on its own.
+    CSV_GROWN = "\n".join(
+        [CSV_V1.splitlines()[0] + ",status_data"]
+        + [line + ("," if i else ",hidden")
+           for i, line in enumerate(CSV_V1.splitlines()[1:])]
+    )
+
+    def _grow(self, tmp_path, monkeypatch, capsys, **env):
+        _build(tmp_path, CSV_V1)  # DB exists with the old header
+        for k, v in env.items():
+            monkeypatch.setenv(k, v)
+        capsys.readouterr()
+        _build(tmp_path, self.CSV_GROWN)
+        return capsys.readouterr()
+
+    def test_emits_a_workflow_warning_in_actions(self, tmp_path, monkeypatch, capsys):
+        out = self._grow(tmp_path, monkeypatch, capsys, GITHUB_ACTIONS="true")
+        line = next((l for l in out.out.splitlines() if l.startswith("::")), None)
+        assert line is not None, "no workflow command emitted"
+        assert line.startswith("::warning title=piterfm added a CSV column::")
+        assert "status_data" in line
+        # Workflow commands are parsed per line — a literal newline would
+        # truncate the annotation at the break.
+        assert "\n" not in line
+
+    def test_writes_a_job_summary_block(self, tmp_path, monkeypatch, capsys):
+        summary = tmp_path / "summary.md"
+        summary.write_text("")
+        self._grow(tmp_path, monkeypatch, capsys,
+                   GITHUB_ACTIONS="true", GITHUB_STEP_SUMMARY=str(summary))
+        text = summary.read_text()
+        assert "piterfm added a CSV column" in text
+        assert "status_data" in text
+
+    def test_silent_outside_actions(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+        out = self._grow(tmp_path, monkeypatch, capsys)
+        assert "::" not in out.out
+        assert "upstream header grew" in out.err  # the plain note still prints
+
+    def test_no_annotation_when_the_header_is_unchanged(self, tmp_path, monkeypatch, capsys):
+        _build(tmp_path, CSV_V1)
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+        capsys.readouterr()
+        _build(tmp_path, CSV_V1)
+        assert "::warning" not in capsys.readouterr().out
+
+    def test_no_annotation_on_a_first_build(self, tmp_path, monkeypatch, capsys):
+        # A fresh DB gets every column from CREATE TABLE, so nothing is "added" —
+        # a new dataset must not look like upstream drift.
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+        capsys.readouterr()
+        _build(tmp_path, CSV_V1, name="fresh.db")
+        assert "::warning" not in capsys.readouterr().out

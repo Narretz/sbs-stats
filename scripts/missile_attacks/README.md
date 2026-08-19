@@ -53,6 +53,15 @@ in the query layer (see the views below).
   pre-existing rows match the blank cell a fresh CSV carries for them and the
   migration run doesn't re-version the whole dataset; rows upstream actually
   backfills differ for real and get a new version like any other edit.
+  Under GitHub Actions the run also emits a `::warning::` annotation and a job
+  summary block naming the new column — migrating a column is not the same as
+  understanding it, and the run is the only moment anyone learns it appeared.
+  (`status_data` was migrated silently and nobody looked until its placeholder
+  0s had been charted as real zeros for a week.) Nothing is needed in the
+  workflow for this: annotations are picked up from the step's stdout. It's a
+  warning, not a failure, so a purely additive change can't block the DB update
+  and leave the data stale — but note that means it doesn't email anyone
+  either, so it's only seen by whoever opens the run.
 
 ## `status_data` — attacks reported without figures
 
