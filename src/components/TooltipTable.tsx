@@ -217,14 +217,27 @@ export function breakdownToRows(
 ): TooltipTableRow[] {
   const total = opts?.totalForShare;
   const hasShare = total != null && total > 0;
-  return entries.map((e, i) => ({
-    label: e.model,
-    color,
-    value: e.launched,
-    subset: e.intercepted,
-    share: hasShare ? (e.launched / total) * 100 : undefined,
-    separatorAbove: i === 0,
-  }));
+  return entries.map((e, i) => {
+    // An entry upstream withheld carries a placeholder 0. Say so rather than
+    // print it — and leave the subset/share cells empty, since a rate over a
+    // number nobody published would be fiction.
+    if (e.undisclosed) {
+      return {
+        label: e.model,
+        color,
+        value: <span style={{ fontSize: 11, opacity: 0.75 }}>not disclosed</span>,
+        separatorAbove: i === 0,
+      };
+    }
+    return {
+      label: e.model,
+      color,
+      value: e.launched,
+      subset: e.intercepted,
+      share: hasShare ? (e.launched / total) * 100 : undefined,
+      separatorAbove: i === 0,
+    };
+  });
 }
 
 export function TooltipCard({ header, footer, children, minWidth = 220 }: CardProps) {

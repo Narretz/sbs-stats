@@ -52,6 +52,11 @@ jobs:
       # floor; never fewer keys than already stored) or the CSV header drifted — so
       # a bad fetch fails this step and the upload below is skipped, leaving R2
       # untouched. stdlib only, so no pip install needed.
+      #
+      # A CSV column piterfm *adds* is migrated rather than fatal, but the step
+      # raises a ::warning:: annotation + job summary block naming it — see the
+      # README's `status_data` section for why that matters. Annotations are read
+      # off stdout, so nothing is configured here for it.
       - name: Build Missile Attacks DB
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}

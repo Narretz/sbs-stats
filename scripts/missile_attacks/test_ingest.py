@@ -291,3 +291,152 @@ def test_upstream_added_column_with_value_versions_the_row(tmp_path):
     assert got["Shahed-136/131"] == "confirmed"
     assert got["Iskander-M"] == ""
     conn.close()
+
+
+# ── status_data='hidden': attacks reported without figures ────────────────────
+# piterfm carries a placeholder 0 for a withheld count, so the raw row is
+# indistinguishable from a real zero. The aggregate views resolve it: withheld
+# rows contribute NULL (skipped by SUM) and are counted in `hidden`.
+HEADER_STATUS = HEADER + ",status_data"
+
+CSV_HIDDEN = "\n".join(
+    [
+        HEADER_STATUS,
+        # disclosed: a real zero — nothing launched, and we were told so
+        "2026-08-09 18:00:00,2026-08-10 09:00:00,Iskander-M,0,0,Kursk,Sumy,kpszsu/posts/a,",
+        "2026-08-09 18:00:00,2026-08-10 09:00:00,Shahed-136/131,100,90,Kursk,Kyiv,kpszsu/posts/a,",
+        # withheld: reported, figures not published — the 0s are placeholders
+        "2026-08-10 18:00:00,2026-08-11 09:00:00,Iskander-M and 3M22 Zircon,0,0,Kursk,Kyiv,kpszsu/posts/b,hidden",
+        "2026-08-10 18:00:00,2026-08-11 09:00:00,Shahed-136/131,200,180,Kursk,Kyiv,kpszsu/posts/b,",
+    ]
+)
+
+
+def _rows(conn, sql):
+    return conn.execute(sql).fetchall()
+
+
+class TestWithheldCounts:
+    def test_stored_row_keeps_the_placeholder_verbatim(self, tmp_path):
+        # The table mirrors upstream — resolving the flag is the views' job, and
+        # the append-only model forbids rewriting a stored row either way.
+        _build(tmp_path, CSV_HIDDEN)
+        conn = sqlite3.connect(tmp_path / "t.db")
+        row = _rows(conn, "SELECT launched, destroyed, status_data FROM missile_attacks_latest "
+                          "WHERE model = 'Iskander-M and 3M22 Zircon'")
+        assert row == [(0, 0, "hidden")]
+        conn.close()
+
+    def test_withheld_reads_null_but_a_disclosed_zero_reads_zero(self, tmp_path):
+        # The whole point: both carry a literal 0 in the table, and they must
+        # not come out of the views looking the same.
+        _build(tmp_path, CSV_HIDDEN)
+        conn = sqlite3.connect(tmp_path / "t.db")
+        by_cat = {
+            (d, c): (l, x, h)
+            for d, c, l, x, h in _rows(
+                conn, "SELECT date, category, launched, destroyed, hidden FROM daily_by_category")
+        }
+        assert by_cat[("2026-08-09", "ballistic")] == (0, 0, 0)      # disclosed zero
+        assert by_cat[("2026-08-10", "ballistic")] == (None, None, 1)  # withheld
+        conn.close()
+
+    def test_partial_day_keeps_the_disclosed_sum(self, tmp_path):
+        # A day with one withheld category and one disclosed still totals the
+        # disclosed part — a lower bound, flagged by `hidden`, not a blank.
+        _build(tmp_path, CSV_HIDDEN)
+        conn = sqlite3.connect(tmp_path / "t.db")
+        totals = {d: (l, r, h) for d, l, r, h in
+                  _rows(conn, "SELECT date, launched, rows, hidden FROM daily_totals")}
+        assert totals["2026-08-10"] == (200, 2, 1)  # drones only; `rows` still counts both
+        conn.close()
+
+    def test_views_are_rebuilt_on_an_existing_db(self, tmp_path):
+        # Regression guard for the silent no-op: the views are created by every
+        # build, and `CREATE VIEW IF NOT EXISTS` would keep whatever definition
+        # the file was first built with — so a change here would never reach a
+        # DB that already exists (i.e. the one in R2). Build once with the old
+        # shape in place, then confirm a rebuild replaces it.
+        _build(tmp_path, CSV_HIDDEN)
+        conn = sqlite3.connect(tmp_path / "t.db")
+        conn.execute("DROP VIEW daily_by_category")
+        conn.execute("CREATE VIEW daily_by_category AS SELECT 1 AS date, 2 AS category, "
+                     "3 AS launched, 4 AS destroyed")
+        conn.commit()
+        conn.close()
+
+        _build(tmp_path, CSV_HIDDEN)
+        conn = sqlite3.connect(tmp_path / "t.db")
+        cols = [d[0] for d in conn.execute("SELECT * FROM daily_by_category LIMIT 1").description]
+        assert "hidden" in cols
+        conn.close()
+
+    def test_views_are_valid_without_the_column(self, tmp_path):
+        # A DB built before piterfm added `status_data` must still get views.
+        _build(tmp_path, CSV_V1, name="old.db")
+        conn = sqlite3.connect(tmp_path / "old.db")
+        assert _rows(conn, "SELECT hidden FROM daily_by_category WHERE date='2024-11-20'") == [(0,)]
+        conn.close()
+
+
+# ── CI visibility when the upstream header grows ──────────────────────────────
+# Migrating a new column is only half the job — someone has to look at what it
+# means. `status_data` was migrated silently in Aug 2026 and nobody looked until
+# its placeholder 0s had been charted as real zeros. These lock in that the run
+# says so out loud, and that it stays quiet outside Actions.
+class TestHeaderGrowthAnnotation:
+    # Same rows as CSV_V1 with one column appended — the shrink guard rejects a
+    # download that drops keys, so header growth has to be tested on its own.
+    CSV_GROWN = "\n".join(
+        [CSV_V1.splitlines()[0] + ",status_data"]
+        + [line + ("," if i else ",hidden")
+           for i, line in enumerate(CSV_V1.splitlines()[1:])]
+    )
+
+    def _grow(self, tmp_path, monkeypatch, capsys, **env):
+        _build(tmp_path, CSV_V1)  # DB exists with the old header
+        for k, v in env.items():
+            monkeypatch.setenv(k, v)
+        capsys.readouterr()
+        _build(tmp_path, self.CSV_GROWN)
+        return capsys.readouterr()
+
+    def test_emits_a_workflow_warning_in_actions(self, tmp_path, monkeypatch, capsys):
+        out = self._grow(tmp_path, monkeypatch, capsys, GITHUB_ACTIONS="true")
+        line = next((l for l in out.out.splitlines() if l.startswith("::")), None)
+        assert line is not None, "no workflow command emitted"
+        assert line.startswith("::warning title=piterfm added a CSV column::")
+        assert "status_data" in line
+        # Workflow commands are parsed per line — a literal newline would
+        # truncate the annotation at the break.
+        assert "\n" not in line
+
+    def test_writes_a_job_summary_block(self, tmp_path, monkeypatch, capsys):
+        summary = tmp_path / "summary.md"
+        summary.write_text("")
+        self._grow(tmp_path, monkeypatch, capsys,
+                   GITHUB_ACTIONS="true", GITHUB_STEP_SUMMARY=str(summary))
+        text = summary.read_text()
+        assert "piterfm added a CSV column" in text
+        assert "status_data" in text
+
+    def test_silent_outside_actions(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+        out = self._grow(tmp_path, monkeypatch, capsys)
+        assert "::" not in out.out
+        assert "upstream header grew" in out.err  # the plain note still prints
+
+    def test_no_annotation_when_the_header_is_unchanged(self, tmp_path, monkeypatch, capsys):
+        _build(tmp_path, CSV_V1)
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+        capsys.readouterr()
+        _build(tmp_path, CSV_V1)
+        assert "::warning" not in capsys.readouterr().out
+
+    def test_no_annotation_on_a_first_build(self, tmp_path, monkeypatch, capsys):
+        # A fresh DB gets every column from CREATE TABLE, so nothing is "added" —
+        # a new dataset must not look like upstream drift.
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+        capsys.readouterr()
+        _build(tmp_path, CSV_V1, name="fresh.db")
+        assert "::warning" not in capsys.readouterr().out

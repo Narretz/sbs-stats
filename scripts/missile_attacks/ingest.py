@@ -88,6 +88,16 @@ DATE_COL = "attack_date"
 # two); the only mixed bundles are cruise+ballistic, which we resolve to ballistic
 # (the higher-tier threat, and the bundle always includes an Iskander-class round).
 CATEGORY_COL = "category"
+
+# Upstream disclosure flag (piterfm, Aug 2026). `'hidden'` marks an attack that
+# WAS reported but whose launched/intercepted counts the Ukrainian Air Force
+# withheld — it stopped publishing ballistic-missile figures on 2026-08-13. The
+# CSV has no null for that, so such a row carries a placeholder 0 that is
+# indistinguishable from a real zero once summed. We store the row verbatim (the
+# table keeps mirroring upstream) and resolve it in the aggregate views, which
+# count those rows as NULL — unknown — rather than as nothing launched.
+STATUS_COL = "status_data"
+HIDDEN_STATUS = "hidden"
 DRONE_MODELS = {
     "Shahed-136/131", "Orlan-10", "Orlan-30", "ZALA", "Supercam", "Lancet",
     "Merlin-VR", "Mohajer-6", "Orion", "Forpost", "Eleron", "Granat-4", "Kub",
@@ -407,6 +417,37 @@ def build(db_path: Path, header: list[str], rows: list[dict]) -> tuple[int, int,
     return len(to_insert), distinct, latest
 
 
+def _gh_notify(level: str, title: str, message: str) -> None:
+    """Surface something in the GitHub Actions UI; a no-op anywhere else.
+
+    Two channels, because a scheduled run is only ever read after the fact: an
+    annotation (shown at the top of the run and against the step) and a block in
+    the job summary (persisted as markdown on the run page). Workflow commands
+    are parsed from stdout and must be a single line, so newlines and the
+    property delimiters are percent-encoded per GitHub's escaping rules.
+
+    Note neither channel *notifies* anyone — only a failing job sends mail. That
+    is deliberate for the header-growth case: a new column is additive and
+    already migrated, so failing the run would block the DB update over a change
+    the ingest handled correctly, and the data would go stale while someone
+    works out what the column means.
+    """
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return
+
+    def esc(text: str, prop: bool = False) -> str:
+        text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        # Property values additionally delimit on ':' and ','.
+        return text.replace(":", "%3A").replace(",", "%2C") if prop else text
+
+    print(f"::{level} title={esc(title, prop=True)}::{esc(message)}")
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        icon = "\u26a0\ufe0f" if level == "warning" else "\u2139\ufe0f"
+        with open(summary, "a", encoding="utf-8") as fh:
+            fh.write(f"### {icon} {title}\n\n{message}\n")
+
+
 def _add_missing_columns(conn, all_cols, col_type) -> list[str]:
     """Bring an existing table up to the current header (returns added columns).
 
@@ -431,47 +472,90 @@ def _add_missing_columns(conn, all_cols, col_type) -> list[str]:
         conn.execute(f"ALTER TABLE {TABLE} ADD COLUMN {_ident(c)} {t}{default}")
     if added:
         conn.commit()
-        print(
-            f"NOTE: upstream header grew — added column(s) {added} to {TABLE}; "
-            f"pre-existing rows keep their values.",
-            file=sys.stderr,
+        msg = (
+            f"upstream header grew — added column(s) {added} to {TABLE}; "
+            f"pre-existing rows keep their values."
+        )
+        print(f"NOTE: {msg}", file=sys.stderr)
+        # Loud in CI, because migrating the column is only half the job: a new
+        # column can carry meaning the ingest doesn't know about, and this run
+        # is the only moment anyone learns it appeared. `status_data` (Aug 2026)
+        # was migrated silently and turned out to mark attacks reported without
+        # figures — whose placeholder 0 every view read as a real zero.
+        _gh_notify(
+            "warning",
+            "piterfm added a CSV column",
+            f"{msg} Migrating it is not the same as understanding it: check what "
+            f"the column means before trusting the next chart, and whether it "
+            f"changes how existing columns should be read.",
         )
     return added
 
 
 def _create_views(conn, key_cols, value_cols):
-    """Latest-per-key view + daily aggregates over the latest snapshot."""
+    """Latest-per-key view + daily aggregates over the latest snapshot.
+
+    Every view is DROPped and recreated rather than `CREATE VIEW IF NOT EXISTS`ed.
+    An existing DB already carries all of them, so the IF-NOT-EXISTS form is a
+    no-op there and would pin whatever definition was current when the file was
+    first built — a change here would then never reach R2, failing silently.
+    (Same shape as the `status_data` header break: the migration that isn't.)
+
+    The aggregates resolve `status_data='hidden'` (see STATUS_COL): a withheld
+    row contributes NULL, so SUM skips it and a day with nothing else disclosed
+    reads NULL rather than 0. Each aggregate also carries a `hidden` count, so a
+    consumer can tell "no attacks" from "figures not published" and treat a
+    partial sum as the lower bound it is. Guarded on the column actually being
+    present, so a DB built before piterfm added it still gets valid views.
+    """
     grp = ", ".join(_ident(c) for c in key_cols)
     joinon = " AND ".join(f"t.{_ident(c)} = l.{_ident(c)}" for c in key_cols)
+
+    has_status = any(r[1] == STATUS_COL for r in conn.execute(f"PRAGMA table_info({TABLE})"))
+    is_hidden = f"{_ident(STATUS_COL)} = '{HIDDEN_STATUS}'" if has_status else "0"
+    # A withheld count is unknown, not zero: NULL keeps it out of SUM entirely.
+    def known(c: str) -> str:
+        return f"SUM(CASE WHEN {is_hidden} THEN NULL ELSE {c} END)"
+
+    hidden_n = f"SUM(CASE WHEN {is_hidden} THEN 1 ELSE 0 END)"
+
+    for v in (f"{TABLE}_latest", "daily_totals", "daily_by_model", "daily_by_category"):
+        conn.execute(f"DROP VIEW IF EXISTS {v}")
+
     conn.execute(
-        f"CREATE VIEW IF NOT EXISTS {TABLE}_latest AS "
+        f"CREATE VIEW {TABLE}_latest AS "
         f"SELECT t.* FROM {TABLE} t "
         f"JOIN (SELECT {grp}, MAX(scraped_at) ms FROM {TABLE} GROUP BY {grp}) l "
         f"ON {joinon} AND t.scraped_at = l.ms"
     )
     # Daily totals (attribute each attack to the date of its time_start).
+    # `rows` still counts withheld attacks — one was reported — so `rows` can
+    # exceed what `launched` accounts for; `hidden` says by how many.
     conn.execute(
-        f"CREATE VIEW IF NOT EXISTS daily_totals AS "
+        f"CREATE VIEW daily_totals AS "
         f"SELECT {_ident(DATE_COL)} AS date, "
-        f"       SUM(launched)  AS launched, "
-        f"       SUM(destroyed) AS destroyed, "
-        f"       COUNT(*)       AS rows "
+        f"       {known('launched')}  AS launched, "
+        f"       {known('destroyed')} AS destroyed, "
+        f"       COUNT(*)             AS rows, "
+        f"       {hidden_n}           AS hidden "
         f"FROM {TABLE}_latest GROUP BY {_ident(DATE_COL)}"
     )
     conn.execute(
-        f"CREATE VIEW IF NOT EXISTS daily_by_model AS "
+        f"CREATE VIEW daily_by_model AS "
         f"SELECT {_ident(DATE_COL)} AS date, model, "
-        f"       SUM(launched)  AS launched, "
-        f"       SUM(destroyed) AS destroyed "
+        f"       {known('launched')}  AS launched, "
+        f"       {known('destroyed')} AS destroyed, "
+        f"       {hidden_n}           AS hidden "
         f"FROM {TABLE}_latest GROUP BY {_ident(DATE_COL)}, model"
     )
     # Daily launched/intercepted per weapon category — the frontend's main source
     # (drone / cruise / ballistic / other; combined = sum across categories).
     conn.execute(
-        f"CREATE VIEW IF NOT EXISTS daily_by_category AS "
+        f"CREATE VIEW daily_by_category AS "
         f"SELECT {_ident(DATE_COL)} AS date, {_ident(CATEGORY_COL)} AS category, "
-        f"       SUM(launched)  AS launched, "
-        f"       SUM(destroyed) AS destroyed "
+        f"       {known('launched')}  AS launched, "
+        f"       {known('destroyed')} AS destroyed, "
+        f"       {hidden_n}           AS hidden "
         f"FROM {TABLE}_latest GROUP BY {_ident(DATE_COL)}, {_ident(CATEGORY_COL)}"
     )
 

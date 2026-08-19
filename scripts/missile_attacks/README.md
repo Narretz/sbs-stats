@@ -53,6 +53,40 @@ in the query layer (see the views below).
   pre-existing rows match the blank cell a fresh CSV carries for them and the
   migration run doesn't re-version the whole dataset; rows upstream actually
   backfills differ for real and get a new version like any other edit.
+  Under GitHub Actions the run also emits a `::warning::` annotation and a job
+  summary block naming the new column — migrating a column is not the same as
+  understanding it, and the run is the only moment anyone learns it appeared.
+  (`status_data` was migrated silently and nobody looked until its placeholder
+  0s had been charted as real zeros for a week.) Nothing is needed in the
+  workflow for this: annotations are picked up from the step's stdout. It's a
+  warning, not a failure, so a purely additive change can't block the DB update
+  and leave the data stale — but note that means it doesn't email anyone
+  either, so it's only seen by whoever opens the run.
+
+## `status_data` — attacks reported without figures
+
+Ukraine's Air Force stopped publishing exact ballistic-missile launched /
+intercepted figures on 2026-08-13, citing operational security. piterfm added
+`status_data` for this: a row flagged `'hidden'` is an attack that *was*
+reported (types, launch areas, targets) with the counts withheld. The CSV has
+no null for that, so it carries a placeholder `0` in `launched` / `destroyed` —
+indistinguishable from a real zero to anything that just sums the column.
+
+The ingest stores the flag verbatim, alongside the placeholder, so the table
+keeps mirroring upstream. **Resolving it is a read-side job**: the frontend
+(`src/hooks/useDatabaseRuAirAttacks.ts`) rebuilds the aggregate views over its
+in-memory copy so hidden rows contribute `NULL` rather than `0`, and carries a
+per-group `hidden` count. A withheld day then charts as a gap instead of a drop
+to zero, tooltips read "not disclosed", and monthly bars that contain one are
+flagged as lower bounds. `e2e/undisclosed-counts.spec.ts` guards the case that
+actually matters: a withheld day and a genuinely quiet day staying
+distinguishable, since both hold a literal 0 in the DB.
+
+The `daily_*` views in the file resolve it the same way (see **Views** below), so
+direct SQL against `ru-air-attacks-gsua.db` gets nulls too — but only from the
+first build that ran this code. The frontend keeps installing its own views over
+its in-memory copy regardless, so the site stays correct against a DB of any
+vintage rather than depending on when the workflow last ran.
 
 ## Derived columns
 
@@ -70,9 +104,22 @@ Added by the build (not in the CSV):
 
 - **`missile_attacks_latest`** — the table with only the latest `scraped_at` per
   natural key (what every other view reads from).
-- **`daily_totals`** — `date, launched, destroyed, rows` (sum over all models).
-- **`daily_by_model`** — `date, model, launched, destroyed`.
-- **`daily_by_category`** — `date, category, launched, destroyed`.
+- **`daily_totals`** — `date, launched, destroyed, rows, hidden` (sum over all models).
+- **`daily_by_model`** — `date, model, launched, destroyed, hidden`.
+- **`daily_by_category`** — `date, category, launched, destroyed, hidden`.
+
+All three resolve `status_data='hidden'` (see above): a withheld row contributes
+NULL rather than its placeholder 0, so `SUM` skips it and a group with nothing
+disclosed reads NULL — unknown — instead of zero. `hidden` counts the withheld
+rows behind each group, so a partial sum can be read as the lower bound it is.
+In `daily_totals`, `rows` still counts a withheld attack (one *was* reported),
+so `rows` can exceed what `launched` accounts for; `hidden` says by how many.
+
+The aggregates are DROPped and recreated on every build, not
+`CREATE VIEW IF NOT EXISTS`ed. An existing DB already carries them, so the
+IF-NOT-EXISTS form is a no-op there and would pin whatever definition the file
+was first built with — a change would never reach R2 and would fail silently.
+(Same shape as the `status_data` header break above: the migration that isn't.)
 
 ## DB output
 
