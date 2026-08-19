@@ -84,27 +84,50 @@ function buildGsua(SQL) {
   db.run(fs.readFileSync(path.join(ROOT, "scripts/gsua/schema.sql"), "utf8"));
   const cols = ["source", "source_id", "date", "message_date", "snapshot_at", "text", "url", ...GSUA_METRICS, "scraped_at"];
   const ins = db.prepare(`INSERT INTO posts (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`);
-  const post = (date, snapshotAt, frac, settled, tag) => {
+  const insDir = db.prepare(
+    `INSERT INTO directions (source, source_id, scraped_at, direction, attacks, ` +
+    `ongoing, attacks_group_size, attacks_group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  // Insert a post. When `dupCoverage` is set, also write a TWIN post (same
+  // date / snapshot / metrics, different source_id) and attach one direction
+  // (Pokrovsk = 60% of this post's combat_engagements) to BOTH copies. The GS
+  // channel occasionally double-posts the same report this way; the coverage
+  // query must dedupe (MAX per direction) or the twin's directions get counted
+  // twice — inflating `attributed` past `total` so `unattributed` clamps to 0.
+  // 60% is deliberate: deduped attribution reads a clean 60%, but the doubled
+  // 120% clamps to 100% — a crisp fixed-vs-regressed signal for the summary.
+  const post = (date, snapshotAt, frac, settled, tag, dupCoverage = false) => {
     const v = Math.round(settled * frac);
     const row = {
-      source: "telegram", source_id: `${date}-${tag}`, date,
+      source: "telegram", date,
       message_date: `${snapshotAt}Z`, snapshot_at: snapshotAt,
       text: "synthetic", url: "https://t.me/test", scraped_at: `${date}T23:59:59`,
     };
     for (const m of GSUA_METRICS) row[m] = v;
-    ins.run(cols.map((c) => row[c]));
+    const ids = dupCoverage ? [`${date}-${tag}`, `${date}-${tag}b`] : [`${date}-${tag}`];
+    for (const source_id of ids) {
+      ins.run(cols.map((c) => ({ ...row, source_id })[c]));
+      if (dupCoverage) {
+        insDir.run(["telegram", source_id, row.scraped_at, "Pokrovsk",
+          Math.round(v * 0.6), null, 1, null]);
+      }
+    }
   };
   const day = (date, settled, withFinal) => {
     post(date, `${date}T16:00:00`, 0.70, settled, "16");
-    post(date, `${date}T22:00:00`, 0.90, settled, "22");
+    // The canonical (latest-snapshot) post per date carries the coverage
+    // duplicate: the next-morning 08:00 final once the day has settled, else
+    // the same-day 22:00 for the still-open current day.
+    post(date, `${date}T22:00:00`, 0.90, settled, "22", !withFinal);
     // The settled total lands the next morning, still labelled the report day.
-    if (withFinal) post(date, `${dayISO(dayOffset(date) + 1)}T08:00:00`, 1.0, settled, "08");
+    if (withFinal) post(date, `${dayISO(dayOffset(date) + 1)}T08:00:00`, 1.0, settled, "08", true);
   };
   const dayOffset = (date) =>
     Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${FIXED_TODAY}T00:00:00Z`)) / 86_400_000);
   for (let d = 1; d <= HISTORY_DAYS; d++) day(dayISO(-d), 50 + d * 5, true);
   day(FIXED_TODAY, 48, false); // today is still open — no morning-after final yet
   ins.free();
+  insDir.free();
   fs.writeFileSync(path.join(FIX_DIR, "ru-attacks-gsua.db"), Buffer.from(db.export()));
   db.close();
 }
