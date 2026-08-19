@@ -950,6 +950,18 @@ class TestMetrics:
         s = self._parse("На Покровському напрямку тривають бойові дії.")
         assert s.targets_destroyed is None
 
+    def test_targets_destroyed_contents_list_not_overcounted(self):
+        # 2025-12-20: "район зосередження особового складу, озброєння і
+        # військової техніки" is ONE concentration area listing its contents —
+        # the commas/"і" separate contents, not targets. Only the area (1) and
+        # the "один інший важливий об'єкт" (1) count → 2, not 4.
+        s = self._parse(
+            "За минулу добу Сили оборони уразили район зосередження особового "
+            "складу, озброєння і військової техніки та один інший важливий "
+            "об'єкт російських загарбників."
+        )
+        assert s.targets_destroyed == 2
+
     def test_kamikaze_drones_en_dash(self):
         # msg 38096 — "дронів–камікадзе" with U+2013
         s = self._parse("Задіяв для ураження 5360 дронів–камікадзе.")

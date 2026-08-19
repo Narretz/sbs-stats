@@ -743,10 +743,15 @@ def _count_targets_destroyed(text: str) -> int | None:
     seg = m.group(1).replace("’", "'").replace("ʼ", "'")
     total = 0
     counted = False
-    # The clause is a flat list of "[N] <target-noun>" items joined by commas
-    # and та/і/й. Split on those, sum each item's numbers (a dropped comma can
-    # put two counts in one item), and score a numberless item as one target.
+    # The clause is a list of "[N] <target-noun>" items joined by commas and
+    # та/і/й. Split on those and sum each item's numbers (a dropped comma can
+    # put two counts in one item). A numberless item is a single implicit target
+    # ("склад боєприпасів") and counts as one — EXCEPT a "район зосередження X,
+    # Y і Z" area lists its CONTENTS with those same connectors, so the split
+    # yields bare content fragments (weapons/equipment/personnel) that aren't
+    # separate targets; `_TARGET_CONTENTS` skips those so they score zero.
     for item in re.split(r",|\s+та\s+|\s+і\s+|\s+й\s+", seg):
+        item = item.strip()
         if not re.search(r"[а-яіїєґ]", item, re.IGNORECASE):
             continue  # blank / punctuation-only fragment
         nums = [
@@ -754,9 +759,22 @@ def _count_targets_destroyed(text: str) -> int | None:
             for tok in re.findall(r"\d+|[\w'ʼ’]+", item)
             if tok.isdigit() or tok in UA_NUM
         ]
-        total += sum(nums) if nums else 1
-        counted = True
+        if nums:
+            total += sum(nums)
+            counted = True
+        elif not _TARGET_CONTENTS.match(item):
+            total += 1
+            counted = True
     return total if counted else None
+
+
+# Genitive content fragments that trail "район зосередження …" (weapons,
+# equipment, personnel) — never a separate target, so a numberless item that is
+# one scores zero. Numbered items and other numberless targets still count.
+_TARGET_CONTENTS = re.compile(
+    r"^(?:військов\w+\s+)?(?:озброєнн|техніки|живої\s+сили|овт|крім\s+того)",
+    re.IGNORECASE,
+)
 
 
 # ---------------------------------------------------------------------------
