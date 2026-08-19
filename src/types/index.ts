@@ -164,16 +164,16 @@ export type GsuaMetricKey = (typeof GSUA_METRIC_KEYS)[number];
 
 export const GSUA_METRIC_LABELS: Record<GsuaMetricKey, string> = {
   combat_engagements: "Combat Engagements",
-  kabs_dropped: "KABs Dropped",
-  air_strikes: "Air Strikes",
-  missile_strikes: "Missile Strikes",
-  missiles_used: "Missiles Used",
-  kamikaze_drones: "Kamikaze Drones",
-  shellings: "Shellings",
-  mlrs_shellings: "MLRS Shellings",
+  kabs_dropped: "RU KABs Dropped",
+  air_strikes: "RU Air Strikes",
+  missile_strikes: "RU Missile Strikes",
+  missiles_used: "RU Missiles Used",
+  kamikaze_drones: "RU Kamikaze Drone Attacks",
+  shellings: "RU Artillery Shellings",
+  mlrs_shellings: "RU MLRS Shellings",
   // UA forces' combined (aviation + missile troops + artillery) targets hit,
   // from the GS "Сили оборони уразили …" line. Targets destroyed, not sorties.
-  targets_destroyed: "UA Targets Destroyed",
+  targets_destroyed: "UA Targets Hit",
 };
 
 export type GsuaDailyRow = {
