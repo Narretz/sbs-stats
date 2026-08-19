@@ -61,6 +61,14 @@ GitHub Actions in `.github/workflows/`:
   news listing, slug-filters candidate URLs, and ingests any not already in
   the DB. Slug-drift-safe: matches only insert if the parser recognises
   `report_type='monthly_top1'` with a valid `period`.
+- `update-ua-losses-db.yml` — UA personnel losses (ualosses.org via Kaggle).
+  Twice a month (07:00 UTC on the 1st & 15th) — the source re-uploads only every
+  ~2 months, so this catches a release within ~2 weeks without a daily 30 MB
+  no-op download. `ingest.py --latest` pulls the current Kaggle version (needs
+  `KAGGLE_USERNAME` / `KAGGLE_KEY` secrets), append-on-change. The ingest needs
+  `openpyxl` (the source is xlsx), so the job pip-installs it — the only ingest
+  workflow that isn't stdlib-only. Not yet a dedicated site; feeds the combined
+  charts only.
 - `deploy.yml` — builds and publishes to GitHub Pages.
 
 ## Common commands

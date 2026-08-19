@@ -170,6 +170,31 @@ def parse_workbook(xlsx_path: Path, since: str | None) -> list[tuple]:
 
 
 # ── Kaggle version download ───────────────────────────────────────────────────
+def latest_kaggle_version(ref: str) -> int:
+    """Return a Kaggle dataset's current (max) version number via the API."""
+    import base64
+    import json
+    import urllib.request
+
+    user = os.environ.get("KAGGLE_USERNAME")
+    key = os.environ.get("KAGGLE_KEY")
+    if not user or not key:
+        raise SystemExit(
+            "KAGGLE_USERNAME / KAGGLE_KEY must be set for --latest "
+            "(e.g. `set -a; . ./.env.kaggle; set +a`)."
+        )
+    tok = base64.b64encode(f"{user}:{key}".encode()).decode()
+    req = urllib.request.Request(
+        f"https://www.kaggle.com/api/v1/datasets/view/{ref}",
+        headers={"Authorization": f"Basic {tok}"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        data = json.load(r)
+    n = data.get("currentVersionNumber")
+    if not isinstance(n, int):
+        raise RuntimeError(f"no currentVersionNumber in Kaggle view for {ref}: {data!r}")
+    return n
+
+
 def download_kaggle_version(ref: str, version: int, dest_dir: Path) -> Path:
     """Download one Kaggle dataset version's xlsx via the public API (HTTP basic
     auth with KAGGLE_USERNAME / KAGGLE_KEY) and return the extracted path."""
@@ -292,8 +317,10 @@ def main() -> int:
                     help="local UKR_ualosses_Personnel.xlsx (default: %(default)s)")
     ap.add_argument("--version", type=int, default=None, metavar="N",
                     help="download this Kaggle dataset version instead of --xlsx")
+    ap.add_argument("--latest", action="store_true",
+                    help="download the current (latest) Kaggle version — for CI")
     ap.add_argument("--kaggle-ref", default=KAGGLE_REF_DEFAULT,
-                    help="Kaggle dataset ref for --version (default: %(default)s)")
+                    help="Kaggle dataset ref for --version/--latest (default: %(default)s)")
     ap.add_argument("--since", default=WAR_START,
                     help="drop dates before this YYYY-MM-DD (default: %(default)s)")
     ap.add_argument("--all-dates", action="store_true",
@@ -320,6 +347,10 @@ def main() -> int:
             date_cls.fromisoformat(args.as_of)
         except ValueError:
             raise SystemExit(f"--as-of must be YYYY-MM-DD, got {args.as_of!r}")
+
+    if args.latest:
+        args.version = latest_kaggle_version(args.kaggle_ref)
+        print(f"[kaggle] latest version = v{args.version}", file=sys.stderr)
 
     if args.version is not None:
         xlsx = download_kaggle_version(

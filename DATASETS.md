@@ -282,7 +282,7 @@ The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:
   ever wanted as an ingestion source, email the admins first; a hand-rolled HTML
   scraper would be substantially more invasive than what we built for MoD or Petro.
 
-### UALosses — LIVE — ✅ INGEST BUILT + combined-charts-wired (NOT productionized)
+### UALosses — LIVE — ✅ INTEGRATED (combined charts; CI wired, awaiting first R2 upload)
 - https://ualosses.org/ + Kaggle `ol4ubert/confirmed-ukrainian-military-personnel-losses`
 - Named, confirmed Ukrainian personnel losses from obituaries/OSINT, validated vs Mediazona/BBC.
   ~208k confirmed by mid-2026 (was ~91.5k Apr 2026). Broken out by **status** — dead / missing /
@@ -331,9 +331,14 @@ The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:
   sensitive personal data — scraping it is invasive and legally/ethically weighty (cf. lostarmour
   §5). Absence from the registry isn't a clean signal either (records can be removed for reasons
   other than resolution). Treat as a **manual cross-check** at most until access terms are clear.
-- **NOT productionized:** no CI workflow + no R2 object yet (local `--xlsx` / `--version` only), and
-  no dedicated site page (combined-charts only). Follow scripts/ru_losses + update-ru-losses-db.yml
-  for the CI/R2 pattern.
+- **CI:** `.github/workflows/update-ua-losses-db.yml` — twice a month (07:00 UTC, 1st & 15th; the
+  source re-uploads only ~every 2 months), `ingest.py --latest` pulls
+  the current Kaggle version (KAGGLE_USERNAME/KAGGLE_KEY secrets), downloads the current DB from R2,
+  appends, re-uploads. The job pip-installs openpyxl (the only non-stdlib ingest). `.env.production`
+  carries `VITE_UA_LOSSES_DB_URL` → `…r2.dev/ua-losses.db`. **Pending:** the workflow hasn't run yet,
+  so the R2 object doesn't exist — until the first run, selecting a UA-losses metric in production
+  404s (it's not in the default charts, so nobody hits it unprompted). No dedicated site page
+  (combined-charts only) — that's the remaining optional work.
 
 ### zhukovyuri/VIINA — LIVE
 - https://github.com/zhukovyuri/VIINA · ODbL · pushed daily
@@ -546,13 +551,13 @@ Done (each is a live R2 SQLite + a site-picker entry):
 - **RU missile stockpiles (HUR)** — prototype JSON, site `ru-missiles-hur` (§9)
 
 Open work / candidate sources still on the board:
-- **UALosses (Ukrainian personnel losses)** (§5) — ingest built (`scripts/ua_losses/`) + wired into
-  the combined charts (status split: dead/missing/POW/released), but NOT productionized: needs a
-  Kaggle-pull CI workflow + R2 upload, and optionally a dedicated site page. Backfilling the Kaggle
-  version history reconstructs the status-reclassification history. Two follow-ons (see §5):
-  breaking out the per-person `Database` sheet (individual transitions + demographic views), and a
-  cross-check of `missing` records against the live MVS «безвісти» registry to spot already-resolved
-  cases (search-only + WAF + fuzzy-match caveats — a research idea, not a clean ingest).
+- **UALosses (Ukrainian personnel losses)** (§5) — ingest + combined-charts + CI workflow
+  (`update-ua-losses-db.yml`) all wired; **pending only the workflow's first run** to create the R2
+  object. Remaining optional: a dedicated site page. Backfilling the Kaggle version history
+  reconstructs the status-reclassification history. Two follow-ons (see §5): breaking out the
+  per-person `Database` sheet (individual transitions + demographic views), and a cross-check of
+  `missing` records against the live MVS «безвісти» registry to spot already-resolved cases
+  (search-only + WAF + fuzzy-match caveats — a research idea, not a clean ingest).
 - **GSUA-Telegram-direct cumulative loss summaries** (§3 REVISIT) — same upstream channel
   the GSUA attacks scraper already targets, but the loss-summary posts are filtered out.
   Adding a second recogniser would give a parallel third source for §1, redundant with
