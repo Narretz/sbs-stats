@@ -472,9 +472,17 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
           -- store the raw N on each row with attacks_group_size = k; the
           -- honest per-direction contribution is N/k, so k=2 halves the
           -- credit each direction takes. Solo entries have group_size=1
-          -- and pass through unchanged. NB the SUM is over multiple posts
-          -- (multipart telegram) — we sum the shares.
-          SUM(d.attacks * 1.0 / d.attacks_group_size) AS attacks
+          -- and pass through unchanged.
+          -- MAX (not SUM) over the joined posts: best_per_date collapses a
+          -- (date, source, snapshot_at) to one group, but the join to
+          -- latest_posts re-expands it to every source_id sharing that key.
+          -- When the GS channel double-posts the SAME report (two message
+          -- ids, identical directions — e.g. 2026-07-11 msgs 41031/41041),
+          -- SUM would count each direction twice and inflate 'attributed'
+          -- past the day total. A given direction is written once per report, so
+          -- MAX yields its single value — and still merges multipart posts,
+          -- where each direction lives in exactly one part.
+          MAX(d.attacks * 1.0 / d.attacks_group_size) AS attacks
         FROM best_per_date b
         LEFT JOIN latest_posts p
           ON p.source = b.source AND p.date = b.date AND p.snapshot_at = b.snapshot_at
@@ -557,20 +565,31 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
           FROM best_per_date
           GROUP BY substr(date, 1, 7)
         ),
-        month_direction_attacks AS (
+        per_date_direction AS (
           -- Fair-share for paired-anchor rows; see comment in the daily
-          -- variant. attacks * 1.0 / attacks_group_size gives the per-
-          -- direction credit and SUM across the month rolls it up.
-          SELECT substr(b.date, 1, 7) AS month,
+          -- variant. Dedup WITHIN a date first with MAX (not SUM): a
+          -- double-posted report (same directions under two message ids,
+          -- e.g. 2026-07-11) shares one (date, source, snapshot_at), so the
+          -- join re-expands it — MAX takes each direction's single value and
+          -- still merges multipart posts (each direction lives in one part).
+          SELECT b.date AS date,
                  d.direction AS direction,
-                 SUM(d.attacks * 1.0 / d.attacks_group_size) AS attacks
+                 MAX(d.attacks * 1.0 / d.attacks_group_size) AS attacks
           FROM best_per_date b
           LEFT JOIN latest_posts p
             ON p.source = b.source AND p.date = b.date AND p.snapshot_at = b.snapshot_at
           LEFT JOIN directions d
             ON d.source = p.source AND d.source_id = p.source_id
             AND d.scraped_at = p.scraped_at
-          GROUP BY substr(b.date, 1, 7), d.direction
+          GROUP BY b.date, d.direction
+        ),
+        month_direction_attacks AS (
+          -- Then roll the deduped per-day shares up to the month.
+          SELECT substr(date, 1, 7) AS month,
+                 direction AS direction,
+                 SUM(attacks) AS attacks
+          FROM per_date_direction
+          GROUP BY substr(date, 1, 7), direction
         )
         SELECT m.month AS date, m.total,
                a.direction, a.attacks
