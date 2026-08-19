@@ -862,8 +862,32 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
         # anchor end so its number can't leak into this direction.
         prev_end = matches[i - 1].end() if i > 0 else 0
         last_period = text.rfind(".", prev_end, start)
-        count_start = last_period + 1 if last_period != -1 else prev_end
+        if last_period != -1:
+            count_start = last_period + 1
+        else:
+            # No sentence boundary between the previous anchor and this one —
+            # upstream occasionally drops the terminating period, which would
+            # let the backward extension swallow the PREVIOUS direction's whole
+            # clause (msg 33053: "…зупинили 13 ворожих атак [no period] На
+            # Гуляйпільському напрямку … зупинили 21 спробу" — the neighbour's
+            # 13 would win over Huliaipole's own 21). The leading/inverted count
+            # ("[N] атак здійснив ворог на X напрямку") sits < ~80 chars before
+            # the anchor, so cap the backward reach there.
+            count_start = max(prev_end, start - 80)
         count_section = text[count_start:end]
+
+        # A tighter window: just the sentence the anchor sits in (start of that
+        # sentence → first period after the anchor). The permissive number-first
+        # fallbacks below run on THIS, not the full `count_section`, because
+        # `count_section` runs forward to the next matched direction and, when a
+        # neighbouring direction is written in a word order the anchor regex
+        # doesn't catch (e.g. "На Південно-Слобожанському наразі триває одна
+        # атака ворога в напрямку …"), it bleeds that neighbour's ongoing-attack
+        # count into this direction. Restricting to the anchor's own sentence
+        # keeps the leading/inverted count (which is in the same sentence as the
+        # anchor) while excluding the bled-in neighbour text.
+        anchor_period = text.find(".", match.end())
+        anchor_sentence = text[count_start:(anchor_period + 1 if anchor_period != -1 else end)]
 
         # "No activity" sentinel. When the section opens with a phrase that
         # says nothing happened on this direction (e.g. "ознак формування
@@ -891,19 +915,25 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
         # Compound Ukrainian numbers use two space-separated tokens
         # ("сорок чотири" = 44 for Pokrovsk-style "де захисники зупинили
         # сорок чотири атаки"), so NUMWORD allows an optional second token
-        # and _ua_word_to_num sums them.
-        _NUMWORD = r"[\w'ʼ’]+(?:\s+[\w'ʼ’]+)?"
+        # and _ua_word_to_num sums them. The second token must NOT be the
+        # adjective "ворож…" ("п'ять ворожих атак") — otherwise NUMWORD eats
+        # it and _ua_word_to_num bails on the trailing non-number; the
+        # optional `(?:ворож\w+\s+)?` in each noun anchor absorbs it instead.
+        _NUMWORD = r"[\w'ʼ’]+(?:\s+(?!ворож)[\w'ʼ’]+)?"
         if no_activity:
             attacks = None
         else:
             attacks = _extract_count(
                 count_section,
                 # Digit: "N штурмов[ых|их дій]" / "N атак" / "N раз(ів|и)" / "N спроб"
-                # / bare "N штурм[у|ів]" (accusative singular, seen with
-                # "здійснили один штурм у напрямку"). "раз[ов]?[ив]" would
-                # over-match "разу"; `раз(?:ів|и)` catches "разів" (gen. pl.)
-                # and "рази" (nom. pl., "24 рази атакували").
-                r"(\d[\d\s]*\d|\d)\s*(?:штурм|атак|бойов|боєзіткнен|раз(?:ів|и)|спроб)",
+                # / "N наступальних дій" / bare "N штурм[у|ів]" (accusative
+                # singular, seen with "здійснили один штурм у напрямку").
+                # "раз[ов]?[ив]" would over-match "разу"; `раз(?:ів|и)` catches
+                # "разів" (gen. pl.) and "рази" (nom. pl., "24 рази атакували").
+                # An optional "ворож…" adjective may sit between the number and
+                # the noun ("12 ворожих атак", "34 ворожі штурми").
+                r"(\d[\d\s]*\d|\d)\s*(?:ворож\w+\s+)?"
+                r"(?:штурм|атак|бойов|боєзіткнен|наступальн|раз(?:ів|и)|спроб)",
                 # Verb + NUMWORD + noun. Stems are chosen so `\w*` covers
                 # every past-tense gender/number form:
                 # - Past-tense root of "відбити" (repel) is "відбил-" for
@@ -923,21 +953,26 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
                 # "штурмових" — needed for "здійснили один штурм у бік Х".
                 r"(?:відбил|відбито|відбив|відбул|здійсн|штурмува|атакува|"
                 r"наступа|намага|спробува|зупин|зафіксов|провів|провел)\w*\s+"
-                r"(" + _NUMWORD + r")\s+"
-                r"(?:штурм|атак|бойов|боєзіткнен|раз(?:ів|и)|спроб)",
+                r"(" + _NUMWORD + r")\s+(?:ворож\w+\s+)?"
+                r"(?:штурм|атак|бойов|боєзіткнен|наступальн|раз(?:ів|и)|спроб)",
             )
             if attacks is None:
                 # Subject-first shape used by the channel when the verb
                 # follows the count: "де окупанти шістнадцять разів
-                # атакували" (Lyman 16) / "24 рази атакували" (Huliaipole).
-                # No leading verb — anchor is `раз(ів|и)` + attack verb.
+                # атакували" (Lyman 16) / "24 рази атакували" (Huliaipole) /
+                # singular "21 раз атакували" / "один раз штурмували" /
+                # "21 раз намагалися потіснити" (Pokrovsk 16:00). No leading
+                # verb — anchor is `раз` + attack verb. The `(ів|и)` suffix is
+                # optional to catch the nom./acc. singular "раз"; it can't
+                # over-match "разу" (once, gen.) because a verb must follow
+                # across a space and "разу" has no space after "раз".
                 # Verb stems trimmed like above so plural/feminine past
                 # forms are covered.
                 attacks = _extract_count(
                     section,
-                    r"(\d[\d\s]*\d|\d)\s+раз(?:ів|и)\s+"
+                    r"(\d[\d\s]*\d|\d)\s+раз(?:ів|и)?\s+"
                     r"(?:атакува|штурмува|намага|наступа|нападав)\w*",
-                    r"(" + _NUMWORD + r")\s+раз(?:ів|и)\s+"
+                    r"(" + _NUMWORD + r")\s+раз(?:ів|и)?\s+"
                     r"(?:атакува|штурмува|намага|наступа|нападав)\w*",
                 )
             if attacks is None:
@@ -945,6 +980,39 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
                     count_section,
                     r"відби(?:то|ла|ли)\s*(\d[\d\s]*\d|\d)",
                     r"відби(?:то|ла|ли)\s+(" + _NUMWORD + r")",
+                )
+            if attacks is None:
+                # Number-first, word-form, inverted register the channel adopted
+                # ~Jul-2026 for hot sectors: the count LEADS the sentence and the
+                # verb/subject follow — "Шістнадцять атак здійснив ворог на
+                # Покровському напрямку" / "Сім атак окупантів зафіксовано на
+                # Гуляйпільському напрямку" / "Дві спроби загарбників просунутися
+                # відбивали на Лиманському напрямку" / "окупанти двічі атакували".
+                # No verb precedes the number, so the verb-anchored branches
+                # above miss it. The digit form of this shape is already caught
+                # by the primary digit branch (position-free); this covers the
+                # word form. Bare number+noun is permissive, so it runs LAST
+                # (only when every anchored branch failed) and a negative
+                # lookahead rejects the trailing ongoing clause ("Чотири
+                # боєзіткнення досі тривають") so an ongoing-only paragraph
+                # can't masquerade as an attack count.
+                attacks = _extract_count(
+                    anchor_sentence,
+                    None,
+                    r"(" + _NUMWORD + r")\s+(?:ворож\w+\s+)?"
+                    r"(?:штурм|атак|бойов|боєзіткнен|наступальн|раз(?:ів|и)|спроб)\w*"
+                    r"(?![\w\s]{0,30}трива)",
+                )
+            if attacks is None:
+                # Adverbial word-number directly before an attempt/advance verb,
+                # with no "раз" and no attack noun: "ворог двічі намагався
+                # просунутися" / "тричі намагалися прорвати оборону". The verb
+                # (намага/наступа) is the anchor; the count is the preceding
+                # word-number. Last resort — only when nothing else matched.
+                attacks = _extract_count(
+                    anchor_sentence,
+                    None,
+                    r"(" + _NUMWORD + r")\s+(?:намага|наступа)\w*",
                 )
 
         # Ongoing engagements: digit form or word form.
