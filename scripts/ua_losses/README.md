@@ -2,104 +2,120 @@
 
 Builds **`ua-losses.db`** from [ualosses.org](https://ualosses.org)'s
 `UKR_ualosses_Personnel.xlsx` workbook — a research-based index of confirmed,
-individually-named Ukrainian military personnel losses. This ingest takes the
-workbook's **pre-aggregated daily time-series sheets** and stores per-day totals
-(with a status split), ready for daily/monthly charts.
+individually-named Ukrainian military personnel losses, distributed on Kaggle
+(`ol4ubert/confirmed-ukrainian-military-personnel-losses`) with a numbered
+version history.
 
-Requires **`openpyxl`** (the xlsx is a zip of XML; sheets are streamed
-`read_only=True`). Already in `scripts/requirements.txt`.
+Requires **`openpyxl`** (already in `scripts/requirements.txt`). Kaggle
+`--version` downloads need `KAGGLE_USERNAME` / `KAGGLE_KEY`.
 
 ```sh
-# Build from a local copy of the workbook (default path is the one under
-# sources/ualosses/ if present):
+# Build from a local copy of the workbook:
 python3 scripts/ua_losses/ingest.py --xlsx sources/ualosses/UKR_ualosses_Personnel.xlsx \
     --out data/ua-losses.db
 
-# Parse + report what would change, without writing:
-python3 scripts/ua_losses/ingest.py --dry-run
+# Build from a specific Kaggle version (downloads it):
+set -a; . ./.env.kaggle; set +a
+python3 scripts/ua_losses/ingest.py --version 19 --out data/ua-losses.db
 
-# Keep the full pre-war tail (default drops everything before 2022-02-24):
-python3 scripts/ua_losses/ingest.py --all-dates --out data/ua-losses.db
+# Parse + report without writing:
+python3 scripts/ua_losses/ingest.py --dry-run
 ```
 
-## Source
+## What it stores
 
-`UKR_ualosses_Personnel.xlsx` — a single workbook (~30 MB) distributed via
-Kaggle / ualosses.org. Eight sheets; this ingest reads the two **daily** ones:
-
-| Sheet | Columns used | Meaning |
-|---|---|---|
-| `ByDay` | `Date`, `Number`, `ofwhich_Male`, `meanAgeEvent` | Losses recorded on that date (all statuses), of which male, mean age at event. `CumNumber`/`CumMale`/etc. are the cumulative running totals — ignored (derivable). |
-| `ByDayStatus` | `Date`, `Dead`, `Missing`, `Prisoner`, `Released` | The status split of that date's `Number`. |
-
-The other sheets (`ByDayRank`, `ByDayRankStatus`, `ByNationality`, `ByTypeUnit`,
-and the raw per-person `Database`) are not ingested yet — the first step is
-daily/monthly totals + the status breakdown.
-
-**`Number` is already per-day incremental** (not cumulative), so no diffing is
-needed. On every date, `Dead + Missing + Prisoner + Released == Number`, so a
-single date key carries both the headline total and its breakdown. Blank daily
-cells mean a genuine zero for that day; a zero-death day has a NULL `mean_age`.
-
-By default only war-period rows (`--since 2022-02-24`) are kept — the workbook
-carries a long pre-war tail (Donbas-era and older records) irrelevant to this
-dashboard.
-
-## Schema
+One row per date, with the day's total and its status split:
 
 ```sql
 CREATE TABLE daily_losses (
     date       TEXT NOT NULL,   -- YYYY-MM-DD (date of the loss event)
-    scraped_at TEXT NOT NULL,   -- UTC ingest timestamp
+    scraped_at TEXT NOT NULL,   -- ingest/version vintage (see below)
     number     INTEGER NOT NULL DEFAULT 0,  -- total losses recorded on this date
     dead       INTEGER NOT NULL DEFAULT 0,
     missing    INTEGER NOT NULL DEFAULT 0,
     prisoner   INTEGER NOT NULL DEFAULT 0,
-    released   INTEGER NOT NULL DEFAULT 0,  -- released prisoners
-    male       INTEGER NOT NULL DEFAULT 0,  -- of `number`, how many male
-    mean_age   REAL,            -- mean age at event; NULL on a zero-loss day
+    released   INTEGER NOT NULL DEFAULT 0,  -- POW since freed (dated at capture)
     PRIMARY KEY (date, scraped_at)
 );
 ```
 
-Reads resolve the latest version per date (`MAX(scraped_at)` per `date`) —
-mirroring the `ru_losses` / `mediazona` pattern.
+Read the latest version per date via `MAX(scraped_at)` per `date`. Demographic
+fields (sex, age) that the workbook also carries are **not** stored — their
+column names/positions churn across versions and they aren't charted.
 
-## Append-only / edit-versioned
+## Parsing: positional, not by header name
 
-A stored row is **never** mutated or deleted. Each row is one *version* of a
-date's numbers, tagged with `scraped_at`. ualosses continuously **revises past
-days upward** as more deaths get identified — a loss on a date months ago may
-only be added to the workbook today, and recent dates are right-censored
-(under-counted until research catches up). Each run compares parsed values
-against the latest stored version per date and INSERTs a NEW row only where they
-differ (or the date is new); the frontend reads the latest snapshot per date.
-This preserves the full historical development of the estimate across ingests.
+The daily total comes from the **`ByDay`** sheet (column 1) and the split from
+**`ByDayStatus`** (Dead / Missing / Prisoner / [Released]). We read these **by
+position**, because ualosses has renamed columns repeatedly across versions:
+
+| | v1–v10 (≈2024) | v12 (≈2025-06) | v14–v19 (≈2025-09+) |
+|---|---|---|---|
+| `ByDay` col 1 | `NumberDay` | `NumberHelp` | `Number` |
+| `ByDayStatus` | *absent* | Dead/Missing/Prisoner | + `Released` |
+| `Database` date col | `DateDeath` | `DateEvent` | `DateEvent` + `Status` |
+
+Positions have stayed put; names haven't. When `ByDayStatus` is absent (the
+early deaths-only era), every loss is a death, so `dead = number`.
+
+Dates are `DateEvent` — the date of the loss (killed / went missing / captured),
+**not** when the record was added. Undated persons and the pre-war tail
+(`--since 2022-02-24` by default) are excluded.
+
+## Append-only / edit-versioned — and why it matters here
+
+A stored row is never mutated. Each is one *version* of a date's numbers tagged
+with `scraped_at`. ualosses continually revises past days two ways: **newly
+identified people** appended to old dates, and **reclassification** of existing
+people (missing → dead / POW), which reshapes a date's split. The source keeps
+only the *current* status, so the transition history isn't in any single
+download — but it's latent in the sequence of Kaggle versions.
+
+### Backfilling the version history
+
+`backfill.sh` replays every Kaggle version oldest→newest into a fresh DB,
+stamping each with its own data vintage as `scraped_at` (via `--as-of`, which
+defaults to the data's max date under `--version`):
+
+```sh
+set -a; . ./.env.kaggle; set +a
+bash scripts/ua_losses/backfill.sh data/ua-losses.db
+```
+
+Diffing the resulting snapshots reconstructs the reclassification history. E.g.
+event-date **2022-03-15** across four versions:
+
+| as-of | number | dead | missing | POW | released |
+|---|---|---|---|---|---|
+| 2024-10 (deaths-only) | 134 | 134 | 0 | 0 | 0 |
+| 2025-05 | 103 | 52 | 38 | 13 | 0 |
+| 2025-09 | 180 | 96 | 67 | 17 | 0 |
+| 2026-06 | 204 | 100 | 56 | 20 | 28 |
+
+(A full backfill is ~19 downloads of 5–30 MB each — a few minutes.)
 
 ## Guards
 
-Both abort the build **before writing** (so a broken download leaves the DB
-untouched):
-
-1. **Floor** — fewer than `MIN_ROWS_FLOOR` (365) day-rows parsed ⇒ truncated
-   workbook.
-2. **No-shrink** — a fresh parse with fewer distinct dates than already stored
-   ⇒ refuse to overwrite a good DB with a partial one.
+Both abort the build **before writing** (a broken download leaves the DB
+untouched): a **floor** (< `MIN_ROWS_FLOOR` = 365 day-rows ⇒ truncated) and a
+**no-shrink** check (fewer distinct dates than already stored ⇒ refuse).
 
 ## CLI
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--xlsx PATH` | `sources/ualosses/UKR_ualosses_Personnel.xlsx` (or `$UA_LOSSES_XLSX`) | input workbook |
+| `--xlsx PATH` | `sources/ualosses/…xlsx` (`$UA_LOSSES_XLSX`) | local input workbook |
+| `--version N` | — | download & ingest Kaggle version N (needs creds) |
+| `--kaggle-ref REF` | ualosses dataset (`$UA_LOSSES_KAGGLE_REF`) | Kaggle dataset for `--version` |
 | `--since YYYY-MM-DD` | `2022-02-24` | drop earlier dates |
 | `--all-dates` | off | keep the full pre-war tail |
-| `--out PATH` | `scripts/ua_losses/output/ua-losses.db` (or `$UA_LOSSES_DB_PATH`) | output SQLite |
+| `--as-of YYYY-MM-DD` | vintage under `--version`, else now | `scraped_at` stamp |
+| `--out PATH` | `scripts/ua_losses/output/ua-losses.db` (`$UA_LOSSES_DB_PATH`) | output SQLite |
 | `--dry-run` | off | parse + report, no write |
 
 ## Status / not yet done
 
-This is the **ingest only** — no frontend wiring yet (no site key, hook, or
-combined-chart registration). CI (a Kaggle-pull workflow + R2 upload) is also
-not set up; the workbook currently has to be supplied locally via `--xlsx`.
-See the RU LOSSES pipeline (`scripts/ru_losses/` + `update-ru-losses-db.yml`)
-for the pattern to follow when wiring those up.
+The frontend combined-charts wiring (site key `ua-losses`) surfaces `number` +
+the status split. CI (a Kaggle-pull workflow + R2 upload) is **not** set up yet;
+the workbook is supplied locally via `--xlsx` or `--version`. See
+`scripts/ru_losses/` + `update-ru-losses-db.yml` for the pattern to follow.

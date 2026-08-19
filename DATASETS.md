@@ -1,7 +1,8 @@
 # Candidate datasets for new views
 
 Research compiled 2026-05-25, refreshed 2026-06-24 (added §5 lostarmour, updated
-§1 with mod.gov.ua supplement, §2/§3 to reflect since-shipped wiring). Recency
+§1 with mod.gov.ua supplement, §2/§3 to reflect since-shipped wiring); refreshed
+2026-08-19 (§5 UALosses: ingest + combined-charts wiring built, not productionized). Recency
 verified via GitHub `pushed_at` / Kaggle versions / live API responses on that
 date. We currently ingest: SBS, GSUA per-direction combat, RU losses
 (PetroIvaniuk + mod.gov.ua), RU MoD air-defense, RU missile/UAV attacks
@@ -281,10 +282,41 @@ The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:
   ever wanted as an ingestion source, email the admins first; a hand-rolled HTML
   scraper would be substantially more invasive than what we built for MoD or Petro.
 
-### UALosses — LIVE — best Ukrainian-casualty source
+### UALosses — LIVE — ✅ INGEST BUILT + combined-charts-wired (NOT productionized)
 - https://ualosses.org/ + Kaggle `ol4ubert/confirmed-ukrainian-military-personnel-losses`
-- Named, confirmed Ukrainian KIA from obituaries/OSINT. Updated weekly (~91.5k as of Apr 2026).
-  Validated by Mediazona/BBC. Kaggle CSV, easy parse.
+- Named, confirmed Ukrainian personnel losses from obituaries/OSINT, validated vs Mediazona/BBC.
+  ~208k confirmed by mid-2026 (was ~91.5k Apr 2026). Broken out by **status** — dead / missing /
+  prisoner / released-POW — not just KIA.
+- **NOT a "weekly CSV."** It's a ~30 MB **xlsx workbook**; the 30 MB is almost all the 212k-row
+  per-person `Database` sheet. We ingest only the pre-aggregated **daily** sheets — `ByDay` (col 1
+  = the day's total) + `ByDayStatus` (the dead/missing/prisoner/released split) — into a tiny
+  (~170 KB) `daily_losses` table. Parsed **positionally**, because column NAMES churn across
+  versions (`NumberDay`→`NumberHelp`→`Number`; `ByDayStatus`, its `Released` column, and the
+  per-person `Status` field each appeared at *different* versions) while positions stay put. Before
+  ~v12 the project tracked deaths only (no status) → we fall back to `dead = number`.
+- **Pipeline:** scripts/ua_losses/ingest.py → ua-losses.db. Dates are `DateEvent` (loss day), not
+  publish day; pre-war tail dropped (`--since 2022-02-24`).
+- **Storage:** APPEND-ONLY / versioned-on-edit (like ru_losses/mediazona), `daily_losses` keyed
+  (date, scraped_at). ualosses continually revises past days — new IDs appended AND existing people
+  **reclassified** (missing→dead/POW) — but the source keeps only the *current* status. Replaying
+  the **Kaggle version history** (19 versions, ~Apr 2024–Jul 2026, ~bimonthly) oldest→newest via
+  `--version N` + `backfill.sh` reconstructs that reclassification history retroactively; each
+  version is stamped with its own data vintage as `scraped_at` so snapshots land chronologically.
+  Floor + no-shrink guards.
+- **Frontend:** wired into the homepage **combined charts** (MetricSource `ua-losses`, daily +
+  monthly) — metrics Confirmed Dead / Missing / POW (Captured) / POW (Released). The raw daily
+  total is stored but deliberately NOT charted (lumps killed/missing/captured/released into one
+  misleading "losses" line; recoverable by stacking the split).
+- **Data access:** Kaggle-only, HTTP Basic auth via KAGGLE_USERNAME / KAGGLE_KEY (`.env.kaggle`,
+  gitignored) — same mechanism as piterfm §2. `--xlsx <path>` ingests a local workbook without creds.
+- **Person-level detail (future / not built):** the 212k-row `Database` sheet carries per-person
+  identity + status + rank/unit/oblast/nationality. Matching persons across versions proves
+  *individual* transitions (v14→v19: 6,439 missing→dead, 1,826 missing→POW, 764 POW→released, …).
+  A wartears-style versioned `persons` table would enable per-person transition tracking + the
+  demographic breakdowns — a much larger ingest, deferred.
+- **NOT productionized:** no CI workflow + no R2 object yet (local `--xlsx` / `--version` only), and
+  no dedicated site page (combined-charts only). Follow scripts/ru_losses + update-ru-losses-db.yml
+  for the CI/R2 pattern.
 
 ### zhukovyuri/VIINA — LIVE
 - https://github.com/zhukovyuri/VIINA · ODbL · pushed daily
@@ -497,6 +529,11 @@ Done (each is a live R2 SQLite + a site-picker entry):
 - **RU missile stockpiles (HUR)** — prototype JSON, site `ru-missiles-hur` (§9)
 
 Open work / candidate sources still on the board:
+- **UALosses (Ukrainian personnel losses)** (§5) — ingest built (`scripts/ua_losses/`) + wired into
+  the combined charts (status split: dead/missing/POW/released), but NOT productionized: needs a
+  Kaggle-pull CI workflow + R2 upload, and optionally a dedicated site page. Backfilling the Kaggle
+  version history reconstructs the status-reclassification history; the per-person `Database` sheet
+  (transitions + demographics) is a larger follow-on ingest.
 - **GSUA-Telegram-direct cumulative loss summaries** (§3 REVISIT) — same upstream channel
   the GSUA attacks scraper already targets, but the loss-summary posts are filtered out.
   Adding a second recogniser would give a parallel third source for §1, redundant with

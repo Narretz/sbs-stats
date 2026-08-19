@@ -10,6 +10,8 @@ vite.config.d.ts
 # Local env only — never commit this
 .env.local
 .env.*.local
+# Kaggle API credentials — never commit
+.env.kaggle
 
 # .env.production IS committed (no secrets, just the public DB URL)
 
@@ -34,6 +36,7 @@ data/sbs-foosint.db
 data/sbs.db
 data/sbu-alfa.db
 data/mediazona.db
+data/ua-losses.db
 
 sources/
 
