@@ -29,14 +29,35 @@ import defaultChartsConfig from "@/data/defaultCharts.json";
 // at load time so renames or removals in the metric registry fail gracefully.
 // Global JSON settings: `days` + `months` are per-granularity defaults for
 // newly-created charts; `scope` / `yMode` / `cumulative` are still global.
-interface DefaultChartSpec { name: string; granularity: ChartGranularity; metricIds: string[] }
+interface DefaultChartSpec {
+  name: string;
+  granularity: ChartGranularity;
+  metricIds: string[];
+  // Resolved opening window; falls back to the global per-granularity default
+  // when the JSON entry omits `window`.
+  window: DayOption | MonthOption;
+  // Whether the JSON set `window` explicitly. A legacy `?days=` URL seed only
+  // overrides charts that inherit the global default, not explicit ones.
+  explicitWindow: boolean;
+  // Per-chart Y-axis override. undefined = inherit the global yMode.
+  yMode?: YAxisMode;
+}
 interface DefaultsFile {
   days?: number;
   months?: number;
   scope?: StatScope;
   yMode?: YAxisMode;
   cumulative?: boolean;
-  charts: Array<{ name: string; granularity?: ChartGranularity; metricIds: string[] }>;
+  charts: Array<{
+    name: string;
+    granularity?: ChartGranularity;
+    metricIds: string[];
+    // Optional per-chart opening window: a positive integer, or "all" (monthly
+    // only). Omit to inherit the global `days` / `months` default.
+    window?: number | "all";
+    // Optional per-chart Y-axis transform. Omit to inherit the global `yMode`.
+    yMode?: YAxisMode;
+  }>;
 }
 const RAW_DEFAULTS = defaultChartsConfig as DefaultsFile;
 const DEFAULT_DAYS = (typeof RAW_DEFAULTS.days === "number" && RAW_DEFAULTS.days > 0)
@@ -47,14 +68,40 @@ const DEFAULT_SCOPE: StatScope = RAW_DEFAULTS.scope === "all" ? "all" : "window"
 const DEFAULT_Y_MODE: YAxisMode = RAW_DEFAULTS.yMode === "log" || RAW_DEFAULTS.yMode === "normalized"
   ? RAW_DEFAULTS.yMode : "linear";
 const DEFAULT_CUMULATIVE = RAW_DEFAULTS.cumulative === true;
-const DEFAULT_CHART_SPECS: DefaultChartSpec[] = RAW_DEFAULTS.charts.map((c) => ({
-  name: c.name,
-  granularity: c.granularity === "monthly" ? "monthly" : "daily",
-  metricIds: c.metricIds.filter((id) => {
-    const m = findMetric(id);
-    return m != null && m.views.includes(c.granularity === "monthly" ? "monthly" : "daily");
-  }),
-}));
+// Resolve a JSON `window` value against the chart's granularity. Returns the
+// global default (and explicit=false) when the entry is absent or invalid.
+function resolveSpecWindow(
+  g: ChartGranularity,
+  raw: number | "all" | undefined,
+): { window: DayOption | MonthOption; explicit: boolean } {
+  if (g === "monthly") {
+    if (raw === "all") return { window: "all", explicit: true };
+    if (typeof raw === "number" && raw > 0) return { window: raw as MonthOption, explicit: true };
+    return { window: DEFAULT_MONTHS, explicit: false };
+  }
+  if (typeof raw === "number" && raw > 0) return { window: raw as DayOption, explicit: true };
+  return { window: DEFAULT_DAYS, explicit: false };
+}
+
+function resolveSpecYMode(raw: unknown): YAxisMode | undefined {
+  return raw === "linear" || raw === "log" || raw === "normalized" ? raw : undefined;
+}
+
+const DEFAULT_CHART_SPECS: DefaultChartSpec[] = RAW_DEFAULTS.charts.map((c) => {
+  const granularity: ChartGranularity = c.granularity === "monthly" ? "monthly" : "daily";
+  const { window, explicit } = resolveSpecWindow(granularity, c.window);
+  return {
+    name: c.name,
+    granularity,
+    metricIds: c.metricIds.filter((id) => {
+      const m = findMetric(id);
+      return m != null && m.views.includes(granularity);
+    }),
+    window,
+    explicitWindow: explicit,
+    yMode: resolveSpecYMode(c.yMode),
+  };
+});
 
 // Per-chart defaults derive from the global JSON. New chart defaults to daily
 // + DEFAULT_DAYS; switching to monthly resets to DEFAULT_MONTHS.
@@ -80,6 +127,8 @@ interface ChartConfig {
   // JSON without a discriminated-union dance — the granularity is the
   // discriminator.
   window: DayOption | MonthOption;
+  // Per-chart Y-axis transform. undefined = inherit the homepage-global yMode.
+  yMode?: YAxisMode;
   metricIds: string[];
 }
 
@@ -104,9 +153,12 @@ function makeDefaultCharts(globalDaysOverride?: number): ChartConfig[] {
     uid: newChartUid(),
     name: c.name,
     granularity: c.granularity,
-    window: c.granularity === "monthly"
-      ? DEFAULT_MONTHS
-      : (globalDaysOverride ?? DEFAULT_DAYS),
+    // A legacy `?days=` seed only overrides daily charts that inherit the
+    // global default; an explicit per-chart `window` always wins.
+    window: c.granularity === "daily" && !c.explicitWindow && globalDaysOverride != null
+      ? globalDaysOverride
+      : c.window,
+    yMode: c.yMode,
     metricIds: [...c.metricIds],
   }));
 }
@@ -118,12 +170,16 @@ function makeDefaultCharts(globalDaysOverride?: number): ChartConfig[] {
 //   URLSearchParams handles the rest (spaces → +, unicode, etc) with its own
 //   single encode/decode pass, so encoding the full name with encodeURIComponent
 //   on top would double-encode common chars (e.g. " " → "%20" → "%2520").
-// - spec is `d<days>` or `m<months|all>` (e.g. `d60`, `m12`, `mall`)
+// - spec is `d<days>` or `m<months|all>` (e.g. `d60`, `m12`, `mall`), with an
+//   optional `y<lin|log|norm>` suffix carrying a per-chart Y-axis override
+//   (e.g. `d60ylog`, `mallynorm`). No suffix = inherit the global yMode.
 // - when omitted (legacy URL shape), defaults to daily + DEFAULT_DAYS
 // - spec is also omitted on output when the chart matches the per-granularity
-//   default window (so default-window URLs stay short)
+//   default window AND has no yMode override (so default URLs stay short)
 // - empty metric list is allowed (chart created but no metrics yet)
-const SPEC_RE = /^([dm])(\d+|all)$/;
+const SPEC_RE = /^([dm])(\d+|all)(?:y(lin|log|norm))?$/;
+const YMODE_TO_TOKEN: Record<YAxisMode, string> = { linear: "lin", log: "log", normalized: "norm" };
+const TOKEN_TO_YMODE: Record<string, YAxisMode> = { lin: "linear", log: "log", norm: "normalized" };
 
 function encodeChartName(s: string): string {
   // Just our 3 problem chars — encodeURIComponent of `:`/`;`/`%` yields
@@ -138,23 +194,26 @@ function decodeChartName(s: string): string {
   return s.replace(/%(25|3A|3B)/gi, (m) => decodeURIComponent(m));
 }
 
-function parseSpec(raw: string): { granularity: ChartGranularity; window: DayOption | MonthOption } | null {
+function parseSpec(
+  raw: string,
+): { granularity: ChartGranularity; window: DayOption | MonthOption; yMode?: YAxisMode } | null {
   const m = SPEC_RE.exec(raw);
   if (!m) return null;
   const granularity: ChartGranularity = m[1] === "m" ? "monthly" : "daily";
+  const yMode = m[3] ? TOKEN_TO_YMODE[m[3]] : undefined;
   if (m[2] === "all") {
-    return granularity === "monthly" ? { granularity, window: "all" } : null;
+    return granularity === "monthly" ? { granularity, window: "all", yMode } : null;
   }
   const n = Number(m[2]);
   if (!Number.isInteger(n) || n <= 0) return null;
-  return { granularity, window: n };
+  return { granularity, window: n, yMode };
 }
 
 function formatSpec(c: ChartConfig): string {
-  if (c.granularity === "monthly") {
-    return `m${c.window === "all" ? "all" : c.window}`;
-  }
-  return `d${c.window}`;
+  const base = c.granularity === "monthly"
+    ? `m${c.window === "all" ? "all" : c.window}`
+    : `d${c.window}`;
+  return c.yMode ? `${base}y${YMODE_TO_TOKEN[c.yMode]}` : base;
 }
 
 function parseCharts(raw: string | null, legacyMetrics: string[], legacyDays: number | null): ChartConfig[] {
@@ -184,12 +243,14 @@ function parseCharts(raw: string | null, legacyMetrics: string[], legacyDays: nu
     const nameRaw = parts[0] ?? "";
     let granularity: ChartGranularity = "daily";
     let windowVal: DayOption | MonthOption = DEFAULT_DAYS;
+    let yModeVal: YAxisMode | undefined;
     let idsRaw = "";
     if (parts.length >= 3) {
       const maybeSpec = parseSpec(parts[1]);
       if (maybeSpec) {
         granularity = maybeSpec.granularity;
         windowVal = maybeSpec.window;
+        yModeVal = maybeSpec.yMode;
         idsRaw = parts.slice(2).join(":");
       } else {
         // Spec field doesn't match — treat as legacy (entire tail is IDs).
@@ -213,21 +274,16 @@ function parseCharts(raw: string | null, legacyMetrics: string[], legacyDays: nu
         const m = findMetric(s);
         return m != null && m.views.includes(granularity);
       });
-    return { uid: newChartUid(), name, granularity, window: windowVal, metricIds };
+    return { uid: newChartUid(), name, granularity, window: windowVal, yMode: yModeVal, metricIds };
   });
-}
-
-function isDefaultWindow(c: ChartConfig): boolean {
-  if (c.granularity === "monthly") return c.window === DEFAULT_MONTHS;
-  return c.window === DEFAULT_DAYS;
 }
 
 function serializeCharts(charts: ChartConfig[]): string {
   return charts
     .map((c) => {
-      // Omit the spec when this chart is daily + default-window — matches the
-      // legacy shape so unchanged links stay unchanged.
-      const isLegacyShape = c.granularity === "daily" && c.window === DEFAULT_DAYS;
+      // Omit the spec when this chart is daily + default-window + no yMode
+      // override — matches the legacy shape so unchanged links stay unchanged.
+      const isLegacyShape = c.granularity === "daily" && c.window === DEFAULT_DAYS && c.yMode == null;
       const head = isLegacyShape
         ? encodeChartName(c.name)
         : `${encodeChartName(c.name)}:${formatSpec(c)}`;
@@ -246,7 +302,8 @@ function isDefaultCharts(charts: ChartConfig[]): boolean {
     const spec = DEFAULT_CHART_SPECS[i];
     if (c.name !== spec.name) return false;
     if (c.granularity !== spec.granularity) return false;
-    if (!isDefaultWindow(c)) return false;
+    if (c.window !== spec.window) return false;
+    if ((c.yMode ?? undefined) !== (spec.yMode ?? undefined)) return false;
     if (c.metricIds.length !== spec.metricIds.length) return false;
     for (let j = 0; j < spec.metricIds.length; j++) {
       if (c.metricIds[j] !== spec.metricIds[j]) return false;
@@ -686,7 +743,7 @@ export function HomePage({ onGoToSite }: Props) {
       <main style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 20px 64px" }}>
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 26, color: t.text, margin: 0 }}>
-            Custom charts
+            Combined Charts
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6, maxWidth: 720 }}>
             {showingDefaults && "Currently showing the default charts. "}Pick any combination of metrics across the data sources. Each chart has its own granularity and time window — switch a chart to Monthly to compare longer trends.
@@ -699,16 +756,16 @@ export function HomePage({ onGoToSite }: Props) {
           <select
             value={yMode}
             onChange={(e) => updateYMode(e.target.value as YAxisMode)}
-            title="Y-axis transform"
+            title="Default Y-axis transform (applied to charts left on “default”)"
             style={{
               background: t.bgAlt, color: t.text, border: `1px solid ${t.border}`,
               borderRadius: 4, padding: "5px 8px",
               fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
             }}
           >
-            <option value="linear">Y: linear</option>
-            <option value="log">Y: log</option>
-            <option value="normalized">Y: normalized (0–100%)</option>
+            <option value="linear">Y default: linear</option>
+            <option value="log">Y default: log</option>
+            <option value="normalized">Y default: normalized (0–100%)</option>
           </select>
           <select
             value={cumulative ? "cumulative" : "per-period"}
@@ -745,6 +802,7 @@ export function HomePage({ onGoToSite }: Props) {
               onMetricsChange={(metricIds) => updateChart(c.uid, { metricIds })}
               onGranularityChange={(g) => changeChartGranularity(c.uid, g)}
               onWindowChange={(w) => updateChart(c.uid, { window: w })}
+              onYModeChange={(y) => updateChart(c.uid, { yMode: y })}
               onRemove={() => removeChart(c.uid)}
             />
           ))}
@@ -778,6 +836,7 @@ interface ChartCardProps {
   onMetricsChange: (ids: string[]) => void;
   onGranularityChange: (g: ChartGranularity) => void;
   onWindowChange: (w: DayOption | MonthOption) => void;
+  onYModeChange: (y: YAxisMode | undefined) => void;
   onRemove: () => void;
 }
 
@@ -800,9 +859,11 @@ function toCumulative(points: DailyDataPoint[]): DailyDataPoint[] {
 
 function ChartCard({
   config, isOnlyChart, indexLabel, yMode, cumulative, seriesData, globalStats,
-  onRename, onMetricsChange, onGranularityChange, onWindowChange, onRemove,
+  onRename, onMetricsChange, onGranularityChange, onWindowChange, onYModeChange, onRemove,
 }: ChartCardProps) {
   const { theme: t } = useTheme();
+  // Per-chart override wins over the homepage-global yMode.
+  const effectiveYMode = config.yMode ?? yMode;
 
   // Local buffer for the chart-name input. Typing only updates this; the
   // upstream commit (which triggers a re-render of the chart + a URL write)
@@ -911,6 +972,20 @@ function ChartCard({
             onChange={(w) => onWindowChange(w)}
           />
         )}
+        <select
+          value={config.yMode ?? "inherit"}
+          onChange={(e) => {
+            const v = e.target.value;
+            onYModeChange(v === "inherit" ? undefined : (v as YAxisMode));
+          }}
+          title="Y-axis transform for this chart (overrides the global default)"
+          style={ctrlStyle}
+        >
+          <option value="inherit">Y: default</option>
+          <option value="linear">Y: linear</option>
+          <option value="log">Y: log</option>
+          <option value="normalized">Y: normalized</option>
+        </select>
         <MetricPicker selected={config.metricIds} onChange={onMetricsChange} view={config.granularity} />
         <button
           onClick={() => {
@@ -953,7 +1028,7 @@ function ChartCard({
           title={config.name}
           series={series}
           wfull
-          yMode={yMode}
+          yMode={effectiveYMode}
           cumulative={cumulative}
           granularity={config.granularity}
         />

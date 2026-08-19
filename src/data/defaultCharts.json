@@ -19,6 +19,13 @@
       "name": "RU Personnel Losses",
       "granularity": "daily",
       "metricIds": ["sbs.total_personnel_casualties", "ru-losses.personnel"]
+    },
+    {
+      "name": "All Time RU Losses — GSUA and Mediazona",
+      "window": "all",
+      "yMode": "normalized",
+      "granularity": "monthly",
+      "metricIds": ["ru-losses.personnel", "mediazona-roles.total"]
     }
   ]
 }

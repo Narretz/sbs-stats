@@ -88,6 +88,27 @@ test.describe("Homepage custom charts", () => {
     await expect(page.locator('input[placeholder="Chart name"]')).toHaveCount(startCount - 1);
   });
 
+  test("per-chart Y-axis override round-trips through the URL", async ({ page }) => {
+    await openHomeWithDefaults(page);
+    const ySelect = page.locator('select[title^="Y-axis transform for this chart"]').first();
+    await expect(ySelect).toHaveValue("inherit"); // defaults inherit the global yMode
+    await ySelect.selectOption("log");
+    // Serializes as a `y<log>` suffix on the chart's spec token.
+    await page.waitForFunction(() => /[?&]charts=.*ylog/.test(location.search));
+
+    await page.reload();
+    await expect(
+      page.locator('select[title^="Y-axis transform for this chart"]').first(),
+    ).toHaveValue("log");
+  });
+
+  test("a charts= URL carrying a per-chart Y suffix is parsed back", async ({ page }) => {
+    const param = encodeURIComponent("Log chart:d20ylog:sbs.personnel_killed");
+    await page.goto(`/?charts=${param}`);
+    await expect(page.locator('select[title^="Y-axis transform for this chart"]').first()).toHaveValue("log");
+    await expect(page.locator('[data-testid="day-range-custom"]').first()).toHaveValue("20");
+  });
+
   test("MetricPicker mounts with no React 'unrecognized prop' warnings", async ({ page }) => {
     const warns: string[] = [];
     page.on("console", (m) => {
