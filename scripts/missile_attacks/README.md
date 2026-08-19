@@ -45,6 +45,14 @@ in the query layer (see the views below).
   column missing → source shape changed), a row-count floor (`MIN_ROWS_FLOOR`,
   default 1000), a "never fewer keys than already stored" shrink guard, and an
   in-download key-uniqueness guard.
+- **Header growth is migrated, not fatal**: if piterfm *adds* a CSV column
+  (e.g. `status_data`, Aug 2026), the build `ALTER TABLE ADD COLUMN`s it into
+  the stored table — `CREATE TABLE IF NOT EXISTS` alone is a no-op against an
+  existing DB, so without this the change-detection query asks for a column
+  that isn't there and the run dies. New TEXT columns default to `''` so
+  pre-existing rows match the blank cell a fresh CSV carries for them and the
+  migration run doesn't re-version the whole dataset; rows upstream actually
+  backfills differ for real and get a new version like any other edit.
 
 ## Derived columns
 

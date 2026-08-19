@@ -282,6 +282,7 @@ def build(db_path: Path, header: list[str], rows: list[dict]) -> tuple[int, int,
             f"CREATE TABLE IF NOT EXISTS {TABLE} "
             f"({coldefs}, scraped_at TEXT NOT NULL, PRIMARY KEY ({pk}))"
         )
+        _add_missing_columns(conn, all_cols, col_type)
         _create_views(conn, key_cols, value_cols)
 
         # Latest stored version per natural key, for change detection.
@@ -404,6 +405,38 @@ def build(db_path: Path, header: list[str], rows: list[dict]) -> tuple[int, int,
     finally:
         conn.close()
     return len(to_insert), distinct, latest
+
+
+def _add_missing_columns(conn, all_cols, col_type) -> list[str]:
+    """Bring an existing table up to the current header (returns added columns).
+
+    `CREATE TABLE IF NOT EXISTS` is a no-op against a DB built from an older
+    header, so when piterfm *adds* a CSV column (as with `status_data` in Aug
+    2026) every statement below references a column the stored table doesn't
+    have. ALTER TABLE ADD COLUMN never rewrites or drops stored rows, so this
+    stays within the append-only model.
+
+    TEXT columns are added with `DEFAULT ''` — SQLite applies the default to
+    pre-existing rows, so they compare equal to the blank cell a fresh CSV
+    carries for a row upstream hasn't backfilled, and the migration run doesn't
+    re-version the whole dataset. INT columns keep NULL, which is what `norm()`
+    produces for a blank count. Rows upstream *does* backfill differ for real
+    and get a new version, as any other edit would.
+    """
+    existing = {r[1] for r in conn.execute(f"PRAGMA table_info({TABLE})")}
+    added = [c for c in all_cols if c not in existing]
+    for c in added:
+        t = col_type(c)
+        default = " DEFAULT ''" if t == "TEXT" else ""
+        conn.execute(f"ALTER TABLE {TABLE} ADD COLUMN {_ident(c)} {t}{default}")
+    if added:
+        conn.commit()
+        print(
+            f"NOTE: upstream header grew — added column(s) {added} to {TABLE}; "
+            f"pre-existing rows keep their values.",
+            file=sys.stderr,
+        )
+    return added
 
 
 def _create_views(conn, key_cols, value_cols):

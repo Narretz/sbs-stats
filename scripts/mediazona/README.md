@@ -13,7 +13,7 @@ Builds **`mediazona.db`** from two weekly CSV exports of
 python3 scripts/mediazona/ingest.py --from-article --out data/mediazona.db
 
 # Or override the URL (Mediazona's previous-release URLs stay alive):
-python3 scripts/mediazona/ingest.py --from-article https://en.zona.media/article/2026/06/19/casualties_eng-trl
+python3 scripts/mediazona/ingest.py --from-article https://en.zona.media/article/2026/08/14/casualties_eng-trl
 
 # Local-CSV mode (manual export workflow) — still supported:
 python3 scripts/mediazona/ingest.py \
@@ -39,11 +39,34 @@ that changes with each release. The ingest:
 3. Identifies the two relevant blobs **by shape** (not by index), so a
    reordering inside the bundle doesn't break us:
    - probate estimate: list of `{w, rnd, real}` dicts
-   - roles daily series: dict-of-equal-length-int-lists
+   - roles daily series: either a flat dict-of-equal-length-int-lists
+     (pre-Aug-2026) or the `{years, days, dates}` wrapper below
    - per-category summary (used only for the drift guard, below): list of
      `{k, o, v}` dicts.
-4. Aggregates the roles' per-day series into Thursday-anchored weekly buckets
-   matching `confirmed_losses_per_week.csv`'s layout.
+4. Normalises the roles blob to one per-day series per role, then aggregates it
+   into Thursday-anchored weekly buckets matching
+   `confirmed_losses_per_week.csv`'s layout.
+
+### The Aug-2026 roles re-encoding
+
+The article published 2026-08-14 shipped a new bundle that broke the ingest:
+the roles blob is now `{years: [...], days: N, dates: {index: [series, ...]}}`.
+Two things changed at once.
+
+- **A cohort breakdown.** Each role now carries one series *per entry in
+  `years`* — the year in which those deaths were identified. Each cohort is
+  still bucketed by date of death, so it spans the whole war but stops at its
+  own year's end. The cohorts partition the dataset (they don't nest), so their
+  elementwise sum is the all-time daily series the flat encoding used to carry.
+- **Run-length encoding.** Inside a series a non-negative value is that day's
+  count and a negative `-n` is a run of `n` zero days. Every series expands to
+  exactly `days` entries; anything else aborts the build.
+
+The index order survived the re-encoding, so `BLOB5_COLUMN_MAP` is unchanged —
+re-verified both against the summary blob (the drift guard still reports its one
+known `nd` miss and nothing else) and against the previously stored weeks, which
+the summed series reproduces to within the ±1–2 per week that ordinary upstream
+revision produces.
 5. **Drift guard** (`_check_blob5_drift`): each role index's all-time sum must
    match a per-category total in the summary blob within 10 %. One known
    tolerated miss (the `nd` / "нет данных" index — blob 5 omits a residual

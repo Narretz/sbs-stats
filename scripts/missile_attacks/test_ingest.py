@@ -234,3 +234,60 @@ def test_small_shrink_within_tolerance_warns(tmp_path, monkeypatch, capsys):
     assert inserted == 0  # nothing new
     assert distinct == 3  # orphan remains in DB
     assert "within tolerance" in capsys.readouterr().err
+
+
+def test_upstream_added_column_migrates_existing_db(tmp_path, capsys):
+    """piterfm grew the header (`status_data`, Aug 2026) — an existing DB built
+    from the old header must gain the column instead of blowing up on it."""
+    _build(tmp_path, CSV_V1)
+    conn = sqlite3.connect(tmp_path / "t.db")
+    assert "status_data" not in {
+        r[1] for r in conn.execute("PRAGMA table_info(missile_attacks)")
+    }
+    conn.close()
+
+    # Same three rows, one new trailing column — blank for the old rows.
+    grown = "\n".join(
+        line + ("," if i else ",status_data")
+        for i, line in enumerate(CSV_V1.split("\n"))
+    )
+    inserted, distinct, _ = _build(tmp_path, grown)
+
+    # Migration only: no values changed, so nothing is re-versioned.
+    assert inserted == 0
+    assert distinct == 3
+    assert "added column(s) ['status_data']" in capsys.readouterr().err
+
+    conn = sqlite3.connect(tmp_path / "t.db")
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(missile_attacks)")}
+    assert "status_data" in cols
+    # Pre-existing rows read as the blank cell the CSV carries, not NULL.
+    assert conn.execute(
+        "SELECT DISTINCT status_data FROM missile_attacks_latest"
+    ).fetchall() == [("",)]
+    conn.close()
+
+
+def test_upstream_added_column_with_value_versions_the_row(tmp_path):
+    """A populated new column is a real edit: the row gets a new version and the
+    latest view returns the new value."""
+    _build(tmp_path, CSV_V1)
+    rows = CSV_V1.split("\n")
+    grown = "\n".join(
+        [rows[0] + ",status_data"]
+        + [rows[1] + ",confirmed"]
+        + [r + "," for r in rows[2:]]
+    )
+    inserted, distinct, _ = _build(tmp_path, grown)
+    assert inserted == 1  # only the row that gained a value
+    assert distinct == 3
+
+    conn = sqlite3.connect(tmp_path / "t.db")
+    got = dict(
+        conn.execute(
+            "SELECT model, status_data FROM missile_attacks_latest"
+        ).fetchall()
+    )
+    assert got["Shahed-136/131"] == "confirmed"
+    assert got["Iskander-M"] == ""
+    conn.close()
