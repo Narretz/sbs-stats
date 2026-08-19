@@ -73,6 +73,7 @@ npm run test:e2e     # Playwright e2e (uses .env.e2e fixture DBs)
 
 # Python ingest scripts: see each scripts/<x>/README.md
 pip install -r scripts/requirements.txt   # the devcontainer does this on create
+bash scripts/setup_env.sh                 # npm + pip bootstrap for a fresh container
 ```
 
 ## Conventions
