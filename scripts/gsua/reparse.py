@@ -17,6 +17,7 @@ re-scrape via INSERT-OR-REPLACE-or-skip would produce).
 import argparse
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 from types import SimpleNamespace
 
 import scrape_general_staff as gs
@@ -26,7 +27,7 @@ import scrape_general_staff as gs
 _PARSER_COLS = (
     "combat_engagements", "missile_strikes", "missiles_used", "air_strikes",
     "kabs_dropped", "kamikaze_drones", "shellings", "mlrs_shellings",
-    "notes", "part",
+    "targets_destroyed", "notes", "part",
 )
 
 
@@ -127,14 +128,15 @@ def _reparse_one(conn: sqlite3.Connection, row, dry_run: bool) -> str:
         UPDATE posts SET
             combat_engagements = ?, missile_strikes = ?, missiles_used = ?,
             air_strikes = ?, kabs_dropped = ?, kamikaze_drones = ?,
-            shellings = ?, mlrs_shellings = ?, notes = ?, part = ?
+            shellings = ?, mlrs_shellings = ?, targets_destroyed = ?,
+            notes = ?, part = ?
         WHERE source = ? AND source_id = ? AND scraped_at = ?
         """,
         (
             summary.combat_engagements, summary.missile_strikes,
             summary.missiles_used, summary.air_strikes,
             summary.kabs_dropped, summary.kamikaze_drones,
-            summary.shellings, summary.mlrs_shellings,
+            summary.shellings, summary.mlrs_shellings, summary.targets_destroyed,
             summary.notes, summary.part,
             src, sid, latest_at,
         ),
@@ -233,7 +235,10 @@ def main() -> None:
     if not (args.message_ids or args.all or args.null_combat or args.since or args.until):
         p.error("specify message_ids, --all, --null-combat, or --since/--until")
 
-    conn = sqlite3.connect(args.db)
+    # Open via gs.open_db so pending schema migrations (e.g. the
+    # targets_destroyed column) are applied before we reparse — otherwise an
+    # UPDATE of a not-yet-added column fails on DBs pulled from an older schema.
+    conn = gs.open_db(Path(args.db))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
 

@@ -122,6 +122,7 @@ class DailySummary:
     kamikaze_drones: int | None = None
     shellings: int | None = None
     mlrs_shellings: int | None = None
+    targets_destroyed: int | None = None  # UA combined (aviation+missile+artillery) targets hit
     notes: str | None = None  # free-text marker for parser corrections (e.g. header typos)
     part: str | None = None   # "1/2", "2/2", … when the post is one of a multipart split; else NULL
 
@@ -719,7 +720,43 @@ def parse_summary(text: str, msg: Message) -> DailySummary | None:
         text,
     )
 
+    s.targets_destroyed = _count_targets_destroyed(text)
+
     return s
+
+
+def _count_targets_destroyed(text: str) -> int | None:
+    """Total targets the report credits to Ukrainian forces that day — the
+    combined "aviation + missile troops + artillery" tally in
+    "За минулу добу … Сили оборони уразили N районів …, M систем та ще один
+    об'єкт." Sums the count in every listed item; an item with no explicit
+    number is an implicit singular (e.g. "склад боєприпасів") and counts as 1.
+    This mirrors the "UA combined" series some public dashboards publish from
+    these reports; it is *targets destroyed*, not a count of strikes/sorties,
+    and aviation can't be separated from missiles/artillery here.
+
+    Returns None when the report has no "уразили" clause.
+    """
+    m = re.search(r"уразил\w*([^.]*)", text)
+    if m is None:
+        return None
+    seg = m.group(1).replace("’", "'").replace("ʼ", "'")
+    total = 0
+    counted = False
+    # The clause is a flat list of "[N] <target-noun>" items joined by commas
+    # and та/і/й. Split on those, sum each item's numbers (a dropped comma can
+    # put two counts in one item), and score a numberless item as one target.
+    for item in re.split(r",|\s+та\s+|\s+і\s+|\s+й\s+", seg):
+        if not re.search(r"[а-яіїєґ]", item, re.IGNORECASE):
+            continue  # blank / punctuation-only fragment
+        nums = [
+            int(tok) if tok.isdigit() else UA_NUM[tok]
+            for tok in re.findall(r"\d+|[\w'ʼ’]+", item)
+            if tok.isdigit() or tok in UA_NUM
+        ]
+        total += sum(nums) if nums else 1
+        counted = True
+    return total if counted else None
 
 
 # ---------------------------------------------------------------------------
@@ -1321,6 +1358,7 @@ def open_db(path: Path) -> sqlite3.Connection:
     _migrate_to_source_keyed_schema(conn)
     _migrate_to_versioned_schema(conn)
     _migrate_add_direction_group_columns(conn)
+    _migrate_add_targets_destroyed(conn)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
     return conn
@@ -1348,6 +1386,24 @@ def _migrate_add_direction_group_columns(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE directions ADD COLUMN attacks_group_id INTEGER"
         )
+
+
+def _migrate_add_targets_destroyed(conn: sqlite3.Connection) -> None:
+    """Add `targets_destroyed` to `posts` on DBs that predate it (2026-08).
+    Additive: existing rows stay NULL until a `reparse.py --all` repopulates
+    them. Drops the covering index + daily_combined view so the executescript
+    of SCHEMA that follows rebuilds both WITH the new column. No-op on a fresh
+    DB (SCHEMA creates the column) or one already carrying it."""
+    info = list(conn.execute("PRAGMA table_info(posts)"))
+    if not info:
+        return  # fresh DB — SCHEMA's CREATE TABLE already has the column
+    if "targets_destroyed" in {r[1] for r in info}:
+        return  # already migrated
+    log.info("Adding targets_destroyed to `posts`…")
+    with conn:
+        conn.execute("ALTER TABLE posts ADD COLUMN targets_destroyed INTEGER")
+        conn.execute("DROP INDEX IF EXISTS idx_posts_metrics")
+        conn.execute("DROP VIEW IF EXISTS daily_combined")
 
 
 def _sanity_check(
@@ -1502,8 +1558,8 @@ def upsert_report(
             source, source_id, date, message_date, snapshot_at, text, url,
             combat_engagements, missile_strikes, missiles_used, air_strikes,
             kabs_dropped, kamikaze_drones, shellings, mlrs_shellings,
-            scraped_at, notes, part
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            targets_destroyed, scraped_at, notes, part
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             summary.source, summary.source_id,
@@ -1513,6 +1569,7 @@ def upsert_report(
             summary.missiles_used, summary.air_strikes,
             summary.kabs_dropped, summary.kamikaze_drones,
             summary.shellings, summary.mlrs_shellings,
+            summary.targets_destroyed,
             scraped_at,
             summary.notes,
             summary.part,

@@ -918,6 +918,38 @@ class TestMetrics:
         assert s.missile_strikes == 2
         assert s.missiles_used is None
 
+    def test_targets_destroyed_numbered_list(self):
+        # 2026-08-01: sum every item; "один …" counts explicitly.
+        s = self._parse(
+            "За минулу добу авіація, ракетні війська і артилерія Сил оборони "
+            "уразили 15 районів зосередження живої сили противника, один пункт "
+            "управління БпЛА та один командно-спостережний пункт."
+        )
+        assert s.targets_destroyed == 17
+
+    def test_targets_destroyed_implicit_one(self):
+        # 2026-08-12: "склад боєприпасів" has no number — counts as one target.
+        s = self._parse(
+            "За минулу добу Сили оборони уразили вісім районів зосередження "
+            "живої сили противника, три артилерійські системи та склад боєприпасів."
+        )
+        assert s.targets_destroyed == 12  # 8 + 3 + 1
+
+    def test_targets_destroyed_missing_comma_two_counts(self):
+        # 2026-08-17: a dropped comma puts two counts ("дві … один засіб ППО")
+        # in one split item; both are summed.
+        s = self._parse(
+            "За минулу добу Сили оборони уразили два пункти управління, два "
+            "райони зосередження живої сили противника, дві артилерійські "
+            "системи один засіб ППО та п'ять пунктів управління безпілотними "
+            "літальними апаратами."
+        )
+        assert s.targets_destroyed == 12  # 2 + 2 + (2+1) + 5
+
+    def test_targets_destroyed_none_without_clause(self):
+        s = self._parse("На Покровському напрямку тривають бойові дії.")
+        assert s.targets_destroyed is None
+
     def test_kamikaze_drones_en_dash(self):
         # msg 38096 — "дронів–камікадзе" with U+2013
         s = self._parse("Задіяв для ураження 5360 дронів–камікадзе.")

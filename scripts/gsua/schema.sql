@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS posts (
     kamikaze_drones     INTEGER,
     shellings           INTEGER,
     mlrs_shellings      INTEGER,
+    targets_destroyed   INTEGER,             -- UA combined targets hit (aviation+missile+artillery)
     scraped_at          TEXT    NOT NULL,    -- ingest time; also the version key
     notes               TEXT,                -- parser-correction marker; NULL for clean rows
     part                TEXT,                -- "1/2"/"2/2"/… for multipart posts; NULL for single-part
@@ -48,7 +49,7 @@ CREATE INDEX IF NOT EXISTS idx_posts_metrics ON posts(
     date, source, source_id, scraped_at, snapshot_at,
     combat_engagements, missile_strikes, missiles_used,
     air_strikes, kabs_dropped, kamikaze_drones,
-    shellings, mlrs_shellings
+    shellings, mlrs_shellings, targets_destroyed
 );
 
 -- Version resolution + directions join: latest scraped_at per (source, source_id)
@@ -103,6 +104,7 @@ SELECT
     MAX(kamikaze_drones)           AS kamikaze_drones,
     MAX(shellings)                 AS shellings,
     MAX(mlrs_shellings)            AS mlrs_shellings,
+    MAX(targets_destroyed)         AS targets_destroyed,
     GROUP_CONCAT(notes, ' | ')     AS notes
 FROM posts p
 WHERE NOT EXISTS (

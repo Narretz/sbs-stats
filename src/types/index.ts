@@ -158,6 +158,7 @@ export const GSUA_METRIC_KEYS = [
   "kamikaze_drones",
   "shellings",
   "mlrs_shellings",
+  "targets_destroyed",
 ] as const;
 export type GsuaMetricKey = (typeof GSUA_METRIC_KEYS)[number];
 
@@ -170,6 +171,9 @@ export const GSUA_METRIC_LABELS: Record<GsuaMetricKey, string> = {
   kamikaze_drones: "Kamikaze Drones",
   shellings: "Shellings",
   mlrs_shellings: "MLRS Shellings",
+  // UA forces' combined (aviation + missile troops + artillery) targets hit,
+  // from the GS "Сили оборони уразили …" line. Targets destroyed, not sorties.
+  targets_destroyed: "UA Targets Destroyed",
 };
 
 export type GsuaDailyRow = {

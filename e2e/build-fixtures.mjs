@@ -77,6 +77,7 @@ function buildSbs(SQL) {
 const GSUA_METRICS = [
   "combat_engagements", "missile_strikes", "missiles_used", "air_strikes",
   "kabs_dropped", "kamikaze_drones", "shellings", "mlrs_shellings",
+  "targets_destroyed",
 ];
 
 function buildGsua(SQL) {
