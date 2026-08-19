@@ -1015,6 +1015,26 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
                     r"(" + _NUMWORD + r")\s+(?:намага|наступа)\w*",
                 )
 
+            # Total-over-repelled override. The 2024–mid-2025 narrative style
+            # states the same fighting twice: a TOTAL of enemy assaults ("агресор
+            # сім разів штурмував…") plus the subset REPELLED ("зупинили шість
+            # ворожих атак, ще одна триває" — 7 = 6 repelled + 1 ongoing). The
+            # attack count is the total; the repelled-form branches above capture
+            # only the subset, undercounting by the ongoing remainder. So if the
+            # anchor's OWN sentence carries an explicit "N разів <verb>" total, it
+            # wins. Bounded to anchor_sentence so a neighbour's "N разів … на X
+            # напрямку" (a separate sentence / the next anchor) can't bleed in.
+            if not no_activity:
+                total = _extract_count(
+                    anchor_sentence,
+                    r"(\d[\d\s]*\d|\d)\s+раз(?:ів|и)?\s+"
+                    r"(?:атакува|штурмува|намага|наступа|нападав)\w*",
+                    r"(" + _NUMWORD + r")\s+раз(?:ів|и)?\s+"
+                    r"(?:атакува|штурмува|намага|наступа|нападав)\w*",
+                )
+                if total is not None:
+                    attacks = total
+
         # Ongoing engagements: digit form or word form.
         if no_activity:
             ongoing = None

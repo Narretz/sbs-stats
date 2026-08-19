@@ -1269,6 +1269,40 @@ class TestDirections:
         olek = next(d for d in dirs if d.direction == "Oleksandrivka")
         assert olek.attacks == 3
 
+    def test_total_preferred_over_repelled_subset(self):
+        # msg 16687: the narrative style states a TOTAL of enemy assaults and
+        # the repelled subset in one paragraph — "агресор шість разів штурмував
+        # … зупинили чотири ворожих атаки, ще дві триває" (6 = 4 repelled + 2
+        # ongoing). The attack count is the total 6, not the repelled 4. The
+        # "N разів <verb>" total on the anchor sentence overrides the repelled
+        # form the adjective branch would otherwise capture.
+        text = _wrap_evening(
+            "На Времівському напрямку за сьогодні агресор шість разів штурмував "
+            "передній край оборони в напрямку Водяного та Вугледару. Українські "
+            "воїни зупинили чотири ворожих атаки, ще дві атаки триває."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=16687), "2025-01-01")
+        vrem = next(d for d in dirs if d.direction == "Vremivka")
+        assert vrem.attacks == 6
+
+    def test_total_override_does_not_bleed_next_direction(self):
+        # Guard: the total override is bounded to the anchor's own sentence, so
+        # a NEXT direction's "N разів намагався … на X напрямку" total (a
+        # separate sentence, which becomes its own anchor) must not bleed back.
+        # msg 25196: Toretsk reports "провів 12 наступальних дій"; the following
+        # "ворог 56 разів намагався … на Покровському напрямку" belongs to
+        # Pokrovsk. Toretsk must stay 12.
+        text = _wrap_evening(
+            "На Торецькому напрямку ворог провів 12 наступальних дій у районах "
+            "Диліївки та Торецька, два боєзіткнення триває. "
+            "Від початку доби ворог 56 разів намагався вклинитися в нашу оборону "
+            "на Покровському напрямку в районах Мирного та Лисівки."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=25196), "2025-06-06")
+        by = {d.direction: d for d in dirs}
+        assert by["Toretsk"].attacks == 12
+        assert by["Pokrovsk"].attacks == 56
+
     def test_missing_period_does_not_bleed_previous_direction(self):
         # msg 33053: the previous direction's sentence has no terminating
         # period, so the backward count-window would otherwise reach back into
