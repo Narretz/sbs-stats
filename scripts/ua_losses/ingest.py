@@ -368,12 +368,19 @@ def main() -> int:
     print(f"[parse] {len(rows)} day-rows {rows[0][0]}..{vintage}; sum(number)={total}"
           f"{'' if since is None else f'  (since {since})'}")
 
-    # scraped_at: explicit --as-of wins; else the version's vintage for backfill
-    # (distinct + chronological per version); else now for a live local run.
+    # scraped_at: explicit --as-of wins; else the version's vintage for backfill;
+    # else now for a live local run.
     if args.as_of is not None:
         scraped_at = f"{args.as_of}T00:00:00+00:00"
     elif args.version is not None:
-        scraped_at = f"{vintage}T00:00:00+00:00"
+        # Stamp with the data vintage, disambiguated by version number in a
+        # fractional-second field. Consecutive Kaggle versions can share a max
+        # event date (e.g. v3 and v4 both end 2024-07-24 — v4 only revised
+        # earlier days), which would collide on the (date, scraped_at) key. The
+        # zero-padded version keeps scraped_at unique AND correctly ordered: a
+        # higher version sorts later within the same vintage, and a later vintage
+        # sorts later regardless — so latest-per-date still resolves the newest.
+        scraped_at = f"{vintage}T00:00:00.{args.version:05d}+00:00"
     else:
         scraped_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
