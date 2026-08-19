@@ -1285,6 +1285,32 @@ class TestDirections:
         vrem = next(d for d in dirs if d.direction == "Vremivka")
         assert vrem.attacks == 6
 
+    def test_total_in_later_sentence_zagalom(self):
+        # msg 25320: the report leads with the repelled subset and closes with
+        # an explicit "Загалом" total a sentence later — "…зупинили п'ять
+        # ворожих атак на Торецькому напрямку. Загалом ворог десять разів
+        # намагався…". The total 10 wins over the repelled 5; the "Загалом"
+        # marker makes it safe to look past the anchor sentence.
+        text = _wrap_evening(
+            "Сили оборони вже успішно зупинили п'ять ворожих атак на Торецькому "
+            "напрямку. Загалом ворог десять разів намагався вклинитися в нашу "
+            "оборону в районах Щербинівки та Диліївки."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=25320), "2025-06-15")
+        tor = next(d for d in dirs if d.direction == "Toretsk")
+        assert tor.attacks == 10
+
+    def test_zagalom_total_does_not_catch_global_aggregate(self):
+        # Guard: the global daily aggregate also opens with "Загалом" but counts
+        # "боєзіткнень", not "разів <verb>" — a direction with no per-direction
+        # total must not absorb it.
+        text = _wrap_evening(
+            "На Придніпровському напрямку ворог наступальних дій не проводив."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        prydn = next(d for d in dirs if d.direction == "Prydniprovske")
+        assert prydn.attacks is None
+
     def test_total_override_does_not_bleed_next_direction(self):
         # Guard: the total override is bounded to the anchor's own sentence, so
         # a NEXT direction's "N разів намагався … на X напрямку" total (a

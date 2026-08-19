@@ -1032,6 +1032,24 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
                     r"(" + _NUMWORD + r")\s+раз(?:ів|и)?\s+"
                     r"(?:атакува|штурмува|намага|наступа|нападав)\w*",
                 )
+                if total is None:
+                    # The total can also land a sentence AFTER the anchor when
+                    # the report leads with the repelled subset and closes with
+                    # an explicit summary (msg 25320: "…зупинили п'ять ворожих
+                    # атак на Торецькому напрямку. Загалом ворог десять разів
+                    # намагався…" — 10 is the total, 5 the repelled subset). The
+                    # "Загалом" (in total) marker makes it same-direction, so it
+                    # is safe to look past the anchor sentence into count_section
+                    # for this form only. The global daily aggregate also opens
+                    # with "Загалом" but counts "боєзіткнень", not "разів <verb>",
+                    # so it isn't matched here.
+                    total = _extract_count(
+                        count_section,
+                        r"Загалом[^.]{0,40}?(\d[\d\s]*\d|\d)\s+раз(?:ів|и)?\s+"
+                        r"(?:атакува|штурмува|намага|наступа|нападав)\w*",
+                        r"Загалом[^.]{0,40}?(" + _NUMWORD + r")\s+раз(?:ів|и)?\s+"
+                        r"(?:атакува|штурмува|намага|наступа|нападав)\w*",
+                    )
                 if total is not None:
                     attacks = total
 
