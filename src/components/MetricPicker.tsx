@@ -19,6 +19,7 @@ const SOURCE_ORDER: MetricSource[] = [
   "sbs",
   "gsua",
   "ru-losses",
+  "ua-losses",
   "ru-airdef-mod",
   "ru-air-attacks",
   "sbu-alfa",

@@ -3,6 +3,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useDatabase } from "@/hooks/useDatabase";
 import { useDatabaseGsua } from "@/hooks/useDatabaseGsua";
 import { useDatabaseRuLosses } from "@/hooks/useDatabaseRuLosses";
+import { useDatabaseUaLosses } from "@/hooks/useDatabaseUaLosses";
 import { useDatabaseRuMod } from "@/hooks/useDatabaseRuMod";
 import { useDatabaseRuAirAttacks } from "@/hooks/useDatabaseRuAirAttacks";
 import { useDatabaseSbuAlfa } from "@/hooks/useDatabaseSbuAlfa";
@@ -422,6 +423,7 @@ export function HomePage({ onGoToSite }: Props) {
   const sbs = useDatabase({ enabled: needed.has("sbs") });
   const gsua = useDatabaseGsua({ enabled: needed.has("gsua") });
   const ruLosses = useDatabaseRuLosses({ enabled: needed.has("ru-losses") });
+  const uaLosses = useDatabaseUaLosses({ enabled: needed.has("ua-losses") });
   const ruMod = useDatabaseRuMod({ enabled: needed.has("ru-airdef-mod") });
   const ruAir = useDatabaseRuAirAttacks({ enabled: needed.has("ru-air-attacks") });
   const sbuAlfa = useDatabaseSbuAlfa({ enabled: needed.has("sbu-alfa") });
@@ -461,6 +463,7 @@ export function HomePage({ onGoToSite }: Props) {
       [needed.has("sbs"), sbs.loadState],
       [needed.has("gsua"), gsua.loadState],
       [needed.has("ru-losses"), ruLosses.loadState],
+      [needed.has("ua-losses"), uaLosses.loadState],
       [needed.has("ru-airdef-mod"), ruMod.loadState],
       [needed.has("ru-air-attacks"), ruAir.loadState],
       [needed.has("sbu-alfa"), sbuAlfa.loadState],
@@ -498,6 +501,7 @@ export function HomePage({ onGoToSite }: Props) {
             sbs: needed.has("sbs") ? sbs.queryMonthly : undefined,
             gsua: needed.has("gsua") ? gsua.queryMonthly : undefined,
             ruLosses: needed.has("ru-losses") ? ruLosses.queryMonthly : undefined,
+            uaLosses: needed.has("ua-losses") ? uaLosses.queryMonthly : undefined,
             ruMod: needed.has("ru-airdef-mod") ? ruMod.queryMonthly : undefined,
             ruAir: needed.has("ru-air-attacks") ? ruAir.queryMonthly : undefined,
             sbuAlfa: needed.has("sbu-alfa") ? sbuAlfa.queryCounters : undefined,
@@ -508,6 +512,7 @@ export function HomePage({ onGoToSite }: Props) {
             sbs: needed.has("sbs") ? sbs.queryDaily : undefined,
             gsua: needed.has("gsua") ? gsua.queryDaily : undefined,
             ruLosses: needed.has("ru-losses") ? ruLosses.queryDaily : undefined,
+            uaLosses: needed.has("ua-losses") ? uaLosses.queryDaily : undefined,
             ruMod: needed.has("ru-airdef-mod") ? ruMod.queryDaily : undefined,
             ruAir: needed.has("ru-air-attacks") ? ruAir.queryDaily : undefined,
           });
@@ -522,6 +527,7 @@ export function HomePage({ onGoToSite }: Props) {
       sbs.loadState, sbs.queryDaily, sbs.queryMonthly,
       gsua.loadState, gsua.queryDaily, gsua.queryMonthly,
       ruLosses.loadState, ruLosses.queryDaily, ruLosses.queryMonthly,
+      uaLosses.loadState, uaLosses.queryDaily, uaLosses.queryMonthly,
       ruMod.loadState, ruMod.queryDaily, ruMod.queryMonthly,
       ruAir.loadState, ruAir.queryDaily, ruAir.queryMonthly,
       sbuAlfa.loadState, sbuAlfa.queryCounters,
@@ -535,6 +541,7 @@ export function HomePage({ onGoToSite }: Props) {
       "sbs": needed.has("sbs") && sbs.loadState === "ready",
       "gsua": needed.has("gsua") && gsua.loadState === "ready",
       "ru-losses": needed.has("ru-losses") && ruLosses.loadState === "ready",
+      "ua-losses": needed.has("ua-losses") && uaLosses.loadState === "ready",
       "ru-airdef-mod": needed.has("ru-airdef-mod") && ruMod.loadState === "ready",
       "ru-air-attacks": needed.has("ru-air-attacks") && ruAir.loadState === "ready",
       // SBU Alfa + Mediazona are monthly-only; the daily global-stats bundle
@@ -552,13 +559,14 @@ export function HomePage({ onGoToSite }: Props) {
       sbs: sourcesReady.sbs ? sbs.queryGlobalStats : undefined,
       gsua: sourcesReady.gsua ? gsua.queryGlobalStats : undefined,
       ruLosses: sourcesReady["ru-losses"] ? ruLosses.queryGlobalStats : undefined,
+      uaLosses: sourcesReady["ua-losses"] ? uaLosses.queryGlobalStats : undefined,
       ruMod: sourcesReady["ru-airdef-mod"] ? ruMod.queryGlobalStats : undefined,
       ruAir: sourcesReady["ru-air-attacks"] ? ruAir.queryGlobalStats : undefined,
     }).then((bundle) => {
       if (!cancelled) setGlobalStats((prev) => ({ ...prev, ...bundle }));
     });
     return () => { cancelled = true; };
-  }, [needed, sbs.loadState, sbs.queryGlobalStats, gsua.loadState, gsua.queryGlobalStats, ruLosses.loadState, ruLosses.queryGlobalStats, ruMod.loadState, ruMod.queryGlobalStats, ruAir.loadState, ruAir.queryGlobalStats]);
+  }, [needed, sbs.loadState, sbs.queryGlobalStats, gsua.loadState, gsua.queryGlobalStats, ruLosses.loadState, ruLosses.queryGlobalStats, uaLosses.loadState, uaLosses.queryGlobalStats, ruMod.loadState, ruMod.queryGlobalStats, ruAir.loadState, ruAir.queryGlobalStats]);
 
   // Single chart-config mutator. Persists to URL, omitting the `charts=` param
   // when the chart list matches the curated JSON defaults so "/" stays clean.
@@ -640,6 +648,7 @@ export function HomePage({ onGoToSite }: Props) {
       ["sbs", sbs.loadState, needed.has("sbs")],
       ["gsua", gsua.loadState, needed.has("gsua")],
       ["ru-losses", ruLosses.loadState, needed.has("ru-losses")],
+      ["ua-losses", uaLosses.loadState, needed.has("ua-losses")],
       ["ru-airdef-mod", ruMod.loadState, needed.has("ru-airdef-mod")],
       ["ru-air-attacks", ruAir.loadState, needed.has("ru-air-attacks")],
       ["sbu-alfa", sbuAlfa.loadState, needed.has("sbu-alfa")],
@@ -648,7 +657,7 @@ export function HomePage({ onGoToSite }: Props) {
       ["mediazona", mediazona.loadState, mediazonaNeeded],
     ];
     return states.filter(([, st, isNeeded]) => isNeeded && st === "loading").map(([s]) => s);
-  }, [needed, mediazonaNeeded, sbs.loadState, gsua.loadState, ruLosses.loadState, ruMod.loadState, ruAir.loadState, sbuAlfa.loadState, mediazona.loadState]);
+  }, [needed, mediazonaNeeded, sbs.loadState, gsua.loadState, ruLosses.loadState, uaLosses.loadState, ruMod.loadState, ruAir.loadState, sbuAlfa.loadState, mediazona.loadState]);
 
   // Cross-source refresh state for the header indicator. Each underlying hook
   // has its own auto-refresh cadence, so a single combined countdown would be
@@ -662,11 +671,12 @@ export function HomePage({ onGoToSite }: Props) {
     { needed: needed.has("sbs"),               h: sbs       },
     { needed: needed.has("gsua"),              h: gsua      },
     { needed: needed.has("ru-losses"),         h: ruLosses  },
+    { needed: needed.has("ua-losses"),         h: uaLosses  },
     { needed: needed.has("ru-airdef-mod"),     h: ruMod     },
     { needed: needed.has("ru-air-attacks"),    h: ruAir     },
     { needed: needed.has("sbu-alfa"),          h: sbuAlfa   },
     { needed: mediazonaNeeded,                 h: mediazona },
-  ]), [needed, mediazonaNeeded, sbs, gsua, ruLosses, ruMod, ruAir, sbuAlfa, mediazona]);
+  ]), [needed, mediazonaNeeded, sbs, gsua, ruLosses, uaLosses, ruMod, ruAir, sbuAlfa, mediazona]);
 
   const refreshAggregated = useMemo(() => {
     const active = sourceHandles.filter((s) => s.needed);

@@ -270,6 +270,42 @@ export type RuLossesMonthlyRow = {
   projection_days_in_month: number | null;
 } & Record<RuLossesMetricKey, number> & Partial<Record<`${RuLossesMetricKey}_projected`, number>>;
 
+// ─── UA Losses (ualosses.org daily personnel losses → ua-losses.db) ───────────
+// Confirmed, named Ukrainian military losses aggregated per day, broken out by
+// status. The raw daily total (`number`) is stored in the DB but deliberately
+// NOT charted — it lumps together fundamentally different outcomes (killed,
+// missing, captured, released), which is misleading as a single "losses" line.
+// Chart the status split instead. (`number` = dead + missing + prisoner +
+// released, so the total is still recoverable by stacking these.)
+export const UA_LOSSES_METRIC_KEYS = [
+  "dead",
+  "missing",
+  "prisoner",
+  "released",
+] as const;
+export type UaLossesMetricKey = (typeof UA_LOSSES_METRIC_KEYS)[number];
+
+export const UA_LOSSES_METRIC_LABELS: Record<UaLossesMetricKey, string> = {
+  dead: "Dead",
+  missing: "Missing",
+  prisoner: "POW (Captured)",
+  released: "POW (Released)",
+};
+
+export type UaLossesDailyRow = {
+  date: string;        // YYYY-MM-DD
+  is_today: boolean;
+} & Record<UaLossesMetricKey, number | null>;
+
+export type UaLossesGlobalStats = Record<UaLossesMetricKey, Stat>;
+
+export type UaLossesMonthlyRow = {
+  date: string; // "YYYY-MM"
+  is_current_month: boolean;
+  projection_day: number | null;
+  projection_days_in_month: number | null;
+} & Record<UaLossesMetricKey, number> & Partial<Record<`${UaLossesMetricKey}_projected`, number>>;
+
 // ─── RU Air Attacks (piterfm Kaggle → ru-air-attacks-gsua.db) ─────────────────
 // Russian missile/UAV strikes on Ukraine, digitized by piterfm from the UA Air
 // Force + General Staff reports. Each source row is launched/destroyed per weapon

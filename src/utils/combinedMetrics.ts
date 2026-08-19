@@ -14,6 +14,8 @@ import {
   MEDIAZONA_ROLE_GROUPS,
   RU_LOSSES_METRIC_KEYS,
   RU_LOSSES_METRIC_LABELS,
+  UA_LOSSES_METRIC_KEYS,
+  UA_LOSSES_METRIC_LABELS,
   SBU_ALFA_CATEGORY_KEYS,
   SBU_ALFA_CATEGORY_LABELS,
   TARGET_IDS,
@@ -24,6 +26,7 @@ export type MetricSource =
   | "sbs"
   | "gsua"
   | "ru-losses"
+  | "ua-losses"
   | "ru-airdef-mod"
   | "ru-air-attacks"
   | "sbu-alfa"
@@ -42,6 +45,7 @@ export type MetricDbHook =
   | "sbs"
   | "gsua"
   | "ru-losses"
+  | "ua-losses"
   | "ru-airdef-mod"
   | "ru-air-attacks"
   | "sbu-alfa"
@@ -51,6 +55,7 @@ export const SOURCE_TO_DB: Record<MetricSource, MetricDbHook> = {
   "sbs": "sbs",
   "gsua": "gsua",
   "ru-losses": "ru-losses",
+  "ua-losses": "ua-losses",
   "ru-airdef-mod": "ru-airdef-mod",
   "ru-air-attacks": "ru-air-attacks",
   "sbu-alfa": "sbu-alfa",
@@ -77,6 +82,7 @@ export const SOURCE_LABELS: Record<MetricSource, string> = {
   "sbs": "SBS",
   "gsua": "GSUA",
   "ru-losses": "RU Losses",
+  "ua-losses": "UA Losses",
   "ru-airdef-mod": "RU MoD AD",
   "ru-air-attacks": "RU Strikes",
   "sbu-alfa": "SBU Alfa",
@@ -132,6 +138,11 @@ const RU_LOSSES_METRICS: CombinedMetric[] = RU_LOSSES_METRIC_KEYS.map((k) =>
   make("ru-losses", k, RU_LOSSES_METRIC_LABELS[k], BOTH),
 );
 
+// UA losses (ualosses.org) — daily-capable like RU losses.
+const UA_LOSSES_METRICS: CombinedMetric[] = UA_LOSSES_METRIC_KEYS.map((k) =>
+  make("ua-losses", k, UA_LOSSES_METRIC_LABELS[k], BOTH),
+);
+
 // RU MoD has no exported label map — three fixed metrics.
 const RU_MOD_METRICS: CombinedMetric[] = [
   make("ru-airdef-mod", "total", "UAVs Downed (Total)", BOTH),
@@ -166,6 +177,7 @@ export const COMBINED_METRICS: CombinedMetric[] = [
   ...SBS_METRICS,
   ...GSUA_METRICS,
   ...RU_LOSSES_METRICS,
+  ...UA_LOSSES_METRICS,
   ...RU_MOD_METRICS,
   ...RU_AIR_ATTACKS_METRICS,
   ...SBU_ALFA_METRICS,
