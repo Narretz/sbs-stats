@@ -76,17 +76,19 @@ MIN_ROWS_FLOOR = 100
 # every ~2 weeks. The URL below is a known release; if Mediazona rotates it,
 # they have historically kept old URLs alive (and the new release just lives
 # at a fresher path), so the workflow should be re-pointed when that changes.
-DEFAULT_ARTICLE_URL = "https://en.zona.media/article/2026/06/19/casualties_eng-trl"
+DEFAULT_ARTICLE_URL = "https://en.zona.media/article/2026/08/14/casualties_eng-trl"
 
 # Week-1 anchor for the roles series — same as the CSV's `week_start` anchor.
 WAR_START = date_cls(2022, 2, 24)
 
-# Blob 5 inside the bundle is a dict {'0'..'N-1': [int, …]} of per-day deaths
-# per role. Indices 0..15 follow the chart's display order; 16..20 are a
-# slightly different ordering of the last 5 cells than our CSV layout. Verified
-# by matching blob 5's per-index sums against blob 3's per-Russian-name totals
-# (see _check_blob5_drift below). If upstream re-shuffles, the drift check
-# fires and the build aborts.
+# Blob 5 inside the bundle keys per-day deaths by role index '0'..'N-1' (see
+# _find_roles_blob for the two encodings it has shipped in). Indices 0..15
+# follow the chart's display order; 16..20 are a slightly different ordering of
+# the last 5 cells than our CSV layout. Verified by matching blob 5's per-index
+# sums against blob 3's per-Russian-name totals (see _check_blob5_drift below);
+# re-verified against blob 3 and against the stored weeks after the Aug-2026
+# re-encoding, which left the index order intact. If upstream re-shuffles, the
+# drift check fires and the build aborts.
 BLOB5_COLUMN_MAP = [
     "nguard", "rifle", "air", "pilot", "seaman", "marine",
     "tank", "art", "eng", "other", "nd", "special",
@@ -198,15 +200,75 @@ def _find_estimate_blob(blobs: list[object]) -> list[dict]:
     raise RuntimeError("no probate-estimate blob ({w,rnd,real} list) in bundle")
 
 
+def _decode_rle(seq: list[int], n_days: int) -> list[int]:
+    """Expand one sparse day series to `n_days` per-day counts.
+
+    Mediazona's wrapped encoding stores a non-negative value as that day's
+    count and a negative value `-n` as a run of `n` zero days. Every series in
+    the bundle expands to exactly `days` entries, so a length mismatch means
+    the encoding — not just the wrapper — changed, and we abort.
+    """
+    out: list[int] = []
+    for x in seq:
+        if not isinstance(x, int):
+            raise RuntimeError(f"non-int value {x!r} in a roles day series")
+        if x < 0:
+            out.extend([0] * -x)
+        else:
+            out.append(x)
+    if len(out) != n_days:
+        raise RuntimeError(
+            f"roles day series expands to {len(out)} days, expected {n_days}")
+    return out
+
+
+def _roles_from_wrapped(b: dict) -> dict[str, list[int]]:
+    """Flatten the wrapped roles blob into the flat per-role day series.
+
+    Since the Aug-2026 release each role's value is a *list* of run-length-
+    encoded series, one per entry in the blob's `years` — a cohort breakdown by
+    the year each death was identified (each cohort is still bucketed by date of
+    death, so it spans the whole war but stops at that year's end). The cohorts
+    partition the dataset rather than nesting, so their elementwise sum is the
+    all-time daily series the flat encoding used to carry: summing reproduces
+    both the summary blob's per-category totals and the previously stored weeks.
+    """
+    n_days, years = b["days"], b["years"]
+    daily: dict[str, list[int]] = {}
+    for k, cohorts in b["dates"].items():
+        if len(cohorts) != len(years):
+            raise RuntimeError(
+                f"roles index {k} has {len(cohorts)} cohorts but the blob "
+                f"declares {len(years)} years — re-validate the roles blob.")
+        expanded = [_decode_rle(c, n_days) for c in cohorts]
+        daily[k] = [sum(day) for day in zip(*expanded)]
+    return daily
+
+
 def _find_roles_blob(blobs: list[object]) -> dict[str, list[int]]:
-    """Roles daily series: dict of equal-length int lists."""
+    """Roles daily series, normalised to {role index: [per-day deaths]}.
+
+    Two encodings have shipped. Up to Aug 2026 the blob was flat — a dict of
+    equal-length int lists, one per role. The Aug-2026 bundle wraps it as
+    `{years: [...], days: N, dates: {index: [cohort series, ...]}}` with the
+    day series run-length encoded (see `_roles_from_wrapped`). Accept either.
+    """
     for b in blobs:
-        if (isinstance(b, dict) and len(b) >= 10
+        if not isinstance(b, dict):
+            continue
+        if (len(b) >= 10
                 and all(isinstance(v, list) for v in b.values())
                 and len(set(len(v) for v in b.values())) == 1
                 and all(isinstance(x, int) for x in next(iter(b.values()))[:20])):
             return b
-    raise RuntimeError("no roles blob (dict of equal-length int lists) in bundle")
+        if (isinstance(b.get("days"), int) and isinstance(b.get("years"), list)
+                and isinstance(b.get("dates"), dict) and len(b["dates"]) >= 10
+                and all(isinstance(v, list) and v and all(isinstance(c, list) for c in v)
+                        for v in b["dates"].values())):
+            return _roles_from_wrapped(b)
+    raise RuntimeError(
+        "no roles blob (flat dict of equal-length int lists, or a "
+        "{years, days, dates} wrapper) in bundle")
 
 
 def _find_roles_summary_blob(blobs: list[object]) -> list[dict]:

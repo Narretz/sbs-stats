@@ -16,7 +16,7 @@ env:
   # an old URL (historically they leave them alive), update this env var and
   # `DEFAULT_ARTICLE_URL` in scripts/mediazona/ingest.py. Override here so the
   # workflow needs only an env-var edit, no code change, when the URL moves.
-  MEDIAZONA_ARTICLE_URL: "https://en.zona.media/article/2026/06/19/casualties_eng-trl"
+  MEDIAZONA_ARTICLE_URL: "https://en.zona.media/article/2026/08/14/casualties_eng-trl"
 
 jobs:
   update-mediazona-db:
