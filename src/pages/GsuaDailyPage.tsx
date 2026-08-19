@@ -260,7 +260,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
           Daily Combat Stats {selectedDirection ? `— ${selectedDirection}` : ""} - GSUA
         </h1>
         <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-          Last snapshot per day · Via Telegram @GeneralStaffZSU.
+          Last snapshot per day · Parsed deterministically from Telegram @GeneralStaffZSU. May be incomplete or incorrect.
         </p>
         <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
       </div>

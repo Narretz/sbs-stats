@@ -94,7 +94,7 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
           Monthly Combat Stats - GSUA
         </h1>
         <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-          Monthly sums of daily totals from Ukrainian General Staff reports. Current month shows end-of-month projection.  Via Telegram @GeneralStaffZSU.
+          Monthly sums of daily totals from Ukrainian General Staff reports. Current month shows end-of-month projection. Parsed deterministically from Telegram @GeneralStaffZSU. May be incomplete or incorrect.
         </p>
         <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
       </div>

@@ -260,7 +260,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
           Hourly Combat Stats {selectedDirection ? `— ${selectedDirection}` : ""} - GSUA
         </h1>
         <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-          Each line = one day · X-axis = hour-of-snapshot · GS posts run cumulative totals throughout the day. Via Telegram @GeneralStaffZSU.
+          Each line = one day · X-axis = hour-of-snapshot · GS posts run cumulative totals throughout the day. Parsed deterministically from Telegram @GeneralStaffZSU. May be incomplete or incorrect.
         </p>
         <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
       </div>

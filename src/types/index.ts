@@ -295,9 +295,9 @@ export type AttackMetricCol = `${AttackCategoryKey}_launched` | `${AttackCategor
 // that SUMs the raw column reads a withheld attack as "nothing was launched".
 // The hook maps them to null; this is the caveat the charts show in their place.
 export const UNDISCLOSED_NOTE =
-  "Ukrainian Air Force stopped publishing ballistic missile counts on 13.08.2026 — attacks on this date were reported without figures, so this is not a zero.";
+  "Ukrainian Air Force stopped publishing ballistic missile counts on 11.08.2026.";
 export const UNDISCLOSED_PARTIAL_NOTE =
-  "Excludes attacks reported without figures (UA stopped publishing ballistic missile counts on 13.08.2026) — a lower bound.";
+  "Excludes attacks reported without figures (UA stopped publishing ballistic missile counts on 11.08.2026) — a lower bound.";
 
 // Featured weapon models charted individually on the air-attacks pages.
 // Listed in the same `model` string the DB stores; the page renders a chart per
