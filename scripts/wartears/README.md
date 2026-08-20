@@ -76,7 +76,7 @@ upstream leaves the DB untouched.
 Each record carries its own `updated_at` (date-only ISO). Records aren't
 bucketed onto a time axis — the dataset is a roster, not a time series.
 
-## What this dataset is — and isn't
+## Dataset scope
 
 It's a **roster of identified AFU-affiliated persons**, not a casualty
 database. As of 2026-06-28:
@@ -92,9 +92,23 @@ database. As of 2026-06-28:
 | tagged `Пропал` (missing) | 10,537 |
 | **untagged entirely** | **127,623 (~52%)** |
 
-The 127k untagged records are real upstream data — the parser is verified
-against the raw xlsx. Of those, only ~3,200 contain death/captive/missing
-keywords in their `public_info` free-text (i.e. genuine tagging lag); the
+In tagged records, public_info contains unstructured info about the status, e.g. death.
+This would need to be parsed into a structured field to be usable.
+
+  ┌───────────────────────────────────────────┬────────┬───────┐
+  │               prose content               │ count  │ share │
+  ├───────────────────────────────────────────┼────────┼───────┤
+  │ empty public_info                         │ 5,387  │ 7%    │
+  ├───────────────────────────────────────────┼────────┼───────┤
+  │ mentions a death verb (погиб/умер) at all │ 29,090 │ 39%   │
+  ├───────────────────────────────────────────┼────────┼───────┤
+  │ death verb + full day-month-year date     │ 11,676 │ 16%   │
+  ├───────────────────────────────────────────┼────────┼───────┤
+  │ death verb + at least a year              │ 19,977 │ 27%   │
+  └───────────────────────────────────────────┴────────┴───────┘
+
+Of 127k untagged records, only ~3,200 contain death/captive/missing
+keywords in their `public_info` free-text (i.e. tagging lag); the
 other ~124k have neither tags nor status-implying text, and are simply
 identified persons whose fate is unknown or unrecorded.
 
