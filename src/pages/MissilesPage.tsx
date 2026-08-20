@@ -2,8 +2,9 @@ import { useMemo, useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { ChartGrid } from "@/components/Layout";
 import { MissileRangeChart } from "@/components/MissileRangeChart";
+import { MissileCombinedChart } from "@/components/MissileCombinedChart";
 import { MissileStackedBarChart } from "@/components/MissileStackedBarChart";
-import { buildSeries, TIME_DOMAIN, TIME_TICKS, DATA_WINDOW, MISSILE_TYPES, MISSILE_REPORTS, type MissileKind } from "@/data/missiles";
+import { buildSeries, TIME_DOMAIN, TIME_TICKS, DATA_WINDOW, MISSILE_TYPES, MISSILE_REPORTS, type MissileKind, type MissileSeries } from "@/data/missiles";
 import {
   colorMap,
   MISSILE_CATEGORY,
@@ -14,14 +15,14 @@ import {
 } from "@/components/missilePalette";
 import { FONTS } from "@/theme";
 
-type View = "production" | "stockpile";
+type View = "production" | "stockpile" | "combined";
 type Layout = "grid" | "bars";
-const VIEWS: View[] = ["production", "stockpile"];
+const VIEWS: View[] = ["production", "stockpile", "combined"];
 const LAYOUTS: Layout[] = ["grid", "bars"];
 const VIEW_PARAM = 'missiles-view';
 const LAYOUT_PARAM = 'missiles-layout';
-const KIND: Record<View, MissileKind> = { production: "production_monthly", stockpile: "stockpile" };
-const UNIT: Record<View, string> = { production: "units / month", stockpile: "in stockpile" };
+const KIND: Record<"production" | "stockpile", MissileKind> = { production: "production_monthly", stockpile: "stockpile" };
+const UNIT: Record<"production" | "stockpile", string> = { production: "units / month", stockpile: "in stockpile" };
 
 const MONTH_NAMES = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -43,7 +44,7 @@ function parseEnum<T extends string>(raw: string | null, allowed: readonly T[], 
 function getUrlParams() {
   const p = new URLSearchParams(window.location.search);
   return {
-    view: parseEnum<View>(p.get(VIEW_PARAM), VIEWS, "production"),
+    view: parseEnum<View>(p.get(VIEW_PARAM), VIEWS, "combined"),
     layout: parseEnum<Layout>(p.get(LAYOUT_PARAM), LAYOUTS, "grid"),
   };
 }
@@ -78,16 +79,58 @@ export function MissilesPage() {
   // trend panels — single sparse points that don't trend and aren't comparable —
   // so the grid shows single-type series only. The combined measurements stay in
   // reports.json for the source view / heatmap.
+  const single = (s: MissileSeries) => s.members.length === 1;
+  // Both kinds are cheap to build; the "combined" view overlays them per type,
+  // and the checkbox "has data" test unions them.
+  const stockByKey = useMemo(() => new Map(buildSeries("stockpile").filter(single).map((s) => [s.key, s])), []);
+  const prodByKey = useMemo(() => new Map(buildSeries("production_monthly").filter(single).map((s) => [s.key, s])), []);
+
   const series = useMemo(
-    () => buildSeries(KIND[view]).filter((s) => s.members.length === 1),
+    () => (view === "combined" ? [] : buildSeries(KIND[view]).filter(single)),
     [view],
   );
 
+  // "has data in the current view" — for combined, either metric counts.
   const seriesByKey = useMemo(() => {
-    const m = new Map<string, (typeof series)[number]>();
-    for (const s of series) m.set(s.key, s);
+    const m = new Map<string, MissileSeries | true>();
+    if (view === "combined") {
+      for (const k of new Set([...stockByKey.keys(), ...prodByKey.keys()])) m.set(k, true);
+    } else {
+      for (const s of series) m.set(s.key, s);
+    }
     return m;
-  }, [series]);
+  }, [view, series, stockByKey, prodByKey]);
+
+  // Combined-view panels: one per type present in either metric, ordered by the
+  // canonical declaration order and filtered by the checkbox (hidden) set.
+  const combinedPanels = useMemo(() => {
+    if (view !== "combined") return [];
+    const order = Object.keys(MISSILE_TYPES);
+    return [...new Set([...stockByKey.keys(), ...prodByKey.keys()])]
+      .filter((k) => !hidden.has(k))
+      .sort((a, b) => order.indexOf(a) - order.indexOf(b))
+      .map((k) => ({ key: k, stock: stockByKey.get(k), prod: prodByKey.get(k) }));
+  }, [view, hidden, stockByKey, prodByKey]);
+
+  // Shared log y-domain for the combined grid: [floor, ceil] snapped to powers
+  // of 10 spanning every visible point (both metrics). A log axis can't start at
+  // 0, so this common floor is the honest analog of a shared "start at 0" — it
+  // stops a narrow-range type (KN-23 ~50) from auto-zooming into a fake wiggle
+  // and keeps panel heights comparable. Recomputes as types are toggled.
+  const combinedYDomain = useMemo<[number, number] | undefined>(() => {
+    if (view !== "combined") return undefined;
+    let lo = Infinity, hi = -Infinity;
+    for (const p of combinedPanels) {
+      for (const s of [p.stock, p.prod]) {
+        for (const pt of s?.points ?? []) {
+          if (pt.low > 0) lo = Math.min(lo, pt.low);
+          hi = Math.max(hi, pt.high);
+        }
+      }
+    }
+    if (!isFinite(lo) || !isFinite(hi)) return undefined;
+    return [10 ** Math.floor(Math.log10(lo)), 10 ** Math.ceil(Math.log10(hi))];
+  }, [view, combinedPanels]);
 
   // Colours assigned over the FULL canonical type list (not just types present
   // in the current view) so a checkbox's swatch stays consistent across
@@ -218,6 +261,7 @@ export function MissilesPage() {
           </details>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {pill<View>("combined", view, setView, "COMBINED")}
           {pill<View>("production", view, setView, "PRODUCTION")}
           {pill<View>("stockpile", view, setView, "STOCKPILE")}
         </div>
@@ -225,16 +269,19 @@ export function MissilesPage() {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted }}>
-          {layout === "grid" && LEGEND.map(({ g, label }) => (
+          {(view === "combined" || layout === "grid") && LEGEND.map(({ g, label }) => (
             <span key={label}><span style={{ color: t.text }}>{g}</span> {label}</span>
           ))}
-          {layout === "bars" && <span>Segments = central estimate · hover a type to trace it · *totals not comparable (later reports itemise more types)</span>}
+          {view === "combined" && <span><span style={{ color: t.text }}>▬</span> stockpile · <span style={{ color: t.text }}>┄</span> production/mo · log y-axis</span>}
+          {view !== "combined" && layout === "bars" && <span>Segments = central estimate · hover a type to trace it · *totals not comparable (later reports itemise more types)</span>}
         </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted }}>View as:</span>
-          {pill<Layout>("grid", layout, setLayout, "GRID")}
-          {pill<Layout>("bars", layout, setLayout, "BARS")}
-        </div>
+        {view !== "combined" && (
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted }}>View as:</span>
+            {pill<Layout>("grid", layout, setLayout, "GRID")}
+            {pill<Layout>("bars", layout, setLayout, "BARS")}
+          </div>
+        )}
       </div>
 
       {/* Type checkboxes, one row per weapon family. Every canonical type is
@@ -259,7 +306,7 @@ export function MissilesPage() {
                 const labelColor = !hasData ? t.textFaint : on ? t.text : t.textFaint;
                 const title = hasData
                   ? undefined
-                  : `No ${view} data for ${label} in any HUR/GUR disclosure so far.`;
+                  : `No ${view === "combined" ? "stockpile or production" : view} data for ${label} in any HUR/GUR disclosure so far.`;
                 return (
                   <label key={key} title={title} style={{
                     display: "inline-flex", alignItems: "center", gap: 6,
@@ -288,7 +335,27 @@ export function MissilesPage() {
         })}
       </div>
 
-      {layout === "grid" && (
+      {view === "combined" && (
+        combinedPanels.length > 0
+          ? (
+            <ChartGrid>
+              {combinedPanels.map((p) => (
+                <MissileCombinedChart
+                  key={p.key}
+                  stock={p.stock}
+                  prod={p.prod}
+                  label={MISSILE_TYPES[p.key]?.name ?? p.key}
+                  swatch={colorFor.get(p.key)}
+                  timeDomain={TIME_DOMAIN}
+                  ticks={TIME_TICKS}
+                  yDomain={combinedYDomain}
+                />
+              ))}
+            </ChartGrid>
+          )
+          : <div style={{ fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted, padding: 40, textAlign: "center" }}>Select at least one missile type.</div>
+      )}
+      {view !== "combined" && layout === "grid" && (
         visibleSeries.length > 0
           ? (
             <ChartGrid>
@@ -307,7 +374,7 @@ export function MissilesPage() {
           )
           : <div style={{ fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted, padding: 40, textAlign: "center" }}>Select at least one missile type.</div>
       )}
-      {layout === "bars" && (
+      {view !== "combined" && layout === "bars" && (
         visibleSeries.length > 0
           ? <MissileStackedBarChart series={visibleSeries} unit={UNIT[view]} timeDomain={TIME_DOMAIN} ticks={TIME_TICKS} colorFor={colorFor} />
           : <div style={{ fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted, padding: 40, textAlign: "center" }}>Select at least one missile type.</div>

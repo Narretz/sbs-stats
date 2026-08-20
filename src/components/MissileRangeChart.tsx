@@ -6,34 +6,14 @@ import { useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS, type Theme } from "@/theme";
 import type { MissileSeries, MissilePoint } from "@/data/missiles";
+import { fmtAsOf, fmtValue } from "./missileFormat";
 
 const MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-// as_of read at its stated precision — a mid-month estimate shouldn't masquerade
-// as a specific day.
-function fmtAsOf(p: MissilePoint): string {
-  const [y, m, d] = p.as_of.split("-");
-  if (p.as_of_precision === "day") return `${d}.${m}.${y}`;
-  if (p.as_of_precision === "mid_month") return `mid-${MONTHS[+m]} ${y}`;
-  return `${MONTHS[+m]} ${y}`;
-}
-
-// The bound qualifier, made legible. A bar/point alone can't say "≤"; this can.
-function fmtValue(p: MissilePoint): string {
-  switch (p.bound) {
-    case "range":    return `${p.low}–${p.high}`;
-    case "up_to":    return `≤ ${p.high}`;
-    case "at_least": return `≥ ${p.low}`;
-    case "approx":   return `~ ${p.mid}`;
-    case "planned":  return `${p.mid} (planned)`;
-    default:         return `${p.mid}`;
-  }
-}
 
 // Bound → dot shape. This is what keeps "up to 500" and "more than 400" from
 // reading as the same point: ▽ = ceiling, △ = floor, ■ = exact, ○ = planned,
 // ● = approx/range (range also gets a vertical band).
-function BoundDot(props: DotProps & { payload?: MissilePoint; color: string }) {
+export function BoundDot(props: DotProps & { payload?: MissilePoint; color: string }) {
   const { cx, cy, payload, color } = props;
   if (cx == null || cy == null || !payload) return null;
   const r = 4;
