@@ -198,10 +198,10 @@ export function MissilesPage() {
             RU Missile Stockpiles & Production
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-            Ukrainian military intelligence (HUR/GUR) estimates · irregular disclosures (~2×/yr) · one panel per missile type
+            Ukrainian military intelligence (HUR) estimates · irregular disclosures
             <br />
             <span style={{ color: t.textImportant, border: `2px solid ${t.borderImportant}`, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4 }}>
-              These are intelligence estimates, not counts — every value carries a stated bound (≤, ≥, ~, range). Figures vary by ±10% even between reports weeks apart, and the type breakdown changes over time. A missing report is a gap, not a zero.
+              These are intelligence estimates, not counts — every value carries a stated bound (≤, ≥, ~, range). Figures vary by ±10% even between reports weeks apart, and the type breakdown changes over time.
             </span>
           </p>
           <details style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
@@ -211,7 +211,7 @@ export function MissilesPage() {
             <ol style={{ listStyle: "none", padding: 0, margin: "8px 0 0", display: "flex", flexDirection: "column", gap: 6 }}>
               {MISSILE_REPORTS.map((r, i) => (
                 <li key={r.as_of + r.reported_at} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-                  <span style={{ color: t.textFaint, minWidth: 24 }}>[{i + 1}]</span>
+                  <span style={{ color: t.textFaint, minWidth: 28 }}>[{i + 1}]</span>
                   <span style={{ color: t.text, minWidth: 110 }}>{fmtAsOf(r.as_of, r.as_of_precision)}</span>
                   <span style={{ minWidth: 60 }}>{r.source.org}</span>
                   <span style={{ flex: 1 }}>

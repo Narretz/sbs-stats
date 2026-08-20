@@ -62,7 +62,7 @@
     },
     {
       "as_of": "2023-08-15", "as_of_precision": "mid_month", "reported_at": "2023-08-28",
-      "source": { "org": "GUR", "via": "Skibitsky / Kyiv Post", "url": "https://www.kyivpost.com/post/21001" },
+      "source": { "org": "HUR", "via": "Skibitsky / Kyiv Post", "url": "https://www.kyivpost.com/post/21001" },
       "note": "Iskander reported without M/K split. Production figures were stated as monthly PLANS, not confirmed output.",
       "stockpile": [
         { "types": ["iskander_m", "iskander_k"], "combined": true, "raw_label": "Iskander (ballistic + cruise)", "value": 270, "bound": "approx" },
@@ -226,7 +226,7 @@
     {
       "as_of": "2026-07-15", "as_of_precision": "mid_month", "reported_at": "2026-07-18",
       "source": {
-        "org": "GUR", "via": "NV (The New Voice of Ukraine)",
+        "org": "HUR", "via": "NV (The New Voice of Ukraine)",
         "url": "https://nv.ua/ukr/ukraine/events/rosiyski-zapasi-raket-skilki-iskanderiv-kindaliv-ta-cirkoniv-maye-moskva-ta-skilki-viroblyaye-50625111.html",
         "paywalled": true,
         "secondary": [
@@ -257,7 +257,7 @@
     {
       "as_of": "2026-08-05", "as_of_precision": "day", "reported_at": "2026-08-20",
       "source": {
-        "org": "GUR", "via": "Ukrainska Pravda",
+        "org": "HUR", "via": "Ukrainska Pravda",
         "url": "https://www.pravda.com.ua/articles/2026/08/20/8049376/",
         "infographic": "https://uimg.pravda.com.ua/buckets/upstatic/system/MediaPhoto/photo/6/0/895254/60e7260c09039c96c47a0935d3af80911787165834.jpg"
       },
