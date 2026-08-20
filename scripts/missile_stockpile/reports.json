@@ -253,6 +253,24 @@
         { "type": "rm48u",      "raw_label": "RM-48U (~40/month)", "value": 40, "bound": "approx" },
         { "type": "zircon",     "raw_label": "Zircon (2026 annual plan 30 -> 2.5/month)", "value": 2.5, "bound": "planned" }
       ]
+    },
+    {
+      "as_of": "2026-08-05", "as_of_precision": "day", "reported_at": "2026-08-20",
+      "source": {
+        "org": "GUR", "via": "Ukrainska Pravda",
+        "url": "https://www.pravda.com.ua/articles/2026/08/20/8049376/",
+        "infographic": "https://uimg.pravda.com.ua/buckets/upstatic/system/MediaPhoto/photo/6/0/895254/60e7260c09039c96c47a0935d3af80911787165834.jpg"
+      },
+      "note": "THREE dates in play, kept distinct: reported_at=2026-08-20 is the UP publication/disclosure date; as_of=2026-08-05 is the latest 'last-info' date the graphic carries (the Iskander-M bar's 'станом на 5 серпня') and is what places the points on the time axis; and the production figures separately describe JULY output (kept on their raw_labels, plotted at the as_of snapshot per the dataset's convention that a production rate sits at the report date, not the month it covers). IMPORTANT — most of the UP infographic's stockpile bars are the mid-July 2026 (2026-07-15) figures RESTATED UNCHANGED, so they are deliberately NOT re-logged here: a second identical point a month later would imply a fresh re-confirmation we don't actually have, and July's floor-framed '≥' values would drift into '~' points (the fake-volatility failure mode in known_issues). Byte-identical to 2026-07-15 and therefore treated as not re-disclosed (gaps, not points): Oniks 600, Kalibr 450, RM-48U 400, Zircon 120, Kh-101 100, and KN-23/24/30 50 — the KN bar is even explicitly stamped 'станом на липень' (as of July). Only the genuinely fresh stockpile figures are recorded below: 9M723 Iskander-M ~130 'станом на 5 серпня' (as of 5 Aug, up from ~100 mid-July) and Kinzhal ~50 (down from ~100 mid-July; undated on the graphic, assumed current). Also not disclosed this round: Iskander-K, Kh-22/32, Kh-69, Kh-35, the Kh-29/31/35/58/59 pool, Oreshnik. Production is the genuinely NEW content — July confirmed OUTPUT (vs the mid-July plans): 9M723 Iskander-M 65 (monthly plan 60, overshot), Kh-101 87, RM-48U ~50/month (2026 annual plan 'понад 480' = over 480, >2x 2025); stated total capacity 'понад 200' cruise+ballistic/month. Kinzhal serial production stays suspended since April 2026 (redirected to Iskander-M) — no Kinzhal production figure. Context (not measurements): ~160 Iskander launchers; in August 2026 Russia began deploying a North Korean missile unit in Voronezh Oblast (bordering Luhansk) — 6 DPRK launchers to hold 120 KN-23 ballistic missiles (~20 each), a separate inbound deployment NOT counted as a kn23 stockpile point.",
+      "stockpile": [
+        { "type": "iskander_m", "raw_label": "9M723 Iskander-M ballistic (as of 5 Aug)", "value": 130, "bound": "approx" },
+        { "type": "kinzhal",    "raw_label": "Kinzhal (undated on graphic; ~half the mid-July figure)", "value": 50, "bound": "approx" }
+      ],
+      "production_monthly": [
+        { "type": "iskander_m", "raw_label": "9M723 Iskander-M (July output 65; monthly plan 60)", "value": 65, "bound": "exact" },
+        { "type": "kh101",      "raw_label": "Kh-101 (July output 87)", "value": 87, "bound": "exact" },
+        { "type": "rm48u",      "raw_label": "RM-48U (~50/month; 2026 annual plan >480)", "value": 50, "bound": "approx" }
+      ]
     }
   ]
 }
