@@ -3,7 +3,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { ChartGrid } from "@/components/Layout";
 import { MissileRangeChart } from "@/components/MissileRangeChart";
 import { MissileCombinedChart } from "@/components/MissileCombinedChart";
-import { MissileStackedBarChart } from "@/components/MissileStackedBarChart";
 import { buildSeries, TIME_DOMAIN, TIME_TICKS, DATA_WINDOW, MISSILE_TYPES, MISSILE_REPORTS, type MissileKind, type MissileSeries } from "@/data/missiles";
 import {
   colorMap,
@@ -16,11 +15,8 @@ import {
 import { FONTS } from "@/theme";
 
 type View = "production" | "stockpile" | "combined";
-type Layout = "grid" | "bars";
 const VIEWS: View[] = ["production", "stockpile", "combined"];
-const LAYOUTS: Layout[] = ["grid", "bars"];
 const VIEW_PARAM = 'missiles-view';
-const LAYOUT_PARAM = 'missiles-layout';
 const KIND: Record<"production" | "stockpile", MissileKind> = { production: "production_monthly", stockpile: "stockpile" };
 const UNIT: Record<"production" | "stockpile", string> = { production: "units / month", stockpile: "in stockpile" };
 
@@ -45,7 +41,6 @@ function getUrlParams() {
   const p = new URLSearchParams(window.location.search);
   return {
     view: parseEnum<View>(p.get(VIEW_PARAM), VIEWS, "combined"),
-    layout: parseEnum<Layout>(p.get(LAYOUT_PARAM), LAYOUTS, "grid"),
   };
 }
 
@@ -68,9 +63,7 @@ export function MissilesPage() {
   const { theme: t } = useTheme();
   const initial = useMemo(() => getUrlParams(), []);
   const [view, setViewState] = useState<View>(initial.view);
-  const [layout, setLayoutState] = useState<Layout>(initial.layout);
   const setView = (v: View) => { setViewState(v); setUrlParams({ [VIEW_PARAM]: v }); };
-  const setLayout = (l: Layout) => { setLayoutState(l); setUrlParams({ [LAYOUT_PARAM]: l }); };
   // Tracked as the *hidden* set so defaults persist across view switches and any
   // newly-appearing type defaults to shown.
   const [hidden, setHidden] = useState<Set<string>>(new Set(MISSILE_HIDDEN_DEFAULT));
@@ -269,26 +262,18 @@ export function MissilesPage() {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted }}>
-          {(view === "combined" || layout === "grid") && LEGEND.map(({ g, label }) => (
+          {LEGEND.map(({ g, label }) => (
             <span key={label}><span style={{ color: t.text }}>{g}</span> {label}</span>
           ))}
           {view === "combined" && <span><span style={{ color: t.text }}>▬</span> stockpile · <span style={{ color: t.text }}>┄</span> production/mo · log y-axis</span>}
-          {view !== "combined" && layout === "bars" && <span>Segments = central estimate · hover a type to trace it · *totals not comparable (later reports itemise more types)</span>}
         </div>
-        {view !== "combined" && (
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted }}>View as:</span>
-            {pill<Layout>("grid", layout, setLayout, "GRID")}
-            {pill<Layout>("bars", layout, setLayout, "BARS")}
-          </div>
-        )}
       </div>
 
       {/* Type checkboxes, one row per weapon family. Every canonical type is
           listed regardless of whether it has data in the current view — types
-          without data render as disabled with a tooltip. Filters both grid and
-          bars so a hidden outlier (e.g. the AD pool ~11k) doesn't squash the
-          y-axis. */}
+          without data render as disabled with a tooltip. Hiding a type also
+          drops it from the shared y-scale, so a hidden outlier (e.g. the AD
+          pool ~11k) doesn't squash the axis. */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
         {MISSILE_CATEGORY_ORDER.map((cat) => {
           const list = grouped[cat];
@@ -355,7 +340,7 @@ export function MissilesPage() {
           )
           : <div style={{ fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted, padding: 40, textAlign: "center" }}>Select at least one missile type.</div>
       )}
-      {view !== "combined" && layout === "grid" && (
+      {view !== "combined" && (
         visibleSeries.length > 0
           ? (
             <ChartGrid>
@@ -372,11 +357,6 @@ export function MissilesPage() {
               ))}
             </ChartGrid>
           )
-          : <div style={{ fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted, padding: 40, textAlign: "center" }}>Select at least one missile type.</div>
-      )}
-      {view !== "combined" && layout === "bars" && (
-        visibleSeries.length > 0
-          ? <MissileStackedBarChart series={visibleSeries} unit={UNIT[view]} timeDomain={TIME_DOMAIN} ticks={TIME_TICKS} colorFor={colorFor} />
           : <div style={{ fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted, padding: 40, textAlign: "center" }}>Select at least one missile type.</div>
       )}
 
