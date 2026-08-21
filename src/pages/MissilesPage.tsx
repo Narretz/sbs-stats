@@ -152,7 +152,7 @@ export function MissilesPage() {
   // standalone; types missing from the current view (but present in the other)
   // render as disabled with a "no data" hover hint.
   const grouped = useMemo(() => {
-    const out: Record<MissileCategory, string[]> = { cruise: [], ballistic: [], other: [] };
+    const out: Record<MissileCategory, string[]> = { cruise: [], lowcost_cruise: [], ballistic: [], other: [], drone: [] };
     for (const k of Object.keys(MISSILE_CATEGORY)) {
       if (!everHasStandaloneData.has(k)) continue;
       out[MISSILE_CATEGORY[k]].push(k);
