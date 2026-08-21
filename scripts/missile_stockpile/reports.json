@@ -44,9 +44,12 @@
     "rm48u":        { "name": "RM-48U",            "designation": "S-300PM/S-400 strike", "class": "SAM-derived strike", "launch": "ground" },
     "kh69":         { "name": "Kh-69",             "designation": "Kh-69",          "class": "cruise",               "launch": "air" },
     "kh35":         { "name": "Kh-35",             "designation": "Kh-35",          "class": "cruise (anti-ship)",   "launch": "air/multi" },
+    "banderol":     { "name": "Banderol",          "designation": "S8000",          "class": "cruise",               "launch": "air (Orion UAV / Mi-8)" },
     "kh_tactical":  { "name": "Kh-29/31/35/58/59", "designation": "Kh-29/31/35/58/59", "class": "tactical air-launched", "launch": "air" },
     "oreshnik":     { "name": "Oreshnik",          "designation": "Oreshnik",       "class": "MRBM",                 "launch": "ground" },
-    "s300_s400_ad": { "name": "S-300P/S-400 (AD pool)", "designation": "48N6 family", "class": "air-defence",        "launch": "ground" }
+    "s300_s400_ad": { "name": "S-300P/S-400 (AD pool)", "designation": "48N6 family", "class": "air-defence",        "launch": "ground" },
+    "geran2":       { "name": "Geran-2",           "designation": "Geran-2 / Shahed-136", "class": "strike drone",     "launch": "ground/air" },
+    "geran45":      { "name": "Geran-4/5",         "designation": "Geran-4/5 (jet)", "class": "jet strike drone",     "launch": "ground/air" }
   },
 
   "reports": [
@@ -76,6 +79,33 @@
         { "type": "kinzhal",    "raw_label": "Kinzhal (planned)",    "value": 6,     "bound": "planned" },
         { "type": "kh101",      "raw_label": "Kh-101",               "value": 30,    "bound": "approx"  },
         { "type": "kalibr",     "raw_label": "Kalibr",               "value": 15, "value_max": 20, "bound": "range" }
+      ]
+    },
+    {
+      "as_of": "2023-12-01", "as_of_precision": "month", "reported_at": "2024-12-27",
+      "source": { "org": "HUR", "via": "Ukrainian defence intelligence / CNN (Alabuga investigation)", "url": "https://edition.cnn.com/2024/12/27/europe/russia-ukraine-war-drones-alabuga-factory-intl-invs" },
+      "note": "DERIVED historical Geran-2/Shahed monthly rate: the Alabuga factory produced 2,738 Shahed in ALL of 2023 (Ukrainian defence intelligence, via CNN 2024-12-27), so 2738 ÷ 12 ≈ 228/month (bound=derived, ◇). as_of is placed at 2023 year-end; the figure is a full-year 2023 average (see raw_label). Drone series is hidden by default.",
+      "stockpile": [],
+      "production_monthly": [
+        { "type": "geran2", "raw_label": "Shahed / Geran-2 (derived: 2,738 in 2023 ÷ 12 ≈ 228/mo)", "value": 228, "bound": "derived" }
+      ]
+    },
+    {
+      "as_of": "2024-08-15", "as_of_precision": "month", "reported_at": "2024-08-15",
+      "source": { "org": "HUR", "via": "Ukrainian intelligence (recap via Censor.NET)", "url": "https://censor.net/en/news/3556928/shahed-drones-intelligence-reveals-russia-s-monthly-uav-production-rates" },
+      "note": "Historical Geran-2/Shahed-136 production point: Ukrainian intelligence estimated ~500 Shahed/month in August 2024 — the baseline the later '~5x increase' framing refers to. Figure recapped by Censor.NET (2025-06-09); the exact original Aug-2024 disclosure date isn't pinned (as_of_precision=month). Drone series is hidden by default.",
+      "stockpile": [],
+      "production_monthly": [
+        { "type": "geran2", "raw_label": "Shahed-136 / Geran-2 (~500/month, Ukrainian intel, Aug 2024)", "value": 500, "bound": "approx" }
+      ]
+    },
+    {
+      "as_of": "2024-09-01", "as_of_precision": "month", "reported_at": "2024-12-27",
+      "source": { "org": "HUR", "via": "Ukrainian defence intelligence / CNN (Alabuga investigation)", "url": "https://edition.cnn.com/2024/12/27/europe/russia-ukraine-war-drones-alabuga-factory-intl-invs" },
+      "note": "DERIVED historical Geran-2/Shahed monthly rate: Alabuga produced 5,760 Shahed in Jan–Sep 2024 (9 months; Ukrainian defence intelligence via CNN 2024-12-27), so 5760 ÷ 9 ≈ 640/month (bound=derived, ◇), placed at the end of the Jan–Sep period. This ~640 (9-month output average) reads just after the separate ~500/month 'as of Aug 2024' point estimate — different methods (factory-output average vs a rate estimate), consistent with the mid-2024 ramp. Drone series is hidden by default.",
+      "stockpile": [],
+      "production_monthly": [
+        { "type": "geran2", "raw_label": "Shahed / Geran-2 (derived: 5,760 in Jan–Sep 2024 ÷ 9 ≈ 640/mo)", "value": 640, "bound": "derived" }
       ]
     },
     {
@@ -118,6 +148,21 @@
         { "type": "kh101",      "raw_label": "Kh-101",     "value": 70, "bound": "up_to" },
         { "type": "kalibr",     "raw_label": "Kalibr",     "value": 25, "value_max": 30, "bound": "range" },
         { "types": ["zircon", "oniks"], "combined": true, "raw_label": "Zircon + Oniks", "value": 20, "value_max": 30, "bound": "range" }
+      ]
+    },
+    {
+      "as_of": "2025-05-25", "as_of_precision": "month", "reported_at": "2025-06-09",
+      "source": {
+        "org": "GUR", "via": "GUR estimate (recap via Censor.NET)",
+        "url": "https://censor.net/en/news/3556928/shahed-drones-intelligence-reveals-russia-s-monthly-uav-production-rates",
+        "secondary": [
+          { "via": "Kyiv Independent (Yusov, HUR)", "url": "https://kyivindependent.com/russia-can-produce-up-to-2-700-shahed-type-drones-per-month-intelligence-says/", "covers": "reaffirms ~2700/month (2025-09-06)" }
+        ]
+      },
+      "note": "Historical Geran-2/Shahed production point: GUR estimated ~2700 Shahed/month as of late May 2025 — ~5x the ~500/month of Aug 2024 (plus ~2500 decoy drones, not counted here). HUR spokesman Yusov reaffirmed 'up to 2700' on 2025-09-06. 'Shahed-type' may bundle Geran-2 variants; keyed to geran2. Drone series hidden by default.",
+      "stockpile": [],
+      "production_monthly": [
+        { "type": "geran2", "raw_label": "Shahed / Geran-2 (~2700/month, GUR, late May 2025)", "value": 2700, "bound": "approx" }
       ]
     },
     {
@@ -225,6 +270,34 @@
       ]
     },
     {
+      "as_of": "2026-05-14",
+      "as_of_precision": "month",
+      "as_of_precision": "day",
+      "reported_at": "2026-05-14",
+      "source": {
+        "org": "HUR",
+        "via": "Ukrainska Pravda sources in the HUR",
+        "url": "https://www.pravda.com.ua/eng/news/2026/05/14/8034678/"
+      },
+      "stockpile": [],
+      "production_monthly": [{
+        "type": "geran45",
+        "raw_label": "serial production, up to 500 per month",
+        "bound": "up_to",
+        "value": 500
+      }]
+    },
+    {
+      "as_of": "2026-07-14", "as_of_precision": "day", "reported_at": "2026-07-14",
+      "source": { "org": "MoD", "via": "Beskrestnov (adviser) / Ukrainska Pravda", "url": "https://www.pravda.com.ua/eng/news/2026/07/14/8044105/" },
+      "note": "Banderol production TARGET: Serhii 'Flash' Beskrestnov, adviser to Ukraine's defence minister, said Russia AIMS for 120 Banderol (S8000)/month but has not yet reached it (bound=planned). org=MoD follows the dataset's use of 'MoD' for a defence-ministry source (cf. the 2022 Reznikov entry = Ukrainian MoD). The actual ~80/month (up_to) is in the 2026-08-21 GUR entry.",
+      "notes": "No split between Geran types reported. Mass production of Geran-3 is expected to begin in the second half of this year. The ultimate goal is to increase the share of jet-powered drones to 50% of the total number of Shahed drones",
+      "stockpile": [],
+      "production_monthly": [
+        { "type": "banderol", "raw_label": "Banderol S8000 (target 120/month, not yet reached)", "value": 120, "bound": "planned" }
+      ]
+    },
+    {
       "as_of": "2026-07-15", "as_of_precision": "mid_month", "reported_at": "2026-07-18",
       "source": {
         "org": "HUR", "via": "NV (The New Voice of Ukraine)",
@@ -280,6 +353,23 @@
         { "type": "rm48u",      "raw_label": "RM-48U (~50/month output; Aug target ~40; 2026 annual plan >480)", "value": 50, "bound": "approx" },
         { "type": "zircon",     "raw_label": "Zircon (derived: 33 built YTD by Aug 3 ÷ ~7 mo ≈ 4.7/mo)", "value": 4.7, "bound": "derived" },
         { "type": "oniks",      "raw_label": "Oniks (derived: 60 built YTD by Aug 3 ÷ ~7 mo ≈ 8.6/mo)", "value": 8.6, "bound": "derived" }
+      ]
+    },
+    {
+      "as_of": "2026-08-21", "as_of_precision": "day", "reported_at": "2026-08-21",
+      "source": {
+        "org": "GUR", "via": "Militarnyi (GUR responses)",
+        "url": "https://militarnyi.com/uk/news/rosiya-mozhe-vyroblyaty-do-80-banderolej-shhomisyatsya/",
+        "secondary": [
+          { "via": "Militarnyi", "url": "https://militarnyi.com/uk/news/3-tysyachi-droniv-geran-4-5-na-misyats/", "covers": "Geran-4/5 + Geran-2 drone production" }
+        ]
+      },
+      "note": "Separate GUR disclosures to Militarnyi (published ~2026-08-21), production-only (no stockpile figures given). BANDEROL (S8000): a cheap ~500 km cruise missile (made by Kronstadt; launched from the Orion UAV / Mi-8), re-entered mass production and use from May 2026 — GUR says 'up to 80/month' (bound=up_to) against a stated 120/month TARGET (the 120 target was also cited on 2026-07-14 by MoD adviser Serhii 'Flash' Beskrestnov). TAXONOMY: Banderol and the jet-powered Geran-4/5 are grouped as 'low-cost cruise missiles' (both use jet engines, like a cruise missile); the piston Geran-2 (Shahed-136) stays a 'strike drone'. GUR figures: ~3000/month Geran-4/5 (jet 'drone-missile') and ~2800/month Geran-2 — jet output has now OVERTAKEN the piston Geran-2. Geran-4/5 (~3000/mo) and Geran-2 (~2800/mo) are hidden by default because their scale is ~30x the missiles and would squash the shared axis; Banderol (~80/mo) is shown. The Geran-2 ramp is now logged as its own points: ~500/month (Aug 2024) -> ~2700/month (late May 2025) -> ~2800/month now. Banderol's 120/month TARGET is logged as a planned point in the 2026-07-14 entry. Assembly is scaling at the Alabuga plant (Yelabuga, Tatarstan).",
+      "stockpile": [],
+      "production_monthly": [
+        { "type": "banderol", "raw_label": "Banderol S8000 — 'up to 80/month' (stated target 120)", "value": 80, "bound": "up_to" },
+        { "type": "geran45",  "raw_label": "Geran-4/5 jet drone (~3000/month; now exceeds Geran-2)", "value": 3000, "bound": "approx" },
+        { "type": "geran2",   "raw_label": "Geran-2 / Shahed-136 (~2800/month)", "value": 2800, "bound": "approx" }
       ]
     }
   ]
