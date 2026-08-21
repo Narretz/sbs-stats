@@ -589,7 +589,13 @@ export type MediazonaEstimateRow = {
 // Hand-curated, irregular (~2×/yr) Ukrainian-intelligence estimates of Russian
 // missile stockpiles and monthly production. Read directly from JSON (prototype,
 // no DB). Mirrors the shape of reports.json — see that file's _doc block.
-export type MissileBound = "up_to" | "at_least" | "approx" | "exact" | "range" | "planned";
+// "derived" = a monthly figure WE computed from the source (e.g. an annual
+// target ÷ months elapsed, or a % of a known target), not a number HUR stated
+// directly — rendered with its own glyph so it's never mistaken for a disclosure.
+// "suspended" = a source-stated production halt: a real 0/month (distinct from an
+// absent type, which is a gap). value must be 0; on a log axis the marker is
+// pinned to the floor since 0 has no position there.
+export type MissileBound = "up_to" | "at_least" | "approx" | "exact" | "range" | "planned" | "derived" | "suspended";
 
 export interface MissileMeasurement {
   type?: string;        // single canonical key …
@@ -619,6 +625,7 @@ export interface MissileReport {
     local_file?: string;
     paywalled?: boolean; // primary url is behind a paywall — see secondary[] for the open re-reports carrying the figures
     secondary?: { via: string; url: string; covers?: string }[]; // outlets that re-reported the same disclosure; `covers` notes which part (e.g. "stockpiles" / "production")
+    infographic?: string; // URL of a source infographic that carries the figures (kept for audit)
   };
   note?: string;
   stockpile: MissileMeasurement[];

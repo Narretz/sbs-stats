@@ -57,6 +57,8 @@ const LEGEND: Array<{ g: string; label: string }> = [
   { g: "●", label: "approx / range" },
   { g: "■", label: "exact" },
   { g: "○", label: "planned" },
+  { g: "◇", label: "derived (from yearly or percentage data)" },
+  { g: "✕", label: "suspended (0)" },
 ];
 
 export function MissilesPage() {

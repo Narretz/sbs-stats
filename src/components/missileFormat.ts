@@ -19,6 +19,8 @@ export function fmtValue(p: MissilePoint): string {
     case "at_least": return `≥ ${p.low}`;
     case "approx":   return `~ ${p.mid}`;
     case "planned":  return `${p.mid} (planned)`;
+    case "derived":  return `≈ ${p.mid} (derived)`;
+    case "suspended": return `0 (suspended)`;
     default:         return `${p.mid}`;
   }
 }

@@ -12,10 +12,13 @@ const MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep
 
 // Bound → dot shape. This is what keeps "up to 500" and "more than 400" from
 // reading as the same point: ▽ = ceiling, △ = floor, ■ = exact, ○ = planned,
-// ● = approx/range (range also gets a vertical band).
+// ◇ = derived-by-us, ● = approx/range (range also gets a vertical band).
 export function BoundDot(props: DotProps & { payload?: MissilePoint; color: string }) {
   const { cx, cy, payload, color } = props;
-  if (cx == null || cy == null || !payload) return null;
+  // cy is NaN when a value has no position on the axis (e.g. a 0 on a log
+  // scale) — drop the dot rather than emitting <rect y="NaN">. The `== null`
+  // checks also narrow the optional cx/cy to number for the paths below.
+  if (cx == null || cy == null || !Number.isFinite(cx) || !Number.isFinite(cy) || !payload) return null;
   const r = 4;
   switch (payload.bound) {
     case "up_to":
@@ -26,6 +29,18 @@ export function BoundDot(props: DotProps & { payload?: MissilePoint; color: stri
       return <rect x={cx - r} y={cy - r} width={2 * r} height={2 * r} fill={color} />;
     case "planned":
       return <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={1.6} />;
+    case "derived":
+      // Hollow diamond — ours, not a source figure.
+      return <path d={`M${cx},${cy - r - 0.5} L${cx + r + 0.5},${cy} L${cx},${cy + r + 0.5} L${cx - r - 0.5},${cy} Z`} fill="none" stroke={color} strokeWidth={1.6} />;
+    case "suspended":
+      // ✕ — a stated production halt (0). On a log axis the caller pins cy to
+      // the floor, so the mark still lands on the chart.
+      return (
+        <path
+          d={`M${cx - r},${cy - r} L${cx + r},${cy + r} M${cx + r},${cy - r} L${cx - r},${cy + r}`}
+          stroke={color} strokeWidth={1.8} strokeLinecap="round"
+        />
+      );
     default:
       return <circle cx={cx} cy={cy} r={r - 0.5} fill={color} />;
   }

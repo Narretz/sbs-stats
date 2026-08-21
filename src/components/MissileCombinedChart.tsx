@@ -93,6 +93,18 @@ export function MissileCombinedChart({ stock, prod, label, swatch, timeDomain, t
   const nStock = stock?.points.length ?? 0;
   const nProd = prod?.points.length ?? 0;
 
+  // A suspended/0 production value has no position on a log axis — pin it to the
+  // domain floor so its ✕ marker still lands on the chart (the tooltip keeps the
+  // real 0 via prod_p). Absent production stays null (a gap).
+  const floor = yDomain?.[0];
+  const plotRows = useMemo(
+    () => rows.map((r) => ({
+      ...r,
+      prod_plot: r.prod_p?.bound === "suspended" || r.prod_mid === 0 ? floor : r.prod_mid,
+    })),
+    [rows, floor],
+  );
+
   return (
     <div className="daily-card" style={{
       background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8,
@@ -116,7 +128,7 @@ export function MissileCombinedChart({ stock, prod, label, swatch, timeDomain, t
         log · ▬ stockpile ({nStock}) · ┄ production/mo ({nProd})
       </div>
       <ResponsiveContainer width="100%" height={200}>
-        <ComposedChart data={rows} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+        <ComposedChart data={plotRows} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
           <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
           <XAxis
             type="number" dataKey="t" scale="time" domain={timeDomain} ticks={ticks}
@@ -153,7 +165,7 @@ export function MissileCombinedChart({ stock, prod, label, swatch, timeDomain, t
           />
           {/* Production: dashed + slightly faded so the two read apart at a glance. */}
           <Line
-            type="linear" dataKey="prod_mid" stroke={color} strokeWidth={1.6} strokeDasharray="4 3"
+            type="linear" dataKey="prod_plot" stroke={color} strokeWidth={1.6} strokeDasharray="4 3"
             strokeOpacity={0.7} connectNulls isAnimationActive={false}
             dot={({ key, ...p }) => <BoundDot key={key} {...p} payload={(p.payload as Row)?.prod_p} color={color} />}
             activeDot={{ r: 5, fill: color }}
