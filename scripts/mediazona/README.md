@@ -128,6 +128,10 @@ Weeks here are **Monday-anchored** — a different grid from `weekly_roles`.
 > comparison line in that window; this export doesn't expose it. The frontend
 > shades that window on the names-vs-estimate chart.
 
+Note: the headline of the article usually has a larger number of losses than the
+estimate/record dataset. Probably because the latter only goes to the end of 2025, and the headline
+count contains data until the current date (like the role breakdown data)
+
 ## Date model
 
 Both CSVs label weeks `DD.MM.YYYY`; we store ISO `YYYY-MM-DD` as the week-start,
