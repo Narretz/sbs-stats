@@ -15,7 +15,7 @@
       "combined": "true when a single reported number covers >1 canonical type (the 'not specified' case).",
       "raw_label": "verbatim wording from the source, kept for audit.",
       "value": "the number; for bound=range it is the LOW end and value_max the high end.",
-      "bound": "up_to (≤) | at_least (≥, 'more than'/'over'/'200+') | approx ('about'/'nearly'/'~') | exact | range | planned"
+      "bound": "up_to (≤) | at_least (≥, 'more than'/'over'/'200+') | approx ('about'/'nearly'/'~') | exact | range | planned | derived (a monthly figure WE computed from the source — annual target ÷ months elapsed, or a % of a known target — NOT stated by HUR; gets its own ◇ glyph. Put the arithmetic in raw_label.) | suspended (a source-stated production halt = a real 0/month, value must be 0; ✕ glyph; on the log combined axis the ✕ is pinned to the floor since 0 has no log position)"
     },
     "known_issues": [
       "Taxonomy drift: early reports lump Iskander (no M/K split) and Kh-101/Kh-55/Kh-35; later ones split them. Modelled via combined=true.",
@@ -24,6 +24,7 @@
       "Nov 2022 (MoD) is a consumption ledger (pre-war / used / made / remaining); only the 'remaining' values are recorded here, so it is sparse.",
       "Aug 2023 production figures were stated as monthly *plans*, not confirmed output (bound=planned).",
       "Absent != zero: a type missing from a report was not disclosed that period, not counted as 0. Time-series charts must render a GAP, not a drop to zero. Some reports are partial (e.g. 2025-07-10 is ballistic-only).",
+      "Explicitly SUSPENDED production is the exception to absent!=zero: when a report states a type's output is halted (Kinzhal & Kh-32 from April 2026, per the 2026-08-05 report), that is a real reported 0 (bound=suspended, value 0, ✕ glyph), recorded as a point — NOT a gap. On the log combined axis a 0 has no position, so the ✕ is pinned to the axis floor (tooltip still reads 0) rather than dropping out.",
       "The bound qualifier must drive rendering: floor-framed ('600','over 300') vs ceiling-framed ('up to 500') reports otherwise manufacture fake volatility. See the 2025-05 vs 2025-06 notes."
     ]
   },
@@ -255,21 +256,30 @@
       ]
     },
     {
-      "as_of": "2026-08-05", "as_of_precision": "day", "reported_at": "2026-08-20",
+      "as_of": "2026-08-05", "as_of_precision": "day", "reported_at": "2026-08-10",
       "source": {
-        "org": "HUR", "via": "Ukrainska Pravda",
-        "url": "https://www.pravda.com.ua/articles/2026/08/20/8049376/",
+        "org": "HUR", "via": "Skibitsky / RBC-Ukraine",
+        "url": "https://newsukraine.rbc.ua/interview/d-1786341590.html",
+        "secondary": [
+          { "via": "Ukrainska Pravda", "url": "https://www.pravda.com.ua/articles/2026/08/20/8049376/", "covers": "RM-48U monthly output + NK 6-launcher/120 deployment; stockpile infographic (bars not re-logged)" }
+        ],
         "infographic": "https://uimg.pravda.com.ua/buckets/upstatic/system/MediaPhoto/photo/6/0/895254/60e7260c09039c96c47a0935d3af80911787165834.jpg"
       },
-      "note": "THREE dates in play, kept distinct: reported_at=2026-08-20 is the UP publication/disclosure date; as_of=2026-08-05 is the latest 'last-info' date the graphic carries (the Iskander-M bar's 'станом на 5 серпня') and is what places the points on the time axis; and the production figures separately describe JULY output (kept on their raw_labels, plotted at the as_of snapshot per the dataset's convention that a production rate sits at the report date, not the month it covers). IMPORTANT — most of the UP infographic's stockpile bars are the mid-July 2026 (2026-07-15) figures RESTATED UNCHANGED, so they are deliberately NOT re-logged here: a second identical point a month later would imply a fresh re-confirmation we don't actually have, and July's floor-framed '≥' values would drift into '~' points (the fake-volatility failure mode in known_issues). Byte-identical to 2026-07-15 and therefore treated as not re-disclosed (gaps, not points): Oniks 600, Kalibr 450, RM-48U 400, Zircon 120, Kh-101 100, and KN-23/24/30 50 — the KN bar is even explicitly stamped 'станом на липень' (as of July). Only the genuinely fresh stockpile figures are recorded below: 9M723 Iskander-M ~130 'станом на 5 серпня' (as of 5 Aug, up from ~100 mid-July) and Kinzhal ~50 (down from ~100 mid-July; undated on the graphic, assumed current). Also not disclosed this round: Iskander-K, Kh-22/32, Kh-69, Kh-35, the Kh-29/31/35/58/59 pool, Oreshnik. Production is the genuinely NEW content — July confirmed OUTPUT (vs the mid-July plans): 9M723 Iskander-M 65 (monthly plan 60, overshot), Kh-101 87, RM-48U ~50/month (2026 annual plan 'понад 480' = over 480, >2x 2025); stated total capacity 'понад 200' cruise+ballistic/month. Kinzhal serial production stays suspended since April 2026 (redirected to Iskander-M) — no Kinzhal production figure. Context (not measurements): ~160 Iskander launchers; in August 2026 Russia began deploying a North Korean missile unit in Voronezh Oblast (bordering Luhansk) — 6 DPRK launchers to hold 120 KN-23 ballistic missiles (~20 each), a separate inbound deployment NOT counted as a kn23 stockpile point.",
+      "note": "Source is a HUR interview — Maj-Gen Vadym Skibitsky (deputy chief) to RBC-Ukraine, published 2026-08-10 — where the early-August figures originate. Ukrainska Pravda (2026-08-20, source.secondary) later re-reported the same disclosure. Dates: as_of=2026-08-05 anchors the timeline (Skibitsky's '~130 Iskander-M as of Aug 5'; the Zircon/Onyx production tallies are 'as of Aug 3'); production figures otherwise describe JULY output. STOCKPILE: Skibitsky gives only two reserve figures — 9M723 Iskander-M ~130 (as of 5 Aug) and RM-48U ~400 ('estimated stockpile is 400'); both recorded. The UP infographic also showed a Kinzhal reserve of ~50, which halves the mid-July ~100 with no corroboration, and Skibitsky gives no Kinzhal reserve. The UP infographic's other bars (Oniks 600, Kalibr 450, Zircon 120, Kh-101 100, KN-23/24/30 50) are the mid-July 2026 figures restated unchanged. Not disclosed: Iskander-K, Kh-22/32, Kh-69, Oreshnik. PRODUCTION (July confirmed output unless noted): 9M723 Iskander-M 65 (monthly plan 60, overshot); Kalibr 29 (111% of its 26 target); Kh-101 87. RM-48U is recorded at ~50/month (UP) — Skibitsky states the Aug TARGET is ~40, so output overshoots target, matching his stated 110-120% over-fulfilment; 2026 annual RM-48U plan is 'понад 480' (>2x 2025). Kinzhal and Kh-32 production suspended since April 2026 (redirected to Iskander-M) — recorded as an explicit 0/month (bound=suspended, ✕ glyph). In the linear production view it drops to 0; in the log combined view the ✕ is pinned to the axis floor (0 has no log position). The Kh-32 zero is keyed to the fused kh22_32 family though only Kh-32 was named. DERIVED monthly points (bound=derived, ◇ glyph — computed by us, NOT stated by HUR): (1) Kh-35 ≈40 — July ran 200% of target and the standing target is the ~20/mo from the April 2026 report, so 200% × 20 = 40; (2) Zircon ≈4.7 and Onyx ≈8.6 — HUR says the 2026 ANNUAL targets were met by Aug 3 with 33 Zircon and 60 Onyx built year-to-date, which ÷ ~7 months elapsed (Jan 1–Aug 3) gives the realized monthly pace. Launch tempo (context): July saw a record 198 ballistic/hypersonic launches (9M723 + RM-48U + Zircon), up from 61 in April, 107 in May and 134 in June, plus 153 cruise (Kh-101/Kalibr/Kh-32); ~11,000 strike UAVs/month planned for August. NORTH KOREA: Skibitsky says the DPRK supplied a first batch of ~100 KN-23 and has since transferred another 40 KN-23/KN-24 (~140 total); UP adds a DPRK missile unit deploying near the border (6 launchers / ~120 missiles).",
       "stockpile": [
         { "type": "iskander_m", "raw_label": "9M723 Iskander-M ballistic (as of 5 Aug)", "value": 130, "bound": "approx" },
-        { "type": "kinzhal",    "raw_label": "Kinzhal (undated on graphic; ~half the mid-July figure)", "value": 50, "bound": "approx" }
+        { "type": "rm48u",      "raw_label": "RM-48U (S-300PM/S-400 strike) — 'estimated stockpile 400'", "value": 400, "bound": "approx" }
       ],
       "production_monthly": [
         { "type": "iskander_m", "raw_label": "9M723 Iskander-M (July output 65; monthly plan 60)", "value": 65, "bound": "exact" },
+        { "type": "kinzhal",    "raw_label": "Kinzhal — production SUSPENDED since April 2026", "value": 0, "bound": "suspended" },
+        { "type": "kalibr",     "raw_label": "Kalibr (July output 29; 111% of 26 target)", "value": 29, "bound": "exact" },
         { "type": "kh101",      "raw_label": "Kh-101 (July output 87)", "value": 87, "bound": "exact" },
-        { "type": "rm48u",      "raw_label": "RM-48U (~50/month; 2026 annual plan >480)", "value": 50, "bound": "approx" }
+        { "type": "kh22_32",    "raw_label": "Kh-32 — production SUSPENDED since April 2026 (kh22_32 family key; only Kh-32 named)", "value": 0, "bound": "suspended" },
+        { "type": "kh35",       "raw_label": "Kh-35 (derived: July 200% of ~20/mo April target = ~40)", "value": 40, "bound": "derived" },
+        { "type": "rm48u",      "raw_label": "RM-48U (~50/month output; Aug target ~40; 2026 annual plan >480)", "value": 50, "bound": "approx" },
+        { "type": "zircon",     "raw_label": "Zircon (derived: 33 built YTD by Aug 3 ÷ ~7 mo ≈ 4.7/mo)", "value": 4.7, "bound": "derived" },
+        { "type": "oniks",      "raw_label": "Oniks (derived: 60 built YTD by Aug 3 ÷ ~7 mo ≈ 8.6/mo)", "value": 8.6, "bound": "derived" }
       ]
     }
   ]
