@@ -45,7 +45,13 @@ export function PageScaffold({
   gridChildren, children,
 }: PageScaffoldProps) {
   const { theme: t } = useTheme();
-  const ready = loadState === "ready" || hasData;
+  // Show charts only once rows are actually present (`hasData`), not merely when
+  // the DB finished loading. Pages whose row fetch is async (e.g. GSUA reads
+  // over a worker) have a window where loadState === "ready" but no rows have
+  // arrived — gating on loadState there rendered an empty, padded grid (a stray
+  // grey bar on hover). Keep the loading indicator up through that gap.
+  const ready = hasData;
+  const loading = !hasData && loadState !== "error";
   return (
     <div>
       <div style={headerVariant === "block" ? HEADER_BLOCK : HEADER_STACK}>
@@ -65,7 +71,7 @@ export function PageScaffold({
         </div>
       )}
 
-      {loadState === "loading" && !hasData && <LoadingScreen message={loadingMessage} />}
+      {loading && <LoadingScreen message={loadingMessage} />}
       {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
       {ready && gridChildren !== undefined && <ChartGrid>{gridChildren}</ChartGrid>}
       {ready && children}
