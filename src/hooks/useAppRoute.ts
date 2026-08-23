@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Page, Site } from "@/types";
 import { SITES } from "@/types";
 import { SITE_REGISTRY } from "@/sites/registry";
@@ -43,11 +43,14 @@ function readUrl(): Route {
   return { kind: "site", site, page };
 }
 
+// Switching site/page is a navigation, so push a new history entry (Back should
+// return to the previous view). The homepage's own filter params (charts, days,
+// …) still use replaceState from HomePage — those are tweaks, not navigations.
 function writeSite(next: { site?: Site; page?: Page }) {
   const p = new URLSearchParams(window.location.search);
   if (next.site !== undefined) p.set("site", next.site);
   if (next.page !== undefined) p.set("page", next.page);
-  window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
+  window.history.pushState(null, "", `${window.location.pathname}?${p.toString()}`);
 }
 
 // Clear site/page params; homepage owns its own params (metrics, days, …)
@@ -57,11 +60,19 @@ function writeHome() {
   p.delete("site");
   p.delete("page");
   const qs = p.toString();
-  window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+  window.history.pushState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
 }
 
 export function useAppRoute() {
   const [route, setRouteState] = useState<Route>(readUrl);
+
+  // Back/forward changes the URL but not React state — re-read the URL on
+  // popstate so the view follows the history entries writeSite/writeHome push.
+  useEffect(() => {
+    const onPop = () => setRouteState(readUrl());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const goHome = () => {
     writeHome();
