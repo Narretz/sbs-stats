@@ -1,7 +1,7 @@
 import { useTheme } from "@/hooks/useTheme";
 import { ThemeProvider } from "@/hooks/ThemeProvider";
 import { StatScopeProvider } from "@/hooks/StatScopeProvider";
-import { DatabaseProvider, SbuAlfaDatabaseProvider } from "@/context/databases";
+import { SbsDatabaseProvider, SbuAlfaDatabaseProvider } from "@/context/databases";
 import { SITE_REGISTRY, type SiteConfig } from "@/sites/registry";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { RouteProvider } from "@/hooks/RouteContext";
@@ -134,11 +134,11 @@ function AppInner() {
         )}
         {route.kind === "special" && route.view === "sbs-vs-sbu-alfa" && (
           <ErrorShell>
-            <DatabaseProvider>
+            <SbsDatabaseProvider>
               <SbuAlfaDatabaseProvider>
                 <PageShell><SbsVsSbuAlfaPage /></PageShell>
               </SbuAlfaDatabaseProvider>
-            </DatabaseProvider>
+            </SbsDatabaseProvider>
           </ErrorShell>
         )}
       </div>

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { Temporal } from "temporal-polyfill";
-import { useDatabaseContext } from "@/context/databases";
+import { useSbsDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
 import { HourlyLineChart, type TooltipSortMode } from "@/components/HourlyLineChart";
 import { DataWindow } from "@/components/DataWindow";
@@ -58,7 +58,7 @@ interface HourlyPageProps {
 
 export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryHourly, queryGlobalStats, queryEodProjection, queryDataWindow } = useDatabaseContext();
+  const { loadState, error, queryHourly, queryGlobalStats, queryEodProjection, queryDataWindow } = useSbsDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);

@@ -46,7 +46,7 @@ function buildStatColumns(availableCols: string[]): string {
 
 export const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
-export function useDatabase({ enabled = true }: { enabled?: boolean } = {}) {
+export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
   const { resource: db, loadState, error, lastRefreshed, refresh, refreshCount, refreshIntervalMs } =
     useRefreshableResource({
       cache: dbCache,

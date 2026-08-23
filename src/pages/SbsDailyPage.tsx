@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { Temporal } from "temporal-polyfill";
-import { useDatabaseContext } from "@/context/databases";
+import { useSbsDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { DataWindow } from "@/components/DataWindow";
@@ -48,7 +48,7 @@ interface DailyPageProps {
 
 export function SbsDailyPage({ refreshKey }: DailyPageProps) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryDaily, queryGlobalStats, queryEodProjection, queryDataWindow } = useDatabaseContext();
+  const { loadState, error, queryDaily, queryGlobalStats, queryEodProjection, queryDataWindow } = useSbsDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);

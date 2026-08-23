@@ -1,7 +1,7 @@
 import type { ComponentType, ReactNode } from "react";
 import type { LoadState, Page, Site } from "@/types";
 import {
-  DatabaseProvider, useDatabaseContext,
+  SbsDatabaseProvider, useSbsDatabaseContext,
   GsuaDatabaseProvider, useGsuaDatabaseContext,
   RuLossesDatabaseProvider, useRuLossesDatabaseContext,
   RuModDatabaseProvider, useRuModDatabaseContext,
@@ -59,8 +59,8 @@ export interface SiteConfig {
 // `ru-missiles-hur` prototype) are handled as explicit special cases in App.tsx.
 export const SITE_REGISTRY: Partial<Record<Site, SiteConfig>> = {
   sbs: {
-    provider: DatabaseProvider,
-    useDbContext: useDatabaseContext,
+    provider: SbsDatabaseProvider,
+    useDbContext: useSbsDatabaseContext,
     pages: { hourly: SbsHourlyPage, daily: SbsDailyPage, monthly: SbsMonthlyPage },
   },
   "ru-attacks-gsua": {

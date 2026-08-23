@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { useDatabaseContext } from "@/context/databases";
+import { useSbsDatabaseContext } from "@/context/databases";
 import { useSbuAlfaDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
 import { LoadingScreen, ErrorScreen } from "@/components/Layout";
@@ -140,7 +140,7 @@ function sumStatCols(row: MonthlyRow, cols: StatKey[]): number | null {
 
 export function SbsVsSbuAlfaPage() {
   const { theme: t } = useTheme();
-  const sbs = useDatabaseContext();
+  const sbs = useSbsDatabaseContext();
   const sbu = useSbuAlfaDatabaseContext();
 
   const [sbsRows, setSbsRows] = useState<MonthlyRow[]>([]);

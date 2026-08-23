@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
-import { useDatabase } from "@/hooks/useDatabase";
+import { useDatabaseSbs } from "@/hooks/useDatabaseSbs";
 import { useDatabaseGsua } from "@/hooks/useDatabaseGsua";
 import { useDatabaseRuLosses } from "@/hooks/useDatabaseRuLosses";
 import { useDatabaseUaLosses } from "@/hooks/useDatabaseUaLosses";
@@ -420,7 +420,7 @@ export function HomePage({ onGoToSite }: Props) {
   // The five daily-capable sources are usable in both granularities; SBU Alfa
   // and Mediazona are monthly-only and only appear in the picker when a
   // chart's granularity is "monthly".
-  const sbs = useDatabase({ enabled: needed.has("sbs") });
+  const sbs = useDatabaseSbs({ enabled: needed.has("sbs") });
   const gsua = useDatabaseGsua({ enabled: needed.has("gsua") });
   const ruLosses = useDatabaseRuLosses({ enabled: needed.has("ru-losses") });
   const uaLosses = useDatabaseUaLosses({ enabled: needed.has("ua-losses") });

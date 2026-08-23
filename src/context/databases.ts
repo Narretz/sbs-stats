@@ -4,7 +4,7 @@
 // their consumer hook from here; the site registry (src/sites) wires the
 // providers into the app shell.
 import { makeDatabaseContext } from "@/context/makeDatabaseContext";
-import { useDatabase } from "@/hooks/useDatabase";
+import { useDatabaseSbs } from "@/hooks/useDatabaseSbs";
 import { useDatabaseGsua } from "@/hooks/useDatabaseGsua";
 import { useDatabaseRuLosses } from "@/hooks/useDatabaseRuLosses";
 import { useDatabaseRuMod } from "@/hooks/useDatabaseRuMod";
@@ -13,8 +13,8 @@ import { useDatabaseSbuAlfa } from "@/hooks/useDatabaseSbuAlfa";
 import { useDatabaseUaLosses } from "@/hooks/useDatabaseUaLosses";
 import { useDatabaseMediazona } from "@/hooks/useDatabaseMediazona";
 
-export const { Provider: DatabaseProvider, useDbContext: useDatabaseContext } =
-  makeDatabaseContext(useDatabase, "SBS");
+export const { Provider: SbsDatabaseProvider, useDbContext: useSbsDatabaseContext } =
+  makeDatabaseContext(useDatabaseSbs, "SBS");
 
 export const { Provider: GsuaDatabaseProvider, useDbContext: useGsuaDatabaseContext } =
   makeDatabaseContext(useDatabaseGsua, "GSUA");

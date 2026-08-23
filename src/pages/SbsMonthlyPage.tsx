@@ -1,6 +1,6 @@
 import { useMemo, useEffect, useState } from "react";
 import { SUBSET_LABEL } from "@/tooltipLabels";
-import { useDatabaseContext } from "@/context/databases";
+import { useSbsDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
@@ -22,7 +22,7 @@ interface MonthlyPageProps {
 
 export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryMonthly, queryDataWindow } = useDatabaseContext();
+  const { loadState, error, queryMonthly, queryDataWindow } = useSbsDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const [allRows, setAllRows] = useState<MonthlyRow[]>([]);
   const [hasData, setHasData] = useState(false);
