@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useUaLossesDatabaseContext } from "@/context/useUaLossesDatabaseContext";
+import { useUaLossesDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";

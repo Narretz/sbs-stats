@@ -1,22 +1,16 @@
 import { useTheme } from "@/hooks/useTheme";
 import { ThemeProvider } from "@/hooks/ThemeProvider";
 import { StatScopeProvider } from "@/hooks/StatScopeProvider";
-import { DatabaseProvider } from "@/context/DatabaseContext";
-import { useDatabaseContext } from "@/context/useDatabaseContext";
-import { GsuaDatabaseProvider } from "@/context/GsuaDatabaseContext";
-import { useGsuaDatabaseContext } from "@/context/useGsuaDatabaseContext";
-import { RuLossesDatabaseProvider } from "@/context/RuLossesDatabaseContext";
-import { useRuLossesDatabaseContext } from "@/context/useRuLossesDatabaseContext";
-import { RuModDatabaseProvider } from "@/context/RuModDatabaseContext";
-import { useRuModDatabaseContext } from "@/context/useRuModDatabaseContext";
-import { RuAirAttacksDatabaseProvider } from "@/context/RuAirAttacksDatabaseContext";
-import { useRuAirAttacksDatabaseContext } from "@/context/useRuAirAttacksDatabaseContext";
-import { SbuAlfaDatabaseProvider } from "@/context/SbuAlfaDatabaseContext";
-import { useSbuAlfaDatabaseContext } from "@/context/useSbuAlfaDatabaseContext";
-import { UaLossesDatabaseProvider } from "@/context/UaLossesDatabaseContext";
-import { useUaLossesDatabaseContext } from "@/context/useUaLossesDatabaseContext";
-import { MediazonaDatabaseProvider } from "@/context/MediazonaDatabaseContext";
-import { useMediazonaDatabaseContext } from "@/context/useMediazonaDatabaseContext";
+import {
+  DatabaseProvider, useDatabaseContext,
+  GsuaDatabaseProvider, useGsuaDatabaseContext,
+  RuLossesDatabaseProvider, useRuLossesDatabaseContext,
+  RuModDatabaseProvider, useRuModDatabaseContext,
+  RuAirAttacksDatabaseProvider, useRuAirAttacksDatabaseContext,
+  SbuAlfaDatabaseProvider, useSbuAlfaDatabaseContext,
+  UaLossesDatabaseProvider, useUaLossesDatabaseContext,
+  MediazonaDatabaseProvider, useMediazonaDatabaseContext,
+} from "@/context/databases";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { RouteProvider } from "@/hooks/RouteContext";
 import { SiteHeader } from "@/components/SiteHeader";

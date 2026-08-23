@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { useDatabaseContext } from "@/context/useDatabaseContext";
-import { useSbuAlfaDatabaseContext } from "@/context/useSbuAlfaDatabaseContext";
+import { useDatabaseContext } from "@/context/databases";
+import { useSbuAlfaDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
 import { LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { FONTS } from "@/theme";

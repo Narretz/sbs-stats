@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { Temporal } from "temporal-polyfill";
-import { useRuLossesDatabaseContext } from "@/context/useRuLossesDatabaseContext";
+import { useRuLossesDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { DataWindow } from "@/components/DataWindow";
