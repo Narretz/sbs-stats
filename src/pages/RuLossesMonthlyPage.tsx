@@ -1,18 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useRuLossesDatabaseContext } from "@/context/databases";
-import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
+import { useMonthlyMetricGrid } from "@/hooks/useMonthlyMetricGrid";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthRangeSelect } from "@/components/MonthRangeSelect";
 import { PageScaffold } from "@/components/PageScaffold";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
-import { maxMedian } from "@/utils/windowStats";
 import {
   RU_LOSSES_METRIC_KEYS,
   RU_LOSSES_METRIC_LABELS,
   type RuLossesMetricKey,
-  type RuLossesMonthlyRow,
   type MonthlyDataPoint,
 } from "@/types";
 
@@ -23,25 +21,9 @@ interface Props {
 export function RuLossesMonthlyPage({ refreshKey }: Props) {
   const { loadState, error, queryMonthly, queryDataWindow } = useRuLossesDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
-  const [allRows, setAllRows] = useState<RuLossesMonthlyRow[]>([]);
-  const [hasData, setHasData] = useState(false);
-  const yr = useMonthlyMonthRange(allRows.length);
-  const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
-
-  useEffect(() => {
-    if (loadState === "ready") {
-      setAllRows(queryMonthly());
-      setHasData(true);
-    }
-  }, [loadState, queryMonthly, refreshKey]);
-
-  const allStats = useMemo(() => {
-    const out: Record<string, { max: number; median: number; total: number }> = {};
-    for (const k of RU_LOSSES_METRIC_KEYS) {
-      out[k] = maxMedian(allRows.map((r) => (typeof r[k] === "number" ? r[k] : null)));
-    }
-    return out;
-  }, [allRows]);
+  const { rows, hasData, yr, allStats } = useMonthlyMetricGrid({
+    loadState, queryMonthly, refreshKey, keys: RU_LOSSES_METRIC_KEYS,
+  });
 
   const endMonth = resolvedEndMonth();
   const makeDataset = (key: RuLossesMetricKey): MonthlyDataPoint[] =>

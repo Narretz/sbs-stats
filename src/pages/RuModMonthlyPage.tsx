@@ -1,44 +1,27 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useRuModDatabaseContext } from "@/context/databases";
-import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
+import { useMonthlyMetricGrid } from "@/hooks/useMonthlyMetricGrid";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthRangeSelect } from "@/components/MonthRangeSelect";
 import { PageScaffold } from "@/components/PageScaffold";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
-import { maxMedian } from "@/utils/windowStats";
-import type { RuAdMonthlyRow, MonthlyDataPoint } from "@/types";
+import type { MonthlyDataPoint } from "@/types";
 
 interface Props {
   refreshKey?: number;
 }
 
-type MetricKey = "total" | "night" | "day";
+const RU_MOD_KEYS = ["total", "night", "day"] as const;
+type MetricKey = (typeof RU_MOD_KEYS)[number];
 
 export function RuModMonthlyPage({ refreshKey }: Props) {
   const { loadState, error, queryMonthly, queryDataWindow } = useRuModDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
-  const [allRows, setAllRows] = useState<RuAdMonthlyRow[]>([]);
-  const [hasData, setHasData] = useState(false);
-  const yr = useMonthlyMonthRange(allRows.length);
-  const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
-
-  useEffect(() => {
-    if (loadState === "ready") {
-      setAllRows(queryMonthly());
-      setHasData(true);
-    }
-  }, [loadState, queryMonthly, refreshKey]);
-
-  const allStats = useMemo(() => {
-    const keys: MetricKey[] = ["total", "night", "day"];
-    const out: Record<string, { max: number; median: number; total: number }> = {};
-    for (const k of keys) {
-      out[k] = maxMedian(allRows.map((r) => (typeof r[k] === "number" ? r[k] : null)));
-    }
-    return out;
-  }, [allRows]);
+  const { rows, hasData, yr, allStats } = useMonthlyMetricGrid({
+    loadState, queryMonthly, refreshKey, keys: RU_MOD_KEYS,
+  });
 
   const endMonth = resolvedEndMonth("Europe/Moscow");
   const makeDataset = (key: MetricKey): MonthlyDataPoint[] =>

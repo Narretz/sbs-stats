@@ -1,8 +1,8 @@
-import { useMemo, useEffect, useState } from "react";
+import { useMemo } from "react";
 import { SUBSET_LABEL } from "@/tooltipLabels";
 import { useSbsDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
-import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
+import { useMonthlyMetricGrid } from "@/hooks/useMonthlyMetricGrid";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/components/MonthlyTargetPairChart";
@@ -13,7 +13,7 @@ import { buildMetrics } from "@/utils/metrics";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import { TARGET_IDS, TARGET_LABELS } from "@/types";
-import type { MonthlyDataPoint, MonthlyRow, StatKey, Metric } from "@/types";
+import type { MonthlyDataPoint, StatKey, Metric } from "@/types";
 import { FONTS } from "@/theme";
 
 interface MonthlyPageProps {
@@ -24,14 +24,9 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
   const { theme: t } = useTheme();
   const { loadState, error, queryMonthly, queryDataWindow } = useSbsDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
-  const [allRows, setAllRows] = useState<MonthlyRow[]>([]);
-  const [hasData, setHasData] = useState(false);
-  const yr = useMonthlyMonthRange(allRows.length);
-  const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
-
-  useEffect(() => {
-    if (loadState === "ready") { setAllRows(queryMonthly()); setHasData(true); }
-  }, [loadState, queryMonthly, refreshKey]);
+  const { allRows, rows, hasData, yr } = useMonthlyMetricGrid({
+    loadState, queryMonthly, refreshKey,
+  });
 
   const metrics = useMemo<Metric[]>(() => buildMetrics(), []);
   const baseMetrics = useMemo<Metric[]>(
