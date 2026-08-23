@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useDatabaseSbs } from "@/hooks/useDatabaseSbs";
 import { useDatabaseGsua } from "@/hooks/useDatabaseGsua";
 import { useDatabaseRuLosses } from "@/hooks/useDatabaseRuLosses";
@@ -352,6 +353,7 @@ interface Props {
 
 export function HomePage({ onGoToSite }: Props) {
   const { mode, theme: t, toggle } = useTheme();
+  useDocumentTitle();
   const initial = useMemo(() => getUrlParams(), []);
 
   const [selectedDate, setSelectedDate] = useState<string>(initial.date);

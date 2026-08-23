@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useSbsDatabaseContext } from "@/context/databases";
 import { useSbuAlfaDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { FONTS } from "@/theme";
 import type {
@@ -140,6 +141,7 @@ function sumStatCols(row: MonthlyRow, cols: StatKey[]): number | null {
 
 export function SbsVsSbuAlfaPage() {
   const { theme: t } = useTheme();
+  useDocumentTitle("SBS (USF) vs SBU «Альфа»");
   const sbs = useSbsDatabaseContext();
   const sbu = useSbuAlfaDatabaseContext();
 

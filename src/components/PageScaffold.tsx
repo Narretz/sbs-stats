@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { useTheme } from "@/hooks/useTheme";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { FONTS } from "@/theme";
 import type { LoadState } from "@/types";
@@ -45,6 +46,7 @@ export function PageScaffold({
   gridChildren, children,
 }: PageScaffoldProps) {
   const { theme: t } = useTheme();
+  useDocumentTitle(title);
   // Show charts only once rows are actually present (`hasData`), not merely when
   // the DB finished loading. Pages whose row fetch is async (e.g. GSUA reads
   // over a worker) have a window where loadState === "ready" but no rows have

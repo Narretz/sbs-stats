@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMediazonaDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { DataWindow } from "@/components/DataWindow";
 import { RoleCompositionChart } from "@/components/RoleCompositionChart";
 import { DocumentedVsEstimatedChart } from "@/components/DocumentedVsEstimatedChart";
@@ -41,6 +42,7 @@ function fmtMonthYear(week: string | null): string {
 
 export function MediazonaWeeklyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
+  useDocumentTitle("Weekly Russian war dead — Mediazona & Meduza");
   const { loadState, error, queryRoles, queryEstimate, queryDataWindow } = useMediazonaDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const [roles, setRoles] = useState<MediazonaRolesRow[]>([]);

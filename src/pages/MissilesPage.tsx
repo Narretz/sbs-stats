@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { ChartGrid } from "@/components/Layout";
 import { MissileRangeChart } from "@/components/MissileRangeChart";
 import { MissileCombinedChart } from "@/components/MissileCombinedChart";
@@ -63,6 +64,7 @@ const LEGEND: Array<{ g: string; label: string }> = [
 
 export function MissilesPage() {
   const { theme: t } = useTheme();
+  useDocumentTitle("RU Missile Stockpiles & Production");
   const initial = useMemo(() => getUrlParams(), []);
   const [view, setViewState] = useState<View>(initial.view);
   const setView = (v: View) => { setViewState(v); setUrlParams({ [VIEW_PARAM]: v }); };
