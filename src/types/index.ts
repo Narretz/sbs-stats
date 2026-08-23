@@ -128,7 +128,7 @@ export interface Metric {
 
 // ─── App state ────────────────────────────────────────────────────────────────
 export type Page = "daily" | "hourly" | "monthly" | "weekly";
-export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa" | "mediazona" | "ru-missiles-hur";
+export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa" | "mediazona" | "ru-missiles-hur" | "ua-losses";
 export const SITE_LABELS: Record<Site, string> = {
   sbs: "UA SBS STATISTICS - SBS",
   "ru-attacks-gsua": "COMBAT STATS - GSUA",
@@ -138,6 +138,7 @@ export const SITE_LABELS: Record<Site, string> = {
   "ru-airdef-mod": "UA UAV ATTACKS - RU MoD",
   mediazona: "RU DEATHS - MEDIAZONA",
   "ru-missiles-hur": "RU MISSILE STOCKS - HUR",
+  "ua-losses": "UA PERSONNEL LOSSES - UALOSSES.ORG",
 };
 export const SITES: Site[] = Object.keys(SITE_LABELS) as Site[];
 export type LoadState = "idle" | "loading" | "ready" | "error";
@@ -287,7 +288,7 @@ export const UA_LOSSES_METRIC_KEYS = [
 export type UaLossesMetricKey = (typeof UA_LOSSES_METRIC_KEYS)[number];
 
 export const UA_LOSSES_METRIC_LABELS: Record<UaLossesMetricKey, string> = {
-  dead: "Dead",
+  dead: "Deaths",
   missing: "Missing",
   prisoner: "POW (Captured)",
   released: "POW (Released)",

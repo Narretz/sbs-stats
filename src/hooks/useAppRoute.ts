@@ -11,6 +11,9 @@ const RU_AD_PAGES: Page[] = ["daily", "monthly"];
 const RU_AIR_ATTACKS_PAGES: Page[] = ["daily", "monthly"];
 // SBU Alfa: monthly recap only (the source publishes one per month, no daily cadence).
 const SBU_ALFA_PAGES: Page[] = ["monthly"];
+// ualosses personnel losses: monthly only (the source revises past days every
+// ~2 months, so a daily view would be noisy and mostly redundant).
+const UA_LOSSES_PAGES: Page[] = ["monthly"];
 // Mediazona: the source publishes week-bucketed data. "weekly" is the native
 // granularity; "monthly" re-buckets weeks into calendar months in the frontend.
 const MEDIAZONA_PAGES: Page[] = ["weekly", "monthly"];
@@ -24,6 +27,7 @@ function pagesFor(site: Site): Page[] {
   if (site === "ru-airdef-mod") return RU_AD_PAGES;
   if (site === "ru-air-attacks-gsua") return RU_AIR_ATTACKS_PAGES;
   if (site === "sbu-alfa") return SBU_ALFA_PAGES;
+  if (site === "ua-losses") return UA_LOSSES_PAGES;
   if (site === "mediazona") return MEDIAZONA_PAGES;
   if (site === "ru-missiles-hur") return RU_MISSILES_PAGES;
   return SBS_PAGES;
@@ -54,6 +58,7 @@ function readUrl(): Route {
       : rawSite === "ru-airdef-mod" ? "ru-airdef-mod"
       : rawSite === "ru-air-attacks-gsua" ? "ru-air-attacks-gsua"
       : rawSite === "sbu-alfa" ? "sbu-alfa"
+      : rawSite === "ua-losses" ? "ua-losses"
       : rawSite === "mediazona" ? "mediazona"
       : rawSite === "ru-missiles-hur" ? "ru-missiles-hur"
       : "sbs";

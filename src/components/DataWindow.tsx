@@ -3,7 +3,7 @@ import { useTheme } from "@/hooks/useTheme";
 
 // One per dataset — drives the freshness wording + the timezone "today" is read
 // in (RU MoD reconciles to Moscow time; everything else to Kyiv).
-export type DataWindowMode = "sbs" | "gsua" | "ru-losses" | "ru-mod" | "ru-air-attacks" | "mediazona";
+export type DataWindowMode = "sbs" | "gsua" | "ru-losses" | "ru-mod" | "ru-air-attacks" | "mediazona" | "ua-losses";
 
 const TZ: Record<DataWindowMode, string> = {
   sbs: "Europe/Kyiv",
@@ -12,6 +12,7 @@ const TZ: Record<DataWindowMode, string> = {
   "ru-air-attacks": "Europe/Kyiv",
   "ru-mod": "Europe/Moscow",
   mediazona: "Europe/Kyiv",
+  "ua-losses": "Europe/Kyiv",
 };
 
 function todayInTz(tz: string): string {
@@ -72,6 +73,12 @@ function freshness(
       // bucketed by date of death and take weeks/months to identify — so a lag
       // here isn't staleness. Never flag; just explain.
       return { note: "recent weeks are incomplete — named deaths are identified with a lag of weeks to months", stale: false };
+    case "ua-losses":
+      // ualosses re-publishes the workbook only every ~2 months and revises past
+      // days each release, so the newest day is inherently weeks behind. Show the
+      // lag but only flag it once it exceeds the normal republish window.
+      if (behind <= 0) return { note: "up to date", stale: false };
+      return { note: `${behindNote(behind)} — source republishes ~every 2 months`, stale: behind > 75 };
   }
 }
 

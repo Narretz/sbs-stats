@@ -82,7 +82,7 @@ export const SOURCE_LABELS: Record<MetricSource, string> = {
   "sbs": "SBS",
   "gsua": "GSUA",
   "ru-losses": "RU Losses",
-  "ua-losses": "UA Losses",
+  "ua-losses": "UA Personnel Losses",
   "ru-airdef-mod": "RU MoD AD",
   "ru-air-attacks": "RU Strikes",
   "sbu-alfa": "SBU Alfa",

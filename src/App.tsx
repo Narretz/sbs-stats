@@ -13,6 +13,8 @@ import { RuAirAttacksDatabaseProvider } from "@/context/RuAirAttacksDatabaseCont
 import { useRuAirAttacksDatabaseContext } from "@/context/useRuAirAttacksDatabaseContext";
 import { SbuAlfaDatabaseProvider } from "@/context/SbuAlfaDatabaseContext";
 import { useSbuAlfaDatabaseContext } from "@/context/useSbuAlfaDatabaseContext";
+import { UaLossesDatabaseProvider } from "@/context/UaLossesDatabaseContext";
+import { useUaLossesDatabaseContext } from "@/context/useUaLossesDatabaseContext";
 import { MediazonaDatabaseProvider } from "@/context/MediazonaDatabaseContext";
 import { useMediazonaDatabaseContext } from "@/context/useMediazonaDatabaseContext";
 import { useAppRoute } from "@/hooks/useAppRoute";
@@ -30,6 +32,7 @@ import { RuAirAttacksDailyPage } from "@/pages/RuAirAttacksDailyPage";
 import { RuAirAttacksMonthlyPage } from "@/pages/RuAirAttacksMonthlyPage";
 import { RuModMonthlyPage } from "@/pages/RuModMonthlyPage";
 import { SbuAlfaMonthlyPage } from "@/pages/SbuAlfaMonthlyPage";
+import { UaLossesMonthlyPage } from "@/pages/UaLossesMonthlyPage";
 import { SbsVsSbuAlfaPage } from "@/pages/SbsVsSbuAlfaPage";
 import { SbsDailyPage } from "@/pages/SbsDailyPage";
 import { SbsHourlyPage } from "@/pages/SbsHourlyPage";
@@ -194,6 +197,29 @@ function SbuAlfaRoot({
   );
 }
 
+function UaLossesRoot({
+  page, pages, site, setSite, setPage,
+}: {
+  page: Page; pages: Page[]; site: Site;
+  setSite: (s: Site) => void; setPage: (p: Page) => void;
+}) {
+  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useUaLossesDatabaseContext();
+  return (
+    <>
+      <SiteHeader
+        site={site} page={page} pages={pages}
+        onSiteChange={setSite} onPageChange={setPage}
+        lastRefreshed={lastRefreshed} refreshCount={refreshCount}
+        onRefresh={refresh} isLoading={loadState === "loading"}
+        refreshIntervalMs={refreshIntervalMs}
+      />
+      <PageShell>
+        {page === "monthly" && <UaLossesMonthlyPage refreshKey={refreshCount} />}
+      </PageShell>
+    </>
+  );
+}
+
 function MediazonaRoot({
   page, pages, site, setSite, setPage,
 }: {
@@ -301,6 +327,13 @@ function AppInner() {
             <SbuAlfaDatabaseProvider>
               <SbuAlfaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
             </SbuAlfaDatabaseProvider>
+          </ErrorBoundary>
+        )}
+        {route.kind === "site" && route.site === "ua-losses" && (
+          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
+            <UaLossesDatabaseProvider>
+              <UaLossesRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
+            </UaLossesDatabaseProvider>
           </ErrorBoundary>
         )}
         {site === "mediazona" && (
