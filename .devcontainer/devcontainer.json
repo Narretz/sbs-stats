@@ -1,6 +1,6 @@
 {
   "name": "SBS Stats",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bookworm",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:4-24-bookworm",
   "features": {
     "ghcr.io/anthropics/devcontainer-features/claude-code:latest": {},
     "ghcr.io/devcontainers/features/python:1": {
