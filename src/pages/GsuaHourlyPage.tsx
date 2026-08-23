@@ -4,7 +4,8 @@ import { useGsuaDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
 import { HourlyLineChart, type TooltipSortMode } from "@/components/HourlyLineChart";
 import { DataWindow } from "@/components/DataWindow";
-import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { ChartGrid } from "@/components/Layout";
+import { PageScaffold } from "@/components/PageScaffold";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
@@ -254,17 +255,12 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
   }, [filteredDirectionRows]);
 
   return (
-    <div>
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-          Hourly Combat Stats {selectedDirection ? `— ${selectedDirection}` : ""} - GSUA
-        </h1>
-        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-          Each line = one day · X-axis = hour-of-snapshot · GS posts run cumulative totals throughout the day. Parsed deterministically from Telegram @GeneralStaffZSU. May be incomplete or incorrect.
-        </p>
-        <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
-      </div>
-      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+    <PageScaffold
+      headerVariant="block"
+      title={`Hourly Combat Stats ${selectedDirection ? `— ${selectedDirection}` : ""} - GSUA`}
+      description="Each line = one day · X-axis = hour-of-snapshot · GS posts run cumulative totals throughout the day. Parsed deterministically from Telegram @GeneralStaffZSU. May be incomplete or incorrect."
+      dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />}
+      controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
         <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
         <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
@@ -290,11 +286,13 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
         </select>
         <StatScopeToggle />
         <TooltipSortSelect value={tooltipSort} onChange={updateSort} />
-      </div>
-
-      {loadState === "loading" && !hasData && <LoadingScreen message="Loading GSUA database…" />}
-      {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
-      {(loadState === "ready" || hasData) && !selectedDirection && (
+      </>}
+      loadState={loadState}
+      error={error}
+      hasData={hasData}
+      loadingMessage="Loading GSUA database…"
+    >
+      {!selectedDirection && (
         <ChartGrid>
           {GSUA_METRIC_KEYS.map((k) => (
             <HourlyLineChart
@@ -313,7 +311,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
           ))}
         </ChartGrid>
       )}
-      {(loadState === "ready" || hasData) && selectedDirection && (
+      {selectedDirection && (
         <ChartGrid>
           <HourlyLineChart
             title={`Attacks · ${selectedDirection}`}
@@ -339,6 +337,6 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
           />
         </ChartGrid>
       )}
-    </div>
+    </PageScaffold>
   );
 }

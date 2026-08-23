@@ -4,7 +4,7 @@ import { useSbsDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { DataWindow } from "@/components/DataWindow";
-import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { PageScaffold } from "@/components/PageScaffold";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
@@ -13,7 +13,6 @@ import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam } from "@/
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
 import { buildMetrics } from "@/utils/metrics";
 import type { DailyRow, DailyDataPoint, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
-import { FONTS } from "@/theme";
 
 
 function parseWeekdays(raw: string | null): number[] {
@@ -124,19 +123,16 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
     );
 
   return (
-    <div>
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-          UA SBS Daily Statistics
-        </h1>
-        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-          Syly bezpilotnykh system / Unmannend System Force (SBS/USF) · Latest reported value per day · From <a href="noreferer nofollow">https://sbs-group.army/</a>
-          <br/>
-          <span style={{ color: t.textImportant, border: `2px solid ${t.borderImportant}`, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4}}>Since 2026-03-19, the daily values are the results of the "Previous day" endpoint if the current day has passed. Older daily values reflect the results of the latest request to the "Current day" endpoint. Results often adjusted hours or even a day later.</span>
-        </p>
-        <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="sbs" />
-      </div>
-      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+    <PageScaffold
+      headerVariant="block"
+      title="UA SBS Daily Statistics"
+      description={<>
+        Syly bezpilotnykh system / Unmannend System Force (SBS/USF) · Latest reported value per day · From <a href="noreferer nofollow">https://sbs-group.army/</a>
+        <br/>
+        <span style={{ color: t.textImportant, border: `2px solid ${t.borderImportant}`, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4}}>Since 2026-03-19, the daily values are the results of the "Previous day" endpoint if the current day has passed. Older daily values reflect the results of the latest request to the "Current day" endpoint. Results often adjusted hours or even a day later.</span>
+      </>}
+      dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="sbs" />}
+      controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
         <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
         <WeekdayMultiSelect
@@ -145,34 +141,31 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
           todayDow={todayDow}
         />
         <StatScopeToggle />
-      </div>
-      {loadState === "loading" && !hasData && <LoadingScreen />}
-      {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
-      {(loadState === "ready" || hasData) && (
-        <ChartGrid>
-          {metrics.map((m: Metric) => (
-            <DailyLineChart
-              key={m.key}
-              title={m.label}
-              data={makeDataset(m.key)}
-              globalMax={globalStats[m.key]?.max ?? 0}
-              globalMedian={globalStats[m.key]?.median ?? 0}
-              globalTotal={globalStats[m.key]?.total ?? 0}
-              wfull={m.wfull ?? false}
-              data2={m.pairedKey ? makeDataset(m.pairedKey) : undefined}
-              primaryLabel={m.primaryLabel}
-              label2={m.pairedLabel}
-              subsetLabel={m.subsetLabel}
-              globalMax2={m.pairedKey ? globalStats[m.pairedKey]?.max ?? 0 : undefined}
-              globalMedian2={m.pairedKey ? globalStats[m.pairedKey]?.median ?? 0 : undefined}
-              globalTotal2={m.pairedKey ? globalStats[m.pairedKey]?.total ?? 0 : undefined}
-              pairMode={m.pairMode}
-              eod={eod[m.key] ?? null}
-              eod2={m.pairedKey ? (eod[m.pairedKey] ?? null) : undefined}
-            />
-          ))}
-        </ChartGrid>
-      )}
-    </div>
+      </>}
+      loadState={loadState}
+      error={error}
+      hasData={hasData}
+      gridChildren={metrics.map((m: Metric) => (
+        <DailyLineChart
+          key={m.key}
+          title={m.label}
+          data={makeDataset(m.key)}
+          globalMax={globalStats[m.key]?.max ?? 0}
+          globalMedian={globalStats[m.key]?.median ?? 0}
+          globalTotal={globalStats[m.key]?.total ?? 0}
+          wfull={m.wfull ?? false}
+          data2={m.pairedKey ? makeDataset(m.pairedKey) : undefined}
+          primaryLabel={m.primaryLabel}
+          label2={m.pairedLabel}
+          subsetLabel={m.subsetLabel}
+          globalMax2={m.pairedKey ? globalStats[m.pairedKey]?.max ?? 0 : undefined}
+          globalMedian2={m.pairedKey ? globalStats[m.pairedKey]?.median ?? 0 : undefined}
+          globalTotal2={m.pairedKey ? globalStats[m.pairedKey]?.total ?? 0 : undefined}
+          pairMode={m.pairMode}
+          eod={eod[m.key] ?? null}
+          eod2={m.pairedKey ? (eod[m.pairedKey] ?? null) : undefined}
+        />
+      ))}
+    />
   );
 }

@@ -5,7 +5,7 @@ import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { TargetsStackedChart, type TargetsStackPoint } from "@/components/TargetsStackedChart";
 import { MonthRangeSelect } from "@/components/MonthRangeSelect";
-import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { PageScaffold } from "@/components/PageScaffold";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { extendMonthsTo, resolvedEndMonth } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
@@ -149,79 +149,75 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
   }, [rows]);
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 16 }}>
-        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-          SBU «Альфа» — Monthly Recap
-        </h1>
-        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3, maxWidth: 900, lineHeight: 1.55 }}>
-          Targets the Centre of Special Operations «А» (SBU «Альфа») reports having struck each month, from their
-          {" "}
-          <a href="https://ssu.gov.ua/novyny" rel="nofollow external">SBU press releases</a>.
-          {" "}
-          KIA is always given as a floor ("понад N") — see the tooltip "Self-reported floor" note. All other counters are bare numbers.
-          {" "}
-        </p>
-        {dataWindow.minPeriod && dataWindow.maxPeriod && (
-          <details style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6 }}>
-            <summary style={{ cursor: "pointer", listStyle: "revert" }}>
-              Data Availability: {dataWindow.minPeriod} – {dataWindow.maxPeriod} · {allPeriods.length} recap{allPeriods.length === 1 ? "" : "s"}
-            </summary>
-            <ol style={{ listStyle: "none", padding: 0, margin: "8px 0 0", display: "flex", flexDirection: "column", gap: 6 }}>
-              {reports.map((r, i) => (
-                <li key={r.period} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-                  <span style={{ color: t.textFaint, minWidth: 24 }}>[{i + 1}]</span>
-                  <span style={{ color: t.text, minWidth: 70 }}>{r.period}</span>
-                  <span style={{ flex: 1 }}>
-                    SBU press release
-                    {r.published_at && <span style={{ color: t.textFaint }}> · published {r.published_at}</span>}
-                    {" · "}
-                    <a
-                      href={r.url}
-                      target="_blank"
-                      rel="noopener noreferrer nofollow"
-                      style={{ color: t.primary, textDecoration: "underline" }}
-                    >
-                      source ↗
-                    </a>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </details>
-        )}
-      </div>
-      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+    <PageScaffold
+      title="SBU «Альфа» — Monthly Recap"
+      descriptionStyle={{ maxWidth: 900, lineHeight: 1.55 }}
+      description={<>
+        Targets the Centre of Special Operations «А» (SBU «Альфа») reports having struck each month, from their
+        {" "}
+        <a href="https://ssu.gov.ua/novyny" rel="nofollow external">SBU press releases</a>.
+        {" "}
+        KIA is always given as a floor ("понад N") — see the tooltip "Self-reported floor" note. All other counters are bare numbers.
+        {" "}
+      </>}
+      dataWindow={dataWindow.minPeriod && dataWindow.maxPeriod ? (
+        <details style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6 }}>
+          <summary style={{ cursor: "pointer", listStyle: "revert" }}>
+            Data Availability: {dataWindow.minPeriod} – {dataWindow.maxPeriod} · {allPeriods.length} recap{allPeriods.length === 1 ? "" : "s"}
+          </summary>
+          <ol style={{ listStyle: "none", padding: 0, margin: "8px 0 0", display: "flex", flexDirection: "column", gap: 6 }}>
+            {reports.map((r, i) => (
+              <li key={r.period} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+                <span style={{ color: t.textFaint, minWidth: 24 }}>[{i + 1}]</span>
+                <span style={{ color: t.text, minWidth: 70 }}>{r.period}</span>
+                <span style={{ flex: 1 }}>
+                  SBU press release
+                  {r.published_at && <span style={{ color: t.textFaint }}> · published {r.published_at}</span>}
+                  {" · "}
+                  <a
+                    href={r.url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    style={{ color: t.primary, textDecoration: "underline" }}
+                  >
+                    source ↗
+                  </a>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : undefined}
+      controls={<>
         {!yr.hidden && (
           <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
         )}
         <StatScopeToggle />
-      </div>
-
-      {loadState === "loading" && !hasData && <LoadingScreen message="Loading SBU Alfa database…" />}
-      {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
-      {(loadState === "ready" || hasData) && (
-        <ChartGrid>
-          {presentCategories.map((k) => (
-            <MonthlyBarChart
-              key={k}
-              title={SBU_ALFA_CATEGORY_LABELS[k]}
-              data={toDataset(visibleRows, k, periods)}
-              wfull={false}
-              globalMax={allStats[k]?.max ?? 0}
-              globalMedian={allStats[k]?.median ?? 0}
-              globalTotal={allStats[k]?.total ?? 0}
-            />
-          ))}
-          {hasTargetsData && (
-            <TargetsStackedChart
-              title="Other targets — destroyed + damaged"
-              data={targetsStack}
-              wfull
-            />
-          )}
-        </ChartGrid>
-      )}
-    </div>
+      </>}
+      loadState={loadState}
+      error={error}
+      hasData={hasData}
+      loadingMessage="Loading SBU Alfa database…"
+      gridChildren={<>
+        {presentCategories.map((k) => (
+          <MonthlyBarChart
+            key={k}
+            title={SBU_ALFA_CATEGORY_LABELS[k]}
+            data={toDataset(visibleRows, k, periods)}
+            wfull={false}
+            globalMax={allStats[k]?.max ?? 0}
+            globalMedian={allStats[k]?.median ?? 0}
+            globalTotal={allStats[k]?.total ?? 0}
+          />
+        ))}
+        {hasTargetsData && (
+          <TargetsStackedChart
+            title="Other targets — destroyed + damaged"
+            data={targetsStack}
+            wfull
+          />
+        )}
+      </>}
+    />
   );
 }

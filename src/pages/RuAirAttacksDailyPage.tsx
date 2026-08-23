@@ -2,10 +2,9 @@ import { useState, useMemo, useEffect } from "react";
 import { Temporal } from "temporal-polyfill";
 import { SUBSET_LABEL } from "@/tooltipLabels";
 import { useRuAirAttacksDatabaseContext } from "@/context/databases";
-import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { DataWindow } from "@/components/DataWindow";
-import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { PageScaffold } from "@/components/PageScaffold";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
@@ -25,7 +24,6 @@ import {
   type RuAirAttacksGlobalStats,
   type RuAirAttacksModelDailyRow,
 } from "@/types";
-import { FONTS } from "@/theme";
 
 
 function parseWeekdays(raw: string | null): number[] {
@@ -61,7 +59,6 @@ interface Props {
 }
 
 export function RuAirAttacksDailyPage({ refreshKey }: Props) {
-  const { theme: t } = useTheme();
   const { loadState, error, queryDaily, queryGlobalStats, queryDailyByModel, queryDailyBreakdownByCategory, queryDailyAggBreakdown, queryDataWindow } = useRuAirAttacksDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
 
@@ -173,27 +170,22 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
     );
 
   return (
-    <div>
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-          Daily Russian Missile &amp; UAV Attacks
-        </h1>
-        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-          Launched vs intercepted, per Ukrainian Air Force reports · source: piterfm / Kaggle <a target="_blank" href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week
-        </p>
-        <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-air-attacks" />
-      </div>
-      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+    <PageScaffold
+      headerVariant="block"
+      title="Daily Russian Missile & UAV Attacks"
+      description={<>Launched vs intercepted, per Ukrainian Air Force reports · source: piterfm / Kaggle <a target="_blank" href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week</>}
+      dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-air-attacks" />}
+      controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
         <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
         <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
         <StatScopeToggle />
-      </div>
-
-      {loadState === "loading" && !hasData && <LoadingScreen message="Loading RU air-attacks database…" />}
-      {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
-      {(loadState === "ready" || hasData) && (
-        <ChartGrid>
+      </>}
+      loadState={loadState}
+      error={error}
+      hasData={hasData}
+      loadingMessage="Loading RU air-attacks database…"
+      gridChildren={<>
           {/* Combined: total launched per day (single line), full width.
               Tooltip carries a per-category breakdown for the hovered date. */}
           <DailyLineChart
@@ -266,8 +258,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
               />
             );
           })}
-        </ChartGrid>
-      )}
-    </div>
+      </>}
+    />
   );
 }

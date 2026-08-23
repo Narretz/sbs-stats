@@ -5,7 +5,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { DirectionCoverageChart } from "@/components/DirectionCoverageChart";
 import { DataWindow } from "@/components/DataWindow";
-import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { ChartGrid } from "@/components/Layout";
+import { PageScaffold } from "@/components/PageScaffold";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
@@ -254,17 +255,12 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   }, [directionOngoingDataset]);
 
   return (
-    <div>
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-          Daily Combat Stats {selectedDirection ? `— ${selectedDirection}` : ""} - GSUA
-        </h1>
-        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-          Last snapshot per day · Parsed deterministically from Telegram @GeneralStaffZSU. May be incomplete or incorrect.
-        </p>
-        <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
-      </div>
-      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+    <PageScaffold
+      headerVariant="block"
+      title={`Daily Combat Stats ${selectedDirection ? `— ${selectedDirection}` : ""} - GSUA`}
+      description="Last snapshot per day · Parsed deterministically from Telegram @GeneralStaffZSU. May be incomplete or incorrect."
+      dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />}
+      controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
         <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
         <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
@@ -289,11 +285,13 @@ export function GsuaDailyPage({ refreshKey }: Props) {
           ))}
         </select>
         <StatScopeToggle />
-      </div>
-
-      {loadState === "loading" && !hasData && <LoadingScreen message="Loading GSUA database…" />}
-      {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
-      {(loadState === "ready" || hasData) && !selectedDirection && (
+      </>}
+      loadState={loadState}
+      error={error}
+      hasData={hasData}
+      loadingMessage="Loading GSUA database…"
+    >
+      {!selectedDirection && (
         <ChartGrid>
           {GSUA_METRIC_KEYS.map((k) => {
             // The combat_engagements chart gets the attributed/unattributed
@@ -328,7 +326,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
           )}
         </ChartGrid>
       )}
-      {(loadState === "ready" || hasData) && selectedDirection && (
+      {selectedDirection && (
         <ChartGrid>
           <DailyLineChart
             title={`Attacks · ${selectedDirection}`}
@@ -348,6 +346,6 @@ export function GsuaDailyPage({ refreshKey }: Props) {
           />
         </ChartGrid>
       )}
-    </div>
+    </PageScaffold>
   );
 }

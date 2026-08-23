@@ -5,7 +5,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { DailyMultiLineChart } from "@/components/DailyMultiLineChart";
 import { DataWindow } from "@/components/DataWindow";
-import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { PageScaffold } from "@/components/PageScaffold";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
@@ -13,7 +13,6 @@ import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam } from "@/utils/dayRange";
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
 import type { RuAdDailyRow, RuAdGlobalStats } from "@/types";
-import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 
 
@@ -129,51 +128,47 @@ export function RuModDailyPage({ refreshKey }: Props) {
     );
 
   return (
-    <div>
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-          Ukrainian UAVs Downed - RU MoD
-        </h1>
-        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-          Russian MoD air-defense intercept claims · source: @mod_russia (Telegram) · per drone-day (MSK)
-          <br />
-          <span style={{ color: t.textImportant, border: `2px solid ${t.borderImportant}`, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4 }}>
-            Russian MoD reports of UAVs intercepted/downed over Russia — a floor for the number launched, not a launch count. A day aggregates the overnight report (20:00 prev → 07:00) plus that day's daytime windows.
-          </span>
-        </p>
-        <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-mod" />
-      </div>
-      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+    <PageScaffold
+      headerVariant="block"
+      title="Ukrainian UAVs Downed - RU MoD"
+      description={<>
+        Russian MoD air-defense intercept claims · source: @mod_russia (Telegram) · per drone-day (MSK)
+        <br />
+        <span style={{ color: t.textImportant, border: `2px solid ${t.borderImportant}`, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4 }}>
+          Russian MoD reports of UAVs intercepted/downed over Russia — a floor for the number launched, not a launch count. A day aggregates the overnight report (20:00 prev → 07:00) plus that day's daytime windows.
+        </span>
+      </>}
+      dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-mod" />}
+      controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
         <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
         <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
         <StatScopeToggle />
-      </div>
-
-      {loadState === "loading" && !hasData && <LoadingScreen message="Loading RU air-defense database…" />}
-      {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
-      {(loadState === "ready" || hasData) && (
-        <ChartGrid>
-          <DailyLineChart
-            title="UAVs Downed — Daily Total"
-            data={makeDataset("total")}
-            globalMax={globalStats.total.max}
-            globalMedian={globalStats.total.median}
-            globalTotal={globalStats.total.total}
-            wfull
-          />
-          <DailyMultiLineChart
-            title="By Reporting Window — Overnight vs Daytime"
-            series={[
-              { key: "night", label: "Overnight", color: chartColors(t).overnight, data: makeDataset("night"),
-                globalMax: globalStats.night.max, globalMedian: globalStats.night.median, globalTotal: globalStats.night.total },
-              { key: "day", label: "Daytime", color: chartColors(t).daytime, data: makeDataset("day"),
-                globalMax: globalStats.day.max, globalMedian: globalStats.day.median, globalTotal: globalStats.day.total },
-            ]}
-            wfull
-          />
-        </ChartGrid>
-      )}
-    </div>
+      </>}
+      loadState={loadState}
+      error={error}
+      hasData={hasData}
+      loadingMessage="Loading RU air-defense database…"
+      gridChildren={<>
+        <DailyLineChart
+          title="UAVs Downed — Daily Total"
+          data={makeDataset("total")}
+          globalMax={globalStats.total.max}
+          globalMedian={globalStats.total.median}
+          globalTotal={globalStats.total.total}
+          wfull
+        />
+        <DailyMultiLineChart
+          title="By Reporting Window — Overnight vs Daytime"
+          series={[
+            { key: "night", label: "Overnight", color: chartColors(t).overnight, data: makeDataset("night"),
+              globalMax: globalStats.night.max, globalMedian: globalStats.night.median, globalTotal: globalStats.night.total },
+            { key: "day", label: "Daytime", color: chartColors(t).daytime, data: makeDataset("day"),
+              globalMax: globalStats.day.max, globalMedian: globalStats.day.median, globalTotal: globalStats.day.total },
+          ]}
+          wfull
+        />
+      </>}
+    />
   );
 }

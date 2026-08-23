@@ -8,7 +8,7 @@ import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/compo
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthRangeSelect } from "@/components/MonthRangeSelect";
-import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { PageScaffold } from "@/components/PageScaffold";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import {
@@ -154,32 +154,28 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
     }));
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 16 }}>
-        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-          Monthly Russian Missile &amp; UAV Attacks
-        </h1>
-        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-          Monthly launched vs intercepted totals by weapon category, per Ukrainian Air Force reports. Current month shows an end-of-month projection · source: piterfm / Kaggle <a target="_blank" href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week
-        </p>
-        <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-air-attacks" />
+    <PageScaffold
+      title="Monthly Russian Missile & UAV Attacks"
+      description={<>Monthly launched vs intercepted totals by weapon category, per Ukrainian Air Force reports. Current month shows an end-of-month projection · source: piterfm / Kaggle <a target="_blank" href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week</>}
+      dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-air-attacks" />}
+      headerExtra={
         <div style={{ display: "flex", gap: 20, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
           <span style={{ color: chartColors(t).damaged }}>Launched</span>
           <span style={{ color: chartColors(t).destroyed }}>Intercepted</span>
           <span style={{ color: t.textMuted }}>Lighter segment = current-month projection</span>
         </div>
-      </div>
-      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+      }
+      controls={<>
         {!yr.hidden && (
           <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
         )}
         <StatScopeToggle />
-      </div>
-
-      {loadState === "loading" && !hasData && <LoadingScreen message="Loading RU air-attacks database…" />}
-      {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
-      {(loadState === "ready" || hasData) && (
-        <ChartGrid>
+      </>}
+      loadState={loadState}
+      error={error}
+      hasData={hasData}
+      loadingMessage="Loading RU air-attacks database…"
+      gridChildren={<>
           {/* All — launched only (full width). Interception rate on the mixed
               drone+missile bucket is misleading because the launch mix shifts
               month to month. */}
@@ -229,8 +225,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
               globalTotal2={allStats.modelInt[model]?.total ?? 0}
             />
           ))}
-        </ChartGrid>
-      )}
-    </div>
+      </>}
+    />
   );
 }

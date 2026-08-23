@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGsuaDatabaseContext } from "@/context/databases";
-import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DirectionCoverageChart } from "@/components/DirectionCoverageChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthRangeSelect } from "@/components/MonthRangeSelect";
-import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { PageScaffold } from "@/components/PageScaffold";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import {
@@ -18,14 +17,12 @@ import {
   type GsuaDirectionCoverageRow,
   type MonthlyDataPoint,
 } from "@/types";
-import { FONTS } from "@/theme";
 
 interface Props {
   refreshKey?: number;
 }
 
 export function GsuaMonthlyPage({ refreshKey }: Props) {
-  const { theme: t } = useTheme();
   const { loadState, error, queryMonthly, queryDirectionCoverageMonthly, queryDataWindow } = useGsuaDatabaseContext();
   const [dataWindow, setDataWindow] = useState<{ minDate: string | null; maxDate: string | null; latestSnapshotAt: string | null }>({ minDate: null, maxDate: null, latestSnapshotAt: null });
   useEffect(() => { queryDataWindow().then(setDataWindow); }, [queryDataWindow]);
@@ -88,47 +85,40 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
     );
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 16 }}>
-        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-          Monthly Combat Stats - GSUA
-        </h1>
-        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-          Monthly sums of daily totals from Ukrainian General Staff reports. Current month shows end-of-month projection. Parsed deterministically from Telegram @GeneralStaffZSU. May be incomplete or incorrect.
-        </p>
-        <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />
-      </div>
-      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+    <PageScaffold
+      title="Monthly Combat Stats - GSUA"
+      description="Monthly sums of daily totals from Ukrainian General Staff reports. Current month shows end-of-month projection. Parsed deterministically from Telegram @GeneralStaffZSU. May be incomplete or incorrect."
+      dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />}
+      controls={<>
         {!yr.hidden && (
           <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
         )}
         <StatScopeToggle />
-      </div>
-
-      {loadState === "loading" && !hasData && <LoadingScreen message="Loading GSUA database…" />}
-      {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
-      {(loadState === "ready" || hasData) && (
-        <ChartGrid>
-          {GSUA_METRIC_KEYS.map((k) => (
-            <MonthlyBarChart
-              key={k}
-              title={GSUA_METRIC_LABELS[k]}
-              data={makeDataset(k)}
-              wfull={k === "combat_engagements"}
-              globalMax={allStats[k]?.max ?? 0}
-              globalMedian={allStats[k]?.median ?? 0}
-              globalTotal={allStats[k]?.total ?? 0}
-            />
-          ))}
-          {filteredCoverageRows.length > 0 && (
-            <DirectionCoverageChart
-              data={filteredCoverageRows}
-              wfull
-              granularity="monthly"
-            />
-          )}
-        </ChartGrid>
-      )}
-    </div>
+      </>}
+      loadState={loadState}
+      error={error}
+      hasData={hasData}
+      loadingMessage="Loading GSUA database…"
+      gridChildren={<>
+        {GSUA_METRIC_KEYS.map((k) => (
+          <MonthlyBarChart
+            key={k}
+            title={GSUA_METRIC_LABELS[k]}
+            data={makeDataset(k)}
+            wfull={k === "combat_engagements"}
+            globalMax={allStats[k]?.max ?? 0}
+            globalMedian={allStats[k]?.median ?? 0}
+            globalTotal={allStats[k]?.total ?? 0}
+          />
+        ))}
+        {filteredCoverageRows.length > 0 && (
+          <DirectionCoverageChart
+            data={filteredCoverageRows}
+            wfull
+            granularity="monthly"
+          />
+        )}
+      </>}
+    />
   );
 }

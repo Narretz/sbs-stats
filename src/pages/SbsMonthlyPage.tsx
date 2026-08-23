@@ -8,7 +8,7 @@ import { DataWindow } from "@/components/DataWindow";
 import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/components/MonthlyTargetPairChart";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthRangeSelect } from "@/components/MonthRangeSelect";
-import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { PageScaffold } from "@/components/PageScaffold";
 import { buildMetrics } from "@/utils/metrics";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
@@ -144,32 +144,27 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
     });
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 16 }}>
-        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-          UA SBS Monthly Statistics
-        </h1>
-        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-          Syly bezpilotnykh system / Unmannend System Force (SBS/USF) · Monthly aggregates - current month shows end-of-month projection. · From <a href="noreferer nofollow">https://sbs-group.army/</a>
-        </p>
-        <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="sbs" />
+    <PageScaffold
+      title="UA SBS Monthly Statistics"
+      description={<>Syly bezpilotnykh system / Unmannend System Force (SBS/USF) · Monthly aggregates - current month shows end-of-month projection. · From <a href="noreferer nofollow">https://sbs-group.army/</a></>}
+      dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="sbs" />}
+      headerExtra={
         <div style={{ display: "flex", gap: 20, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
           <span style={{ color: t.primary }}>Hit</span>
           <span style={{ color: t.accent }}>Destroyed</span>
           <span style={{ color: t.textMuted }}>Lighter segment = current-month projection</span>
         </div>
-      </div>
-      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+      }
+      controls={<>
         {!yr.hidden && (
           <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
         )}
         <StatScopeToggle />
-      </div>
-
-      {loadState === "loading" && !hasData && <LoadingScreen />}
-      {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
-      {(loadState === "ready" || hasData) && (
-        <ChartGrid>
+      </>}
+      loadState={loadState}
+      error={error}
+      hasData={hasData}
+      gridChildren={<>
           {baseMetrics.map((m: Metric) => (
             <MonthlyBarChart
               key={m.key}
@@ -222,8 +217,7 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
               globalTotal2={allStats[`destroyed_${targetId}`]?.total ?? 0}
             />
           ))}
-        </ChartGrid>
-      )}
-    </div>
+      </>}
+    />
   );
 }

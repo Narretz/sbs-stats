@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useUaLossesDatabaseContext } from "@/context/databases";
-import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthRangeSelect } from "@/components/MonthRangeSelect";
-import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { PageScaffold } from "@/components/PageScaffold";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import {
@@ -16,14 +15,12 @@ import {
   type UaLossesMonthlyRow,
   type MonthlyDataPoint,
 } from "@/types";
-import { FONTS } from "@/theme";
 
 interface Props {
   refreshKey?: number;
 }
 
 export function UaLossesMonthlyPage({ refreshKey }: Props) {
-  const { theme: t } = useTheme();
   const { loadState, error, queryMonthly, queryDataWindow } = useUaLossesDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const [allRows, setAllRows] = useState<UaLossesMonthlyRow[]>([]);
@@ -65,40 +62,31 @@ export function UaLossesMonthlyPage({ refreshKey }: Props) {
     );
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 16 }}>
-        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-          Monthly Ukrainian Losses - ualosses.org
-        </h1>
-        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-          Monthly sums of confirmed Ukrainian military personnel losses, by status · source: <a href="https://ualosses.org" rel="nofollow external" target="_blank">ualosses.org</a> (via <a href="https://www.kaggle.com/datasets/ol4ubert/confirmed-ukrainian-military-personnel-losses" rel="nofollow external" target="_blank">Kaggle</a>). Days are keyed by the reported loss date; past days are revised as records are added or reclassified.
-        </p>
-        <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ua-losses" />
-      </div>
-      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+    <PageScaffold
+      title="Monthly Ukrainian Losses - ualosses.org"
+      description={<>Monthly sums of confirmed Ukrainian military personnel losses, by status · source: <a href="https://ualosses.org" rel="nofollow external" target="_blank">ualosses.org</a> (via <a href="https://www.kaggle.com/datasets/ol4ubert/confirmed-ukrainian-military-personnel-losses" rel="nofollow external" target="_blank">Kaggle</a>). Days are keyed by the reported loss date; past days are revised as records are added or reclassified.</>}
+      dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ua-losses" />}
+      controls={<>
         {!yr.hidden && (
           <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
         )}
         <StatScopeToggle />
-      </div>
-
-      {loadState === "loading" && !hasData && <LoadingScreen message="Loading UA losses database…" />}
-      {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
-      {(loadState === "ready" || hasData) && (
-        <ChartGrid>
-          {UA_LOSSES_METRIC_KEYS.map((k) => (
-            <MonthlyBarChart
-              key={k}
-              title={UA_LOSSES_METRIC_LABELS[k]}
-              data={makeDataset(k)}
-              wfull={false}
-              globalMax={allStats[k]?.max ?? 0}
-              globalMedian={allStats[k]?.median ?? 0}
-              globalTotal={allStats[k]?.total ?? 0}
-            />
-          ))}
-        </ChartGrid>
-      )}
-    </div>
+      </>}
+      loadState={loadState}
+      error={error}
+      hasData={hasData}
+      loadingMessage="Loading UA losses database…"
+      gridChildren={UA_LOSSES_METRIC_KEYS.map((k) => (
+        <MonthlyBarChart
+          key={k}
+          title={UA_LOSSES_METRIC_LABELS[k]}
+          data={makeDataset(k)}
+          wfull={false}
+          globalMax={allStats[k]?.max ?? 0}
+          globalMedian={allStats[k]?.median ?? 0}
+          globalTotal={allStats[k]?.total ?? 0}
+        />
+      ))}
+    />
   );
 }

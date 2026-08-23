@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRuModDatabaseContext } from "@/context/databases";
-import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthRangeSelect } from "@/components/MonthRangeSelect";
-import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
+import { PageScaffold } from "@/components/PageScaffold";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import type { RuAdMonthlyRow, MonthlyDataPoint } from "@/types";
-import { FONTS } from "@/theme";
 
 interface Props {
   refreshKey?: number;
@@ -19,7 +17,6 @@ interface Props {
 type MetricKey = "total" | "night" | "day";
 
 export function RuModMonthlyPage({ refreshKey }: Props) {
-  const { theme: t } = useTheme();
   const { loadState, error, queryMonthly, queryDataWindow } = useRuModDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const [allRows, setAllRows] = useState<RuAdMonthlyRow[]>([]);
@@ -69,35 +66,28 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
     );
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: 8, flexDirection: 'column', marginBottom: 16 }}>
-        <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-          Monthly Ukrainian UAVs Downed - RU MoD
-        </h1>
-        <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
-          Monthly sums of Russian MoD air-defense intercept claims (MSK drone-days). Current month shows an end-of-month projection. A dashed outline marks months containing a report whose window may overlap a neighbor (possible double-count) — see tooltip.
-        </p>
-        <DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-mod" />
-      </div>
-      <div className="page-controls-sticky" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
+    <PageScaffold
+      title="Monthly Ukrainian UAVs Downed - RU MoD"
+      description="Monthly sums of Russian MoD air-defense intercept claims (MSK drone-days). Current month shows an end-of-month projection. A dashed outline marks months containing a report whose window may overlap a neighbor (possible double-count) — see tooltip."
+      dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-mod" />}
+      controls={<>
         {!yr.hidden && (
           <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
         )}
         <StatScopeToggle />
-      </div>
-
-      {loadState === "loading" && !hasData && <LoadingScreen message="Loading RU air-defense database…" />}
-      {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
-      {(loadState === "ready" || hasData) && (
-        <ChartGrid>
-          <MonthlyBarChart title="UAVs Downed — Monthly Total" data={makeDataset("total")} wfull
-            globalMax={allStats.total?.max ?? 0} globalMedian={allStats.total?.median ?? 0} globalTotal={allStats.total?.total ?? 0} />
-          <MonthlyBarChart title="Overnight Reports" data={makeDataset("night")} wfull={false}
-            globalMax={allStats.night?.max ?? 0} globalMedian={allStats.night?.median ?? 0} globalTotal={allStats.night?.total ?? 0} />
-          <MonthlyBarChart title="Daytime Reports" data={makeDataset("day")} wfull={false}
-            globalMax={allStats.day?.max ?? 0} globalMedian={allStats.day?.median ?? 0} globalTotal={allStats.day?.total ?? 0} />
-        </ChartGrid>
-      )}
-    </div>
+      </>}
+      loadState={loadState}
+      error={error}
+      hasData={hasData}
+      loadingMessage="Loading RU air-defense database…"
+      gridChildren={<>
+        <MonthlyBarChart title="UAVs Downed — Monthly Total" data={makeDataset("total")} wfull
+          globalMax={allStats.total?.max ?? 0} globalMedian={allStats.total?.median ?? 0} globalTotal={allStats.total?.total ?? 0} />
+        <MonthlyBarChart title="Overnight Reports" data={makeDataset("night")} wfull={false}
+          globalMax={allStats.night?.max ?? 0} globalMedian={allStats.night?.median ?? 0} globalTotal={allStats.night?.total ?? 0} />
+        <MonthlyBarChart title="Daytime Reports" data={makeDataset("day")} wfull={false}
+          globalMax={allStats.day?.max ?? 0} globalMedian={allStats.day?.median ?? 0} globalTotal={allStats.day?.total ?? 0} />
+      </>}
+    />
   );
 }
