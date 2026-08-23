@@ -12,6 +12,7 @@ import type {
 import { GSUA_METRIC_KEYS } from "@/types";
 import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
+import { getKyivDateString } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 
 const DB_URL = import.meta.env.VITE_GSUA_DB_URL ?? `${import.meta.env.BASE_URL}data/ru-attacks-gsua.db`;
@@ -23,10 +24,6 @@ const REQUEST_CHUNK_SIZE = 4096;
 // Hard cap on total bytes the worker will fetch over its lifetime. Plenty for
 // a few months of queries on a 32 MB file; cap protects against runaway scans.
 const MAX_BYTES = 50 * 1024 * 1024;
-
-function getKyivDateString(): string {
-  return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
-}
 
 async function loadWorker(): Promise<WorkerHttpvfs> {
   return createDbWorker(
