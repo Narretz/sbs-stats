@@ -1,36 +1,20 @@
 import { useState } from "react";
 import type { Page, Site } from "@/types";
+import { SITES } from "@/types";
+import { SITE_REGISTRY } from "@/sites/registry";
 
-const SBS_PAGES: Page[] = ["hourly", "daily", "monthly"];
-const GSUA_PAGES: Page[] = ["hourly", "daily", "monthly"];
-// GS national totals are daily-only (no hourly snapshots, no directions).
-const RU_LOSSES_PAGES: Page[] = ["daily", "monthly"];
-// RU MoD air-defense: daily + monthly (no hourly — the MoD posts ~2–3×/day).
-const RU_AD_PAGES: Page[] = ["daily", "monthly"];
-// piterfm missile attacks: daily + monthly (no intraday snapshots).
-const RU_AIR_ATTACKS_PAGES: Page[] = ["daily", "monthly"];
-// SBU Alfa: monthly recap only (the source publishes one per month, no daily cadence).
-const SBU_ALFA_PAGES: Page[] = ["monthly"];
-// ualosses personnel losses: monthly only (the source revises past days every
-// ~2 months, so a daily view would be noisy and mostly redundant).
-const UA_LOSSES_PAGES: Page[] = ["monthly"];
-// Mediazona: the source publishes week-bucketed data. "weekly" is the native
-// granularity; "monthly" re-buckets weeks into calendar months in the frontend.
-const MEDIAZONA_PAGES: Page[] = ["weekly", "monthly"];
-// HUR missile-stock disclosures: a single page with its own Production/Stockpile
-// toggle, so no daily/monthly nav (App hides the page buttons for this site).
+// HUR missile-stock disclosures: a JSON-backed prototype with its own
+// Production/Stockpile toggle, so no daily/monthly nav (App hides the page
+// buttons for this site). Not in SITE_REGISTRY — handled explicitly here and
+// in App.tsx.
 const RU_MISSILES_PAGES: Page[] = ["daily"];
 
+// A site's page list (in nav order) is its registry entry's `pages` keys; the
+// non-registry missiles prototype is the one special case.
 function pagesFor(site: Site): Page[] {
-  if (site === "ru-attacks-gsua") return GSUA_PAGES;
-  if (site === "ru-losses-gsua") return RU_LOSSES_PAGES;
-  if (site === "ru-airdef-mod") return RU_AD_PAGES;
-  if (site === "ru-air-attacks-gsua") return RU_AIR_ATTACKS_PAGES;
-  if (site === "sbu-alfa") return SBU_ALFA_PAGES;
-  if (site === "ua-losses") return UA_LOSSES_PAGES;
-  if (site === "mediazona") return MEDIAZONA_PAGES;
   if (site === "ru-missiles-hur") return RU_MISSILES_PAGES;
-  return SBS_PAGES;
+  const entry = SITE_REGISTRY[site];
+  return entry ? (Object.keys(entry.pages) as Page[]) : ["daily"];
 }
 
 // Registry of unlisted `?view=…` pages. These are reachable by URL only
@@ -52,16 +36,7 @@ function readUrl(): Route {
   }
   const rawSite = p.get("site");
   if (rawSite === null) return { kind: "home" };
-  const site: Site =
-    rawSite === "ru-attacks-gsua" ? "ru-attacks-gsua"
-      : rawSite === "ru-losses-gsua" ? "ru-losses-gsua"
-      : rawSite === "ru-airdef-mod" ? "ru-airdef-mod"
-      : rawSite === "ru-air-attacks-gsua" ? "ru-air-attacks-gsua"
-      : rawSite === "sbu-alfa" ? "sbu-alfa"
-      : rawSite === "ua-losses" ? "ua-losses"
-      : rawSite === "mediazona" ? "mediazona"
-      : rawSite === "ru-missiles-hur" ? "ru-missiles-hur"
-      : "sbs";
+  const site: Site = (SITES as string[]).includes(rawSite) ? (rawSite as Site) : "sbs";
   const rawPage = p.get("page");
   const pages = pagesFor(site);
   const page: Page = pages.includes(rawPage as Page) ? (rawPage as Page) : pages[0];

@@ -1,38 +1,14 @@
 import { useTheme } from "@/hooks/useTheme";
 import { ThemeProvider } from "@/hooks/ThemeProvider";
 import { StatScopeProvider } from "@/hooks/StatScopeProvider";
-import {
-  DatabaseProvider, useDatabaseContext,
-  GsuaDatabaseProvider, useGsuaDatabaseContext,
-  RuLossesDatabaseProvider, useRuLossesDatabaseContext,
-  RuModDatabaseProvider, useRuModDatabaseContext,
-  RuAirAttacksDatabaseProvider, useRuAirAttacksDatabaseContext,
-  SbuAlfaDatabaseProvider, useSbuAlfaDatabaseContext,
-  UaLossesDatabaseProvider, useUaLossesDatabaseContext,
-  MediazonaDatabaseProvider, useMediazonaDatabaseContext,
-} from "@/context/databases";
+import { DatabaseProvider, SbuAlfaDatabaseProvider } from "@/context/databases";
+import { SITE_REGISTRY, type SiteConfig } from "@/sites/registry";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { RouteProvider } from "@/hooks/RouteContext";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorScreen } from "@/components/Layout";
-import { GsuaDailyPage } from "@/pages/GsuaDailyPage";
-import { GsuaHourlyPage } from "@/pages/GsuaHourlyPage";
-import { GsuaMonthlyPage } from "@/pages/GsuaMonthlyPage";
-import { RuLossesDailyPage } from "@/pages/RuLossesDailyPage";
-import { RuLossesMonthlyPage } from "@/pages/RuLossesMonthlyPage";
-import { RuModDailyPage } from "@/pages/RuModDailyPage";
-import { RuAirAttacksDailyPage } from "@/pages/RuAirAttacksDailyPage";
-import { RuAirAttacksMonthlyPage } from "@/pages/RuAirAttacksMonthlyPage";
-import { RuModMonthlyPage } from "@/pages/RuModMonthlyPage";
-import { SbuAlfaMonthlyPage } from "@/pages/SbuAlfaMonthlyPage";
-import { UaLossesMonthlyPage } from "@/pages/UaLossesMonthlyPage";
 import { SbsVsSbuAlfaPage } from "@/pages/SbsVsSbuAlfaPage";
-import { SbsDailyPage } from "@/pages/SbsDailyPage";
-import { SbsHourlyPage } from "@/pages/SbsHourlyPage";
-import { SbsMonthlyPage } from "@/pages/SbsMonthlyPage";
-import { MediazonaWeeklyPage } from "@/pages/MediazonaWeeklyPage";
-import { MediazonaMonthlyPage } from "@/pages/MediazonaMonthlyPage";
 import { MissilesPage } from "@/pages/MissilesPage";
 import { HomePage } from "@/pages/HomePage";
 import type { Page, Site } from "@/types";
@@ -46,13 +22,25 @@ function PageShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SbsRoot({
-  page, pages, site, setSite, setPage,
+function ErrorShell({ children }: { children: React.ReactNode }) {
+  return (
+    <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
+      {children}
+    </ErrorBoundary>
+  );
+}
+
+// Header + active page for one DB-backed site. Reads the site's refresh/load
+// state from its consumer hook (so it must render inside the site's provider).
+function SiteShell({
+  entry, page, pages, site, setSite, setPage,
 }: {
+  entry: SiteConfig;
   page: Page; pages: Page[]; site: Site;
   setSite: (s: Site) => void; setPage: (p: Page) => void;
 }) {
-  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useDatabaseContext();
+  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = entry.useDbContext();
+  const PageComponent = entry.pages[page];
   return (
     <>
       <SiteHeader
@@ -63,183 +51,34 @@ function SbsRoot({
         refreshIntervalMs={refreshIntervalMs}
       />
       <PageShell>
-        {page === "daily"   && <SbsDailyPage refreshKey={refreshCount} />}
-        {page === "hourly"  && <SbsHourlyPage refreshKey={refreshCount} />}
-        {page === "monthly" && <SbsMonthlyPage refreshKey={refreshCount} />}
+        {PageComponent && <PageComponent refreshKey={refreshCount} />}
       </PageShell>
     </>
   );
 }
 
-function GsuaRoot({
-  page, pages, site, setSite, setPage,
+// Generic replacement for the former per-site *Root components: wraps the
+// registry entry's provider and renders its shell. Adding a site needs no
+// changes here — only a new SITE_REGISTRY entry.
+function SiteRoot({
+  entry, page, pages, site, setSite, setPage,
 }: {
+  entry: SiteConfig;
   page: Page; pages: Page[]; site: Site;
   setSite: (s: Site) => void; setPage: (p: Page) => void;
 }) {
-  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useGsuaDatabaseContext();
+  const Provider = entry.provider;
   return (
-    <>
-      <SiteHeader
-        site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage}
-        lastRefreshed={lastRefreshed} refreshCount={refreshCount}
-        onRefresh={refresh} isLoading={loadState === "loading"}
-        refreshIntervalMs={refreshIntervalMs}
-      />
-      <PageShell>
-        {page === "daily"   && <GsuaDailyPage refreshKey={refreshCount} />}
-        {page === "hourly"  && <GsuaHourlyPage refreshKey={refreshCount} />}
-        {page === "monthly" && <GsuaMonthlyPage refreshKey={refreshCount} />}
-      </PageShell>
-    </>
+    <ErrorShell>
+      <Provider>
+        <SiteShell entry={entry} site={site} page={page} pages={pages} setSite={setSite} setPage={setPage} />
+      </Provider>
+    </ErrorShell>
   );
 }
-
-function RuLossesRoot({
-  page, pages, site, setSite, setPage,
-}: {
-  page: Page; pages: Page[]; site: Site;
-  setSite: (s: Site) => void; setPage: (p: Page) => void;
-}) {
-  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useRuLossesDatabaseContext();
-  return (
-    <>
-      <SiteHeader
-        site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage}
-        lastRefreshed={lastRefreshed} refreshCount={refreshCount}
-        onRefresh={refresh} isLoading={loadState === "loading"}
-        refreshIntervalMs={refreshIntervalMs}
-      />
-      <PageShell>
-        {page === "daily"   && <RuLossesDailyPage refreshKey={refreshCount} />}
-        {page === "monthly" && <RuLossesMonthlyPage refreshKey={refreshCount} />}
-      </PageShell>
-    </>
-  );
-}
-
-function RuModRoot({
-  page, pages, site, setSite, setPage,
-}: {
-  page: Page; pages: Page[]; site: Site;
-  setSite: (s: Site) => void; setPage: (p: Page) => void;
-}) {
-  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useRuModDatabaseContext();
-  return (
-    <>
-      <SiteHeader
-        site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage}
-        lastRefreshed={lastRefreshed} refreshCount={refreshCount}
-        onRefresh={refresh} isLoading={loadState === "loading"}
-        refreshIntervalMs={refreshIntervalMs}
-      />
-      <PageShell>
-        {page === "daily" && <RuModDailyPage refreshKey={refreshCount} />}
-        {page === "monthly" && <RuModMonthlyPage refreshKey={refreshCount} />}
-      </PageShell>
-    </>
-  );
-}
-
-function RuAirAttacksRoot({
-  page, pages, site, setSite, setPage,
-}: {
-  page: Page; pages: Page[]; site: Site;
-  setSite: (s: Site) => void; setPage: (p: Page) => void;
-}) {
-  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useRuAirAttacksDatabaseContext();
-  return (
-    <>
-      <SiteHeader
-        site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage}
-        lastRefreshed={lastRefreshed} refreshCount={refreshCount}
-        onRefresh={refresh} isLoading={loadState === "loading"}
-        refreshIntervalMs={refreshIntervalMs}
-      />
-      <PageShell>
-        {page === "daily"   && <RuAirAttacksDailyPage refreshKey={refreshCount} />}
-        {page === "monthly" && <RuAirAttacksMonthlyPage refreshKey={refreshCount} />}
-      </PageShell>
-    </>
-  );
-}
-
-function SbuAlfaRoot({
-  page, pages, site, setSite, setPage,
-}: {
-  page: Page; pages: Page[]; site: Site;
-  setSite: (s: Site) => void; setPage: (p: Page) => void;
-}) {
-  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useSbuAlfaDatabaseContext();
-  return (
-    <>
-      <SiteHeader
-        site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage}
-        lastRefreshed={lastRefreshed} refreshCount={refreshCount}
-        onRefresh={refresh} isLoading={loadState === "loading"}
-        refreshIntervalMs={refreshIntervalMs}
-      />
-      <PageShell>
-        {page === "monthly" && <SbuAlfaMonthlyPage refreshKey={refreshCount} />}
-      </PageShell>
-    </>
-  );
-}
-
-function UaLossesRoot({
-  page, pages, site, setSite, setPage,
-}: {
-  page: Page; pages: Page[]; site: Site;
-  setSite: (s: Site) => void; setPage: (p: Page) => void;
-}) {
-  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useUaLossesDatabaseContext();
-  return (
-    <>
-      <SiteHeader
-        site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage}
-        lastRefreshed={lastRefreshed} refreshCount={refreshCount}
-        onRefresh={refresh} isLoading={loadState === "loading"}
-        refreshIntervalMs={refreshIntervalMs}
-      />
-      <PageShell>
-        {page === "monthly" && <UaLossesMonthlyPage refreshKey={refreshCount} />}
-      </PageShell>
-    </>
-  );
-}
-
-function MediazonaRoot({
-  page, pages, site, setSite, setPage,
-}: {
-  page: Page; pages: Page[]; site: Site;
-  setSite: (s: Site) => void; setPage: (p: Page) => void;
-}) {
-  const { loadState, refresh, lastRefreshed, refreshCount, refreshIntervalMs } = useMediazonaDatabaseContext();
-  return (
-    <>
-      <SiteHeader
-        site={site} page={page} pages={pages}
-        onSiteChange={setSite} onPageChange={setPage}
-        lastRefreshed={lastRefreshed} refreshCount={refreshCount}
-        onRefresh={refresh} isLoading={loadState === "loading"}
-        refreshIntervalMs={refreshIntervalMs}
-      />
-      <PageShell>
-        {page === "weekly" && <MediazonaWeeklyPage refreshKey={refreshCount} />}
-        {page === "monthly" && <MediazonaMonthlyPage refreshKey={refreshCount} />}
-      </PageShell>
-    </>
-  );
-}      
 
 // JSON-backed prototype: no DB provider, no page nav (the page has its own
-// Production/Stockpile toggle), no refresh indicator.
+// Production/Stockpile toggle), no refresh indicator. Not in SITE_REGISTRY.
 function MissilesRoot({
   site, setSite, setPage,
 }: {
@@ -268,6 +107,7 @@ function AppInner() {
   const site = route.kind === "site" ? route.site : "sbs";
   const page = route.kind === "site" ? route.page : "daily";
   const pages = pagesFor(site);
+  const siteEntry = route.kind === "site" ? SITE_REGISTRY[route.site] : undefined;
 
   return (
     <RouteProvider value={routeValue}>
@@ -277,79 +117,29 @@ function AppInner() {
       </style>
       <div style={{ minHeight: "100vh", background: t.bg }}>
         {route.kind === "home" && (
-          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
+          <ErrorShell>
             <HomePage onGoToSite={(s) => goSite(s)} />
-          </ErrorBoundary>
+          </ErrorShell>
         )}
-        {route.kind === "site" && route.site === "sbs" && (
-          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
-            <DatabaseProvider>
-              <SbsRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
-            </DatabaseProvider>
-          </ErrorBoundary>
+        {route.kind === "site" && siteEntry && (
+          <SiteRoot
+            entry={siteEntry} site={site} page={page} pages={pages}
+            setSite={setSite} setPage={setPage}
+          />
         )}
-        {route.kind === "site" && route.site === "ru-attacks-gsua" && (
-          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
-            <GsuaDatabaseProvider>
-              <GsuaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
-            </GsuaDatabaseProvider>
-          </ErrorBoundary>
-        )}
-        {route.kind === "site" && route.site === "ru-losses-gsua" && (
-          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
-            <RuLossesDatabaseProvider>
-              <RuLossesRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
-            </RuLossesDatabaseProvider>
-          </ErrorBoundary>
-        )}
-        {route.kind === "site" && route.site === "ru-airdef-mod" && (
-          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
-            <RuModDatabaseProvider>
-              <RuModRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
-            </RuModDatabaseProvider>
-          </ErrorBoundary>
-        )}
-        {route.kind === "site" && route.site === "ru-air-attacks-gsua" && (
-          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
-            <RuAirAttacksDatabaseProvider>
-              <RuAirAttacksRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
-            </RuAirAttacksDatabaseProvider>
-          </ErrorBoundary>
-        )}
-        {route.kind === "site" && route.site === "sbu-alfa" && (
-          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
-            <SbuAlfaDatabaseProvider>
-              <SbuAlfaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
-            </SbuAlfaDatabaseProvider>
-          </ErrorBoundary>
-        )}
-        {route.kind === "site" && route.site === "ua-losses" && (
-          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
-            <UaLossesDatabaseProvider>
-              <UaLossesRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
-            </UaLossesDatabaseProvider>
-          </ErrorBoundary>
-        )}
-        {site === "mediazona" && (
-          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
-            <MediazonaDatabaseProvider>
-              <MediazonaRoot site={site} setSite={setSite} page={page} setPage={setPage} pages={pages} />
-            </MediazonaDatabaseProvider>
-          </ErrorBoundary>
-        )}
-        {site === "ru-missiles-hur" && (
-          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
+        {route.kind === "site" && route.site === "ru-missiles-hur" && (
+          <ErrorShell>
             <MissilesRoot site={site} setSite={setSite} setPage={setPage} />
-          </ErrorBoundary>
+          </ErrorShell>
         )}
         {route.kind === "special" && route.view === "sbs-vs-sbu-alfa" && (
-          <ErrorBoundary fallback={(e) => <PageShell><ErrorScreen message={e.message} /></PageShell>}>
+          <ErrorShell>
             <DatabaseProvider>
               <SbuAlfaDatabaseProvider>
                 <PageShell><SbsVsSbuAlfaPage /></PageShell>
               </SbuAlfaDatabaseProvider>
             </DatabaseProvider>
-          </ErrorBoundary>
+          </ErrorShell>
         )}
       </div>
     </RouteProvider>
