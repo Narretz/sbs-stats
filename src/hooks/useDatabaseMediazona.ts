@@ -1,25 +1,21 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useCallback } from "react";
 import type { Database } from "sql.js";
 import type {
   MediazonaRolesRow,
   MediazonaEstimateRow,
   MediazonaRoleGroupKey,
-  LoadState,
 } from "@/types";
 import { MEDIAZONA_ROLE_GROUPS, MEDIAZONA_ROLE_GROUP_KEYS, MEDIAZONA_ROLE_COLS } from "@/types";
+import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 
 // Tiny DB (~40 KB) → fetch whole via sql.js, like the RU-losses loader (no httpvfs).
 const DB_URL =
   import.meta.env.VITE_MEDIAZONA_DB_URL ??
   `${import.meta.env.BASE_URL}data/mediazona.db`;
+const loadDatabase = () => loadWholeDb(DB_URL, "Mediazona");
 
-let dbPromise: Promise<Database> | null = null;
-
-function getOrCreateDbPromise(): Promise<Database> {
-  if (!dbPromise) dbPromise = loadWholeDb(DB_URL, "Mediazona");
-  return dbPromise;
-}
+const dbCache = makeResourceCache<Database>();
 
 // Map each raw role column to its display group, so we can sum into groups in JS.
 const COL_TO_GROUP = new Map<string, MediazonaRoleGroupKey>();
@@ -47,67 +43,13 @@ const LATEST_ESTIMATE = `(
 export const REFRESH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 export function useDatabaseMediazona({ enabled = true }: { enabled?: boolean } = {}) {
-  const [db, setDb] = useState<Database | null>(null);
-  const [loadState, setLoadState] = useState<LoadState>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-  const lastRefreshedRef = useRef<Date | null>(null);
-  const [refreshCount, setRefreshCount] = useState(0);
-
-  const doLoad = useCallback(() => {
-    setLoadState("loading");
-    getOrCreateDbPromise()
-      .then((database) => {
-        setDb(database);
-        setLoadState("ready");
-        const now = new Date();
-        setLastRefreshed(now);
-        lastRefreshedRef.current = now;
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
-        setLoadState("error");
-        dbPromise = null;
-      });
-  }, []);
-
-  const doRefresh = useCallback(() => {
-    dbPromise = null;
-    setDb(null);
-    setRefreshCount((c) => c + 1);
-    doLoad();
-  }, [doLoad]);
-
-  // `enabled` gates initial load + the refresh/visibility effects so per-site
-  // pages that always need the DB (default true) behave exactly as before,
-  // while the homepage's combined view can opt out when no Mediazona metric is
-  // selected — keeping the network spend on demand.
-  useEffect(() => {
-    if (!enabled) return;
-    doLoad();
-  }, [doLoad, enabled]);
-
-  useEffect(() => {
-    if (!enabled) return;
-    const interval = setInterval(() => {
-      if (document.hidden) return;
-      doRefresh();
-    }, REFRESH_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [doRefresh, enabled]);
-
-  useEffect(() => {
-    if (!enabled) return;
-    const handle = () => {
-      if (document.hidden) return;
-      const age = lastRefreshedRef.current ? Date.now() - lastRefreshedRef.current.getTime() : Infinity;
-      if (age >= REFRESH_INTERVAL_MS) doRefresh();
-    };
-    document.addEventListener("visibilitychange", handle);
-    return () => document.removeEventListener("visibilitychange", handle);
-  }, [doRefresh, enabled]);
-
-  const refresh = useCallback(() => { doRefresh(); }, [doRefresh]);
+  const { resource: db, loadState, error, lastRefreshed, refresh, refreshCount, refreshIntervalMs } =
+    useRefreshableResource({
+      cache: dbCache,
+      load: loadDatabase,
+      refreshIntervalMs: REFRESH_INTERVAL_MS,
+      enabled,
+    });
 
   // ── Roles: one row per week, raw role columns summed into display groups ──────
   const queryRoles = useCallback((): MediazonaRolesRow[] => {
@@ -212,6 +154,6 @@ export function useDatabaseMediazona({ enabled = true }: { enabled?: boolean } =
     queryRolesMonthly, queryEstimateMonthly,
     queryDataWindow,
     refresh, lastRefreshed, refreshCount,
-    refreshIntervalMs: REFRESH_INTERVAL_MS,
+    refreshIntervalMs,
   };
 }
