@@ -641,6 +641,23 @@ def parse_summary(text: str, msg: Message) -> DailySummary | None:
         _USE + r"(\d[\d\s]*\d|\d)\s*ракет(?!н)",
         _USE + r"([\w'ʼ’]+)\s+ракет(?!н)",
     )
+    # Newer GS phrasing splits missiles by type and puts the count next to the
+    # TYPE adjective rather than next to "ракет":
+    #   "застосував ракети, які заходять на ціль по балістичній траєкторії,
+    #    та 44 крилатих/авіаційних ракети ..."
+    # Here the count (44) is separated from застосував by the ballistic clause
+    # AND from "ракет" by "крилатих/авіаційних", so the adjacent patterns above
+    # miss it (the ballistic count itself is given qualitatively, no number).
+    # Fall back to a launch-anchored match that tolerates the intervening clause
+    # and the type adjective. The крилат/авіаційн qualifier keeps it off the bare
+    # "N ракет" in the destroyed-equipment loss line ("знешкоджено 39 ракет").
+    # This is a lower bound on total missiles used (ballistic count unstated).
+    if s.missiles_used is None:
+        s.missiles_used = _extract_count(
+            text,
+            r"застосу\w+[^.]{0,120}?(\d[\d\s]*\d|\d)\s+(?:крилат|авіаційн)\w*[^.]{0,40}?ракет",
+            r"застосу\w+[^.]{0,120}?([\w'ʼ’]+)\s+(?:крилат|авіаційн)\w*[^.]{0,40}?ракет",
+        )
 
     # --- Air strikes ---
     # "86 авіаційних ударів" / "51 авіаційного удару" (genitive sg)

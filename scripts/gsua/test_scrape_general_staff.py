@@ -918,6 +918,33 @@ class TestMetrics:
         assert s.missile_strikes == 2
         assert s.missiles_used is None
 
+    def test_missiles_used_split_ballistic_and_cruise(self):
+        # 2026-08-20: the GS split missiles by type — ballistic stated WITHOUT a
+        # count, cruise/aviation WITH one — and put the number next to the type
+        # adjective, not next to "ракет". The count (44) is separated from the
+        # use verb by the ballistic clause AND from "ракет" by
+        # "крилатих/авіаційних", so the adjacent patterns miss it; the
+        # launch-anchored fallback recovers it (a lower bound: the ballistic
+        # count is unstated).
+        s = self._parse(
+            "Вчора агресор завдав одного ракетного удару, застосував ракети, "
+            "які заходять на ціль по балістичній траєкторії, та 44 "
+            "крилатих/авіаційних ракети повітряного, наземного та морського "
+            "базування, здійснив 87 авіаційних ударів."
+        )
+        assert s.missile_strikes == 1
+        assert s.missiles_used == 44
+
+    def test_missiles_used_destroyed_cruise_not_counted(self):
+        # A destroyed-missiles line that names the type ("знешкоджено N крилатих
+        # ракет") must still NOT be read as missiles used: the fallback is
+        # anchored on a launch verb (застосу…), which "знешкоджено" isn't.
+        s = self._parse(
+            "Завдав одного ракетного удару. Також знешкоджено 8 крилатих ракет."
+        )
+        assert s.missile_strikes == 1
+        assert s.missiles_used is None
+
     def test_targets_destroyed_numbered_list(self):
         # 2026-08-01: sum every item; "один …" counts explicitly.
         s = self._parse(
