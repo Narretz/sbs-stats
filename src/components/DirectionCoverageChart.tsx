@@ -169,18 +169,18 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
               if (!active || !payload?.length) return null;
               const d = payload[0].payload as FlatRow;
               const totalN = typeof d.total === "number" ? d.total : 0;
-              // Total (bold) on top, then stacks in reverse render order
-              // (top-of-bar first) with zero-valued entries hidden. Every
-              // row surfaces a share-of-total now, not just Unattributed —
-              // the Share column stays put and each direction's gap-share
-              // becomes readable at a glance.
+              // Total (bold) on top, then the breakdown sorted by this bar's own
+              // value (highest first), zero-valued entries hidden. Every row
+              // surfaces a share-of-total, so each direction's contribution
+              // (and the Unattributed gap) is readable at a glance.
               const rows: TooltipTableRow[] = [
                 { label: "Total", color: t.text, value: d.total, emphasis: "bold" },
-                ...[...stacks].reverse()
+                ...stacks
                   .filter((s) => {
                     const v = d[s.key];
                     return typeof v === "number" && v > 0;
                   })
+                  .sort((a, b) => (d[b.key] as number) - (d[a.key] as number))
                   .map((s, i) => {
                     const v = d[s.key] as number;
                     return {
