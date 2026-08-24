@@ -74,6 +74,47 @@ jobs:
         working-directory: scripts/gsua
         run: python scrape_general_staff.py --source web --since "${{ steps.cutoff.outputs.since }}"
 
+      # Data-quality nudge: over the freshly scraped dates, emit a GitHub
+      # ::notice:: annotation (non-fatal; shown in the Annotations panel and
+      # readable via the Checks API) for any date where exactly one of
+      # {missile_strikes, missiles_used} is set. The two count different things
+      # (missile STRIKES vs missiles USED) and the GS often reports them
+      # independently, so this is informational — a prompt to eyeball, not an error.
+      - name: Notice missile-field asymmetry (recent dates)
+        env:
+          DB_PATH: scripts/gsua/output/${{ env.GSUA_DB_NAME }}
+          SINCE: ${{ steps.cutoff.outputs.since }}
+        run: |
+          python3 - <<'PY'
+          import os, sqlite3
+          db = sqlite3.connect(os.environ["DB_PATH"])
+          rows = db.execute(
+              """
+              WITH lp AS (
+                SELECT p.* FROM posts p
+                WHERE p.source = 'telegram' AND p.date >= ?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM posts n
+                    WHERE n.source = p.source AND n.source_id = p.source_id
+                      AND n.scraped_at > p.scraped_at)
+              )
+              SELECT date, MAX(missile_strikes), MAX(missiles_used)
+              FROM lp GROUP BY date ORDER BY date
+              """,
+              (os.environ["SINCE"],),
+          ).fetchall()
+          f = "scripts/gsua/scrape_general_staff.py"
+          n = 0
+          for date, strikes, used in rows:
+              if (strikes is None) != (used is None):
+                  s = strikes if strikes is not None else "∅"
+                  u = used if used is not None else "∅"
+                  print(f"::notice file={f}::GSUA {date}: only one of the missile fields is set "
+                        f"(missile_strikes={s}, missiles_used={u}).")
+                  n += 1
+          print(f"Missile-field asymmetry: {len(rows)} date(s) since {os.environ['SINCE']}, {n} notice(s).")
+          PY
+
       # Strip the bulky `posts.text` column into a frontend-only copy
       # (~7 MB of UA-staff post text the FE never queries → DB shrinks ~3×).
       # Uploaded alongside the full DB; the frontend's VITE_GSUA_DB_URL points
