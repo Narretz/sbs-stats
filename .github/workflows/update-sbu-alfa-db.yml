@@ -2,6 +2,15 @@ name: Update SBU Alfa Database
 
 on:
   workflow_dispatch: # allow manual trigger from GitHub UI
+    inputs:
+      pages:
+        description: >-
+          Listing pages to scan. Raise it to reach recaps older than the default
+          3-page window — e.g. to re-ingest a recap the parser previously
+          rejected (a rejected report is never stored, so only a re-scan can
+          recover it).
+        required: false
+        default: "3"
   schedule:
     # SBU publishes each monthly recap between the 6th and the 17th of the
     # following month (three known data points; wider than that in practice).
@@ -60,7 +69,7 @@ jobs:
         run: |
           python3 scripts/sbu_alfa/discover.py \
             --out "data/$SBU_ALFA_DB_NAME" \
-            --pages 3
+            --pages "${{ inputs.pages || '3' }}"
 
       - name: Upload SBU Alfa DB to R2
         if: steps.discover.outputs.changed == 'true'

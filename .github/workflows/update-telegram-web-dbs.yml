@@ -8,6 +8,13 @@ name: Update Telegram-web Databases
 on:
   workflow_dispatch: # manual trigger from the GitHub UI
     inputs:
+      gsua_lookback_days:
+        description: >-
+          GSUA: days to re-scrape before the newest stored report. Raise it to
+          re-ingest older posts after a parser fix (the default 2-day lookback
+          can't reach them). Ignored by the RU MoD job.
+        required: false
+        default: "2"
       rumod_lookback_days:
         description: >-
           RU MoD: days to re-scan before the newest stored report. Raise it to
@@ -32,8 +39,10 @@ jobs:
       R2_BUCKET: russia-ukraine-war
       GSUA_DB_NAME: ru-attacks-gsua.db
       # Re-scrape this many days before the newest stored report to catch late
-      # corrections (idempotent upsert).
-      GSUA_LOOKBACK_DAYS: "2"
+      # corrections (idempotent upsert). A manual dispatch can widen it to
+      # re-ingest posts a parser fix now handles — a post the parser dropped is
+      # never stored, so only a re-scrape can recover it.
+      GSUA_LOOKBACK_DAYS: ${{ inputs.gsua_lookback_days || '2' }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5

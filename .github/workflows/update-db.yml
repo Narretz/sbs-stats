@@ -2,6 +2,15 @@ name: Update SBS Database
 
 on:
   workflow_dispatch: # allow manual trigger from GitHub UI
+    inputs:
+      all_months:
+        description: >-
+          Re-fetch every month, ignoring the 10-day-after-month-end and 6-hour
+          freshness thresholds. The SBS equivalent of a widened lookback — use
+          it to re-pull history after an ingest fix.
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   update-db:
@@ -39,7 +48,7 @@ jobs:
         env:
           DB_PATH: data/sbs.db
           SUMMARY_PATH: /tmp/update-summary.txt
-        run: python scripts/fetch_and_update.py
+        run: python scripts/fetch_and_update.py ${{ inputs.all_months && '--all-months' || '' }}
 
       # Publish the same DB as a rolling `latest` release asset. Overwriting
       # the same asset URL each run keeps total Release storage at ~1 MB, no

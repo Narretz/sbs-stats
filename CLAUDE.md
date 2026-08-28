@@ -71,6 +71,16 @@ GitHub Actions in `.github/workflows/`:
   charts only.
 - `deploy.yml` — builds and publishes to GitHub Pages.
 
+The scrapers that only re-read a recent window expose that window as a
+`workflow_dispatch` input, so a manual run can widen it after a parser fix — a
+post the parser dropped was never stored, so `reparse.py` can't recover it and
+only a re-scrape can. `update-telegram-web-dbs.yml`: `gsua_lookback_days` /
+`rumod_lookback_days` (default 2). `update-sbu-alfa-db.yml`: `pages` (default 3
+listing pages). `update-db.yml`: `all_months` (bypass the SBS 10-day / 6-hour
+refresh thresholds). The Kaggle / CSV / article-bundle pipelines (RU losses, UA
+losses, missile attacks, Mediazona) re-pull the whole source every run, so a
+fix takes effect on the next run with no input to widen.
+
 ## Common commands
 
 ```sh
