@@ -157,6 +157,15 @@ The Russian MoD (Минобороны России) DOES post centrally — on m
   only whether the MoD itself re-counts across the two posts (unknowable from the text). The flag is
   recomputed from the latest version each run, so it never goes stale. As of the Jan–May 2026
   backfill: 3 such cases, all February.
+- **Reported unit drift ("воздушные цели"):** the MoD occasionally reports a window's intercepts as
+  **N воздушных целей** (air targets) rather than naming UAVs — first seen msg 66758, night of
+  25 Aug 2026 ("перехвачены и уничтожены 148 воздушных целей"). That's a *superset* of БПЛА (may
+  include cruise missiles / rockets). The parser handles the wording but tags the row
+  `ad_reports.unit = 'air_target'` (default `'uav'`) so the two are never silently mixed; the day
+  total still includes it, with `daily_ad.air_target_drones` isolating the part and a tooltip caveat
+  on the chart. Until this was handled the post was dropped outright and 25 Aug read 39 instead of
+  187 — an undercount that renders as a real value, which is why the ingest now also warns on a day
+  that is missing one of its two reporting windows, not just on a day with no report at all.
 
 ### Ukrainian-LOSSES reporting by the MoD — degraded, REVISIT (noted 2026-05)
 The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:
@@ -182,7 +191,9 @@ The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:
 - **`silent_days` table** (added 2026-06): dates verified to have no standalone MoD AD
   intercept post (e.g. ceasefire days when only a Сводka went out). Populated manually via
   `python ingest.py --mark-silent YYYY-MM-DD '<note>'` after auditing with
-  `scripts/ru_mod/probe_gap.py`. Used by the gap-day ingest warning to skip
+  `scripts/ru_mod/probe_gap.py` (add `--window night|day` when only one of the day's
+  two windows was silent — a real pattern, e.g. 27 Jun and 17 Jul 2026 each got an
+  overnight report and no daytime one). Used by the gap-day ingest warning to skip
   already-audited dates so a re-scan doesn't re-flag them. The frontend deliberately
   does NOT render these as 0-drone rows — a no-post day isn't a verified zero, so a
   chart gap is the honest signal.

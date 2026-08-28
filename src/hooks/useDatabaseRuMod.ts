@@ -28,12 +28,40 @@ const LATEST_PER_POST = `(
     ON r.post_id = l.post_id AND r.scraped_at = l.ms
 ) latest`;
 
+// `unit` ('uav' | 'air_target') was added to ad_reports after this view shipped,
+// and the DB is deployed independently of the frontend — so probe for it rather
+// than assuming, or the first load against a not-yet-rebuilt R2 object throws
+// "no such column". Absent → every report is treated as the UAV wording, which
+// is what the DB held before the column existed.
+const hasUnitColumn = (db: Database): boolean => {
+  try {
+    return queryRows<{ name: string }>(db, "PRAGMA table_info(ad_reports)")
+      .some((r) => r.name === "unit");
+  } catch {
+    return false;
+  }
+};
+
+// A report's caveats, one line each, as rendered in the chart tooltip:
+//   * `notes` — the derived overlap/double-count flag (see scripts/ru_mod).
+//   * unit='air_target' — the post counted «воздушных целей» (air targets),
+//     a superset of UAVs that can include missiles, so the day's total isn't
+//     purely the drone count the chart is otherwise showing.
+const caveatSql = (hasUnit: boolean) => `nullif(
+  CASE WHEN ${hasUnit ? "unit = 'air_target'" : "0"}
+       THEN coalesce(notes || char(10), '') ||
+            'reported as «воздушных целей» (air targets) — may include non-UAV kills, not a pure drone count'
+       ELSE coalesce(notes, '') END, '')`;
+
 // Per drone-day aggregation, split by reporting window (overnight vs daytime).
-// 'other'-kind reports fold into `day` so night + day == total. Overlap notes
+// 'other'-kind reports fold into `day` so night + day == total. Caveat notes
 // concatenate per series so the daily tooltip can say *which* report windows
-// overlap — preferred over a bare count when explaining the caveat. Each line
-// is prefixed with the report's HH:MM→HH:MM window for context.
-const DAILY_SELECT = `
+// are flagged — preferred over a bare count when explaining the caveat. Each
+// line is prefixed with the report's HH:MM→HH:MM window for context.
+const dailySelect = (hasUnit: boolean) => {
+  const caveat = caveatSql(hasUnit);
+  const line = `substr(window_start, 12, 5) || '→' || substr(window_end, 12, 5) || ': ' || ${caveat}`;
+  return `
   SELECT report_date AS date,
          SUM(drones) AS total,
          SUM(CASE WHEN window_kind = 'night' THEN drones ELSE 0 END) AS night,
@@ -42,19 +70,16 @@ const DAILY_SELECT = `
          SUM(CASE WHEN notes IS NOT NULL THEN 1 ELSE 0 END) AS overlap_total,
          SUM(CASE WHEN notes IS NOT NULL AND window_kind = 'night' THEN 1 ELSE 0 END) AS overlap_night,
          SUM(CASE WHEN notes IS NOT NULL AND window_kind != 'night' THEN 1 ELSE 0 END) AS overlap_day,
+         SUM(CASE WHEN ${hasUnit ? "unit = 'air_target'" : "0"} THEN drones ELSE 0 END) AS air_target_drones,
+         GROUP_CONCAT(CASE WHEN ${caveat} IS NOT NULL THEN ${line} END, char(10)) AS caveat_note_total,
          GROUP_CONCAT(
-           CASE WHEN notes IS NOT NULL
-                THEN substr(window_start, 12, 5) || '→' || substr(window_end, 12, 5) || ': ' || notes
-           END, char(10)) AS overlap_note_total,
+           CASE WHEN ${caveat} IS NOT NULL AND window_kind = 'night' THEN ${line} END,
+           char(10)) AS caveat_note_night,
          GROUP_CONCAT(
-           CASE WHEN notes IS NOT NULL AND window_kind = 'night'
-                THEN substr(window_start, 12, 5) || '→' || substr(window_end, 12, 5) || ': ' || notes
-           END, char(10)) AS overlap_note_night,
-         GROUP_CONCAT(
-           CASE WHEN notes IS NOT NULL AND window_kind != 'night'
-                THEN substr(window_start, 12, 5) || '→' || substr(window_end, 12, 5) || ': ' || notes
-           END, char(10)) AS overlap_note_day
+           CASE WHEN ${caveat} IS NOT NULL AND window_kind != 'night' THEN ${line} END,
+           char(10)) AS caveat_note_day
   FROM ${LATEST_PER_POST}`;
+};
 
 const stat = (vals: number[]): RuAdStat => {
   const s = [...vals].filter((v) => typeof v === "number").sort((a, b) => a - b);
@@ -89,7 +114,7 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
       // honest render is a gap. silent_days still earns its keep
       // server-side (suppressing the ingest gap-day warning so already-
       // audited days don't re-flag).
-      const sql = `${DAILY_SELECT}
+      const sql = `${dailySelect(hasUnitColumn(db))}
         WHERE report_date >= ${windowStartSql(endDateSql, days)}
           AND report_date <= date('${endDateSql}')
         GROUP BY report_date
@@ -106,9 +131,10 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
         overlap_total: numOr(r.overlap_total),
         overlap_night: numOr(r.overlap_night),
         overlap_day: numOr(r.overlap_day),
-        overlap_note_total: strOr(r.overlap_note_total),
-        overlap_note_night: strOr(r.overlap_note_night),
-        overlap_note_day: strOr(r.overlap_note_day),
+        air_target_drones: numOr(r.air_target_drones),
+        caveat_note_total: strOr(r.caveat_note_total),
+        caveat_note_night: strOr(r.caveat_note_night),
+        caveat_note_day: strOr(r.caveat_note_day),
       }));
     },
     [db]
@@ -117,7 +143,8 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
   const queryGlobalStats = useCallback((): RuAdGlobalStats => {
     const zero: RuAdStat = { max: 0, median: 0, total: 0 };
     if (!db) return { total: zero, night: zero, day: zero };
-    const rows = queryRows<Record<string, number>>(db, `${DAILY_SELECT} GROUP BY report_date`);
+    const rows = queryRows<Record<string, number>>(
+      db, `${dailySelect(hasUnitColumn(db))} GROUP BY report_date`);
     return {
       total: stat(rows.map((r) => r.total)),
       night: stat(rows.map((r) => r.night)),
@@ -129,15 +156,20 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
   // `overlap_reports` counts rows whose `notes` flags a possible double-count
   // (overnight window overlapping a separate evening report) — surfaced as a
   // caveat in the monthly chart, not deducted (we can't verify the double-count).
+  // `air_target_reports` / `air_target_drones` do the same for reports the MoD
+  // phrased as «воздушных целей» (air targets), which aren't a pure drone count.
   const queryMonthly = useCallback((): RuAdMonthlyRow[] => {
     if (!db) return [];
+    const isAirTarget = hasUnitColumn(db) ? "unit = 'air_target'" : "0";
     const rows = queryRows<Record<string, number | string>>(
       db,
       `SELECT substr(report_date, 1, 7) AS month,
               SUM(drones) AS total,
               SUM(CASE WHEN window_kind = 'night' THEN drones ELSE 0 END) AS night,
               SUM(CASE WHEN window_kind = 'night' THEN 0 ELSE drones END) AS day,
-              SUM(CASE WHEN notes IS NOT NULL THEN 1 ELSE 0 END) AS overlap_reports
+              SUM(CASE WHEN notes IS NOT NULL THEN 1 ELSE 0 END) AS overlap_reports,
+              SUM(CASE WHEN ${isAirTarget} THEN 1 ELSE 0 END) AS air_target_reports,
+              SUM(CASE WHEN ${isAirTarget} THEN drones ELSE 0 END) AS air_target_drones
        FROM ${LATEST_PER_POST}
        GROUP BY month
        ORDER BY month ASC`
@@ -162,6 +194,8 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
         night: num("night"),
         day: num("day"),
         overlap_reports: num("overlap_reports"),
+        air_target_reports: num("air_target_reports"),
+        air_target_drones: num("air_target_drones"),
       };
       if (isCurrent && dayOfMonth > 0) {
         const mult = daysInMonth / dayOfMonth;

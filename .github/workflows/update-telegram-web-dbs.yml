@@ -7,6 +7,14 @@ name: Update Telegram-web Databases
 
 on:
   workflow_dispatch: # manual trigger from the GitHub UI
+    inputs:
+      rumod_lookback_days:
+        description: >-
+          RU MoD: days to re-scan before the newest stored report. Raise it to
+          re-ingest older posts after a parser fix (the default 2-day lookback
+          can't reach them). Ignored by the GSUA job.
+        required: false
+        default: "2"
   schedule:
     # GS reports land ~08:00 / 16:00 / 22:00 Kyiv. GitHub Actions added an IANA
     # `timezone:` field for cron (2026-03), so we schedule in Kyiv local time and
@@ -147,8 +155,10 @@ jobs:
       RU_MOD_DB_NAME: ru-mod-ad.db
       # Re-scan this many days before the newest stored report each run, so edits
       # to recent posts are re-checked (append-only: a new version is stored only
-      # when content changed).
-      RU_MOD_LOOKBACK_DAYS: "2"
+      # when content changed). A manual dispatch can widen it to re-ingest posts
+      # a parser fix now handles — a post the parser dropped is never stored, so
+      # reparse.py can't recover it and only a re-scrape can.
+      RU_MOD_LOOKBACK_DAYS: ${{ inputs.rumod_lookback_days || '2' }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5

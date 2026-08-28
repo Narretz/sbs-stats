@@ -107,11 +107,12 @@ export function RuModDailyPage({ refreshKey }: Props) {
   const keepDate = selectedWeekdays.length === 0
     ? undefined
     : (iso: string) => selectedWeekdays.includes(new Date(iso + "T12:00:00").getDay());
-  // Compose the tooltip note from the per-report DB notes (already prefixed
+  // Compose the tooltip note from the per-report DB caveats (already prefixed
   // with the report's HH:MM→HH:MM window in queryDaily) so the reader sees
-  // exactly which window(s) overlap.
-  const overlapForKey = (d: RuAdDailyRow, key: "total" | "night" | "day") => {
-    const note = key === "total" ? d.overlap_note_total : key === "night" ? d.overlap_note_night : d.overlap_note_day;
+  // exactly which window(s) are flagged, and why — a possible double-count from
+  // overlapping windows, or an air-target report that isn't purely UAVs.
+  const caveatForKey = (d: RuAdDailyRow, key: "total" | "night" | "day") => {
+    const note = key === "total" ? d.caveat_note_total : key === "night" ? d.caveat_note_night : d.caveat_note_day;
     return note ?? undefined;
   };
   const makeDataset = (key: "total" | "night" | "day") =>
@@ -120,7 +121,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
         date: d.date,
         value: d[key],
         is_today: d.is_today,
-        note: overlapForKey(d, key),
+        note: caveatForKey(d, key),
       })),
       startDate,
       endDate,

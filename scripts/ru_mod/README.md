@@ -11,6 +11,19 @@ We extract the drone-intercept counts (and, when present, the per-region
 breakdown). **These are UNVERIFIED Russian claims**; "intercepted/downed" is a
 floor for "launched".
 
+### Reported unit: UAVs vs "air targets"
+
+Occasionally the MoD reports a whole window under the umbrella
+**«воздушных целей»** (air targets) instead of naming UAVs — msg 66758, the
+night of 25 Aug 2026: *"перехвачены и уничтожены 148 воздушных целей"*. That's a
+**superset** of БПЛА (it can fold in cruise missiles and rockets), so the count
+is parsed and stored, but tagged `ad_reports.unit = 'air_target'` (normal reports
+are `'uav'`) rather than being silently mixed into the drone series. The ingest
+prints a WARNING when one lands, `daily_ad.air_target_drones` isolates the part
+of a day that came from one, and the frontend shows it as a per-day tooltip
+caveat. Before this was handled, such posts were dropped entirely and the day
+quietly lost a whole reporting window — 25 Aug 2026 read 39 instead of 187.
+
 ## Sources
 
 Both backends feed the **same parser**:
@@ -69,11 +82,38 @@ an edit inserts a **new version row**, never overwrites. Reads resolve the lates
   ```sh
   python ingest.py --mark-silent 2025-04-20 \
     "no standalone AD post; Сводка part 1+2 (51523, 51524) went out instead"
+  # only ONE of the day's two windows was silent (the other was reported):
+  python ingest.py --mark-silent 2026-07-17 "no daytime AD post" --window day
   ```
+  `window_kind` is `'all'` (nothing posted that day) or `'night'` / `'day'` when
+  only that half was missing; a partial mark excuses only that window from the
+  gap warning.
 
-Change-detection compares the **parsed fields** (drones, window, kind, regions),
-**not** raw text — so the web and telethon backends ingesting the same post don't
-create a spurious new version just because their source text differs slightly.
+Change-detection compares the **parsed fields** (drones, window, kind, regions,
+unit), **not** raw text — so the web and telethon backends ingesting the same post
+don't create a spurious new version just because their source text differs slightly.
+
+## Coverage warnings
+
+After every run the ingest reports what looks wrong, so drift surfaces at scrape
+time rather than being found later on a chart:
+
+- **no AD report** for a date in the scanned window — the channel was active but
+  we stored nothing.
+- **missing one of the two reporting windows** — the MoD normally posts an
+  overnight AND a daytime report, so a date with only one is either genuine
+  silence or a parser miss. This matters as much as an empty day: the date still
+  has a row, so it renders as a plausible real value rather than a gap. (This is
+  what 25 Aug 2026 looked like.)
+- overlapping windows (possible double-count), per-region breakdowns that don't
+  sum to the headline, and air-target-worded reports (above).
+
+Verify a flagged date with `probe_gap.py`, then either fix the parser and
+re-scrape, or record the confirmed silence with `--mark-silent`.
+
+> A post the parser **dropped** was never stored, so `reparse.py` can't recover
+> it — only a re-scrape can. In CI, dispatch the workflow with a wider
+> `rumod_lookback_days` input; locally, `ingest.py --source web --since <date>`.
 
 See `DATASETS.md` §3 for the full source notes (format change, degraded UA-loss
 reporting, raw Сводка capture rationale).

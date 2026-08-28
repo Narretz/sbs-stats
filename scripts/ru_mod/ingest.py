@@ -99,6 +99,23 @@ COUNT_SINGULAR_VERB_FIRST_RE = re.compile(
     rf"{_AD_VERB}(?:\s+и\s+{_AD_VERB})?\s+украинский\s+{_UNIT_NOUN}",
     re.I,
 )
+# Broader unit noun: "воздушных целей" — AIR TARGETS. The MoD occasionally
+# reports a whole window's intercepts under this umbrella term instead of naming
+# UAVs (msg 66758, night of 25 Aug 2026: "перехвачены и уничтожены 148 воздушных
+# целей"). It's a SUPERSET of БПЛА — it can fold in cruise missiles and rockets —
+# and it drops the "украинских" qualifier the UAV headlines carry, so it gets its
+# own patterns and the report is tagged `unit='air_target'` rather than being
+# silently counted as drones. Without these patterns the post is dropped entirely
+# and the day silently loses a whole reporting window.
+_UNIT_NOUN_AIR = r"воздушн\w+\s+цел\w+"
+COUNT_AIR_VERB_FIRST_RE = re.compile(
+    rf"{_AD_VERB}(?:\s+и\s+{_AD_VERB})?\s+{_HEAD_NUM}\s+(?:украин\w+\s+)?{_UNIT_NOUN_AIR}",
+    re.I,
+)
+COUNT_AIR_NOUN_FIRST_RE = re.compile(
+    rf"{_HEAD_NUM}\s+(?:украин\w+\s+)?{_UNIT_NOUN_AIR}(?:\s+\w+){{0,3}}\s+{_AD_VERB}",
+    re.I,
+)
 # Is this an air-defense intercept post at all?
 AD_GATE = re.compile(r"(противовоздушн|средствами\s+пво|перехвач\w+\s+и\s+уничтож)", re.I)
 # Explicit night range with dates: "с 20.00 мск 22 мая до 7.00 мск 23 мая".
@@ -339,6 +356,23 @@ def _extract_drones(flat: str) -> tuple[int, str] | None:
     return None
 
 
+def _extract_air_targets(flat: str) -> tuple[int, str] | None:
+    """Headline count for the umbrella "воздушных целей" (air targets) wording.
+
+    Mirrors _extract_drones for the broader unit noun (see _UNIT_NOUN_AIR).
+    Only tried once the UAV forms have all failed, so a post that names UAVs
+    is never re-read as air targets. The caller tags the report
+    unit='air_target' so the count is never silently read as UAV-only.
+    """
+    for rx, tag in ((COUNT_AIR_VERB_FIRST_RE, "verb_first"),
+                    (COUNT_AIR_NOUN_FIRST_RE, "noun_first")):
+        for m in rx.finditer(flat):
+            n = _count_to_int(m.group(1))
+            if n is not None and n <= MAX_PLAUSIBLE:
+                return n, tag
+    return None
+
+
 _LEADING_CONJ = re.compile(r"^\s*и\s+", re.I)
 
 def _count_to_int(token: str) -> int | None:
@@ -423,6 +457,10 @@ class Report:
     region_count: int
     regions: str
     raw_text: str
+    # What the post actually counted: 'uav' (the usual "украинских беспилотных
+    # летательных аппаратов") or 'air_target' (the umbrella "воздушных целей",
+    # which may include non-UAV targets — see _UNIT_NOUN_AIR).
+    unit: str = "uav"
     # Per-region (name, count) pairs when the post itemizes them; else empty.
     breakdown: list[tuple[str, int]] = dc_field(default_factory=list)
 
@@ -729,7 +767,7 @@ def parse_breakdown(text: str) -> list[tuple[str, int]]:
 def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | None:
     """Parse one AD intercept post; return None if it isn't one."""
     flat = re.sub(r"\s+", " ", _strip_md(html.unescape(text))).strip()
-    if not AD_GATE.search(flat) or "беспилотн" not in flat.lower():
+    if not AD_GATE.search(flat):
         return None
     # Сводка posts often carry "ПВО уничтожено N беспилотных летательных
     # аппаратов" inside their daily-stats block, satisfying AD_GATE. Reject
@@ -737,9 +775,17 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
     # spurious AD report — parse_summary handles them on the next pass.
     if SVODKA_GATE.search(flat):
         return None
-    extracted = _extract_drones(flat)
+    # Unit resolution: the UAV wording first (all but a handful of posts), then
+    # the broader "воздушных целей" umbrella. Order matters — a post that names
+    # UAVs must never be re-read as air targets, so the fallback only runs once
+    # every UAV form has failed.
+    unit = "uav"
+    extracted = _extract_drones(flat) if "беспилотн" in flat.lower() else None
     if extracted is None:
-        return None
+        extracted = _extract_air_targets(flat)
+        if extracted is None:
+            return None
+        unit = "air_target"
     drones, drones_form = extracted
     posted_msk = posted_at_utc.astimezone(MSK)
     start, end, kind = _parse_window(flat, posted_msk)
@@ -772,6 +818,7 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
         drones=drones,
         region_count=region_count,
         regions=regions,
+        unit=unit,
         raw_text=flat,  # full text (uncapped) so a parser fix can re-derive in
                         # place from stored rows, like the GSUA scraper — the DB
                         # is tiny and AD posts are short.
@@ -952,6 +999,11 @@ CREATE TABLE IF NOT EXISTS ad_reports (
   regions      TEXT,
   raw_text     TEXT,
   notes        TEXT,        -- derived caveat (NULL = clean); set by _flag_overlaps
+  -- What the post counted: 'uav' (the usual UAV wording) or 'air_target'
+  -- (the umbrella "воздушных целей", a superset that may include missiles).
+  -- The count still lands in `drones`; this column is what keeps the two
+  -- distinguishable downstream instead of silently mixing units.
+  unit         TEXT NOT NULL DEFAULT 'uav',
   PRIMARY KEY (post_id, scraped_at)
 );
 CREATE INDEX IF NOT EXISTS ix_ad_date ON ad_reports(report_date);
@@ -981,12 +1033,20 @@ CREATE INDEX IF NOT EXISTS ix_adr_region ON ad_regions(region);
 CREATE TABLE IF NOT EXISTS silent_days (
   report_date TEXT PRIMARY KEY,
   note        TEXT,
-  recorded_at TEXT NOT NULL
+  recorded_at TEXT NOT NULL,
+  -- Which part of the day was verified silent: 'all' (no AD post at all),
+  -- or 'night' / 'day' when only ONE of the two windows was missing and the
+  -- other was reported normally. Lets _warn_gap_days stop re-flagging an
+  -- audited half-day without pretending the whole date was silent.
+  window_kind TEXT NOT NULL DEFAULT 'all'
 );
 CREATE VIEW IF NOT EXISTS daily_ad AS
   SELECT report_date AS date,
          SUM(drones)  AS drones_destroyed,
-         COUNT(*)     AS reports
+         COUNT(*)     AS reports,
+         -- Part of drones_destroyed that came from an "воздушных целей" report,
+         -- i.e. air targets that may include non-UAV kills. 0 on a normal day.
+         SUM(CASE WHEN unit = 'air_target' THEN drones ELSE 0 END) AS air_target_drones
   FROM ad_latest GROUP BY report_date;
 CREATE VIEW IF NOT EXISTS region_totals AS
   SELECT g.region,
@@ -1014,14 +1074,22 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     """Run SCHEMA + any view/column migrations. Idempotent.
 
     `daily_ad` was changed to UNION in silent_days rows after the view
-    first shipped, and `notes` was added to ad_reports later still —
-    CREATE VIEW/TABLE IF NOT EXISTS won't replace existing definitions,
-    so drop the view first and ALTER the column in if missing.
+    first shipped, and `notes` / `unit` were added to ad_reports later
+    still — CREATE VIEW/TABLE IF NOT EXISTS won't replace existing
+    definitions, so drop the views first and ALTER the columns in if
+    missing. The added columns carry NOT NULL DEFAULTs, so pre-existing
+    rows backfill to the historical behaviour ('uav' / 'all').
     """
     conn.execute("DROP VIEW IF EXISTS daily_ad")
     conn.executescript(SCHEMA)
-    if "notes" not in {r[1] for r in conn.execute("PRAGMA table_info(ad_reports)")}:
+    ad_cols = {r[1] for r in conn.execute("PRAGMA table_info(ad_reports)")}
+    if "notes" not in ad_cols:
         conn.execute("ALTER TABLE ad_reports ADD COLUMN notes TEXT")
+    if "unit" not in ad_cols:
+        conn.execute("ALTER TABLE ad_reports ADD COLUMN unit TEXT NOT NULL DEFAULT 'uav'")
+    silent_cols = {r[1] for r in conn.execute("PRAGMA table_info(silent_days)")}
+    if "window_kind" not in silent_cols:
+        conn.execute("ALTER TABLE silent_days ADD COLUMN window_kind TEXT NOT NULL DEFAULT 'all'")
 
 
 def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -> tuple[int, dict[str, int], int, str | None]:
@@ -1046,7 +1114,7 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
         latest_ad = {
             row[0]: tuple(row[1:])
             for row in conn.execute(
-                "SELECT post_id, drones, window_start, window_end, window_kind, region_count, regions "
+                "SELECT post_id, drones, window_start, window_end, window_kind, region_count, regions, unit "
                 "FROM ad_latest"
             )
         }
@@ -1062,17 +1130,18 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
         inserted = 0
         inserted_ids: set[int] = set()
         for r in reports:
-            content = (r.drones, r.window_start, r.window_end, r.window_kind, r.region_count, r.regions)
+            content = (r.drones, r.window_start, r.window_end, r.window_kind, r.region_count,
+                       r.regions, r.unit)
             if latest_ad.get(r.post_id) == content:
                 continue  # unchanged — no new version
             inserted_ids.add(r.post_id)
             conn.execute(
                 "INSERT INTO ad_reports "
                 "(post_id,scraped_at,posted_at,window_start,window_end,window_kind,report_date,"
-                " drones,region_count,regions,raw_text) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                " drones,region_count,regions,unit,raw_text) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (r.post_id, scraped, r.posted_at, r.window_start, r.window_end, r.window_kind,
-                 r.report_date, r.drones, r.region_count, r.regions, r.raw_text),
+                 r.report_date, r.drones, r.region_count, r.regions, r.unit, r.raw_text),
             )
             for region, n in r.breakdown:
                 conn.execute(
@@ -1129,6 +1198,19 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
             else:
                 print(f"note: {len(mismatches)} itemized report(s) in DB with an incomplete "
                       f"per-region breakdown; none new this run.", file=sys.stderr)
+
+        # Air-target reports: the count is NOT UAV-only, so surface it in the
+        # run log — a wording shift that quietly changes what the series counts
+        # is exactly the kind of drift worth seeing at scrape time.
+        air = conn.execute(
+            "SELECT post_id, report_date, drones FROM ad_latest WHERE unit = 'air_target'"
+        ).fetchall()
+        run_air = [a for a in air if a[0] in inserted_ids]
+        if run_air:
+            detail = ", ".join(f"post {pid} ({d}): {n}" for pid, d, n in run_air)
+            print(f"WARNING: {len(run_air)} report(s) this run counted «воздушные цели» "
+                  f"(air targets — may include non-UAV kills) instead of UAVs ({detail}); "
+                  f"stored with unit='air_target'. ({len(air)} total in DB.)", file=sys.stderr)
     finally:
         conn.close()
     return inserted, sum_inserted_by_kind, total, latest
@@ -1261,16 +1343,23 @@ def main() -> int:
     ap.add_argument(
         "--mark-silent", nargs=2, metavar=("YYYY-MM-DD", "NOTE"),
         help="Record that the MoD posted no standalone AD intercept on this MSK date "
-             "(usually because only Сводки went out that day). Adds a 0-drone row to "
-             "daily_ad via the silent_days table, and suppresses the gap-day warning "
-             "for the date. Verify with probe_gap.py before marking.",
+             "(usually because only Сводки went out that day). Writes a silent_days "
+             "row, which suppresses the gap-day warning for the date. Verify with "
+             "probe_gap.py before marking.",
+    )
+    ap.add_argument(
+        "--window", choices=["all", "night", "day"], default="all",
+        help="With --mark-silent: which reporting window was silent. 'all' (default) "
+             "= no AD post at all that day; 'night' / 'day' = the MoD posted only the "
+             "other window, so only that half is excused from the gap warning.",
     )
     args = ap.parse_args()
 
     if args.selftest:
         return selftest()
     if args.mark_silent:
-        return mark_silent_day(Path(args.out), args.mark_silent[0], args.mark_silent[1]) or 0
+        return mark_silent_day(Path(args.out), args.mark_silent[0], args.mark_silent[1],
+                               args.window) or 0
     for name, val in (("--since", args.since), ("--until", args.until)):
         if val and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", val):
             ap.error(f"{name} must be YYYY-MM-DD")
@@ -1339,8 +1428,17 @@ def main() -> int:
 
 
 def _warn_gap_days(out: Path, scan_min: str | None, scan_max: str | None) -> None:
-    """Print a WARNING listing dates in [scan_min, scan_max] with no stored
-    ad_reports row. Run after store() so freshly-ingested rows count.
+    """Print a WARNING listing dates in [scan_min, scan_max] whose AD coverage is
+    incomplete — no stored report at all, OR only one of the two daily reporting
+    windows. Run after store() so freshly-ingested rows count.
+
+    The half-day case matters as much as the empty one: the MoD normally posts an
+    overnight report AND a daytime report, so a date with only one of them is
+    either genuine MoD silence or — as with post 66758 (night of 25 Aug 2026,
+    "148 воздушных целей") — a parser miss that leaves the day quietly
+    undercounted. An undercount reads as a real value on the chart, which is
+    worse than a gap, so it gets flagged rather than being invisible because the
+    date has *a* row.
 
     Today's MSK date is excluded — the channel's overnight report often
     lands several hours into the new day, so an in-progress day with no
@@ -1354,64 +1452,101 @@ def _warn_gap_days(out: Path, scan_min: str | None, scan_max: str | None) -> Non
     if scan_max < scan_min:
         return
     with sqlite3.connect(out) as conn:
-        covered = {d for (d,) in conn.execute(
-            "SELECT DISTINCT report_date FROM ad_latest "
+        # Per-date window coverage: did the day get an overnight report, a
+        # daytime one ('day'/'other'), or both?
+        coverage = {
+            d: (bool(n), bool(dy))
+            for d, n, dy in conn.execute(
+                "SELECT report_date, SUM(window_kind = 'night'), SUM(window_kind <> 'night') "
+                "FROM ad_latest WHERE report_date BETWEEN ? AND ? GROUP BY report_date",
+                (scan_min, scan_max),
+            )
+        }
+        # Skip what we've already verified as MoD-silent — re-flagging it every
+        # run isn't useful, the silent_days row is the record. A 'night'/'day'
+        # row excuses only that window; 'all' excuses the whole date.
+        silent: dict[str, set[str]] = {}
+        for d, kind in conn.execute(
+            "SELECT report_date, window_kind FROM silent_days "
             "WHERE report_date BETWEEN ? AND ?",
             (scan_min, scan_max),
-        )}
-        # Skip dates we've already verified as MoD-silent — re-flagging them
-        # every run isn't useful, the silent_days row is the record.
-        silent = {d for (d,) in conn.execute(
-            "SELECT report_date FROM silent_days "
-            "WHERE report_date BETWEEN ? AND ?",
-            (scan_min, scan_max),
-        )}
+        ):
+            silent.setdefault(d, set()).add(kind or "all")
     gaps: list[str] = []
+    partials: list[str] = []
     d = date.fromisoformat(scan_min)
     end = date.fromisoformat(scan_max)
     while d <= end:
         s = d.isoformat()
-        if s not in covered and s not in silent:
+        excused = silent.get(s, set())
+        has_night, has_day = coverage.get(s, (False, False))
+        if "all" in excused:
+            pass
+        elif not has_night and not has_day:
             gaps.append(s)
+        elif not has_night and "night" not in excused:
+            partials.append(f"{s} (no overnight report)")
+        elif not has_day and "day" not in excused:
+            partials.append(f"{s} (no daytime report)")
         d += timedelta(days=1)
-    if not gaps:
+    if not gaps and not partials:
         return
-    head = ", ".join(gaps[:10])
-    more = f" (+{len(gaps) - 10} more)" if len(gaps) > 10 else ""
-    print(f"WARNING: {len(gaps)} day(s) in [{scan_min}, {scan_max}] "
-          f"with no AD report in DB — verify with probe_gap.py, then mark "
-          f"confirmed-silent ones via --mark-silent: {head}{more}")
+    def _list(items: list[str]) -> str:
+        head = ", ".join(items[:10])
+        return head + (f" (+{len(items) - 10} more)" if len(items) > 10 else "")
+    if gaps:
+        print(f"WARNING: {len(gaps)} day(s) in [{scan_min}, {scan_max}] "
+              f"with no AD report in DB — verify with probe_gap.py, then mark "
+              f"confirmed-silent ones via --mark-silent: {_list(gaps)}")
+    if partials:
+        print(f"WARNING: {len(partials)} day(s) in [{scan_min}, {scan_max}] missing one of "
+              f"the two reporting windows — the day is undercounted if the MoD did post one. "
+              f"Verify with probe_gap.py, then mark confirmed-silent windows via "
+              f"`--mark-silent <date> <note> --window night|day`: {_list(partials)}")
 
 
-def mark_silent_day(db_path: Path, report_date: str, note: str) -> None:
-    """Record that a date had no standalone MoD AD intercept post, so
-    daily_ad surfaces a 0 instead of a gap and the warning above stops
-    re-flagging it. Idempotent — re-marking just updates the note."""
+def mark_silent_day(db_path: Path, report_date: str, note: str, window_kind: str = "all") -> None:
+    """Record that a date (or just one of its two reporting windows) had no
+    standalone MoD AD intercept post, so the gap warning above stops re-flagging
+    it. Idempotent — re-marking just updates the note and window.
+
+    `window_kind` is 'all' (nothing posted that day), or 'night' / 'day' when the
+    MoD posted only the other window — a real pattern (e.g. 2026-06-27 and
+    2026-07-17 got an overnight report and no daytime one)."""
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", report_date):
         raise SystemExit(f"ERROR: --mark-silent date must be YYYY-MM-DD, got {report_date!r}")
+    if window_kind not in ("all", "night", "day"):
+        raise SystemExit(f"ERROR: --window must be all|night|day, got {window_kind!r}")
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
         _apply_schema(conn)
-        # Guard against marking a date that already has a real AD report —
-        # silent_days is for verified-empty days, not for overriding real data.
-        n = conn.execute(
-            "SELECT COUNT(*) FROM ad_latest WHERE report_date = ?",
-            (report_date,),
-        ).fetchone()[0]
+        # Guard against marking something that already has a real AD report —
+        # silent_days is for verified-empty windows, not for overriding real
+        # data. A window mark only conflicts with a report of THAT window kind.
+        where = "report_date = ?"
+        params: list = [report_date]
+        if window_kind == "night":
+            where += " AND window_kind = 'night'"
+        elif window_kind == "day":
+            where += " AND window_kind <> 'night'"
+        n = conn.execute(f"SELECT COUNT(*) FROM ad_latest WHERE {where}", params).fetchone()[0]
         if n:
+            scope = "" if window_kind == "all" else f" {window_kind}-window"
             raise SystemExit(
-                f"ERROR: {report_date} already has {n} AD report(s) in ad_latest; "
-                f"silent_days is for days with no standalone intercept post."
+                f"ERROR: {report_date} already has {n}{scope} AD report(s) in ad_latest; "
+                f"silent_days is for windows with no standalone intercept post."
             )
         recorded_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
         conn.execute(
-            "INSERT INTO silent_days (report_date, note, recorded_at) VALUES (?, ?, ?) "
-            "ON CONFLICT(report_date) DO UPDATE SET note=excluded.note, recorded_at=excluded.recorded_at",
-            (report_date, note, recorded_at),
+            "INSERT INTO silent_days (report_date, note, recorded_at, window_kind) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(report_date) DO UPDATE SET note=excluded.note, "
+            "recorded_at=excluded.recorded_at, window_kind=excluded.window_kind",
+            (report_date, note, recorded_at, window_kind),
         )
         conn.commit()
-        print(f"==> marked {report_date} as silent (note: {note!r}) → {db_path}")
+        scope = "" if window_kind == "all" else f" [{window_kind} window]"
+        print(f"==> marked {report_date}{scope} as silent (note: {note!r}) → {db_path}")
     finally:
         conn.close()
 

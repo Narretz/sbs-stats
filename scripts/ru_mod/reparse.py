@@ -34,7 +34,7 @@ import ingest as ig
 # in the UPDATE set.
 _PARSER_COLS = (
     "window_start", "window_end", "window_kind", "report_date",
-    "drones", "region_count", "regions",
+    "drones", "region_count", "regions", "unit",
 )
 
 
@@ -102,13 +102,13 @@ def _reparse_one(conn: sqlite3.Connection, row, dry_run: bool) -> str:
         """
         UPDATE ad_reports SET
             window_start = ?, window_end = ?, window_kind = ?, report_date = ?,
-            drones = ?, region_count = ?, regions = ?
+            drones = ?, region_count = ?, regions = ?, unit = ?
         WHERE post_id = ? AND scraped_at = ?
         """,
         (
             report.window_start, report.window_end, report.window_kind,
             report.report_date, report.drones, report.region_count, report.regions,
-            pid, row["scraped_at"],
+            report.unit, pid, row["scraped_at"],
         ),
     )
     conn.execute(
@@ -218,6 +218,9 @@ def main() -> int:
 
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
+    # Bring the DB up to the current schema first — a snapshot taken before a
+    # column was added (e.g. `unit`) would otherwise fail the SELECT below.
+    ig._apply_schema(conn)
 
     rows = _select_rows(conn, args)
     print(f"Selected {len(rows)} row(s) from {db_path}.")

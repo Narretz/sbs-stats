@@ -29,12 +29,14 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
       rows.map((d) => {
         const value = d[key];
         const projected = d[`${key}_projected`];
-        // Only the overall-total chart carries the double-count caveat (the flag is
-        // about a report's whole window, not its night/day split).
-        const note =
-          key === "total" && d.overlap_reports > 0
-            ? `includes ${d.overlap_reports} report${d.overlap_reports > 1 ? "s" : ""} whose window may overlap a neighbor — possible double-count`
-            : undefined;
+        // Only the overall-total chart carries these caveats (both are about a
+        // report's whole window, not its night/day split).
+        const notes: string[] = [];
+        if (key === "total" && d.overlap_reports > 0)
+          notes.push(`includes ${d.overlap_reports} report${d.overlap_reports > 1 ? "s" : ""} whose window may overlap a neighbor — possible double-count`);
+        if (key === "total" && d.air_target_reports > 0)
+          notes.push(`includes ${d.air_target_drones} from ${d.air_target_reports} report${d.air_target_reports > 1 ? "s" : ""} the MoD counted as «воздушных целей» (air targets) — may include non-UAV kills`);
+        const note = notes.length ? notes.join("\n") : undefined;
         return {
           date: d.date,
           value,
@@ -51,7 +53,7 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
   return (
     <PageScaffold
       title="Monthly Ukrainian UAVs Downed - RU MoD"
-      description="Monthly sums of Russian MoD air-defense intercept claims (MSK drone-days). Current month shows an end-of-month projection. A dashed outline marks months containing a report whose window may overlap a neighbor (possible double-count) — see tooltip."
+      description="Monthly sums of Russian MoD air-defense intercept claims (MSK drone-days). Current month shows an end-of-month projection. A dashed outline marks months containing a caveated report — a window that may overlap a neighbor (possible double-count), or one the MoD counted as air targets rather than UAVs — see tooltip."
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-mod" />}
       controls={<>
         {!yr.hidden && (

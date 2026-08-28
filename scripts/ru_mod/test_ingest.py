@@ -1291,3 +1291,169 @@ class TestVersioning:
         conn.close()
         assert saratov == 50          # region_totals reflects the latest version
         assert all_rows == 14         # 7 regions × 2 versions kept (no loss)
+
+
+# ── "воздушных целей" (air targets) — a wider unit than БПЛА ──────────────────
+# The MoD occasionally reports a whole window under this umbrella term instead
+# of naming UAVs. It first appeared in msg 66758 (night of 25 Aug 2026), where
+# the old parser dropped the post entirely and the day silently lost its
+# overnight window (39 stored where the day was really ~187).
+AIR_TARGET_66758 = (
+    "⚡️ В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "
+    "148 воздушных целей над территориями Белгородской, Брянской, Воронежской, "
+    "Курской, Липецкой, Ростовской областей, Краснодарского края, Республики Крым "
+    "и над акваториями Азовского и Черного морей."
+)
+
+
+class TestAirTargetUnit:
+    def test_air_target_headline_parsed_and_tagged(self):
+        # msg 66758 — parses, and is tagged so the count is never mistaken for
+        # a UAV-only one downstream.
+        r = _parse(AIR_TARGET_66758, mid=66758, posted_utc="2026-08-25T05:31:00+00:00")
+        assert r is not None
+        assert r.drones == 148
+        assert r.unit == "air_target"
+        assert r.window_kind == "night"
+        assert r.report_date == "2026-08-25"
+
+    def test_air_target_verb_first_with_ukrainian_qualifier(self):
+        # The umbrella wording usually drops "украинских", but must still parse
+        # if the MoD keeps it.
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "
+            "17 украинских воздушных целей над территориями Курской области.",
+            mid=2, posted_utc="2026-08-25T05:31:00+00:00")
+        assert r is not None and r.drones == 17 and r.unit == "air_target"
+
+    def test_air_target_noun_first(self):
+        r = _parse(
+            "В течение дня с 8.00 до 20.00 мск 12 воздушных целей перехвачены и уничтожены "
+            "дежурными средствами ПВО над территориями Брянской области.",
+            mid=3, posted_utc="2026-08-25T17:26:00+00:00")
+        assert r is not None and r.drones == 12 and r.unit == "air_target"
+
+    def test_uav_report_stays_tagged_uav(self):
+        # The overwhelmingly common wording must be untouched by the fallback.
+        r = _parse(
+            "В течение дня с 8.00 до 20.00 мск дежурными средствами ПВО перехвачены и "
+            "уничтожены 39 украинских беспилотных летательных аппаратов самолетного типа "
+            "над территориями Белгородской области.",
+            mid=66770, posted_utc="2026-08-25T17:26:11+00:00")
+        assert r is not None and r.drones == 39 and r.unit == "uav"
+
+    def test_uav_wording_wins_when_both_appear(self):
+        # A post naming UAVs must never be re-read through the air-target
+        # fallback — the UAV count is the specific one.
+        r = _parse(
+            "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "
+            "200 украинских беспилотных летательных аппаратов самолетного типа, а также "
+            "5 воздушных целей над территориями Белгородской области.",
+            mid=4, posted_utc="2026-08-25T05:31:00+00:00")
+        assert r is not None and r.drones == 200 and r.unit == "uav"
+
+    def test_svodka_air_target_line_is_not_an_ad_report(self):
+        # A Сводка recapping the day's ПВО work satisfies AD_GATE, so the new
+        # umbrella wording must not give it a second way past the summary gate:
+        # the Сводка check runs before either unit is extracted.
+        text = (
+            "Сводка Министерства обороны Российской Федерации о ходе проведения "
+            "специальной военной операции. Средствами ПВО перехвачены и уничтожены "
+            "18 воздушных целей."
+        )
+        assert ig.AD_GATE.search(text)          # would otherwise look like an AD post
+        assert _parse(text) is None
+
+    def test_stored_with_unit_and_surfaced_in_daily_view(self, tmp_path, capsys):
+        import sqlite3
+        db = tmp_path / "ad.db"
+        night = _parse(AIR_TARGET_66758, mid=66758, posted_utc="2026-08-25T05:31:00+00:00")
+        day = _parse(
+            "В течение дня с 8.00 до 20.00 мск дежурными средствами ПВО перехвачены и "
+            "уничтожены 39 украинских беспилотных летательных аппаратов самолетного типа "
+            "над территориями Белгородской области.",
+            mid=66770, posted_utc="2026-08-25T17:26:11+00:00")
+        ig.store(db, [night, day])
+        # The run log names it — a wording shift that changes what the series
+        # counts must not land silently.
+        assert "воздушные цели" in capsys.readouterr().err
+
+        conn = sqlite3.connect(db)
+        row = conn.execute(
+            "SELECT drones_destroyed, reports, air_target_drones FROM daily_ad "
+            "WHERE date='2026-08-25'").fetchone()
+        units = dict(conn.execute("SELECT post_id, unit FROM ad_latest"))
+        conn.close()
+        assert row == (187, 2, 148)        # day total includes it, but it's isolable
+        assert units == {66758: "air_target", 66770: "uav"}
+
+
+# ── gap warning: whole-day AND half-day (one reporting window missing) ────────
+class TestGapWarning:
+    def _night(self, mid: int):
+        # Overnight window 24→25 Aug, i.e. report_date 2026-08-25.
+        return _parse(
+            "В период с 20.00 мск 24 августа до 7.00 мск 25 августа дежурными средствами ПВО "
+            "перехвачены и уничтожены 100 украинских беспилотных летательных аппаратов "
+            "над территориями Курской области.",
+            mid=mid, posted_utc="2026-08-25T05:31:00+00:00")
+
+    def _day_report(self, mid: int):
+        return _parse(
+            "В течение дня с 8.00 до 20.00 мск дежурными средствами ПВО перехвачены и "
+            "уничтожены 39 украинских беспилотных летательных аппаратов самолетного типа "
+            "над территориями Белгородской области.",
+            mid=mid, posted_utc="2026-08-25T17:26:11+00:00")
+
+    def test_day_missing_its_overnight_window_is_flagged(self, tmp_path, capsys):
+        # The 25 Aug shape: a daytime report stored, the overnight one missing.
+        # The date HAS a row, so the old whole-day check saw nothing wrong.
+        db = tmp_path / "ad.db"
+        ig.store(db, [self._day_report(66770)])
+        capsys.readouterr()
+        ig._warn_gap_days(db, "2026-08-25", "2026-08-25")
+        out = capsys.readouterr().out
+        assert "missing one of the two reporting windows" in out
+        assert "2026-08-25 (no overnight report)" in out
+
+    def test_day_missing_its_daytime_window_is_flagged(self, tmp_path, capsys):
+        db = tmp_path / "ad.db"
+        ig.store(db, [self._night(66758)])
+        capsys.readouterr()
+        ig._warn_gap_days(db, "2026-08-25", "2026-08-25")
+        assert "2026-08-25 (no daytime report)" in capsys.readouterr().out
+
+    def test_complete_day_is_not_flagged(self, tmp_path, capsys):
+        db = tmp_path / "ad.db"
+        ig.store(db, [self._night(66758), self._day_report(66770)])
+        capsys.readouterr()
+        ig._warn_gap_days(db, "2026-08-25", "2026-08-25")
+        assert capsys.readouterr().out == ""
+
+    def test_marked_silent_window_stops_reflagging(self, tmp_path, capsys):
+        # 27 Jun / 17 Jul shape: verified MoD silence for ONE window only.
+        db = tmp_path / "ad.db"
+        ig.store(db, [self._night(66758)])
+        ig.mark_silent_day(db, "2026-08-25", "no daytime AD post", window_kind="day")
+        capsys.readouterr()
+        ig._warn_gap_days(db, "2026-08-25", "2026-08-25")
+        assert capsys.readouterr().out == ""
+
+    def test_marking_a_window_that_has_a_report_is_refused(self, tmp_path):
+        import pytest
+        db = tmp_path / "ad.db"
+        ig.store(db, [self._night(66758)])
+        # The night window IS reported — marking it silent would overwrite fact.
+        with pytest.raises(SystemExit):
+            ig.mark_silent_day(db, "2026-08-25", "wrong", window_kind="night")
+        # …but the unreported daytime window can be marked.
+        ig.mark_silent_day(db, "2026-08-25", "no daytime AD post", window_kind="day")
+
+    def test_whole_day_gap_still_flagged(self, tmp_path, capsys):
+        db = tmp_path / "ad.db"
+        ig.store(db, [self._day_report(66770)])
+        capsys.readouterr()
+        ig._warn_gap_days(db, "2026-08-23", "2026-08-25")
+        out = capsys.readouterr().out
+        assert "with no AD report in DB" in out
+        assert "2026-08-23, 2026-08-24" in out

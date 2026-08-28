@@ -438,12 +438,17 @@ export type RuAdDailyRow = {
   overlap_total: number;
   overlap_night: number;
   overlap_day: number;
-  // Newline-joined "HH:MM→HH:MM: <ad_reports.notes>" lines for each flagged
-  // report. Null when nothing on this day/series is flagged. The chart renders
-  // each line verbatim so the reader knows exactly which window(s) overlap.
-  overlap_note_total: string | null;
-  overlap_note_night: string | null;
-  overlap_note_day: string | null;
+  // Part of `total` that came from a report the MoD phrased as «воздушных целей»
+  // (air targets — a superset of UAVs that can include missiles), so it isn't a
+  // pure drone count. 0 on a normal day; see ad_reports.unit / scripts/ru_mod.
+  air_target_drones: number;
+  // Newline-joined "HH:MM→HH:MM: <caveat>" lines for each flagged report —
+  // overlap notes and air-target wording alike. Null when nothing on this
+  // day/series is flagged. The chart renders each line verbatim so the reader
+  // knows exactly which window(s) carry the caveat.
+  caveat_note_total: string | null;
+  caveat_note_night: string | null;
+  caveat_note_day: string | null;
 };
 
 export type RuAdGlobalStats = { total: RuAdStat; night: RuAdStat; day: RuAdStat };
@@ -459,6 +464,10 @@ export type RuAdMonthlyRow = {
   // count of reports in the month flagged with an overlap caveat (possible
   // double-count) — see ad_reports.notes / scripts/ru_mod.
   overlap_reports: number;
+  // count of reports in the month phrased as «воздушных целей» (air targets,
+  // not a pure drone count) and the drones they contributed — see ad_reports.unit.
+  air_target_reports: number;
+  air_target_drones: number;
 } & Partial<Record<"total_projected" | "night_projected" | "day_projected", number>>;
 
 // ─── SBU Alfa (ssu.gov.ua monthly recap → sbu-alfa.db) ─────────────────────────
