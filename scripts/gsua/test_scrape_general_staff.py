@@ -1860,6 +1860,129 @@ class TestDirections:
 
 
 # ---------------------------------------------------------------------------
+# "N of M" — one sentence carrying both the total and the part still running
+# ---------------------------------------------------------------------------
+
+class TestOfConstructions:
+    def _dir(self, body, name, mid=15376, date="2024-06-12"):
+        text = _wrap_evening(body)
+        dirs = gs.parse_directions(text, _msg(text, mid=mid), date)
+        return next(d for d in dirs if d.direction == name)
+
+    def test_total_first(self):
+        # msg 15376 (2024-06-12): "З 31 атаки ворога 12 іще тривають" — the
+        # ongoing regex read the number nearest the front and stored 31 as both
+        # the total AND the ongoing count.
+        d = self._dir(
+            "Досі найгарячіше на Покровському напрямку. З 31 атаки ворога 12 "
+            "іще тривають.",
+            "Pokrovsk",
+        )
+        assert (d.attacks, d.ongoing) == (31, 12)
+
+    def test_ongoing_first(self):
+        # msg 35367: "Дві з трьох атак тривають" — same two figures, opposite
+        # order, and the preposition is what tells them apart.
+        d = self._dir(
+            "На Слов’янському напрямку окупанти намагалися просунутися у бік "
+            "Ямполя. Дві з трьох атак тривають.",
+            "Sloviansk", mid=35367, date="2026-02-24",
+        )
+        assert (d.attacks, d.ongoing) == (3, 2)
+
+    def test_leading_figure_is_the_repelled_part_when_a_repel_verb_follows(self):
+        # msg 29107: "П’ять із шести атак ВІДБИЛИ …, триває ще одне
+        # боєзіткнення" — five repelled of six, one still running. Reading the
+        # leading figure as ongoing would give 5.
+        d = self._dir(
+            "На Куп’янському напрямку агресор проводив наступальні дії в бік "
+            "Куп’янська. П’ять із шести атак відбили українські воїни, триває "
+            "ще одне бойове зіткнення.",
+            "Kupiansk", mid=29107, date="2025-09-17",
+        )
+        assert (d.attacks, d.ongoing) == (6, 1)
+
+    def test_repelled_shape_without_a_figure_does_not_infer_the_remainder(self):
+        # msg 19383: "Дві з восьми атак … відбито – тривають бої" states that
+        # fighting continues but never says how much of it. The total is a
+        # fact; six would be an inference.
+        d = self._dir(
+            "На Сіверському напрямку ворог атакує райони населених пунктів "
+            "Білогорівка та Сіверськ. Дві з восьми атак супротивника відбито "
+            "– тривають бої.",
+            "Siversk", mid=19383, date="2024-12-17",
+        )
+        assert (d.attacks, d.ongoing) == (8, None)
+
+    def test_of_these_gives_the_ongoing_without_a_total(self):
+        # msg 37563: "Одна з цих атак – триває" — the total is a back-reference
+        # to the count already stated, so only `ongoing` comes from it.
+        d = self._dir(
+            "На Краматорському напрямку окупанти шість разів атакували в бік "
+            "Никифорівки. Одна з цих атак – триває.",
+            "Kramatorsk", mid=37563, date="2026-04-21",
+        )
+        assert (d.attacks, d.ongoing) == (6, 1)
+
+    def test_of_these_with_the_verb_first(self):
+        # msg 15447: "Наразі тривають дев’ять з них" — same back-reference, the
+        # other word order. It had been reading a neighbour's 3.
+        d = self._dir(
+            "На Покровському напрямку 29 разів за сьогодні відбувалися "
+            "боєзіткнення різної інтенсивності. Наразі тривають дев’ять з них, "
+            "а саме в районах Сокола та Невельського.",
+            "Pokrovsk", mid=15447, date="2024-06-15",
+        )
+        assert (d.attacks, d.ongoing) == (29, 9)
+
+    def test_paragraphs_own_closing_sentence_survives_a_missing_period(self):
+        # msg 25063: "Чотири боєзіткнення досі тривають" ends the paragraph
+        # with no full stop. The forward window is cut at the LINE break for
+        # exactly this reason — cutting at the last period would drop it.
+        d = self._dir(
+            "На Куп’янському напрямку ворог п’ять разів атакував у районах "
+            "Піщаного та Зеленого Гаю. Чотири боєзіткнення досі тривають\n"
+            "На Лиманському напрямку за день загарбницька армія здійснила "
+            "десять атак.",
+            "Kupiansk", mid=25063, date="2025-06-02",
+        )
+        assert (d.attacks, d.ongoing) == (5, 4)
+
+    def test_a_word_is_not_a_figure(self):
+        # The slots sit at a lazy distance from their anchor, so a permissive
+        # token grabs the first word it reaches — "З 31 атаки ВОРОГА 12 іще
+        # тривають" captured "ворога" as the ongoing count.
+        assert gs._of_construction("З 31 атаки ворога 12 іще тривають.") == (31, 12)
+
+    def test_previous_directions_dangling_clause_does_not_carry_over(self):
+        # msg 41976: Lyman's paragraph ends "Одна з цих атак - триває" with no
+        # full stop, so a window that reaches backwards would hand that 1 to
+        # Sloviansk.
+        d = self._dir(
+            "На Лиманському напрямку ворог атакував у бік Лиману. "
+            "Одна з цих атак - триває\n"
+            "На Слов’янському напрямку Сили оборони зупинили вісім спроб "
+            "загарбників йти вперед у районі Кривої Луки. Триває бій.",
+            "Sloviansk", mid=41976, date="2026-08-21",
+        )
+        assert (d.attacks, d.ongoing) == (8, None)
+
+    def test_inverted_word_order_belongs_to_its_own_direction(self):
+        # msg 15006: "10 з 25 боїв ще тривають на Покровському напрямку" puts
+        # the figures BEFORE the direction, so a window running forward to the
+        # next anchor would leave them with the previous one — Kramatorsk came
+        # out with six attacks and ten of them ongoing.
+        body = (
+            "На Краматорському напрямку від початку доби противник шість разів "
+            "намагався покращити своє тактичне положення. По Дружківці "
+            "терористи скинули одну КАБ.\n"
+            "10 з 25 боїв ще тривають на Покровському напрямку."
+        )
+        kram = self._dir(body, "Kramatorsk", mid=15006, date="2024-05-28")
+        assert (kram.attacks, kram.ongoing) == (6, None)
+
+
+# ---------------------------------------------------------------------------
 # "respectively" anchors — one figure PER direction, not one shared total
 # ---------------------------------------------------------------------------
 

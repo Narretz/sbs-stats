@@ -905,6 +905,106 @@ UA_NUM = {
     "дев'яносто": 90, "сто": 100,
 }
 
+# "N of M" constructions, where one sentence carries BOTH the direction's
+# total and the part of it still in progress. The ongoing regex further down
+# reads a number that sits before "трива", which in these sentences is the
+# wrong one — msg 15376 stored Pokrovsk ongoing=31 for "З 31 атаки ворога 12
+# іще тривають", i.e. the total, not the twelve still running.
+#
+# Three shapes, and the preposition tells them apart:
+#   А. "З 31 атаки ворога 12 іще тривають"      → total 31, ongoing 12
+#   B. "Дві з трьох атак тривають"              → total 3,  ongoing 2
+#   C. "Шість із семи атак ВІДБИЛИ …, триває ще одне боєзіткнення"
+#                                               → total 7,  ongoing 1
+# C is B with a repel verb in the middle: the leading figure is then the part
+# already repelled, and the ongoing count is whatever follows "триває ще".
+# A real number token — digits or a known Ukrainian number word — NOT "any
+# word". The slots here sit at a lazy distance from their anchor, so a
+# permissive token matches the first word it reaches: "З 31 атаки ворога 12 іще
+# тривають" captured "ворога" as the ongoing figure. Apostrophes in the number
+# words are matched in all three variants the channel uses.
+_NUM_WORDS_ALT = "|".join(
+    re.escape(w).replace("'", "['ʼ’]")
+    for w in sorted(UA_NUM, key=len, reverse=True)
+)
+_NUM_ANY = r"(?:\d[\d\s]*\d|\d|" + _NUM_WORDS_ALT + r")"
+_OF_NOUN = r"(?:атак|штурм|спроб|боєзіткнен|зіткнен|бо[ії]в)\w*"
+
+# B/C: <n> з <n> <noun> … трива
+_OF_LEADING = re.compile(
+    r"\b(" + _NUM_ANY + r")\s+і?з\s+(" + _NUM_ANY + r")\s+" + _OF_NOUN
+    + r"([^.;]{0,40}?)трива",
+    re.IGNORECASE | re.UNICODE,
+)
+# А: з <n> <noun> … <n> … трива, with no figure before the preposition
+_OF_TRAILING = re.compile(
+    r"(?<![\w’ʼ'])[Зз]\s+(" + _NUM_ANY + r")\s+" + _OF_NOUN
+    + r"[^.;]{0,40}?\b(" + _NUM_ANY + r")\b[^.;]{0,20}?трива",
+    re.IGNORECASE | re.UNICODE,
+)
+# C's tail, and the standalone "…, триває ще два боєзіткнення"
+# The optional word absorbs an adjective in the noun phrase: the channel
+# writes both "триває ще два боєзіткнення" and "триває ще одне БОЙОВЕ зіткнення".
+_ONGOING_AFTER = re.compile(
+    r"трива\w*\s+(?:ще\s+)?(" + _NUM_ANY + r")\s+(?:[\w'ʼ’]+\s+)?" + _OF_NOUN,
+    re.IGNORECASE | re.UNICODE,
+)
+# "Одна з цих спроб триває" / "Наразі тривають дев’ять з них" — the total is a
+# back-reference to a figure already stated, so only the ongoing count is here.
+# Both word orders, because the channel writes the verb on either side.
+_OF_THESE = re.compile(
+    r"\b(" + _NUM_ANY + r")\s+і?з\s+(?:цих|тих|них|цієї|яких)\s+" + _OF_NOUN
+    + r"[^.;]{0,30}?трива"
+    r"|трива\w*\s+(?:ще\s+)?(" + _NUM_ANY + r")\s+і?з\s+(?:цих|тих|них|яких)",
+    re.IGNORECASE | re.UNICODE,
+)
+_REPELLED = re.compile(r"відбил|відбито|відбив|зупинил", re.IGNORECASE | re.UNICODE)
+
+
+def _of_construction(sentence: str) -> tuple[int | None, int | None]:
+    """(total, ongoing) from an "N of M" sentence; (None, None) if it isn't one.
+
+    Either element can be None on its own — "Одна з цих спроб триває" states
+    the ongoing count against a total the reader is expected to carry over
+    from the previous sentence.
+    """
+    m = _OF_THESE.search(sentence)
+    if m:
+        return None, _to_num(m.group(1) or m.group(2))
+
+    m = _OF_LEADING.search(sentence)
+    if m:
+        lead, total, middle = m.group(1), m.group(2), m.group(3)
+        lead_n = _to_num(lead)
+        total_n = _to_num(total)
+        if lead_n is None or total_n is None:
+            return None, None
+        if _REPELLED.search(middle):
+            # Shape C: the leading figure is the part already repelled, so the
+            # ongoing count is whatever follows "трива". When the report only
+            # says fighting continues without a figure ("Дві з восьми атак
+            # відбито – тривають бої"), ongoing stays None: the remainder is an
+            # inference, and the total is the fact.
+            after = _ONGOING_AFTER.search(sentence)
+            return total_n, (_to_num(after.group(1)) if after else None)
+        return total_n, lead_n
+
+    m = _OF_TRAILING.search(sentence)
+    if m:
+        total_n, ongoing_n = _to_num(m.group(1)), _to_num(m.group(2))
+        if total_n is not None and ongoing_n is not None:
+            return total_n, ongoing_n
+    return None, None
+
+
+def _to_num(token: str) -> int | None:
+    """A digit run or a Ukrainian number word → int; None for anything else."""
+    token = token.strip()
+    if re.fullmatch(r"\d[\d\s]*\d|\d", token):
+        return int(re.sub(r"\s", "", token))
+    return _ua_word_to_num(token)
+
+
 def _extract_report_date(text: str, msg_date: datetime) -> str:
     """Fallback date extraction for posts without a parseable 'станом на' header."""
     # Pattern: "за 6 травня" — already states the content day, no shift.
@@ -1402,12 +1502,53 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
                 if total is not None:
                     attacks = total
 
+        # "N of M" first: one sentence carrying both figures, where the plain
+        # ongoing patterns below would read whichever number comes first.
+        #
+        # Read FORWARD from the anchor rather than from `count_start`. The
+        # backward extension exists to catch a leading count ("П'ять штурмових
+        # дій … на Куп'янському напрямку"), but when upstream drops a period it
+        # also swallows the tail of the previous direction's paragraph — msg
+        # 41976 ends Lyman with "Одна з цих атак - триває" and no full stop,
+        # which would hand Sloviansk that 1. These constructions always follow
+        # the direction they belong to, so the forward window loses nothing.
+        # …and stop at the last LINE break before the next anchor, not at the
+        # anchor itself: the channel also inverts word order, putting the
+        # figures BEFORE the direction they belong to ("10 з 25 боїв ще
+        # тривають на Покровському напрямку"). Cut at the anchor and that
+        # leading clause lands in the PREVIOUS direction's window, which is how
+        # Kramatorsk came out with six attacks and ten of them ongoing.
+        #
+        # The line break is the right boundary rather than the last period,
+        # because direction paragraphs are newline-delimited and an inverted
+        # clause always shares its line with the anchor it belongs to. Cutting
+        # at the last period instead drops a paragraph's own closing sentence
+        # whenever upstream omits its full stop — "Чотири боєзіткнення досі
+        # тривають" (msg 25063) and "ще одне боєзіткнення триває" (msg 32355)
+        # both end their paragraph without one.
+        forward_nl = text.rfind("\n", match.start(), end)
+        forward_end = forward_nl if forward_nl != -1 else end
+        forward_section = text[match.start():forward_end]
+        of_total, of_ongoing = (
+            (None, None) if no_activity else _of_construction(forward_section)
+        )
+        if of_total is not None and attacks is None:
+            attacks = of_total
+
         # Ongoing engagements: digit form or word form.
         if no_activity:
             ongoing = None
+        elif of_ongoing is not None:
+            ongoing = of_ongoing
         else:
+            # Same forward cap as the "N of M" window above, for the same
+            # reason: `count_section` runs to the next ANCHOR, so an inverted
+            # neighbour ("10 з 25 боїв ще тривають на Покровському напрямку")
+            # leaves its figures inside the PREVIOUS direction's window. The
+            # backward reach is kept — the ongoing clause is sometimes what
+            # opens the sentence ("Три боєзіткнення тривають на X напрямку").
             ongoing = _extract_count(
-                count_section,
+                text[count_start:forward_end],
                 r"(\d[\d\s]*\d|\d)\s*(?:зіткнен|бо[ії]в|боєзіткнен|атак|спроб)"
                 r"[\w\s]{0,30}трива",
                 r"(" + _NUMWORD + r")\s+(?:зіткнен|бо[ії]в|боєзіткнен|атак|спроб)\w*"
