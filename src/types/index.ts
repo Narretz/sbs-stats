@@ -218,11 +218,13 @@ export const DIRECTION_AXIS: Record<string, string> = {
   "N-Slobozhanshchyna": "Kursk",
 };
 
-// Display name for an axis whose composition changed. The key stays `Kursk` so
-// the series is continuous across the merge; the label names the sector as the
-// GS reports it now, which covers the pre-2025-06 rows under a slightly wider
-// name than they were filed under.
-export const DIRECTION_AXIS_LABEL: Record<string, string> = {
+// Display name for an axis while it IS a joint line. The key stays `Kursk` so
+// the series stays continuous across the merge, but the label is chosen per
+// window from the data (see `mergedAxes`): a window entirely before the merge
+// reads "Kursk", one entirely after reads the joint name, and one that spans
+// the changeover says so with the month it happened. Nothing here hardcodes
+// that date — it is read off the reports.
+export const DIRECTION_AXIS_JOINT_LABEL: Record<string, string> = {
   Kursk: "Kursk / Pn. Slobozhanshchyna",
 };
 
@@ -240,6 +242,11 @@ export interface GsuaDirectionCoverageRow {
   attributed: number;                      // SUM(byDirection)
   unattributed: number;                    // total - attributed, clamped to 0
   byDirection: Record<string, number>;     // AXIS → attacks (>0 only), see DIRECTION_AXIS
+  // Axes whose figure on THIS date came from a jointly-reported line — i.e. a
+  // direction was folded into them by DIRECTION_AXIS. Lets a chart name the
+  // axis for the window it is actually showing instead of assuming the
+  // composition it has today.
+  mergedAxes?: string[];
   is_today: boolean;
 }
 

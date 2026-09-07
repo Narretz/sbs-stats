@@ -6,7 +6,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
-import { DIRECTION_AXIS_LABEL } from "@/types";
+import { DIRECTION_AXIS_JOINT_LABEL } from "@/types";
 import type { GsuaDirectionCoverageRow } from "@/types";
 
 // Per-day stacked bar of combat engagements, broken down by direction with
@@ -72,9 +72,28 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
       .map(([name]) => name);
 
     // Stack order: biggest at bottom (stable base) → Unattributed on top.
+    // An axis whose composition changed is named for the window on screen.
+    // Showing only pre-merge buckets, it is the sector under its old name;
+    // only post-merge, the joint name; spanning the changeover, the joint name
+    // plus the month it happened, taken from the earliest merged bucket rather
+    // than a constant so it can't drift from the reports.
+    const axisLabel = (name: string): string => {
+      const joint = DIRECTION_AXIS_JOINT_LABEL[name];
+      if (!joint) return name;
+      const mergedDates = data
+        .filter((row) => row.mergedAxes?.includes(name))
+        .map((row) => row.date)
+        .sort();
+      if (mergedDates.length === 0) return name;
+      const present = data.filter((row) => row.byDirection[name] != null).length;
+      if (mergedDates.length >= present) return joint;
+      const [y, m] = mergedDates[0].slice(0, 7).split("-");
+      return `${joint} (from ${m}/${y})`;
+    };
+
     const stacks: Stack[] = sortedDirs.map((name, i) => ({
       key: name,
-      label: DIRECTION_AXIS_LABEL[name] ?? name,
+      label: axisLabel(name),
       color: DIRECTION_PALETTE[i % DIRECTION_PALETTE.length],
     }));
     stacks.push({ key: UNATTRIBUTED_KEY, label: "Unattributed", color: COLOR_UNATTRIBUTED });

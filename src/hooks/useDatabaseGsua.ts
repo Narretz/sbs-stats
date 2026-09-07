@@ -533,11 +533,15 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
         // pair land on the same key and re-add to the figure the report gave
         // (0.5 + 0.5 = 1). `attributed` is unaffected — folding two rows into
         // one changes which bucket the credit lands in, not how much there is.
-        const dir = r.direction == null ? null : directionAxis(String(r.direction));
+        const raw = r.direction == null ? null : String(r.direction);
+        const dir = raw == null ? null : directionAxis(raw);
         const attacks = typeof r.attacks === "number" ? r.attacks : 0;
         if (dir && attacks > 0) {
           row.byDirection[dir] = (row.byDirection[dir] ?? 0) + attacks;
           row.attributed += attacks;
+          // The fold happened on this date, so the line was joint here. Only
+          // the folded-away member trips this, so it records once per axis.
+          if (raw !== dir) (row.mergedAxes ??= []).push(dir);
         }
       }
       for (const row of byDate.values()) {
@@ -641,11 +645,15 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
         // pair land on the same key and re-add to the figure the report gave
         // (0.5 + 0.5 = 1). `attributed` is unaffected — folding two rows into
         // one changes which bucket the credit lands in, not how much there is.
-        const dir = r.direction == null ? null : directionAxis(String(r.direction));
+        const raw = r.direction == null ? null : String(r.direction);
+        const dir = raw == null ? null : directionAxis(raw);
         const attacks = typeof r.attacks === "number" ? r.attacks : 0;
         if (dir && attacks > 0) {
           row.byDirection[dir] = (row.byDirection[dir] ?? 0) + attacks;
           row.attributed += attacks;
+          // The fold happened on this date, so the line was joint here. Only
+          // the folded-away member trips this, so it records once per axis.
+          if (raw !== dir) (row.mergedAxes ??= []).push(dir);
         }
       }
       for (const row of byMonth.values()) {
