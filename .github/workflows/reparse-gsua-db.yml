@@ -39,6 +39,9 @@ jobs:
       R2_BUCKET: russia-ukraine-war
       GSUA_DB_NAME: ru-attacks-gsua.db
       SINCE: ${{ inputs.since }}
+      # Findings from every check in this job land here as JSONL; the last
+      # step turns them into annotations. See scripts/ingest_log.py.
+      INGEST_LOG: ${{ runner.temp }}/ingest.jsonl
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
@@ -122,3 +125,8 @@ jobs:
               --content-type application/vnd.sqlite3 \
               --remote
           done
+
+      # Always, so a run that dies still reports what it found on the way.
+      - name: Annotate ingest diagnostics
+        if: always()
+        run: python3 scripts/annotate_log.py

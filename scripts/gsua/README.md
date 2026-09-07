@@ -35,6 +35,10 @@ parser and one `upsert_report`, so rows are identical regardless of source;
   fallback (reads `@GeneralStaffUA` on X, resolves the `t.co`→Facebook share URL,
   Playwright-fetches the FB post body). Kept until the web-preview path is proven
   out; slated for removal.
+- **`check_db.py`** — whole-table data-quality checks, the ones `_sanity_check`
+  can't do because it sees one post at a time (currently: dates where exactly
+  one of `missile_strikes` / `missiles_used` is set). Run after a scrape with
+  `--since`; findings go through the shared diagnostics sink.
 - **`reparse.py`** — re-parses rows already in the DB **without** hitting any
   source, for after a parser change. Selectors: message ids, `--source`,
   `--null-combat`, `--since/--until`, `--all`, `--dry-run`. Rows that no longer
@@ -139,9 +143,13 @@ python scrape_general_staff.py --source web --since 2025-09-01 --until 2025-09-3
 
 Read the WARN lines — they surface NULL `combat_engagements` (usually a new
 wording variant), impossible values (`combat_engagements < max(direction.attacks)`),
-auto-corrected header typos, unmapped directions, and "unusual direction count"
+auto-corrected header typos, unmapped directions, "unusual direction count"
 (<~5 directions; usually a legitimate short midday update, sometimes a real
-parser miss). For each new variant: add a regex branch / stop-word /
+parser miss), and **"possible direction-count gap"** — a paragraph that reports
+an assault and contains a number no branch could read. That last one is the
+coverage check: every other warning here fires on a value that looks wrong,
+which is why the word-form direction counts stayed broken from 2024 to 2026
+(a quiet sector storing NULL looked like nothing at all). For each new variant: add a regex branch / stop-word /
 `DIRECTION_NAMES` entry, add a **regression test** keyed to the msg_id, commit,
 then re-parse in place (no re-scrape):
 

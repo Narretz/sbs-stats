@@ -44,6 +44,15 @@ from datetime import date, datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 
+# Shared diagnostics sink: stderr as before, plus a JSONL record per WARNING
+# when $INGEST_LOG is set, which scripts/annotate_log.py turns into GitHub
+# annotations. `scripts/` isn't a package and this runs with cwd set to its own
+# directory, so the parent has to go on sys.path explicitly.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from ingest_log import ann, get_logger  # noqa: E402
+
+log = get_logger("ru-mod")
+
 CHANNEL = os.environ.get("RU_MOD_CHANNEL", "mod_russia")
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_DB_NAME = os.environ.get("RU_MOD_DB_NAME", "ru-mod-ad.db")
@@ -1178,12 +1187,17 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
             run_pairs = [p for p in pairs if p[0] in inserted_ids or p[2] in inserted_ids]
             if run_pairs:
                 ids = ", ".join(f"{p[0]} (overlaps {p[2]})" for p in run_pairs)
-                print(f"WARNING: {len(run_pairs)} overlapping report window(s) in THIS run "
-                      f"— post {ids} — possible double-count, noted in ad_reports.notes. "
-                      f"({len(pairs)} total in DB.)", file=sys.stderr)
+                log.warning(
+                    f"{len(run_pairs)} overlapping report window(s) in THIS run "
+                    f"— post {ids} — possible double-count, noted in ad_reports.notes. "
+                    f"({len(pairs)} total in DB.)",
+                    extra=ann(title="ru-mod: overlapping report windows"),
+                )
             else:
-                print(f"note: {len(pairs)} pre-existing overlapping window(s) in DB; "
-                      f"none new this run. See ad_reports.notes.", file=sys.stderr)
+                log.info(
+                    f"{len(pairs)} pre-existing overlapping window(s) in DB; "
+                    f"none new this run. See ad_reports.notes."
+                )
 
         # Breakdown integrity: an itemized report whose per-region counts don't
         # sum to its total has a missed region line — flag it like overlaps.
@@ -1192,12 +1206,17 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
             run_m = [m for m in mismatches if m[0] in inserted_ids]
             if run_m:
                 detail = ", ".join(f"post {pid}: {bd}/{tot}" for pid, _sa, tot, bd in run_m)
-                print(f"WARNING: {len(run_m)} itemized report(s) this run whose per-region "
-                      f"counts don't sum to the total ({detail}) — likely a missed region "
-                      f"line. ({len(mismatches)} total in DB.)", file=sys.stderr)
+                log.warning(
+                    f"{len(run_m)} itemized report(s) this run whose per-region "
+                    f"counts don't sum to the total ({detail}) — likely a missed region "
+                    f"line. ({len(mismatches)} total in DB.)",
+                    extra=ann(title="ru-mod: per-region breakdown doesn't sum"),
+                )
             else:
-                print(f"note: {len(mismatches)} itemized report(s) in DB with an incomplete "
-                      f"per-region breakdown; none new this run.", file=sys.stderr)
+                log.info(
+                    f"{len(mismatches)} itemized report(s) in DB with an incomplete "
+                    f"per-region breakdown; none new this run."
+                )
 
         # Air-target reports: the count is NOT UAV-only, so surface it in the
         # run log — a wording shift that quietly changes what the series counts
@@ -1208,9 +1227,12 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
         run_air = [a for a in air if a[0] in inserted_ids]
         if run_air:
             detail = ", ".join(f"post {pid} ({d}): {n}" for pid, d, n in run_air)
-            print(f"WARNING: {len(run_air)} report(s) this run counted «воздушные цели» "
-                  f"(air targets — may include non-UAV kills) instead of UAVs ({detail}); "
-                  f"stored with unit='air_target'. ({len(air)} total in DB.)", file=sys.stderr)
+            log.warning(
+                f"{len(run_air)} report(s) this run counted «воздушные цели» "
+                f"(air targets — may include non-UAV kills) instead of UAVs ({detail}); "
+                f"stored with unit='air_target'. ({len(air)} total in DB.)",
+                extra=ann(title="ru-mod: report counts air targets, not UAVs"),
+            )
     finally:
         conn.close()
     return inserted, sum_inserted_by_kind, total, latest
@@ -1495,14 +1517,20 @@ def _warn_gap_days(out: Path, scan_min: str | None, scan_max: str | None) -> Non
         head = ", ".join(items[:10])
         return head + (f" (+{len(items) - 10} more)" if len(items) > 10 else "")
     if gaps:
-        print(f"WARNING: {len(gaps)} day(s) in [{scan_min}, {scan_max}] "
-              f"with no AD report in DB — verify with probe_gap.py, then mark "
-              f"confirmed-silent ones via --mark-silent: {_list(gaps)}")
+        log.warning(
+            f"{len(gaps)} day(s) in [{scan_min}, {scan_max}] "
+            f"with no AD report in DB — verify with probe_gap.py, then mark "
+            f"confirmed-silent ones via --mark-silent: {_list(gaps)}",
+            extra=ann(title="ru-mod: days with no AD report"),
+        )
     if partials:
-        print(f"WARNING: {len(partials)} day(s) in [{scan_min}, {scan_max}] missing one of "
-              f"the two reporting windows — the day is undercounted if the MoD did post one. "
-              f"Verify with probe_gap.py, then mark confirmed-silent windows via "
-              f"`--mark-silent <date> <note> --window night|day`: {_list(partials)}")
+        log.warning(
+            f"{len(partials)} day(s) in [{scan_min}, {scan_max}] missing one of "
+            f"the two reporting windows — the day is undercounted if the MoD did post one. "
+            f"Verify with probe_gap.py, then mark confirmed-silent windows via "
+            f"`--mark-silent <date> <note> --window night|day`: {_list(partials)}",
+            extra=ann(title="ru-mod: half-covered days"),
+        )
 
 
 def mark_silent_day(db_path: Path, report_date: str, note: str, window_kind: str = "all") -> None:

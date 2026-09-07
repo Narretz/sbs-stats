@@ -43,6 +43,9 @@ jobs:
       # re-ingest posts a parser fix now handles — a post the parser dropped is
       # never stored, so only a re-scrape can recover it.
       GSUA_LOOKBACK_DAYS: ${{ inputs.gsua_lookback_days || '2' }}
+      # Findings from every check in this job land here as JSONL; the last
+      # step turns them into annotations. See scripts/ingest_log.py.
+      INGEST_LOG: ${{ runner.temp }}/ingest.jsonl
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
@@ -91,46 +94,12 @@ jobs:
         working-directory: scripts/gsua
         run: python scrape_general_staff.py --source web --since "${{ steps.cutoff.outputs.since }}"
 
-      # Data-quality nudge: over the freshly scraped dates, emit a GitHub
-      # ::notice:: annotation (non-fatal; shown in the Annotations panel and
-      # readable via the Checks API) for any date where exactly one of
-      # {missile_strikes, missiles_used} is set. The two count different things
-      # (missile STRIKES vs missiles USED) and the GS often reports them
-      # independently, so this is informational — a prompt to eyeball, not an error.
-      - name: Notice missile-field asymmetry (recent dates)
-        env:
-          DB_PATH: scripts/gsua/output/${{ env.GSUA_DB_NAME }}
-          SINCE: ${{ steps.cutoff.outputs.since }}
-        run: |
-          python3 - <<'PY'
-          import os, sqlite3
-          db = sqlite3.connect(os.environ["DB_PATH"])
-          rows = db.execute(
-              """
-              WITH lp AS (
-                SELECT p.* FROM posts p
-                WHERE p.source = 'telegram' AND p.date >= ?
-                  AND NOT EXISTS (
-                    SELECT 1 FROM posts n
-                    WHERE n.source = p.source AND n.source_id = p.source_id
-                      AND n.scraped_at > p.scraped_at)
-              )
-              SELECT date, MAX(missile_strikes), MAX(missiles_used)
-              FROM lp GROUP BY date ORDER BY date
-              """,
-              (os.environ["SINCE"],),
-          ).fetchall()
-          f = "scripts/gsua/scrape_general_staff.py"
-          n = 0
-          for date, strikes, used in rows:
-              if (strikes is None) != (used is None):
-                  s = strikes if strikes is not None else "∅"
-                  u = used if used is not None else "∅"
-                  print(f"::notice file={f}::GSUA {date}: only one of the missile fields is set "
-                        f"(missile_strikes={s}, missiles_used={u}).")
-                  n += 1
-          print(f"Missile-field asymmetry: {len(rows)} date(s) since {os.environ['SINCE']}, {n} notice(s).")
-          PY
+      # Whole-table data-quality checks (the ones _sanity_check can't do,
+      # because it sees one post at a time). Lived here as inline SQL until the
+      # predicate got its own tested module — see scripts/gsua/check_db.py.
+      - name: Check GSUA DB (recent dates)
+        working-directory: scripts/gsua
+        run: python3 check_db.py --since "${{ steps.cutoff.outputs.since }}"
 
       # Strip the bulky `posts.text` column into a frontend-only copy
       # (~7 MB of UA-staff post text the FE never queries → DB shrinks ~3×).
@@ -156,6 +125,11 @@ jobs:
               --remote
           done
 
+      # Always, so a scrape that dies still reports what it found on the way.
+      - name: Annotate ingest diagnostics
+        if: always()
+        run: python3 scripts/annotate_log.py
+
   # ── RU MoD air-defense intercept reports → ru-mod-ad.db ─────────────────────
   rumod:
     runs-on: ubuntu-latest
@@ -168,6 +142,9 @@ jobs:
       # a parser fix now handles — a post the parser dropped is never stored, so
       # reparse.py can't recover it and only a re-scrape can.
       RU_MOD_LOOKBACK_DAYS: ${{ inputs.rumod_lookback_days || '2' }}
+      # Findings from every check in this job land here as JSONL; the last
+      # step turns them into annotations. See scripts/ingest_log.py.
+      INGEST_LOG: ${{ runner.temp }}/ingest.jsonl
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
@@ -247,3 +224,8 @@ jobs:
               --content-type application/vnd.sqlite3 \
               --remote
           done
+
+      # Always, so a scrape that dies still reports what it found on the way.
+      - name: Annotate ingest diagnostics
+        if: always()
+        run: python3 scripts/annotate_log.py

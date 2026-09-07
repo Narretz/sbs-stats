@@ -11,6 +11,7 @@ import logging
 from datetime import datetime
 from types import SimpleNamespace
 
+import check_db
 import scrape_general_staff as gs
 
 
@@ -1750,6 +1751,71 @@ class TestDirections:
 
 
 # ---------------------------------------------------------------------------
+# unparsed_count — the coverage flag behind the "possible direction-count gap"
+# warning. Every other sanity check fires on a value that looks wrong; this one
+# fires on a value that was never extracted at all.
+# ---------------------------------------------------------------------------
+
+class TestUnparsedCountFlag:
+    def _flagged(self, sentence, mid=42143, date="2026-09-06"):
+        text = _wrap_evening(sentence)
+        dirs = gs.parse_directions(text, _msg(text, mid=mid), date)
+        return {d.direction for d in dirs if d.unparsed_count}
+
+    def test_flags_a_number_no_branch_could_read(self):
+        # msg 35056 (2026-02-15): "противник атакував 21 раз" — a digit count
+        # with the singular "раз" and no verb after it. Nothing reads it today,
+        # so the row stores NULL and this is exactly what the flag is for.
+        assert self._flagged(
+            "На Олександрівському напрямку противник атакував 21 раз. "
+            "Намагався просунутися у бік Зеленого Гаю."
+        ) == {"Oleksandrivka"}
+
+    def test_does_not_flag_when_the_count_parsed(self):
+        assert self._flagged(
+            "На Олександрівському напрямку противник 21 раз атакував позиції "
+            "наших підрозділів."
+        ) == set()
+
+    def test_does_not_flag_a_paragraph_with_no_number(self):
+        # "відбито атаки" — assaults happened, the report never says how many.
+        # No parser change can fix that, so flagging it would be permanent noise.
+        assert self._flagged(
+            "На Времівському напрямку нашими захисниками відбито атаки в "
+            "районах населених пунктів Водяне та Урожайне."
+        ) == set()
+
+    def test_does_not_flag_a_no_activity_paragraph(self):
+        assert self._flagged(
+            "На Оріхівському напрямку ворог наступальних дій не проводив, "
+            "здійснив 12 обстрілів позицій наших військ."
+        ) == set()
+
+    def test_does_not_flag_a_negation_the_sentinel_misses(self):
+        # msg 42131 (2026-09-05): "атакувальних дій не проводили" isn't one of
+        # the no-activity sentinel's phrasings, so _NO_ASSAULT has to catch it.
+        assert self._flagged(
+            "На Придніпровському напрямку окупанти атакувальних дій не "
+            "проводили, зафіксовано 5 обстрілів."
+        ) == set()
+
+    def test_sanity_check_warns_once_naming_the_directions(self, caplog):
+        text = _wrap_evening(
+            "На Олександрівському напрямку противник атакував 21 раз."
+        )
+        msg = _msg(text, mid=35056)
+        summary = gs.parse_summary(text, msg)
+        dirs = gs.parse_directions(text, msg, summary.date)
+        with caplog.at_level(logging.WARNING, logger=gs.log.name):
+            gs._sanity_check(summary, dirs, text)
+        gaps = [r for r in caplog.records if "no attack count parsed" in r.message]
+        assert len(gaps) == 1
+        assert "Oleksandrivka" in gaps[0].message
+        # Carries an annotation title so annotate_log groups it in the UI.
+        assert gaps[0].ingest_ann["title"] == "gsua: possible direction-count gap"
+
+
+# ---------------------------------------------------------------------------
 # _ua_word_to_num — compound Ukrainian numbers
 # ---------------------------------------------------------------------------
 
@@ -1870,8 +1936,8 @@ class TestSanityCheck:
             notes=None,
         )
         directions = [
-            SimpleNamespace(direction="Kupiansk", attacks=13, ongoing=None),
-            SimpleNamespace(direction="Pokrovsk", attacks=8, ongoing=None),
+            gs.DirectionEntry(direction="Kupiansk", attacks=13, ongoing=None),
+            gs.DirectionEntry(direction="Pokrovsk", attacks=8, ongoing=None),
         ]
         with caplog.at_level(logging.WARNING, logger=gs.log.name):
             gs._sanity_check(summary, directions)
@@ -1902,7 +1968,7 @@ class TestSanityCheck:
             notes=None,
         )
         directions = [
-            SimpleNamespace(direction="Kupiansk", attacks=13, ongoing=None),
+            gs.DirectionEntry(direction="Kupiansk", attacks=13, ongoing=None),
         ]
         with caplog.at_level(logging.WARNING, logger=gs.log.name):
             gs._sanity_check(summary, directions, text)
@@ -1934,7 +2000,7 @@ class TestSanityCheck:
             notes=None,
         )
         directions = [
-            SimpleNamespace(direction="Toretsk", attacks=2, ongoing=None),
+            gs.DirectionEntry(direction="Toretsk", attacks=2, ongoing=None),
         ]
         with caplog.at_level(logging.WARNING, logger=gs.log.name):
             gs._sanity_check(summary, directions, text)
@@ -1952,8 +2018,8 @@ class TestSanityCheck:
             notes=None,
         )
         directions = [
-            SimpleNamespace(direction="Kupiansk", attacks=13, ongoing=None),
-            SimpleNamespace(direction="Pokrovsk", attacks=27, ongoing=None),
+            gs.DirectionEntry(direction="Kupiansk", attacks=13, ongoing=None),
+            gs.DirectionEntry(direction="Pokrovsk", attacks=27, ongoing=None),
         ]
         with caplog.at_level(logging.WARNING, logger=gs.log.name):
             gs._sanity_check(summary, directions)
@@ -2032,3 +2098,83 @@ class TestVersioning:
         conn.close()
         assert latest_attacks == 9
         assert total_dir_versions == 2        # one Pokrovsk row per version, both retained
+
+
+# ---------------------------------------------------------------------------
+# check_db — whole-table checks that outgrew _sanity_check (one post at a time)
+# ---------------------------------------------------------------------------
+
+class TestCheckDb:
+    def _db(self, tmp_path, rows):
+        """rows: (date, source_id, missile_strikes, missiles_used)"""
+        conn = gs.open_db(tmp_path / "g.db")
+        for date, sid, strikes, used in rows:
+            conn.execute(
+                "INSERT INTO posts (source, source_id, date, message_date, text, "
+                "url, missile_strikes, missiles_used, scraped_at) "
+                "VALUES ('telegram', ?, ?, ?, 'x', 'u', ?, ?, ?)",
+                (sid, date, f"{date}T22:00:00+00:00", strikes, used,
+                 f"{date}T23:00:00+00:00"),
+            )
+        conn.commit()
+        return conn
+
+    def _notices(self, caplog):
+        return [r for r in caplog.records
+                if "only one of the missile fields" in r.message]
+
+    def test_flags_a_date_with_one_field_set(self, tmp_path, caplog):
+        conn = self._db(tmp_path, [("2026-05-01", "1", 3, None)])
+        with caplog.at_level(logging.WARNING, logger=check_db.log.name):
+            assert check_db.check_missile_field_asymmetry(conn, "2026-01-01") == 1
+        conn.close()
+        rec = self._notices(caplog)[0]
+        assert "missile_strikes=3, missiles_used=∅" in rec.message
+        # Advisory, not a warning: the two fields legitimately differ, and a
+        # yellow annotation here would train people to ignore the panel.
+        assert rec.ingest_ann["level"] == "notice"
+
+    def test_ignores_a_date_with_both_or_neither(self, tmp_path, caplog):
+        conn = self._db(tmp_path, [
+            ("2026-05-01", "1", 3, 7),
+            ("2026-05-02", "2", None, None),
+        ])
+        with caplog.at_level(logging.WARNING, logger=check_db.log.name):
+            assert check_db.check_missile_field_asymmetry(conn, "2026-01-01") == 0
+        conn.close()
+        assert self._notices(caplog) == []
+
+    def test_merges_the_days_posts_before_judging(self, tmp_path, caplog):
+        # The midday report carries strikes, the evening one carries missiles.
+        # Per-post this looks like two half-filled reports; per DAY it's whole,
+        # which is why the check can't live in _sanity_check.
+        conn = self._db(tmp_path, [
+            ("2026-05-01", "1", 3, None),
+            ("2026-05-01", "2", None, 9),
+        ])
+        with caplog.at_level(logging.WARNING, logger=check_db.log.name):
+            assert check_db.check_missile_field_asymmetry(conn, "2026-01-01") == 0
+        conn.close()
+
+    def test_respects_since(self, tmp_path, caplog):
+        conn = self._db(tmp_path, [("2026-05-01", "1", 3, None)])
+        with caplog.at_level(logging.WARNING, logger=check_db.log.name):
+            assert check_db.check_missile_field_asymmetry(conn, "2026-06-01") == 0
+        conn.close()
+
+    def test_reads_the_latest_edit_version_only(self, tmp_path, caplog):
+        # An edit that filled the missing field must clear the notice.
+        conn = gs.open_db(tmp_path / "g.db")
+        for scraped, used in (("2026-05-01T23:00:00+00:00", None),
+                              ("2026-05-02T09:00:00+00:00", 9)):
+            conn.execute(
+                "INSERT INTO posts (source, source_id, date, message_date, text, "
+                "url, missile_strikes, missiles_used, scraped_at) "
+                "VALUES ('telegram', '1', '2026-05-01', '2026-05-01T22:00:00+00:00', "
+                "'x', 'u', 3, ?, ?)",
+                (used, scraped),
+            )
+        conn.commit()
+        with caplog.at_level(logging.WARNING, logger=check_db.log.name):
+            assert check_db.check_missile_field_asymmetry(conn, "2026-01-01") == 0
+        conn.close()

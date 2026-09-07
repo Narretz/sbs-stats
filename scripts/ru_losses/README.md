@@ -56,8 +56,9 @@ from the day before. We store two dates:
   date is new). Nothing is ever overwritten, so a later correction is captured as
   a fresh row that wins by having a newer `scraped_at`; a bad value can't clobber
   good stored data. The frontend reads the latest snapshot per date.
-- **Source-drift guard** (`check_drift`): warns (and emits a GitHub Actions
-  annotation in CI) if the source exposes a key we don't map or explicitly
+- **Source-drift guard** (`check_drift`): warns through the shared sink
+  (`scripts/ingest_log.py`, surfaced as a CI annotation by the workflow's
+  `annotate_log.py` step) if the source exposes a key we don't map or explicitly
   ignore — so the next new category can't slip in silently and quietly change the
   meaning of an existing column. This is how the GS would re-introduce, say, a
   separate naval-drone line.

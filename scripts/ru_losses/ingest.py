@@ -58,6 +58,16 @@ import urllib.request
 from datetime import date as date_cls, datetime, timedelta, timezone
 from pathlib import Path
 
+# Shared diagnostics sink: stderr as before, plus a JSONL record per WARNING
+# when $INGEST_LOG is set, which scripts/annotate_log.py turns into GitHub
+# annotations. Replaces the hand-rolled `::warning` prints this file used to
+# emit — same annotations, but deduped, capped and summarised with everything
+# else, and silent during local runs and tests.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from ingest_log import ann, get_logger  # noqa: E402
+
+log = get_logger("ru-losses")
+
 # Fetch by SHA-pinned raw URL rather than `/main/`: raw.githubusercontent.com
 # caches each URL at the edge, so the mutable `/main/` URL can serve yesterday's
 # body for ~5-15 minutes after a commit. The Contents API (which we tried in
@@ -210,9 +220,7 @@ def check_drift(equip: list[dict], personnel: list[dict]) -> list[str]:
             f"Add to EQUIP_MAP/PERSONNEL_MAP + METRICS here and RU_LOSSES_METRIC_KEYS "
             f"in src/types/index.ts, or extend KNOWN_SOURCE_KEYS if intentionally ignored."
         )
-        print(f"\n⚠️  SOURCE DRIFT: {msg}\n", file=sys.stderr)
-        if os.environ.get("GITHUB_ACTIONS") == "true":
-            print(f"::warning title=ru_losses source drift::{msg}")
+        log.warning(msg, extra=ann(title="ru-losses: source drift"))
     return unknown
 
 
@@ -269,9 +277,7 @@ def parse_rows(equip: list[dict], personnel: list[dict]) -> dict[str, dict]:
                     f"Likely upstream typo — verify and re-fetch once the upstream "
                     f"JSON is corrected."
                 )
-                print(f"\n⚠️  SUSPECT DROP: {msg}\n", file=sys.stderr)
-                if os.environ.get("GITHUB_ACTIONS") == "true":
-                    print(f"::warning title=ru_losses suspect drop::{msg}")
+                log.warning(msg, extra=ann(title="ru-losses: suspect drop"))
                 rec[m] = None
                 # Hold prev at the last good value so the next day's delta is
                 # taken against pre-typo reality, not the bogus low cum.

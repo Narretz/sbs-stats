@@ -7,9 +7,22 @@ night/day window attribution, and the storage/aggregation. Each case is keyed
 
 Run with: pytest -v test_ingest.py   (from scripts/ru_mod/)
 """
+import logging
 from datetime import datetime
 
 import ingest as ig
+
+
+def _warnings(caplog) -> str:
+    """The WARNING-level findings this run emitted.
+
+    Diagnostics moved from print() to the shared logger (scripts/ingest_log.py)
+    so CI can turn them into GitHub annotations, so the assertions read the log
+    rather than captured stdout/stderr.
+    """
+    return "\n".join(
+        r.message for r in caplog.records if r.levelno >= logging.WARNING
+    )
 
 
 def _parse(text: str, mid: int = 1, posted_utc: str = "2026-05-23T18:49:01+00:00"):
@@ -1215,7 +1228,7 @@ class TestStorage:
                        mid=2, posted_utc="2026-05-15T05:57:00+00:00")
         return evening, night
 
-    def test_breakdown_mismatch_detected(self, tmp_path, capsys):
+    def test_breakdown_mismatch_detected(self, tmp_path, caplog):
         # Total says 100 but only 50 is itemized → a missed/partial breakdown the
         # scraper should flag (run vs DB total), with the post id and the sums.
         import sqlite3
@@ -1227,25 +1240,27 @@ class TestStorage:
             mid=999, posted_utc="2026-03-09T05:00:00+00:00",
         )
         ig.store(db, [r])
-        msg = capsys.readouterr().err
+        msg = _warnings(caplog)
         assert "don't sum to the total" in msg and "post 999: 50/100" in msg
         conn = sqlite3.connect(db)
         m = ig._breakdown_mismatches(conn)
         conn.close()
         assert len(m) == 1 and (m[0][2], m[0][3]) == (100, 50)
 
-    def test_overlap_report_distinguishes_run_vs_total(self, tmp_path, capsys):
+    def test_overlap_report_distinguishes_run_vs_total(self, tmp_path, caplog):
         db = tmp_path / "ad.db"
         evening, night = self._overlapping_pair()
         # First run inserts both → the overlap is NEW this run, named with its ids.
         ig.store(db, [evening, night])
-        msg = capsys.readouterr().err
-        assert "THIS run" in msg and "post 2 (overlaps 1)" in msg
+        assert "THIS run" in _warnings(caplog)
+        assert "post 2 (overlaps 1)" in _warnings(caplog)
 
-        # Second run re-stores the same posts → nothing inserted → pre-existing only.
+        # Second run re-stores the same posts → nothing inserted → pre-existing
+        # only, which is an INFO note rather than a finding.
+        caplog.clear()
         ig.store(db, [evening, night])
-        msg = capsys.readouterr().err
-        assert "none new this run" in msg and "THIS run" not in msg
+        assert _warnings(caplog) == ""
+        assert any("none new this run" in r.message for r in caplog.records)
 
 
 # ── edit versioning: append a new row on change, never overwrite ──────────────
@@ -1364,7 +1379,7 @@ class TestAirTargetUnit:
         assert ig.AD_GATE.search(text)          # would otherwise look like an AD post
         assert _parse(text) is None
 
-    def test_stored_with_unit_and_surfaced_in_daily_view(self, tmp_path, capsys):
+    def test_stored_with_unit_and_surfaced_in_daily_view(self, tmp_path, caplog):
         import sqlite3
         db = tmp_path / "ad.db"
         night = _parse(AIR_TARGET_66758, mid=66758, posted_utc="2026-08-25T05:31:00+00:00")
@@ -1376,7 +1391,7 @@ class TestAirTargetUnit:
         ig.store(db, [night, day])
         # The run log names it — a wording shift that changes what the series
         # counts must not land silently.
-        assert "воздушные цели" in capsys.readouterr().err
+        assert "воздушные цели" in _warnings(caplog)
 
         conn = sqlite3.connect(db)
         row = conn.execute(
@@ -1405,39 +1420,39 @@ class TestGapWarning:
             "над территориями Белгородской области.",
             mid=mid, posted_utc="2026-08-25T17:26:11+00:00")
 
-    def test_day_missing_its_overnight_window_is_flagged(self, tmp_path, capsys):
+    def test_day_missing_its_overnight_window_is_flagged(self, tmp_path, caplog):
         # The 25 Aug shape: a daytime report stored, the overnight one missing.
         # The date HAS a row, so the old whole-day check saw nothing wrong.
         db = tmp_path / "ad.db"
         ig.store(db, [self._day_report(66770)])
-        capsys.readouterr()
+        caplog.clear()
         ig._warn_gap_days(db, "2026-08-25", "2026-08-25")
-        out = capsys.readouterr().out
+        out = _warnings(caplog)
         assert "missing one of the two reporting windows" in out
         assert "2026-08-25 (no overnight report)" in out
 
-    def test_day_missing_its_daytime_window_is_flagged(self, tmp_path, capsys):
+    def test_day_missing_its_daytime_window_is_flagged(self, tmp_path, caplog):
         db = tmp_path / "ad.db"
         ig.store(db, [self._night(66758)])
-        capsys.readouterr()
+        caplog.clear()
         ig._warn_gap_days(db, "2026-08-25", "2026-08-25")
-        assert "2026-08-25 (no daytime report)" in capsys.readouterr().out
+        assert "2026-08-25 (no daytime report)" in _warnings(caplog)
 
-    def test_complete_day_is_not_flagged(self, tmp_path, capsys):
+    def test_complete_day_is_not_flagged(self, tmp_path, caplog):
         db = tmp_path / "ad.db"
         ig.store(db, [self._night(66758), self._day_report(66770)])
-        capsys.readouterr()
+        caplog.clear()
         ig._warn_gap_days(db, "2026-08-25", "2026-08-25")
-        assert capsys.readouterr().out == ""
+        assert _warnings(caplog) == ""
 
-    def test_marked_silent_window_stops_reflagging(self, tmp_path, capsys):
+    def test_marked_silent_window_stops_reflagging(self, tmp_path, caplog):
         # 27 Jun / 17 Jul shape: verified MoD silence for ONE window only.
         db = tmp_path / "ad.db"
         ig.store(db, [self._night(66758)])
         ig.mark_silent_day(db, "2026-08-25", "no daytime AD post", window_kind="day")
-        capsys.readouterr()
+        caplog.clear()
         ig._warn_gap_days(db, "2026-08-25", "2026-08-25")
-        assert capsys.readouterr().out == ""
+        assert _warnings(caplog) == ""
 
     def test_marking_a_window_that_has_a_report_is_refused(self, tmp_path):
         import pytest
@@ -1449,11 +1464,11 @@ class TestGapWarning:
         # …but the unreported daytime window can be marked.
         ig.mark_silent_day(db, "2026-08-25", "no daytime AD post", window_kind="day")
 
-    def test_whole_day_gap_still_flagged(self, tmp_path, capsys):
+    def test_whole_day_gap_still_flagged(self, tmp_path, caplog):
         db = tmp_path / "ad.db"
         ig.store(db, [self._day_report(66770)])
-        capsys.readouterr()
+        caplog.clear()
         ig._warn_gap_days(db, "2026-08-23", "2026-08-25")
-        out = capsys.readouterr().out
+        out = _warnings(caplog)
         assert "with no AD report in DB" in out
         assert "2026-08-23, 2026-08-24" in out

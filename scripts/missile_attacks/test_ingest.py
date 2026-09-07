@@ -5,6 +5,7 @@ No network: everything goes through parse_rows() + build() on in-memory CSV text
 and a temp SQLite file. Covers the append-on-edit versioning, idempotent re-runs,
 the daily aggregate view, the header-drift guard, and the shrink guard.
 """
+import logging
 import sqlite3
 
 import pytest
@@ -236,7 +237,7 @@ def test_small_shrink_within_tolerance_warns(tmp_path, monkeypatch, capsys):
     assert "within tolerance" in capsys.readouterr().err
 
 
-def test_upstream_added_column_migrates_existing_db(tmp_path, capsys):
+def test_upstream_added_column_migrates_existing_db(tmp_path, caplog):
     """piterfm grew the header (`status_data`, Aug 2026) — an existing DB built
     from the old header must gain the column instead of blowing up on it."""
     _build(tmp_path, CSV_V1)
@@ -256,7 +257,7 @@ def test_upstream_added_column_migrates_existing_db(tmp_path, capsys):
     # Migration only: no values changed, so nothing is re-versioned.
     assert inserted == 0
     assert distinct == 3
-    assert "added column(s) ['status_data']" in capsys.readouterr().err
+    assert "added column(s) ['status_data']" in caplog.text
 
     conn = sqlite3.connect(tmp_path / "t.db")
     cols = {r[1] for r in conn.execute("PRAGMA table_info(missile_attacks)")}
@@ -387,56 +388,49 @@ class TestWithheldCounts:
 class TestHeaderGrowthAnnotation:
     # Same rows as CSV_V1 with one column appended — the shrink guard rejects a
     # download that drops keys, so header growth has to be tested on its own.
+    #
+    # The ingest used to hand-roll its own `::warning` line here, gated on
+    # GITHUB_ACTIONS. That moved to scripts/ingest_log.py + annotate_log.py, so
+    # what this class owns now is narrower and more useful: does the ingest
+    # RAISE the finding, with the right level, title and content. Whether a
+    # finding becomes an annotation, how it's escaped, and when it's suppressed
+    # are the annotator's problem, tested in scripts/test_ingest_log.py.
     CSV_GROWN = "\n".join(
         [CSV_V1.splitlines()[0] + ",status_data"]
         + [line + ("," if i else ",hidden")
            for i, line in enumerate(CSV_V1.splitlines()[1:])]
     )
 
-    def _grow(self, tmp_path, monkeypatch, capsys, **env):
+    def _grow(self, tmp_path, caplog):
         _build(tmp_path, CSV_V1)  # DB exists with the old header
-        for k, v in env.items():
-            monkeypatch.setenv(k, v)
-        capsys.readouterr()
-        _build(tmp_path, self.CSV_GROWN)
-        return capsys.readouterr()
+        caplog.clear()
+        with caplog.at_level(logging.WARNING, logger=ingest.log.name):
+            _build(tmp_path, self.CSV_GROWN)
+        return [r for r in caplog.records if r.levelno >= logging.WARNING]
 
-    def test_emits_a_workflow_warning_in_actions(self, tmp_path, monkeypatch, capsys):
-        out = self._grow(tmp_path, monkeypatch, capsys, GITHUB_ACTIONS="true")
-        line = next((l for l in out.out.splitlines() if l.startswith("::")), None)
-        assert line is not None, "no workflow command emitted"
-        assert line.startswith("::warning title=piterfm added a CSV column::")
-        assert "status_data" in line
-        # Workflow commands are parsed per line — a literal newline would
-        # truncate the annotation at the break.
-        assert "\n" not in line
+    def test_raises_a_finding_naming_the_column(self, tmp_path, caplog):
+        (rec,) = self._grow(tmp_path, caplog)
+        assert "status_data" in rec.message
+        # A new column can carry meaning the ingest doesn't know about, so the
+        # message has to say that migrating it isn't the same as understanding
+        # it — that's the whole reason this is surfaced at all.
+        assert "not the same as understanding it" in rec.message
 
-    def test_writes_a_job_summary_block(self, tmp_path, monkeypatch, capsys):
-        summary = tmp_path / "summary.md"
-        summary.write_text("")
-        self._grow(tmp_path, monkeypatch, capsys,
-                   GITHUB_ACTIONS="true", GITHUB_STEP_SUMMARY=str(summary))
-        text = summary.read_text()
-        assert "piterfm added a CSV column" in text
-        assert "status_data" in text
+    def test_finding_carries_a_grouping_title(self, tmp_path, caplog):
+        (rec,) = self._grow(tmp_path, caplog)
+        assert rec.ingest_ann["title"] == "missile-attacks: piterfm added a CSV column"
 
-    def test_silent_outside_actions(self, tmp_path, monkeypatch, capsys):
-        monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
-        out = self._grow(tmp_path, monkeypatch, capsys)
-        assert "::" not in out.out
-        assert "upstream header grew" in out.err  # the plain note still prints
-
-    def test_no_annotation_when_the_header_is_unchanged(self, tmp_path, monkeypatch, capsys):
+    def test_no_finding_when_the_header_is_unchanged(self, tmp_path, caplog):
         _build(tmp_path, CSV_V1)
-        monkeypatch.setenv("GITHUB_ACTIONS", "true")
-        capsys.readouterr()
-        _build(tmp_path, CSV_V1)
-        assert "::warning" not in capsys.readouterr().out
+        caplog.clear()
+        with caplog.at_level(logging.WARNING, logger=ingest.log.name):
+            _build(tmp_path, CSV_V1)
+        assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
 
-    def test_no_annotation_on_a_first_build(self, tmp_path, monkeypatch, capsys):
+    def test_no_finding_on_a_first_build(self, tmp_path, caplog):
         # A fresh DB gets every column from CREATE TABLE, so nothing is "added" —
         # a new dataset must not look like upstream drift.
-        monkeypatch.setenv("GITHUB_ACTIONS", "true")
-        capsys.readouterr()
-        _build(tmp_path, CSV_V1, name="fresh.db")
-        assert "::warning" not in capsys.readouterr().out
+        caplog.clear()
+        with caplog.at_level(logging.WARNING, logger=ingest.log.name):
+            _build(tmp_path, CSV_V1, name="fresh.db")
+        assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []

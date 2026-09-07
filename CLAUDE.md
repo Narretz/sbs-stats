@@ -110,6 +110,16 @@ bash scripts/setup_env.sh                 # npm + pip bootstrap for a fresh cont
   default paths run without them.
 - All dates are reconciled to **Kyiv** (GSUA/SBS) or **MSK** (RU MoD) local time —
   see the per-script date models. `scraped_at` is always UTC.
+- **Diagnostics go through `scripts/ingest_log.py`.** `get_logger("<dataset>")`
+  logs to stderr as usual and, when `$INGEST_LOG` is set (CI only), also
+  appends each WARNING to a JSONL sink; the job's last step runs
+  `scripts/annotate_log.py`, which dedupes, caps and turns them into GitHub
+  annotations plus a job-summary table. So a finding is raised once, at the
+  place that found it, and surfaces the same way for every dataset — never
+  hand-roll a `print("::warning …")`. Use `ann(title=…)` to group a finding in
+  the UI and `ann(level="notice")` for advisory ones. Checks that need the
+  whole table rather than one record live in a `check_db.py` next to the
+  ingest, not as inline SQL in the workflow.
 - All DBs under `data/` are gitignored and pulled from R2 (see
   `scripts/fetch_prod_dbs.sh`, which reads URLs from `.env.production`). In
   dev, `data/*.db` is served by a vite middleware directly from the project

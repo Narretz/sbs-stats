@@ -42,6 +42,7 @@ import sqlite3
 import asyncio
 import html
 import logging
+import sys
 import time
 import urllib.request
 from datetime import datetime, timezone, timedelta
@@ -95,11 +96,15 @@ OUTPUT_DIR = Path("output")
 DB_PATH = OUTPUT_DIR / os.environ.get("GSUA_DB_NAME", "ru-attacks-gsua.db")
 LOG_LEVEL = logging.INFO
 
-logging.basicConfig(
-    level=LOG_LEVEL,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
-log = logging.getLogger(__name__)
+# Shared diagnostics sink: same stderr output as before, plus a JSONL record
+# per WARNING when $INGEST_LOG is set, which scripts/annotate_log.py turns into
+# GitHub annotations after the run. `scripts/` isn't a package and these
+# scripts run with cwd set to their own directory, so the parent has to go on
+# sys.path explicitly.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from ingest_log import ann, get_logger  # noqa: E402
+
+log = get_logger("gsua", LOG_LEVEL)
 
 
 # ---------------------------------------------------------------------------
@@ -148,6 +153,10 @@ class DirectionEntry:
     ongoing: int | None = None
     attacks_group_size: int = 1
     attacks_group_id: int | None = None
+    # Diagnostic only — NOT persisted (the INSERT names its columns). True when
+    # the paragraph reports an assault but no branch could read a number out of
+    # it, i.e. a suspected parser gap. _sanity_check turns it into a WARNING.
+    unparsed_count: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -963,6 +972,30 @@ _SINGLE_ASSAULT = re.compile(
 )
 
 
+# Sentences that report the ABSENCE of assaults. Broader than the no-activity
+# sentinel inside parse_directions, which only has to be right about the couple
+# of phrasings that would otherwise let a neighbouring aggregate bleed in; this
+# one has to be right about every way the channel says "nothing happened here",
+# because a miss shows up as a false "parser gap" warning. Kept as a separate
+# constant for exactly that reason — the two have different jobs and different
+# costs of being wrong.
+# Any number, digit or Ukrainian word form. Built from UA_NUM so a word added
+# there is automatically recognised here.
+_HAS_NUMBER = re.compile(
+    r"\d|\b(?:" + "|".join(sorted(UA_NUM, key=len, reverse=True)) + r")\b",
+    re.IGNORECASE | re.UNICODE,
+)
+
+_NO_ASSAULT = re.compile(
+    r"не\s+(?:відзнач|проводив|проводили|проявляв|проявляли|намагав|намагали|"
+    r"виявл|фіксув|зафіксов|вів|вели|атакував|штурмував|здійснював|здійснювали|"
+    r"робив|робили|спостеріга)|"
+    r"(?:без|жодн\w+)\s+(?:штурмов|атак|наступальн|спроб)|"
+    r"минулося|не\s+було|активності\s+ворога\s+не|не\s+фіксувалося",
+    re.IGNORECASE | re.UNICODE,
+)
+
+
 def parse_directions(text: str, msg: Message, report_date: str) -> list[DirectionEntry]:
     """Extract per-direction engagement counts.
 
@@ -1268,6 +1301,25 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
             if (msg.id, dir_name) in seen:
                 continue
             anchor_names.append(dir_name)
+        # Suspected parser gap: no count came out, the paragraph isn't one of
+        # the "nothing happened" forms, and it does talk about assaults. This is
+        # the check that was missing for two years — every warning the pipeline
+        # emitted was about a count that looked WRONG, none about one that was
+        # never there, so quiet sectors could silently store NULL forever.
+        # The sentence must also CONTAIN a number, otherwise there is nothing to
+        # have missed: "нашими захисниками відбито атаки в районах …" reports
+        # assaults without ever stating how many, and no parser change can fix
+        # that. Requiring an unconsumed number is what separates "the channel
+        # phrased a count in a way we don't read yet" — actionable — from "the
+        # channel didn't give a count" — not.
+        unparsed = bool(
+            attacks is None
+            and not no_activity
+            and _ATTACK_CONTEXT.search(anchor_sentence)
+            and not _NO_ASSAULT.search(anchor_sentence)
+            and _HAS_NUMBER.search(anchor_sentence)
+        )
+
         group_size = len(anchor_names)
         group_id = i if group_size > 1 else None
         for dir_name in anchor_names:
@@ -1281,6 +1333,7 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
                 ongoing=ongoing,
                 attacks_group_size=group_size,
                 attacks_group_id=group_id,
+                unparsed_count=unparsed,
             ))
 
     return entries
@@ -1632,6 +1685,21 @@ def _sanity_check(
                 f"{prefix}: unmapped direction {d.direction!r} — "
                 f"add a stem to DIRECTION_NAMES"
             )
+
+    # Coverage, not correctness. Every other check here fires on a value that
+    # looks WRONG; this one fires on a value that was never extracted, which is
+    # how the per-direction word-form counts stayed broken from 2024 to 2026 —
+    # a quiet sector storing NULL produced no signal anywhere in the pipeline.
+    # `unparsed_count` is set by parse_directions, which has the anchor sentence
+    # in hand; see the comment there for what qualifies.
+    missed = [d.direction for d in directions if d.unparsed_count]
+    if missed:
+        log.warning(
+            f"{prefix}: no attack count parsed for {', '.join(sorted(set(missed)))} — "
+            f"the paragraph reports an assault and does contain a number, so this "
+            f"is probably a wording no branch reads yet",
+            extra=ann(title="gsua: possible direction-count gap"),
+        )
 
 
 def upsert_report(
