@@ -1,0 +1,85 @@
+name: Update Rubikon Database
+
+on:
+  workflow_dispatch: # allow manual trigger from GitHub UI
+    inputs:
+      pages:
+        description: >-
+          t.me/s preview pages to scan (~20 posts each ≈ 3 days of this
+          channel). Raise it to reach further back after a parser fix dropped a
+          recap — a dropped post is never stored, so only a re-scrape can
+          recover it. For the whole history use `--backfill` locally instead.
+        required: false
+        default: "3"
+  schedule:
+    # Rubikon posts the previous month's recap on the 3rd–4th (six known data
+    # points: five on the 3rd, one on the 4th). Run once a day on days 2–8 —
+    # 7 runs/mo, a couple of days of slack on either side. Each run fetches 3
+    # preview pages (~120 KB); negligible.
+    - cron: "0 8 2-8 * *"
+
+env:
+  R2_BUCKET: russia-ukraine-war
+  RUBIKON_DB_NAME: rubikon.db
+
+jobs:
+  update-rubikon-db:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # Pull the current DB so the incremental scrape knows the newest post it
+      # already stored, and so new rows land alongside the existing history.
+      # `continue-on-error` covers the first run before the object exists.
+      #
+      # NOTE: an empty DB means `since_id = 0`, so an incremental run scans only
+      # its `pages` window — it will NOT rebuild the history. The full series
+      # (from 2026-01) is seeded by a local `--backfill` run + one manual
+      # upload; see scripts/rubikon/README.md.
+      - name: Download current Rubikon DB from R2
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          mkdir -p data
+          npx --yes wrangler@4 r2 object get \
+            "$R2_BUCKET/$RUBIKON_DB_NAME" \
+            --file "data/$RUBIKON_DB_NAME" \
+            --remote
+
+      # ingest.py reads the public t.me/s web preview — no Telegram API
+      # account, no secrets, stdlib only. The channel's ~200 other posts a
+      # month (footage, recruiting, multi-month cumulative totals) fail the
+      # full-calendar-month gate and are skipped. A recap whose list gained a
+      # new label is still stored, with a WARNING naming the unclaimed line.
+      #
+      # `id:` + $GITHUB_OUTPUT: ingest.py writes `changed=true|false`, which
+      # the upload step reads to skip no-op runs. The recap publishes once a
+      # month and we poll 7×/mo, so ~6 of 7 runs would otherwise re-upload an
+      # unchanged DB and bust the CDN cache for zero benefit.
+      - name: Scrape new Rubikon monthly recaps
+        id: scrape
+        run: |
+          python3 scripts/rubikon/ingest.py \
+            --out "data/$RUBIKON_DB_NAME" \
+            --max-pages "${{ inputs.pages || '3' }}"
+
+      - name: Upload Rubikon DB to R2
+        if: steps.scrape.outputs.changed == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/$RUBIKON_DB_NAME" \
+            --file "data/$RUBIKON_DB_NAME" \
+            --content-type application/vnd.sqlite3 \
+            --remote
