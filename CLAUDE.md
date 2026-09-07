@@ -126,3 +126,13 @@ bash scripts/setup_env.sh                 # npm + pip bootstrap for a fresh cont
   root; in production the frontend reads from R2 via `VITE_*_DB_URL` env
   vars. Small DBs are fetched whole via sql.js; larger ones (GSUA attacks)
   are range-fetched via sql.js-httpvfs.
+- **GSUA and RU MoD publish two objects each**: the authoritative `<name>.db`
+  carrying the raw post text, and a stripped `<name>.app.db` (`posts.text` /
+  `raw_text` blanked, ~3-5x smaller) that the frontend reads — in production
+  *and* in dev, so local range-fetch behaviour matches the deployed site.
+  `fetch_prod_dbs.sh` downloads both; CI always uploads them together, built
+  from the same source, so they can't drift on R2. They drift **locally**:
+  a reparse or ingest rewrites `<name>.db` and leaves the app copy alone, so
+  dev keeps serving the old rows while the file they came from looks correct.
+  Rebuild it with `scripts/build_app_db.py` — not by re-running the fetch,
+  which would overwrite the reparse with R2's copy.

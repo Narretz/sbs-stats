@@ -15,7 +15,14 @@ import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshabl
 import { getKyivDateString } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 
-const DB_URL = import.meta.env.VITE_GSUA_DB_URL ?? `${import.meta.env.BASE_URL}data/ru-attacks-gsua.db`;
+// Dev default is the `.app.db` copy, the same object production reads: same
+// schema with `posts.text` blanked, ~3x smaller, and nothing here queries the
+// text. Pointing dev at the full DB instead made local range-fetches behave
+// unlike the deployed site. `scripts/fetch_prod_dbs.sh` downloads both copies;
+// after a LOCAL reparse rebuild this one with scripts/build_app_db.py, or dev
+// keeps serving the pre-reparse rows.
+const DB_URL =
+  import.meta.env.VITE_GSUA_DB_URL ?? `${import.meta.env.BASE_URL}data/ru-attacks-gsua.app.db`;
 const WORKER_URL = `${import.meta.env.BASE_URL}vendor/httpvfs/sqlite.worker.js`;
 const WASM_URL = `${import.meta.env.BASE_URL}vendor/httpvfs/sql-wasm.wasm`;
 

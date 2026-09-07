@@ -6,8 +6,10 @@ import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 
 // Tiny DB → fetch whole via sql.js, like the SBS / RU-losses loaders (no httpvfs).
+// Dev default is the `.app.db` copy for the same reason as GSUA — see
+// useDatabaseGsua.ts. These are the only two datasets with a stripped copy.
 const DB_URL =
-  import.meta.env.VITE_RU_MOD_DB_URL ?? `${import.meta.env.BASE_URL}data/ru-mod-ad.db`;
+  import.meta.env.VITE_RU_MOD_DB_URL ?? `${import.meta.env.BASE_URL}data/ru-mod-ad.app.db`;
 const loadDatabase = () => loadWholeDb(DB_URL, "RU air-defense");
 
 // Report dates are MSK (the MoD's timezone). MSK is UTC+3 year-round.
