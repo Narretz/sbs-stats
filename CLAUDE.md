@@ -81,6 +81,15 @@ refresh thresholds). The Kaggle / CSV / article-bundle pipelines (RU losses, UA
 losses, missile attacks, Mediazona) re-pull the whole source every run, so a
 fix takes effect on the next run with no input to widen.
 
+A widened lookback only helps for posts the parser **dropped**. When a fix
+changes how already-stored text is *read*, a re-scrape re-ingests identical
+text and changes nothing — the stored rows need re-parsing instead, which is
+its own manual workflow: `reparse-gsua-db.yml` (inputs `since` =
+`YYYY-MM-DD` or `all`, and `dry_run`, on by default). It pulls the DB from
+R2, runs `scripts/gsua/reparse.py` over it, and re-uploads the full and app
+copies. Kept separate from the scheduled scrape on purpose: different
+trigger, different blast radius.
+
 ## Common commands
 
 ```sh

@@ -1,0 +1,124 @@
+name: Reparse GSUA Database
+
+# Manual-only. Re-reads post text ALREADY stored in ru-attacks-gsua.db with the
+# current parser and rewrites the derived columns in place — no source fetch.
+#
+# This is the other half of the parser-fix loop, and it is deliberately NOT part
+# of update-telegram-web-dbs.yml: that workflow's job is to ingest new posts on a
+# schedule, this one rewrites history on demand. They differ in trigger, blast
+# radius, and failure mode, so they stay separate.
+#
+# Which one to run after a parser change:
+#   - the parser DROPPED posts (they were never stored)  → re-scrape:
+#     update-telegram-web-dbs.yml with a widened `gsua_lookback_days`
+#   - the parser MISREAD posts it stored                 → this workflow;
+#     a re-scrape re-ingests identical text and changes nothing
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: >-
+          Re-parse stored posts from this report date (YYYY-MM-DD), or "all"
+          for the whole history.
+        required: true
+        default: "all"
+      dry_run:
+        description: >-
+          Preview only: log the diff and skip the upload, leaving R2 untouched.
+          Uncheck to write. Default on — run it once to read the diff before
+          committing to it.
+        type: boolean
+        required: false
+        default: true
+
+jobs:
+  reparse:
+    runs-on: ubuntu-latest
+    env:
+      R2_BUCKET: russia-ukraine-war
+      GSUA_DB_NAME: ru-attacks-gsua.db
+      SINCE: ${{ inputs.since }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Validate `since`
+        run: |
+          if [ "$SINCE" != "all" ] && ! printf '%s' "$SINCE" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+            echo '::error::since must be YYYY-MM-DD or "all"' " (got: $SINCE)"
+            exit 1
+          fi
+
+      # NOTE: no continue-on-error — the full ~32 MB history lives only in R2.
+      # A failed download must abort, never fall through to an upload step that
+      # would overwrite the good object with a partial or empty DB.
+      - name: Download current GSUA DB from R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          mkdir -p scripts/gsua/output
+          npx --yes wrangler@4 r2 object get \
+            "$R2_BUCKET/$GSUA_DB_NAME" \
+            --file "scripts/gsua/output/$GSUA_DB_NAME" \
+            --remote
+
+      # reparse.py rewrites each row in place (a parser fix isn't a source edit,
+      # so it doesn't earn a new `scraped_at` version). Rows that no longer pass
+      # is_operational_report are DELETED — the count is surfaced below because
+      # an unexpected deletion is the one outcome worth aborting on.
+      - name: Re-parse stored posts
+        id: reparse
+        working-directory: scripts/gsua
+        run: |
+          if [ "$SINCE" = "all" ]; then
+            ARGS="--all"
+          else
+            ARGS="--since $SINCE"
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          echo "reparse.py $ARGS"
+          python reparse.py $ARGS 2>&1 | tee output/reparse.log
+          {
+            echo "### GSUA reparse (\`$ARGS\`)"
+            echo ""
+            echo "| outcome | rows |"
+            echo "| --- | --- |"
+            echo "| changed | $(grep '→' output/reparse.log | grep -vc 'gate rejects' || true) |"
+            echo "| unchanged | $(grep -c 'no changes' output/reparse.log || true) |"
+            echo "| deleted | $(grep -c 'gate rejects' output/reparse.log || true) |"
+            echo "| sanity warnings | $(grep -c 'WARNING' output/reparse.log || true) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Same app copy the scheduled workflow builds: `posts.text` blanked, ~3×
+      # smaller. The frontend's VITE_GSUA_DB_URL points at it, so it has to be
+      # rebuilt from the reparsed data or the site keeps serving the old values.
+      - name: Build app GSUA DB (strip raw text)
+        if: ${{ !inputs.dry_run }}
+        run: |
+          python3 scripts/build_app_db.py \
+            --in  "scripts/gsua/output/$GSUA_DB_NAME" \
+            --out "scripts/gsua/output/${GSUA_DB_NAME%.db}.app.db" \
+            --blank posts.text
+
+      - name: Upload GSUA DB to R2 (full + app)
+        if: ${{ !inputs.dry_run }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          for variant in "$GSUA_DB_NAME" "${GSUA_DB_NAME%.db}.app.db"; do
+            npx --yes wrangler@4 r2 object put \
+              "$R2_BUCKET/$variant" \
+              --file "scripts/gsua/output/$variant" \
+              --content-type application/vnd.sqlite3 \
+              --remote
+          done

@@ -150,6 +150,13 @@ python reparse.py --null-combat   # or: python reparse.py 28902 28942
 pytest -q
 ```
 
+That fixes the local DB only. To land the same fix in R2, dispatch the
+**`reparse-gsua-db.yml`** workflow (`since` = a date or `all`; `dry_run` is
+on by default — run it once to read the diff in the job summary, then again
+unchecked to write). It reparses the DB pulled from R2 and re-uploads both
+the full DB and the frontend's `.app.db` copy. Widening the scrape lookback
+does **not** do this: a re-scrape re-ingests identical text.
+
 When triaging many "unusual direction count" warnings, dispatch an `Explore`
 subagent — the per-msg work is read-only (compare bold headers against the
 `directions` table) and parallelises well. Tell it to bucket each as
