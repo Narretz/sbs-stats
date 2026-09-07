@@ -120,6 +120,16 @@ ones fall to a Title-case fallback and get a `_sanity_check` warning.
   (always at paragraph start, never mid-sentence after "На X напрямках").
 - **Apostrophe variants** (U+02BC ʼ, U+2019 ', ASCII ') and **en-dash in
   direction names** (U+2013) are normalised before lookup.
+- **Word-form direction counts move around the sentence** while digit counts
+  don't: the digit branch is position-free, but every word-form branch is
+  anchored to a verb or noun on one side of the number. So "атакував двічі",
+  "намагався покращити свої позиції один раз" and "одну марну спробу" all read
+  as NULL until a position-free word branch (gated on the sentence being about
+  assaults) and a futility-adjective branch were added (2026-09).
+- **Unnumbered singular assaults** ("здійснив атаку у бік Х", "зупинили спробу
+  просунутися") are counted as **1**. It's a floor — the report gives no
+  number — but far closer than NULL, which is reserved for "no activity" and
+  for paragraphs that report only strikes/shelling and no assault at all.
 
 ## Working loop: scrape backwards a month at a time
 

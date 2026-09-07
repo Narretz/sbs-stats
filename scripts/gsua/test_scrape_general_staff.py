@@ -1607,6 +1607,147 @@ class TestDirections:
         assert orikh.attacks is None
         assert prydn.attacks is None
 
+    # --- word-form counts the anchored branches miss -----------------------
+    # All four shapes below stored NULL before 2026-09: the position-free
+    # branch at the top of the chain only handles DIGITS, and every word-form
+    # branch is anchored to a verb or noun on one specific side of the number.
+
+    def test_futility_adjective_between_number_and_noun(self):
+        # msg 39778 (2026-06-10): "здійснив одну марну спробу" — the adjective
+        # splits number from noun, so the adjacency-based branches miss it.
+        text = _wrap_evening(
+            "На Придніпровському напрямку противник здійснив одну марну "
+            "спробу прорвати нашу оборону в районі острова Білогрудий."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-06-10")
+        assert next(d for d in dirs if d.direction == "Prydniprovske").attacks == 1
+
+    def test_futility_adjective_plural(self):
+        # msg 24949 (2025-05-30): "провів чотири безрезультатні атаки".
+        text = _wrap_evening(
+            "На Придніпровському напрямку ворог провів чотири безрезультатні "
+            "атаки, окрім того, некерованими авіаракетами вдарив по Миколаївці."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2025-05-30")
+        assert next(d for d in dirs if d.direction == "Prydniprovske").attacks == 4
+
+    def test_adverbial_number_after_verb(self):
+        # msg 42050 (2026-08-27): "противник атакував двічі" — the count
+        # FOLLOWS the verb and carries no noun, so nothing anchored matches.
+        text = _wrap_evening(
+            "На Північно-Слобожанському та Курському напрямках від початку "
+            "доби противник атакував двічі, здійснив 40 обстрілів позицій "
+            "наших військ і населених пунктів."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=42050), "2026-08-27")
+        assert next(d for d in dirs if d.direction == "Kursk").attacks == 2
+
+    def test_adverbial_number_before_conducting_verb(self):
+        # msg 42133 (2026-09-05): "двічі проводив штурмові дії" — `проводив`
+        # sits between the number and the noun.
+        text = _wrap_evening(
+            "На Олександрівському напрямку ворог двічі проводив штурмові "
+            "дії в бік Тернового та Зеленого Гаю."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=42133), "2026-09-05")
+        assert next(d for d in dirs if d.direction == "Oleksandrivka").attacks == 2
+
+    def test_adverbial_number_not_taken_from_a_strike_clause(self):
+        # The adverbial branch is position-free, so it is gated on the anchor
+        # sentence being about assaults at all. A "двічі" attached to an
+        # air-strike clause must NOT become an attack count.
+        text = _wrap_evening(
+            "На Оріхівському напрямку противник двічі завдав авіаційних "
+            "ударів, скинувши чотири керовані авіабомби."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        assert next(d for d in dirs if d.direction == "Orikhiv").attacks is None
+
+    def test_word_number_plus_raz_after_verb(self):
+        # msg 42075 (2026-08-30): "намагався покращити свої позиції один раз".
+        text = _wrap_evening(
+            "На Придніпровському напрямку ворог намагався покращити свої "
+            "позиції один раз."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=42075), "2026-08-30")
+        assert next(d for d in dirs if d.direction == "Prydniprovske").attacks == 1
+
+    def test_word_number_plus_raz_with_unlisted_verb(self):
+        # msg 39397 (2026-06-01): "один раз йшли в атаку" — `йшли` is in none
+        # of the verb lists, so only a position-free read catches it.
+        text = _wrap_evening(
+            "На Куп’янському напрямку окупанти один раз йшли в атаку, "
+            "намагаючись витіснити наші підрозділи поблизу Курилівки."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=39397), "2026-06-01")
+        assert next(d for d in dirs if d.direction == "Kupiansk").attacks == 1
+
+    def test_genitive_razu_is_not_a_count(self):
+        # "разу" (gen. sg.) must not be read as "раз" + a number.
+        text = _wrap_evening(
+            "На Оріхівському напрямку жодного разу ворог не атакував."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        assert next(d for d in dirs if d.direction == "Orikhiv").attacks is None
+
+    # --- unnumbered singular assault → 1 -----------------------------------
+
+    def test_singular_assault_verb_plus_target_clause(self):
+        # msg 42131 (2026-09-05): "штурмували в бік Юрківки" — one assault,
+        # written without a numeral.
+        text = _wrap_evening(
+            "На Краматорському напрямку російські загарбники штурмували "
+            "в бік Юрківки."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=42131), "2026-09-05")
+        assert next(d for d in dirs if d.direction == "Kramatorsk").attacks == 1
+
+    def test_singular_assault_repelled_attempt(self):
+        # msg 42133 (2026-09-05): "зупинили спробу противника просунутися".
+        text = _wrap_evening(
+            "На Оріхівському напрямку наші захисники зупинили спробу "
+            "противника просунутися вперед у районі Павлівки."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=42133), "2026-09-05")
+        assert next(d for d in dirs if d.direction == "Orikhiv").attacks == 1
+
+    def test_singular_assault_accusative_object(self):
+        # msg 41924 (2026-08-18): "ворог здійснив атаку у бік …".
+        text = _wrap_evening(
+            "На Олександрівському напрямку ворог здійснив атаку у бік "
+            "Нового Запоріжжя."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=41924), "2026-08-18")
+        assert next(d for d in dirs if d.direction == "Oleksandrivka").attacks == 1
+
+    def test_singular_assault_plural_noun_not_matched(self):
+        # Only singular accusative objects count as one assault. An unnumbered
+        # PLURAL ("відбили атаки") says nothing about how many, so it stays NULL.
+        text = _wrap_evening(
+            "На Оріхівському напрямку наші захисники відбили атаки противника."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        assert next(d for d in dirs if d.direction == "Orikhiv").attacks is None
+
+    def test_singular_assault_negated_verb_not_matched(self):
+        # msg 42131 (2026-09-05): "атакувальних дій не проводили" — a negation
+        # the no-activity sentinel doesn't cover; the `(?<!не )` guard must
+        # keep the singular branch from reading it as one assault.
+        text = _wrap_evening(
+            "На Придніпровському напрямку окупанти атакувальних дій не проводили."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=42131), "2026-09-05")
+        assert next(d for d in dirs if d.direction == "Prydniprovske").attacks is None
+
+    def test_numbered_count_wins_over_singular_fallback(self):
+        # The singular fallback runs last: an explicit count must survive it.
+        text = _wrap_evening(
+            "На Краматорському напрямку Сили оборони відбили 12 ворожих "
+            "штурмів, ворог штурмував в бік Юрківки."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        assert next(d for d in dirs if d.direction == "Kramatorsk").attacks == 12
+
 
 # ---------------------------------------------------------------------------
 # _ua_word_to_num — compound Ukrainian numbers
