@@ -41,7 +41,11 @@ jobs:
       SINCE: ${{ inputs.since }}
       # Findings from every check in this job land here as JSONL; the last
       # step turns them into annotations. See scripts/ingest_log.py.
-      INGEST_LOG: ${{ runner.temp }}/ingest.jsonl
+      #
+      # `github.workspace`, not `runner.temp`: the runner context isn't
+      # available in a job-level env block (only in steps), and the path has to
+      # be absolute because the ingest steps set their own working-directory.
+      INGEST_LOG: ${{ github.workspace }}/ingest-diagnostics.jsonl
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
