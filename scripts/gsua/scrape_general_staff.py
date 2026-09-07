@@ -1141,6 +1141,27 @@ _SINGLE_ASSAULT = re.compile(
 )
 
 
+# Front-wide scope markers. A figure in a sentence carrying one of these is a
+# whole-front total, never a per-direction count — "Від початку доби на фронтах
+# російсько-української війни відбулося 84 бойові зіткнення, із них половина –
+# на Курахівському та Покровському напрямках" (msg 15068) named two directions
+# and handed each of them all 84.
+#
+# Deliberately NOT including "Загалом": the channel opens per-direction lines
+# with it too ("Загалом 38 атак відбито на Покровському напрямку"), so it says
+# nothing about scope. These four say "the whole front" and nothing else does.
+_FRONT_WIDE = re.compile(
+    # front-wide scope: the figure covers the whole line of contact
+    r"на\s+фронт|лінії\s+фронту|ділянках\s+фронту|загальної\s+суми"
+    # partitive: the figure is stated, then the directions are named as holding
+    # PART of it — "…44 бойові зіткнення, НАЙБІЛЬШЕ – на Покровському,
+    # Краматорському і Курахівському напрямках" (msg 14714) gave all three 44,
+    # "…де провів МАЙЖЕ ПОЛОВИНУ від усіх атак" (msg 19290) gave both the 131.
+    # Either way the number named is not this direction's count.
+    r"|найбільше\s*[–—-]|більшість|половин|відсотк|третин",
+    re.IGNORECASE | re.UNICODE,
+)
+
 # Sentences that report the ABSENCE of assaults. Broader than the no-activity
 # sentinel inside parse_directions, which only has to be right about the couple
 # of phrasings that would otherwise let a neighbouring aggregate bleed in; this
@@ -1222,7 +1243,41 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
             # ("[N] атак здійснив ворог на X напрямку") sits < ~80 chars before
             # the anchor, so cap the backward reach there.
             count_start = max(prev_end, start - 80)
+        # …and never across a line break, for the same reason the forward cap
+        # stops at one: paragraphs are newline-delimited, and a leading count
+        # always shares its line with the anchor ("Усього 25 атак здійснив
+        # ворог на Покровському напрямку"). Without this the reach can cross
+        # into the header, whose date supplies stray digits — msg 14669's
+        # "станом на 16.30 15.05.2024" has no closing period, so the search for
+        # the previous sentence end lands inside the date.
+        line_start = text.rfind("\n", prev_end, start)
+        if line_start != -1:
+            count_start = max(count_start, line_start + 1)
         count_section = text[count_start:end]
+
+        # Does the anchor OPEN its own sentence, or sit inside prose?
+        #
+        # A sentence-opening anchor introduces the paragraph that follows, so
+        # reading forward to the next anchor is right: the count often lands in
+        # a later clause of the same paragraph.
+        #
+        # A mid-sentence anchor is narrative — the 2024-era reports opened with
+        # a "where it's hottest" paragraph naming a few sectors before the
+        # per-direction breakdown. Reading forward from there walks into the
+        # global aggregate line and attributes the whole front's total to
+        # whichever directions the prose happened to mention: msg 14644 gave
+        # Kharkiv, Kramatorsk and Pokrovsk 73 each from "З початку поточної
+        # доби відбулося 73 бойових зіткнення" two paragraphs later; msg 15416
+        # gave Pokrovsk and Kurakhove 48 from "загальної суми у 48 бойових
+        # зіткнень по всій лінії фронту".
+        #
+        # So a mid-sentence anchor may only take a count from its OWN sentence.
+        # That keeps the inverted register working — "Усього 38 атак відбито на
+        # Покровському напрямку" and "Крім того, на Харківському напрямку …
+        # шість атак" are both mid-sentence with the count right there — while
+        # cutting the reach that produced the false attributions.
+        prev_text = text[max(0, start - 200):start]
+        opens_sentence = bool(re.search(r"(^|[.!?]\s|\n)\s*$", prev_text))
 
         # A tighter window: just the sentence the anchor sits in (start of that
         # sentence → first period after the anchor). The permissive number-first
@@ -1256,6 +1311,24 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
             next_real if anchor_period == -1 else min(anchor_period + 1, next_real)
         )
         anchor_sentence = text[count_start:anchor_end]
+
+        # The window the primary count hunt is allowed to use. Same as
+        # `count_section` for an anchor that opens its sentence; the anchor's
+        # own sentence when it doesn't. `count_section` itself stays wide —
+        # the "Загалом" total-override below is deliberately allowed to look
+        # past the anchor sentence, and it is anchored tightly enough
+        # ("Загалом … N разів <verb>") that the global aggregate, which counts
+        # "боєзіткнень" instead, can't satisfy it.
+        hunt_section = count_section if opens_sentence else anchor_sentence
+
+        # A figure in a front-wide sentence is the whole front's, however close
+        # the anchor sits to it. msg 15068: "Від початку доби НА ФРОНТАХ
+        # російсько-української війни відбулося 84 бойові зіткнення, із них
+        # половина – на Курахівському та Покровському напрямках" — the anchor's
+        # own sentence, and 84 is the front total that the two sectors split
+        # half of. Only applies to a mid-sentence anchor: a direction paragraph
+        # never opens with one of these markers.
+        front_wide = bool(not opens_sentence and _FRONT_WIDE.search(anchor_sentence))
 
         # "No activity" sentinel. When the section opens with a phrase that
         # says nothing happened on this direction (e.g. "ознак формування
@@ -1292,7 +1365,7 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
             attacks = None
         else:
             attacks = _extract_count(
-                count_section,
+                hunt_section,
                 # Digit: "N штурмов[ых|их дій]" / "N атак" / "N раз(ів|и)" / "N спроб"
                 # / "N наступальних дій" / bare "N штурм[у|ів]" (accusative
                 # singular, seen with "здійснили один штурм у напрямку").
@@ -1337,7 +1410,7 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
                 # Verb stems trimmed like above so plural/feminine past
                 # forms are covered.
                 attacks = _extract_count(
-                    section,
+                    section if opens_sentence else anchor_sentence,
                     r"(\d[\d\s]*\d|\d)\s+раз(?:ів|и)?\s+"
                     r"(?:атакува|штурмува|намага|наступа|нападав)\w*",
                     r"(" + _NUMWORD + r")\s+раз(?:ів|и)?\s+"
@@ -1535,6 +1608,9 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
         if of_total is not None and attacks is None:
             attacks = of_total
 
+        if front_wide:
+            attacks = None
+
         # Ongoing engagements: digit form or word form.
         if no_activity:
             ongoing = None
@@ -1570,6 +1646,41 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
             if (msg.id, dir_name) in seen:
                 continue
             anchor_names.append(dir_name)
+        # A narrative mention, not this direction's report: the anchor sits
+        # inside prose and its sentence carries no count, no ongoing figure, no
+        # "nothing happened" statement, and no number at all (or only a
+        # front-wide one). Emit nothing — not even a NULL row — and leave the
+        # direction unseen.
+        #
+        # The "no number" clause is what keeps this from swallowing a real
+        # direction line the parser merely failed to read: "Сили оборони
+        # зупинили одинадцять із тринадцяти ворожих атак на Костянтинівському
+        # напрямку" is mid-sentence with an unparsed count, and must still emit
+        # a NULL row so `unparsed_count` can flag it as a gap to fix.
+        #
+        # Skipping is what matters. The first anchor per direction wins (see
+        # `seen` below), so a lead-paragraph mention doesn't merely add a bad
+        # row, it CONSUMES the slot and locks the real paragraph out. msg 14661
+        # opens with "ворог концентрував свої зусилля … на Краматорському та
+        # Покровському напрямках" and states the actual figures further down —
+        # "На Краматорському напрямку … відбили 12 атак", "На Покровському
+        # напрямку … відбили 33 атаки". Both rows used to hold 145, the whole
+        # front's total; stepping over the mention lets them hold 12 and 33.
+        #
+        # A no-activity mention is kept even when written this way ("Сьогодні
+        # ворог не проявляв активності на Краматорському, Олександрівському та
+        # Придніпровському напрямках") — that IS the direction's report, and
+        # its NULL count is the correct answer rather than a missing one.
+        if (
+            not opens_sentence
+            and not no_activity
+            and attacks is None
+            and ongoing is None
+            and not _NO_ASSAULT.search(anchor_sentence)
+            and (front_wide or not _HAS_NUMBER.search(anchor_sentence))
+        ):
+            continue
+
         # Suspected parser gap: no count came out, the paragraph isn't one of
         # the "nothing happened" forms, and it does talk about assaults. This is
         # the check that was missing for two years — every warning the pipeline
