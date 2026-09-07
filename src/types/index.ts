@@ -194,6 +194,44 @@ export interface GsuaDirectionRow {
   is_today: boolean;
 }
 
+// Directions the General Staff folded into an existing line, mapped to the
+// axis whose series the merged reports continue.
+//
+// From 2025-06-16 the GS reports "На Північно-Слобожанському і Курському
+// напрямках" as one line with one figure. Because the figure is shared, the DB
+// stores it on both rows with `attacks_group_size = 2`, and the fair-share
+// divisor then charts half an assault each — 55% of those rows don't divide
+// evenly, and a shared count of 1 (the single commonest value) becomes 0.5.
+//
+// The pair is the Kursk series continued rather than two series merging:
+// Kursk was reported alone from 2024-09-23 to 2025-06-15, and
+// N-Slobozhanshchyna has no independent history at all (1,295 paired reports,
+// one lone appearance). So both rows fold back onto `Kursk` and the halves
+// re-add to the integer the General Staff actually published.
+//
+// This is a judgement about what the sectors ARE, not something derivable from
+// a report, which is why it lives here rather than in the ingest. Everything
+// else maps to itself; the other always-paired lines (Volyn+Polissia,
+// Chernihiv+Sumy) are "no offensive groupings" boilerplate that essentially
+// never carries a count, so they never produce a fraction.
+export const DIRECTION_AXIS: Record<string, string> = {
+  "N-Slobozhanshchyna": "Kursk",
+};
+
+// Display name for an axis while it IS a joint line. The key stays `Kursk` so
+// the series stays continuous across the merge, but the label is chosen per
+// window from the data (see `mergedAxes`): a window entirely before the merge
+// reads "Kursk", one entirely after reads the joint name, and one that spans
+// the changeover says so with the month it happened. Nothing here hardcodes
+// that date — it is read off the reports.
+export const DIRECTION_AXIS_JOINT_LABEL: Record<string, string> = {
+  Kursk: "Kursk / Pn. Slobozhanshchyna",
+};
+
+export function directionAxis(direction: string): string {
+  return DIRECTION_AXIS[direction] ?? direction;
+}
+
 // Per-date breakdown of the day's `combat_engagements` count by direction.
 // `attributed` is the sum of `byDirection`; `unattributed` = max(0, total -
 // attributed). All fields come from the SAME canonical post per date so the
@@ -203,7 +241,12 @@ export interface GsuaDirectionCoverageRow {
   total: number | null;                    // combat_engagements from canonical post
   attributed: number;                      // SUM(byDirection)
   unattributed: number;                    // total - attributed, clamped to 0
-  byDirection: Record<string, number>;     // direction → attacks (>0 only)
+  byDirection: Record<string, number>;     // AXIS → attacks (>0 only), see DIRECTION_AXIS
+  // Axes whose figure on THIS date came from a jointly-reported line — i.e. a
+  // direction was folded into them by DIRECTION_AXIS. Lets a chart name the
+  // axis for the window it is actually showing instead of assuming the
+  // composition it has today.
+  mergedAxes?: string[];
   is_today: boolean;
 }
 

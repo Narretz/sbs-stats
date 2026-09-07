@@ -12,6 +12,7 @@ import { chartAnchor } from "@/utils/chartAnchor";
 const TITLE = "Combat Engagements — Composition by Direction";
 import { chartColors } from "@/chartColors";
 import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
+import { DIRECTION_AXIS_JOINT_LABEL } from "@/types";
 import type { GsuaDirectionCoverageRow } from "@/types";
 
 // Per-day stacked bar of combat engagements, broken down by direction with
@@ -63,7 +64,7 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
   const c = chartColors(t);
   const bucketLabel = granularity === "monthly" ? "months" : "days";
 
-  const { stacks, flat, summary } = useMemo(() => {
+  const { stacks, flat, summary, mergedByBucket } = useMemo(() => {
     // One stack per direction seen in the window — no "Other" bucket; the
     // full dataset never carries more than 16 distinct directions on a
     // single day, so the legend stays manageable.
@@ -78,8 +79,41 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
       .map(([name]) => name);
 
     // Stack order: biggest at bottom (stable base) → Unattributed on top.
+    // Per-bucket naming for the tooltip: each bar knows whether ITS reports
+    // were joint, so hovering 2025-05-20 says "Kursk" and 2026-01-20 says
+    // "Kursk / Pn. Slobozhanshchyna". Only the legend below has to settle on
+    // one name for the whole window.
+    //
+    // A monthly bucket counts as joint if any report in it was — the
+    // changeover month (06/2025) therefore reads as joint, which matches what
+    // the bar contains: some of its attacks come from the joint line.
+    const mergedByBucket = new Map<string, Set<string>>(
+      data.map((row) => [row.date, new Set(row.mergedAxes ?? [])]),
+    );
+
+    // An axis whose composition changed is named for the window on screen.
+    // Showing only pre-merge buckets, it is the sector under its old name;
+    // only post-merge, the joint name; spanning the changeover, the joint name
+    // plus the month it happened, taken from the earliest merged bucket rather
+    // than a constant so it can't drift from the reports.
+    const axisLabel = (name: string): string => {
+      const joint = DIRECTION_AXIS_JOINT_LABEL[name];
+      if (!joint) return name;
+      const mergedDates = data
+        .filter((row) => row.mergedAxes?.includes(name))
+        .map((row) => row.date)
+        .sort();
+      if (mergedDates.length === 0) return name;
+      const present = data.filter((row) => row.byDirection[name] != null).length;
+      if (mergedDates.length >= present) return joint;
+      const [y, m] = mergedDates[0].slice(0, 7).split("-");
+      return `${joint} (from ${m}/${y})`;
+    };
+
     const stacks: Stack[] = sortedDirs.map((name, i) => ({
-      key: name, label: name, color: DIRECTION_PALETTE[i % DIRECTION_PALETTE.length],
+      key: name,
+      label: axisLabel(name),
+      color: DIRECTION_PALETTE[i % DIRECTION_PALETTE.length],
     }));
     stacks.push({ key: UNATTRIBUTED_KEY, label: "Unattributed", color: COLOR_UNATTRIBUTED });
 
@@ -107,7 +141,7 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
       directionCount: totalPerDir.size,
     };
 
-    return { stacks, flat, summary };
+    return { stacks, flat, summary, mergedByBucket };
   }, [data]);
 
 
@@ -184,8 +218,12 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
                   .sort((a, b) => (d[b.key] as number) - (d[a.key] as number))
                   .map((s, i) => {
                     const v = d[s.key] as number;
+                    const joint = DIRECTION_AXIS_JOINT_LABEL[s.key];
                     return {
-                      label: s.label,
+                      // This bucket's own name, not the window's.
+                      label: joint && mergedByBucket.get(d.date)?.has(s.key)
+                        ? joint
+                        : (joint ? s.key : s.label),
                       color: s.color,
                       value: v,
                       share: totalN > 0 ? (v / totalN) * 100 : null,

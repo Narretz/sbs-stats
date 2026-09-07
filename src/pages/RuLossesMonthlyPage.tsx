@@ -51,15 +51,11 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
         const projected = isCurrent
           ? TARGETS_KEYS.reduce((s, k) => s + (d[`${k}_projected`] ?? 0), 0)
           : undefined;
-        const projectedWeekday = isCurrent
-          ? TARGETS_KEYS.reduce((s, k) => s + (d[`${k}_projected_wd`] ?? 0), 0)
-          : undefined;
         return {
           date: d.date,
           value,
           gap: projected != null ? projected - value : undefined,
           projected,
-          projectedWeekday,
           projection_day: d.projection_day ?? undefined,
           projection_days_in_month: d.projection_days_in_month ?? undefined,
         };

@@ -1860,6 +1860,108 @@ class TestDirections:
 
 
 # ---------------------------------------------------------------------------
+# Narrative mentions — an anchor buried in prose is not the direction's report
+# ---------------------------------------------------------------------------
+
+class TestNarrativeMentions:
+    def _dirs(self, body, mid=14661, date="2024-05-14"):
+        text = _wrap_evening(body)
+        return {d.direction: d for d in gs.parse_directions(text, _msg(text, mid=mid), date)}
+
+    def test_lead_mention_does_not_lock_out_the_real_paragraph(self):
+        # msg 14661: the opener names two sectors, the real figures come later.
+        # The first anchor per direction wins, so the mention wasn't just adding
+        # a bad row — it was taking the slot. Both used to read 145, the whole
+        # front's total.
+        d = self._dirs(
+            "Сьогодні ворог концентрував свої зусилля у Харківській області, "
+            "а також на Краматорському та Покровському напрямках.\n"
+            "На Краматорському напрямку підрозділи наших військ відбили 12 атак.\n"
+            "На Покровському напрямку наші підрозділи відбили 33 атаки противника."
+        )
+        assert d["Kramatorsk"].attacks == 12
+        assert d["Pokrovsk"].attacks == 33
+        # …and as their own reports, not as a shared pair total.
+        assert d["Kramatorsk"].attacks_group_size == 1
+
+    def test_mention_with_nothing_of_its_own_emits_no_row(self):
+        # msg 14659: one passing mention, no count anywhere for it. A row here
+        # could only hold a number borrowed from a neighbour.
+        d = self._dirs(
+            "Високою інтенсивність бойових дій залишається і на Сіверському "
+            "напрямку.\n"
+            "На Лиманському напрямку ворог здійснив 16 атак.",
+            mid=14659,
+        )
+        assert "Siversk" not in d
+        assert d["Lyman"].attacks == 16
+
+    def test_front_wide_sentence_does_not_donate_its_figure(self):
+        # msg 15068: the figure is the whole front's and the sentence says the
+        # sectors hold half of it, yet both rows took all 84.
+        d = self._dirs(
+            "Від початку доби на фронтах російсько-української війни відбулося "
+            "84 бойові зіткнення, із них половина – на Курахівському та "
+            "Покровському напрямках.\n"
+            "На Покровському напрямку ворог здійснив 21 спробу прорвати рубежі.",
+            mid=15068, date="2024-05-30",
+        )
+        assert "Kurakhove" not in d
+        assert d["Pokrovsk"].attacks == 21
+
+    def test_partitive_marker_blocks_the_figure(self):
+        # msg 14714: "…44 бойові зіткнення, найбільше – на X, Y і Z напрямках"
+        # named three sectors as holding the largest share and gave each all 44.
+        d = self._dirs(
+            "З початку поточної доби відбулося вже 44 бойові зіткнення, "
+            "найбільше – на Сіверському, Краматорському і Курахівському "
+            "напрямках.",
+            mid=14714, date="2024-05-18",
+        )
+        assert not ({"Siversk", "Kramatorsk", "Kurakhove"} & set(d))
+
+    def test_inverted_register_still_reads_its_own_count(self):
+        # The count-first shape is mid-sentence too, but the figure is right
+        # there in the anchor's own sentence — it must keep working.
+        d = self._dirs("Усього 38 атак відбито на Покровському напрямку.")
+        assert d["Pokrovsk"].attacks == 38
+
+    def test_mid_sentence_line_with_its_own_count_still_reads(self):
+        d = self._dirs(
+            "Крім того, на Харківському напрямку росіяни здійснили шість "
+            "безуспішних атак поблизу Глибокого."
+        )
+        assert d["Kharkiv"].attacks == 6
+
+    def test_mid_sentence_no_activity_mention_keeps_its_row(self):
+        # msg 40564: this IS the direction's report, and NULL is the right
+        # answer rather than a missing one.
+        d = self._dirs(
+            "Сьогодні ворог не проявляв активності на Краматорському, "
+            "Олександрівському та Придніпровському напрямках.",
+            mid=40564, date="2026-06-29",
+        )
+        assert d["Kramatorsk"].attacks is None
+        assert "Oleksandrivka" in d and "Prydniprovske" in d
+
+    def test_backward_reach_stops_at_the_line_break(self):
+        # msg 14669: the header has no closing period, so the search for the
+        # previous sentence end landed inside "станом на 16.30 15.05.2024" and
+        # its digits made the mention look like it had a count of its own —
+        # which kept it from being skipped, and locked out the real 25.
+        d = self._dirs(
+            "Оперативна інформація станом на 16.30 15.05.2024 щодо російського "
+            "вторгнення\n"
+            "Окупанти й надалі концентрують найбільші зусилля на Куп’янському "
+            "та Покровському напрямках.\n"
+            "На Куп’янському напрямку ворог 25 разів атакував в районах "
+            "Стельмахівки та Синьківки.",
+            mid=14669, date="2024-05-15",
+        )
+        assert d["Kupiansk"].attacks == 25
+
+
+# ---------------------------------------------------------------------------
 # "N of M" — one sentence carrying both the total and the part still running
 # ---------------------------------------------------------------------------
 

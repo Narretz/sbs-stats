@@ -9,7 +9,7 @@ import type {
   GsuaMonthlyRow,
   EodEstimate,
 } from "@/types";
-import { GSUA_METRIC_KEYS } from "@/types";
+import { GSUA_METRIC_KEYS, directionAxis } from "@/types";
 import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString } from "@/hooks/sqlLoader";
@@ -41,12 +41,23 @@ async function loadWorker(): Promise<WorkerHttpvfs> {
           serverMode: "full",
           url: DB_URL,
           requestChunkSize: REQUEST_CHUNK_SIZE,
-          // The R2 object is overwritten by every scrape. Without a cache-bust,
-          // the browser can serve stale cached byte-ranges mixed with fresh
-          // ones — producing inconsistent/empty reads (different queries touch
-          // different pages). A per-load token makes every worker (initial +
-          // each refresh) fetch a coherent snapshot. Mirrors the SBS loader's
-          // `?bust=` + no-store. (sql.js-httpvfs appends this as a query param.)
+          // The R2 object is overwritten by every scrape, and httpvfs reads it
+          // as many byte-ranges rather than one download. Without a cache-bust
+          // the caching layers (browser HTTP cache, CDN edge) can serve a range
+          // cached from the old object next to one fetched from the new — and
+          // since different queries touch different pages, the result is
+          // inconsistent or empty reads. A per-worker token gives every load
+          // its own cache key, so ranges cached under a previous token can
+          // never be mixed into this one. Mirrors the SBS loader's `?bust=` +
+          // no-store. (sql.js-httpvfs appends this as a query param.)
+          //
+          // It does NOT pin a version. R2 keys on the object path and ignores
+          // the query string, so if an upload lands mid-session the next range
+          // comes from the new file with the same token attached. Nothing on
+          // the client can prevent that: pinning needs the server in on it —
+          // ETag + If-Match so a mid-flight change fails instead of tearing
+          // silently, or immutable versioned object names. Exposure is one
+          // torn result set until the next refresh, three uploads a day.
           cacheBust: String(Date.now()),
         },
       },
@@ -518,11 +529,19 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
           };
           byDate.set(date, row);
         }
-        const dir = r.direction == null ? null : String(r.direction);
+        // Key by AXIS, not raw direction: the two halves of a jointly-reported
+        // pair land on the same key and re-add to the figure the report gave
+        // (0.5 + 0.5 = 1). `attributed` is unaffected — folding two rows into
+        // one changes which bucket the credit lands in, not how much there is.
+        const raw = r.direction == null ? null : String(r.direction);
+        const dir = raw == null ? null : directionAxis(raw);
         const attacks = typeof r.attacks === "number" ? r.attacks : 0;
         if (dir && attacks > 0) {
           row.byDirection[dir] = (row.byDirection[dir] ?? 0) + attacks;
           row.attributed += attacks;
+          // The fold happened on this date, so the line was joint here. Only
+          // the folded-away member trips this, so it records once per axis.
+          if (raw !== dir) (row.mergedAxes ??= []).push(dir);
         }
       }
       for (const row of byDate.values()) {
@@ -622,11 +641,19 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
           };
           byMonth.set(date, row);
         }
-        const dir = r.direction == null ? null : String(r.direction);
+        // Key by AXIS, not raw direction: the two halves of a jointly-reported
+        // pair land on the same key and re-add to the figure the report gave
+        // (0.5 + 0.5 = 1). `attributed` is unaffected — folding two rows into
+        // one changes which bucket the credit lands in, not how much there is.
+        const raw = r.direction == null ? null : String(r.direction);
+        const dir = raw == null ? null : directionAxis(raw);
         const attacks = typeof r.attacks === "number" ? r.attacks : 0;
         if (dir && attacks > 0) {
           row.byDirection[dir] = (row.byDirection[dir] ?? 0) + attacks;
           row.attributed += attacks;
+          // The fold happened on this date, so the line was joint here. Only
+          // the folded-away member trips this, so it records once per axis.
+          if (raw !== dir) (row.mergedAxes ??= []).push(dir);
         }
       }
       for (const row of byMonth.values()) {
