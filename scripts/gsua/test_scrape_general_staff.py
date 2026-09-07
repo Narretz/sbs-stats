@@ -1750,6 +1750,115 @@ class TestDirections:
         assert next(d for d in dirs if d.direction == "Kramatorsk").attacks == 12
 
 
+    # --- digit counts the anchored branches miss ---------------------------
+    # Same four shapes as the word forms above. The primary digit branch is
+    # position-free but insists the number sit directly against the noun, with
+    # only a hardcoded "ворож…" allowed in between.
+
+    def test_digit_with_singular_raz(self):
+        # msg 35056 (2026-02-15) / the Lyman series: Ukrainian takes the
+        # SINGULAR "раз" after a number ending in 1, so "21 раз" / "31 раз" /
+        # "41 раз" were the only counts the `раз(ів|и)` branch could not see —
+        # which is exactly why 21, 31 and 41 were the values missing from the
+        # corpus.
+        text = _wrap_evening(
+            "На Олександрівському напрямку противник атакував 21 раз."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=35056), "2026-02-15")
+        assert next(d for d in dirs if d.direction == "Oleksandrivka").attacks == 21
+
+    def test_digit_with_adjective_before_the_noun(self):
+        # msg 14648 (2024-05-14): "6 безуспішних штурмових дій".
+        text = _wrap_evening(
+            "На Времівському напрямку зафіксовано 6 безуспішних штурмових дій "
+            "ворога біля Старомайорського."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=14648), "2024-05-14")
+        assert next(d for d in dirs if d.direction == "Vremivka").attacks == 6
+
+    def test_digit_survives_a_mistyped_adjective(self):
+        # msg 38334 (2026-05-07): "17 вороєих атак" — the channel's typo for
+        # "ворожих". The old branch hardcoded that one adjective, so a single
+        # wrong letter dropped the count; the slot is now any single word.
+        text = _wrap_evening(
+            "На Гуляйпільському напрямку відбулося 17 вороєих атак у районах "
+            "населених пунктів Рибне та Добропілля."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=38334), "2026-05-07")
+        assert next(d for d in dirs if d.direction == "Huliaipole").attacks == 17
+
+    def test_adjective_slot_does_not_eat_the_noun(self):
+        # "Чотири невдалих спроби штурмувати" — the noun slot must not match
+        # the VERB "штурмувати", or the two-token word-number swallows "Чотири
+        # невдалих", the real noun fills the adjective slot, and the count is
+        # lost to a failed conversion.
+        text = _wrap_evening(
+            "Чотири невдалих спроби штурмувати позиції українських воїнів було "
+            "здійснено агресором на Придніпровському напрямку."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=16460), "2024-08-02")
+        assert next(d for d in dirs if d.direction == "Prydniprovske").attacks == 4
+
+    def test_prose_matching_the_shape_does_not_hide_the_real_count(self):
+        # msg 18239 (2024-10-27): "не полишає спроб вибити" fits <word> <word>
+        # <noun> without containing a number, and it comes BEFORE the actual
+        # count. A match that doesn't convert isn't evidence there's no count.
+        text = _wrap_evening(
+            "На Придніпровському напрямку противник не полишає спроб вибити "
+            "наші підрозділи із займаних позицій, де протягом доби було "
+            "здійснено три невдалі штурми позицій українських воїнів."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=18239), "2024-10-27")
+        assert next(d for d in dirs if d.direction == "Prydniprovske").attacks == 3
+
+    def test_running_total_register(self):
+        # The 2024 register: the report states how the count MOVED rather than
+        # what it is — "кількість ворожих атак зросла до 33" (msg 14633).
+        text = _wrap_evening(
+            "На Покровському напрямку кількість ворожих атак зросла до 33."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=14633), "2024-05-13")
+        assert next(d for d in dirs if d.direction == "Pokrovsk").attacks == 33
+
+    def test_running_total_register_word_form(self):
+        # msg 14910: "наростили кількість штурмових дій до семи".
+        text = _wrap_evening(
+            "На Краматорському напрямку окупанти наростили кількість штурмових "
+            "дій до семи."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=14910), "2024-05-25")
+        assert next(d for d in dirs if d.direction == "Kramatorsk").attacks == 7
+
+    # --- anchor-sentence bounds --------------------------------------------
+
+    def test_missing_period_does_not_import_the_next_directions_count(self):
+        # msg 40380 (2026-06-24): upstream dropped the terminating period, so
+        # the anchor's "own sentence" ran into the next direction's clause and
+        # gave Oleksandrivka a 4 on a day it wasn't attacked at all.
+        text = _wrap_evening(
+            "На Олександрівському напрямку наступальних дій ворога на цей час "
+            "не зафіксовано\n"
+            "На Гуляйпільському напрямку Сили оборони відбивали чотири ворожих "
+            "атаки у бік населених пунктів Гірке та Чарівне."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=40380), "2026-06-24")
+        assert next(d for d in dirs if d.direction == "Oleksandrivka").attacks is None
+        assert next(d for d in dirs if d.direction == "Huliaipole").attacks == 4
+
+    def test_stop_word_anchor_does_not_cut_the_sentence_short(self):
+        # msg 34202 (2026-01-25): "загалом на даному напрямку відбулось чотири
+        # боєзіткнення" is a second clause about the CURRENT direction. The
+        # bound above must step over it — "даному" is a stop word, not a
+        # neighbouring direction.
+        text = _wrap_evening(
+            "На Куп’янському напрямку ворог намагається наступати у бік "
+            "Піщаного та Петропавлівки, загалом на даному напрямку відбулось "
+            "чотири боєзіткнення, одне з яких наразі триває."
+        )
+        dirs = gs.parse_directions(text, _msg(text, mid=34202), "2026-01-25")
+        assert next(d for d in dirs if d.direction == "Kupiansk").attacks == 4
+
+
 # ---------------------------------------------------------------------------
 # unparsed_count — the coverage flag behind the "possible direction-count gap"
 # warning. Every other sanity check fires on a value that looks wrong; this one
@@ -1763,13 +1872,13 @@ class TestUnparsedCountFlag:
         return {d.direction for d in dirs if d.unparsed_count}
 
     def test_flags_a_number_no_branch_could_read(self):
-        # msg 35056 (2026-02-15): "противник атакував 21 раз" — a digit count
-        # with the singular "раз" and no verb after it. Nothing reads it today,
-        # so the row stores NULL and this is exactly what the flag is for.
+        # msg 30203 (2025-10-13): "зупинили одинадцять із тринадцяти ворожих
+        # атак" — the total is the SECOND number of an "N of M" pair, a shape
+        # nothing reads. The row stores NULL, which is what the flag is for.
         assert self._flagged(
-            "На Олександрівському напрямку противник атакував 21 раз. "
-            "Намагався просунутися у бік Зеленого Гаю."
-        ) == {"Oleksandrivka"}
+            "Сили оборони зупинили одинадцять із тринадцяти ворожих атак на "
+            "Костянтинівському напрямку."
+        ) == {"Kostiantynivka"}
 
     def test_does_not_flag_when_the_count_parsed(self):
         assert self._flagged(
@@ -1801,9 +1910,10 @@ class TestUnparsedCountFlag:
 
     def test_sanity_check_warns_once_naming_the_directions(self, caplog):
         text = _wrap_evening(
-            "На Олександрівському напрямку противник атакував 21 раз."
+            "Сили оборони зупинили одинадцять із тринадцяти ворожих атак на "
+            "Олександрівському напрямку."
         )
-        msg = _msg(text, mid=35056)
+        msg = _msg(text, mid=30203)
         summary = gs.parse_summary(text, msg)
         dirs = gs.parse_directions(text, msg, summary.date)
         with caplog.at_level(logging.WARNING, logger=gs.log.name):

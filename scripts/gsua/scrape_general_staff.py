@@ -328,7 +328,10 @@ def _extract_int(pattern: str, text: str) -> int | None:
 
 
 def _extract_count(
-    text: str, digit_re: str | None, word_re: str | None = None
+    text: str,
+    digit_re: str | None,
+    word_re: str | None = None,
+    scan_all: bool = False,
 ) -> int | None:
     """Extract a count as either a digit (preferred) or a Ukrainian word form.
 
@@ -337,15 +340,27 @@ def _extract_count(
     already exhausted digit branches).
     `word_re` must have one capture group with the Ukrainian number word
     (matched against UA_NUM with apostrophe variants normalised).
+
+    `scan_all` keeps trying later `word_re` matches when one captures something
+    that isn't a number. Number words are just words, so a permissive pattern
+    can match prose ahead of the real count — "противник не полишає спроб
+    вибити…" fits <word> <word> <noun> without containing a number, and the
+    actual count ("три невдалі штурми") comes later in the same sentence. OFF by
+    default and safe ONLY on a window bounded to the anchor's own sentence: on
+    the forward-running `count_section` it would scan into the next direction's
+    text and read its number instead.
     """
     if digit_re is not None:
         n = _extract_int(digit_re, text)
         if n is not None:
             return n
     if word_re:
-        m = re.search(word_re, text, re.IGNORECASE)
-        if m:
-            return _ua_word_to_num(m.group(1))
+        for m in re.finditer(word_re, text, re.IGNORECASE):
+            n = _ua_word_to_num(m.group(1))
+            if n is not None:
+                return n
+            if not scan_all:
+                return None
     return None
 
 
@@ -1065,8 +1080,28 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
         # count into this direction. Restricting to the anchor's own sentence
         # keeps the leading/inverted count (which is in the same sentence as the
         # anchor) while excluding the bled-in neighbour text.
+        # Capped at the next direction as well as at the next period: upstream
+        # sometimes omits the terminating period, and without the cap the
+        # "anchor's own sentence" runs straight into the following direction's
+        # clause and reads its count. msg 40380: "На Олександрівському напрямку
+        # наступальних дій ворога на цей час не зафіксовано" — no period — "На
+        # Гуляйпільському напрямку … чотири ворожих атаки", which handed
+        # Oleksandrivka a 4 on a day it wasn't attacked at all.
+        #
+        # The cap skips anchors whose only names are stop words: "загалом на
+        # даному напрямку відбулось чотири боєзіткнення" is a second clause
+        # about the CURRENT direction, and capping there would cut this
+        # sentence off before its own count (msg 34202 and friends).
+        next_real = min(start + 600, len(text))
+        for later in matches[i + 1:]:
+            if any(r and r.lower() not in DIRECTION_STOP_WORDS for r in later.groups()):
+                next_real = later.start()
+                break
         anchor_period = text.find(".", match.end())
-        anchor_sentence = text[count_start:(anchor_period + 1 if anchor_period != -1 else end)]
+        anchor_end = (
+            next_real if anchor_period == -1 else min(anchor_period + 1, next_real)
+        )
+        anchor_sentence = text[count_start:anchor_end]
 
         # "No activity" sentinel. When the section opens with a phrase that
         # says nothing happened on this direction (e.g. "ознак формування
@@ -1194,43 +1229,82 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
                     r"(" + _NUMWORD + r")\s+(?:намага|наступа)\w*",
                 )
             if attacks is None:
-                # Word-number separated from the noun by a futility adjective:
-                # "здійснив одну марну спробу", "дві марні спроби просунутися",
-                # "три невдалі атаки". The anchored branches above require the
-                # number and the noun to be adjacent, so the adjective breaks
-                # them; the digit form of the same shape is unaffected because
-                # the primary digit branch is position-free.
+                # An adjective between the number and the noun: "здійснив одну
+                # марну спробу", "дві марні спроби просунутися", "6 безуспішних
+                # штурмових дій", "17 вороєих атак" (sic — the channel's typo
+                # for "ворожих"). Every branch above needs number and noun
+                # adjacent, except for a hardcoded "ворож…", which is why a
+                # single mistyped letter was enough to drop the count.
+                #
+                # The slot is therefore ANY single word of 4+ characters rather
+                # than a list of adjectives — a list only ever covers the
+                # variants already seen, and this is a source that mistypes
+                # them. The assault noun after it does the constraining: a
+                # number, one word, then штурм/атак/спроб/наступальн is a shape
+                # the reports don't produce by accident. Verified over the full
+                # stored corpus.
+                # `(?!ува)` keeps the noun slot from matching the VERB built on
+                # the same root. Without it "Чотири невдалих спроби штурмувати"
+                # lets the two-token _NUMWORD swallow "Чотири невдалих", fill
+                # the adjective slot with the real noun "спроби", and land on
+                # "штурмувати" — the regex matches, the number word doesn't
+                # convert, and the count is lost. A verb can't be what's being
+                # counted here, so excluding it costs nothing.
+                _noun = r"(?:штурм(?!ува)|атак(?!ува)|спроб(?!ува)|наступальн)"
                 attacks = _extract_count(
                     anchor_sentence,
-                    None,
-                    r"(" + _NUMWORD + r")\s+"
-                    r"(?:марн|безрезультатн|невдал|безуспішн)\w+\s+"
-                    r"(?:штурм|атак|спроб|наступальн)",
+                    r"(\d[\d\s]*\d|\d)\s+[\w'ʼ’]{4,}\s+" + _noun,
+                    r"(" + _NUMWORD + r")\s+[\w'ʼ’]{4,}\s+" + _noun,
+                    scan_all=True,
                 )
             if attacks is None and _ATTACK_CONTEXT.search(anchor_sentence):
-                # Position-free word-number, the missing counterpart of the
-                # position-free DIGIT branch at the top of this chain. Every
-                # word-form branch above is anchored to a verb or a noun on one
-                # specific side of the number, so the channel's post-verb word
-                # counts fall through them all: "противник атакував двічі",
-                # "окупанти атакували тричі", "ворог намагався покращити свої
-                # позиції один раз", "один раз йшли в атаку", "двічі проводив
-                # штурмові дії". Only two forms are safe to read position-free:
-                # the adverbial numerals (двічі/тричі can only mean "N times"),
-                # and word-number + "раз". Scoped to the anchor's own sentence,
-                # and gated on _ATTACK_CONTEXT so an adverbial number belonging
-                # to a strike/shelling clause can't be read as an attack count.
-                # "разу" (gen. sg., "жодного разу") can't match: the optional
-                # suffix is followed by \b and "раз" + "у" has no boundary.
+                # Position-free "N times", the counterpart of the position-free
+                # noun branch at the top of this chain. The branches above are
+                # anchored to a verb or a noun on one specific side of the
+                # number, so counts the channel puts anywhere else fall through
+                # all of them: "противник атакував двічі", "окупанти атакували
+                # тричі", "ворог намагався покращити свої позиції один раз",
+                # "один раз йшли в атаку", "двічі проводив штурмові дії",
+                # "противник атакував 21 раз". Only two forms are safe to read
+                # position-free: the adverbial numerals (двічі/тричі can only
+                # mean "N times") and number + "раз". Scoped to the anchor's own
+                # sentence and gated on _ATTACK_CONTEXT, so a number belonging
+                # to a strike or shelling clause can't be read as an assault
+                # count. "разу" (gen. sg., "жодного разу") can't match: the
+                # suffix is optional but followed by \b, and "раз" + "у" has no
+                # boundary between them.
                 attacks = _extract_count(
                     anchor_sentence, None, r"\b(двічі|тричі)\b",
                 )
                 if attacks is None:
                     attacks = _extract_count(
                         anchor_sentence,
-                        None,
+                        r"(\d[\d\s]*\d|\d)\s+раз(?:ів|и)?\b",
                         r"(" + _NUMWORD + r")\s+раз(?:ів|и)?\b",
                     )
+            if attacks is None:
+                # The 2024 running-total register: rather than "N assaults", the
+                # report states how the COUNT moved — "кількість ворожих атак
+                # зросла до 33", "кількість боєзіткнень складає 13", "агресор
+                # наростив кількість штурмових дій до 11", "кількість спроб
+                # росіян штурмувати наші позиції збільшилася до 3". The value
+                # after the verb is the day's running total for the direction,
+                # i.e. the same quantity every other branch extracts.
+                #
+                # Anchored on кількість/число + an assault noun so the global
+                # daily aggregate, which uses the same wording at paragraph
+                # start ("кількість бойових зіткнень становить N" — branch 4 of
+                # _parse_combat_engagements), can't be read as a per-direction
+                # value: this runs on the anchor's own sentence only.
+                attacks = _extract_count(
+                    anchor_sentence,
+                    r"(?:кількіст|числ)\w*[^.;]{0,70}?"
+                    r"(?:штурм|атак|боєзіткнен|спроб|наступальн)[^.;]{0,40}?"
+                    r"(?:до|становить|складає|сягає|дорівнює)\s+(\d[\d\s]*\d|\d)",
+                    r"(?:кількіст|числ)\w*[^.;]{0,70}?"
+                    r"(?:штурм|атак|боєзіткнен|спроб|наступальн)[^.;]{0,40}?"
+                    r"(?:до|становить|складає|сягає|дорівнює)\s+(" + _NUMWORD + r")",
+                )
             if attacks is None and _SINGLE_ASSAULT.search(anchor_sentence):
                 # Unnumbered singular assault → 1. Last resort: only when every
                 # numbered branch failed. See _SINGLE_ASSAULT above.
