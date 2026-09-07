@@ -6,6 +6,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
+import { DIRECTION_AXIS_LABEL } from "@/types";
 import type { GsuaDirectionCoverageRow } from "@/types";
 
 // Per-day stacked bar of combat engagements, broken down by direction with
@@ -72,7 +73,9 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
 
     // Stack order: biggest at bottom (stable base) → Unattributed on top.
     const stacks: Stack[] = sortedDirs.map((name, i) => ({
-      key: name, label: name, color: DIRECTION_PALETTE[i % DIRECTION_PALETTE.length],
+      key: name,
+      label: DIRECTION_AXIS_LABEL[name] ?? name,
+      color: DIRECTION_PALETTE[i % DIRECTION_PALETTE.length],
     }));
     stacks.push({ key: UNATTRIBUTED_KEY, label: "Unattributed", color: COLOR_UNATTRIBUTED });
 
