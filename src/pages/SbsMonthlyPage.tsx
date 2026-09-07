@@ -13,7 +13,7 @@ import { buildMetrics } from "@/utils/metrics";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import { TARGET_IDS, TARGET_LABELS } from "@/types";
-import type { MonthlyDataPoint, StatKey, Metric } from "@/types";
+import type { MonthlyDataPoint, MonthlyRow, StatKey, Metric } from "@/types";
 import { FONTS } from "@/theme";
 
 interface MonthlyPageProps {
