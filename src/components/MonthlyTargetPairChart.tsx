@@ -7,6 +7,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
 import { FONTS } from "@/theme";
+import { ChartCardTitle } from "@/components/ChartCardTitle";
+import { chartAnchor } from "@/utils/chartAnchor";
 import { chartColors } from "@/chartColors";
 import { TooltipCard, TooltipTable, breakdownToRows, type TooltipTableRow } from "@/components/TooltipTable";
 import type { ModelBreakdownEntry } from "@/types";
@@ -135,6 +137,7 @@ export function MonthlyTargetPairChart({
   subsetLabel,
 }: Props) {
   const { theme: t } = useTheme();
+  const anchor = chartAnchor(title);
   const { scope } = useStatScope();
   const c = chartColors(t);
   const lastIdx = data.length - 1;
@@ -157,7 +160,7 @@ export function MonthlyTargetPairChart({
   const destroyedProjectedFill = c.destroyedProjected;
 
   return (
-    <div className="chart-card" style={{
+    <div className="chart-card" id={anchor || undefined} style={{
       background: t.surface,
       border: `1px solid ${t.surfaceBorder}`,
       borderRadius: 8,
@@ -166,9 +169,7 @@ export function MonthlyTargetPairChart({
       animation: "fadeIn 0.3s ease both",
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
     }}>
-      <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 12, color: t.textMuted, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 4 }}>
-        {title}
-      </div>
+      <ChartCardTitle title={title} anchor={anchor} marginBottom={4} />
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
         <span style={{ color: c.damaged }}>● {primaryLabel}</span>
         <span style={{ color: t.accent }}>▲ MAX {max.toLocaleString()}</span>

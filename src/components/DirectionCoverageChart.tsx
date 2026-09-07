@@ -4,6 +4,12 @@ import {
 } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
+import { ChartCardTitle } from "@/components/ChartCardTitle";
+import { chartAnchor } from "@/utils/chartAnchor";
+
+// This card's title is fixed, not a prop — kept here so the heading and its
+// deep-link anchor are derived from one string.
+const TITLE = "Combat Engagements — Composition by Direction";
 import { chartColors } from "@/chartColors";
 import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
 import type { GsuaDirectionCoverageRow } from "@/types";
@@ -53,6 +59,7 @@ interface FlatRow {
 
 export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: Props) {
   const { theme: t } = useTheme();
+  const anchor = chartAnchor(TITLE);
   const c = chartColors(t);
   const bucketLabel = granularity === "monthly" ? "months" : "days";
 
@@ -114,13 +121,7 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
       animation: "fadeIn 0.3s ease both",
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
     }}>
-      <div style={{
-        fontFamily: FONTS.display, fontWeight: 700, fontSize: 12,
-        color: t.textMuted, letterSpacing: "0.07em",
-        textTransform: "uppercase", marginBottom: 6,
-      }}>
-        Combat Engagements — Composition by Direction
-      </div>
+      <ChartCardTitle title={TITLE} anchor={anchor} marginBottom={6} />
       <div style={{
         fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, marginBottom: 10,
       }}>

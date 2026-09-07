@@ -8,6 +8,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
 import { FONTS, type Theme } from "@/theme";
+import { ChartCardTitle } from "@/components/ChartCardTitle";
+import { chartAnchor } from "@/utils/chartAnchor";
 import { AREA_FILL_OPACITY, COLOR_DESTROYED, chartColors } from "@/chartColors";
 import { TooltipCard, TooltipTable, breakdownToRows, type TooltipTableRow } from "@/components/TooltipTable";
 
@@ -308,6 +310,7 @@ export function DailyLineChart({
   eod, eod2, breakdownByDate, primaryIsDiff = false, subsetLabel,
 }: Props) {
   const { theme: t } = useTheme();
+  const anchor = chartAnchor(title);
   const { scope } = useStatScope();
   // "window" scopes the MAX / MED / TOTAL lines to the points currently shown;
   // "all" uses the whole-dataset values passed in as props.
@@ -382,7 +385,7 @@ export function DailyLineChart({
     : max;
 
   return (
-    <div className="chart-card" style={{
+    <div className="chart-card" id={anchor || undefined} style={{
       background: t.surface,
       border: `1px solid ${t.surfaceBorder}`,
       borderRadius: 8,
@@ -391,9 +394,7 @@ export function DailyLineChart({
       animation: "fadeIn 0.3s ease both",
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
     }}>
-      <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 12, color: t.textMuted, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 4 }}>
-        {title}
-      </div>
+      <ChartCardTitle title={title} anchor={anchor} marginBottom={4} />
       <div style={{ display: "flex", gap: 12, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
         {hasPair && <span style={{ color: hitFill }}>● {resolvedPrimaryLabel}</span>}
         <span style={{ color: t.accent }}>▲ MAX {max.toLocaleString()}</span>

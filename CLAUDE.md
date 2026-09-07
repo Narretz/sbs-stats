@@ -26,6 +26,14 @@ datasets for future views.
 - **Frontend** (`src/`): one `useDatabase*` hook per dataset
   (`src/hooks/`), recharts-based chart components (`src/components/`), pages in
   `src/pages/`. Site keys / labels / metric lists live in `src/types/index.ts`.
+  Every chart card is deep-linkable: `ChartCardTitle` slugifies its title into
+  the card's `id` (`utils/chartAnchor.ts`), so `?site=rubikon&page=monthly#mortars`
+  opens scrolled to that chart. The browser can't do this itself — charts only
+  exist once the DB has loaded — so `useChartHashScroll` (called from
+  `PageScaffold`) polls for the target and scrolls twice, the second time after
+  recharts has sized its containers. The hover "#" affordance is CSS generated
+  content, deliberately: as a real element it lands in the title's textContent
+  and breaks `getByText(title, { exact: true })`.
 - **Data flow**: ingest script (Python, mostly stdlib) → SQLite → R2 (bucket
   `russia-ukraine-war`, public `pub-de9836bbd1a14affa2ecd7e998df13a2.r2.dev`).
   Production DB URLs are in `.env.production`. Small DBs are fetched whole via

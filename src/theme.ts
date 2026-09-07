@@ -82,6 +82,20 @@ export const GLOBAL_CSS = (t: Theme) => `
      its absolutely-positioned tooltip on top. */
   .chart-card { position: relative; z-index: 1; }
   .chart-card:hover { z-index: 2; }
+  /* Deep-linked charts (#<slug>) must clear the 52px sticky header AND the
+     sticky controls bar under it, or the card lands behind them. The controls
+     bar wraps to a variable height, so this is a generous fixed clearance
+     rather than a measured one. Below 640px the controls bar is static
+     (see .page-controls-sticky) so only the header needs clearing. */
+  .chart-card { scroll-margin-top: 124px; }
+  @media (max-width: 640px) { .chart-card { scroll-margin-top: 64px; } }
+  /* The "#" deep-link affordance on a chart title: present but silent until
+     the title is hovered or keyboard-focused. Generated content on purpose —
+     as a real span it landed in the heading's textContent, so the title read
+     "Mortars #" to anything matching on text. */
+  .chart-anchor::after { content: " #"; opacity: 0; transition: opacity 0.15s ease; }
+  .chart-anchor:hover::after,
+  .chart-anchor:focus-visible::after { opacity: 0.55; }
   /* Per-site pages' controls bar (time window, date nav, etc.) pinned right
      below the 52px SiteHeader. z-index sits below the header (z:10) so the
      header still covers it when scrolling, but above chart cards (z:1/2).

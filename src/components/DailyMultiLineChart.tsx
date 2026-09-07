@@ -6,6 +6,8 @@ import type { DailyDataPoint } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { FONTS, type Theme } from "@/theme";
+import { ChartCardTitle } from "@/components/ChartCardTitle";
+import { chartAnchor } from "@/utils/chartAnchor";
 import { chartColors } from "@/chartColors";
 
 export interface LineSeries {
@@ -133,6 +135,7 @@ function MultiTooltip({
 
 export function DailyMultiLineChart({ title, series, wfull = false, yMode = "linear", cumulative = false, granularity = "daily" }: Props) {
   const { theme: t } = useTheme();
+  const anchor = chartAnchor(title);
   const { scope } = useStatScope();
   const allScope = scope === "all";
 
@@ -199,14 +202,12 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
     : max;
 
   return (
-    <div className="chart-card" style={{
+    <div className="chart-card" id={anchor || undefined} style={{
       background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8,
       padding: "18px 16px 12px", gridColumn: wfull ? "1 / -1" : undefined,
       animation: "fadeIn 0.3s ease both", boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
     }}>
-      <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 12, color: t.textMuted, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 4 }}>
-        {title}
-      </div>
+      <ChartCardTitle title={title} anchor={anchor} marginBottom={4} />
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
         {series.map((s) => {
           const st = legendStat(s);

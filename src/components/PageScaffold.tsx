@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useChartHashScroll } from "@/hooks/useChartHashScroll";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { FONTS } from "@/theme";
 import type { LoadState } from "@/types";
@@ -54,6 +55,9 @@ export function PageScaffold({
   // grey bar on hover). Keep the loading indicator up through that gap.
   const ready = hasData;
   const loading = !hasData && loadState !== "error";
+  // Charts only exist once rows have arrived, so a `#<chart>` fragment can't
+  // be honoured by the browser at load time — this does it when they appear.
+  useChartHashScroll(ready);
   return (
     <div>
       <div style={headerVariant === "block" ? HEADER_BLOCK : HEADER_STACK}>

@@ -5,6 +5,8 @@ import {
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
+import { ChartCardTitle } from "@/components/ChartCardTitle";
+import { chartAnchor } from "@/utils/chartAnchor";
 
 // Shared chrome for monthly bar charts: card wrapper, title, optional legend,
 // ResponsiveContainer + BarChart + axes + grid + tooltip. Consumers pass in the
@@ -47,9 +49,10 @@ export function MonthlyChartCard<TData extends { date: string }>({
 }: Props<TData>) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
+  const anchor = chartAnchor(title);
 
   return (
-    <div className="chart-card" style={{
+    <div className="chart-card" id={anchor || undefined} style={{
       background: t.surface,
       border: `1px solid ${t.surfaceBorder}`,
       borderRadius: 8,
@@ -58,13 +61,7 @@ export function MonthlyChartCard<TData extends { date: string }>({
       animation: "fadeIn 0.3s ease both",
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
     }}>
-      <div style={{
-        fontFamily: FONTS.display, fontWeight: 700, fontSize: 12,
-        color: t.textMuted, letterSpacing: "0.07em",
-        textTransform: "uppercase", marginBottom: 14,
-      }}>
-        {title}
-      </div>
+      <ChartCardTitle title={title} anchor={anchor} marginBottom={14} />
       {legend && (
         <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 10 }}>
           {legend.map((l) => (
