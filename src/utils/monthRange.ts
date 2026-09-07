@@ -11,11 +11,15 @@ export type MonthOption = number | "all";
 export const DEFAULT_MONTHS = 12;
 
 // Parse a `m<...>` URL spec value into a positive integer or "all"; falls back
-// to DEFAULT_MONTHS for invalid input.
-export function parseMonthsParam(raw: string | null): MonthOption {
+// to `fallback` (DEFAULT_MONTHS unless the caller has its own default) for
+// missing or invalid input.
+export function parseMonthsParam(
+  raw: string | null,
+  fallback: MonthOption = DEFAULT_MONTHS,
+): MonthOption {
   if (raw === "all") return "all";
   const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : DEFAULT_MONTHS;
+  return Number.isInteger(n) && n > 0 ? n : fallback;
 }
 
 // Inclusive month window: a "12 month" window covers 12 calendar months

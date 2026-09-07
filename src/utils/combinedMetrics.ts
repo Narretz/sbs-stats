@@ -18,6 +18,8 @@ import {
   UA_LOSSES_METRIC_LABELS,
   SBU_ALFA_CATEGORY_KEYS,
   SBU_ALFA_CATEGORY_LABELS,
+  RUBIKON_CATEGORY_KEYS,
+  RUBIKON_CATEGORY_LABELS,
   TARGET_IDS,
   TARGET_LABELS,
 } from "@/types";
@@ -30,6 +32,7 @@ export type MetricSource =
   | "ru-airdef-mod"
   | "ru-air-attacks"
   | "sbu-alfa"
+  | "rubikon"
   // Mediazona's two underlying tables are released on different cadences —
   // role composition runs weekly through "now", the probate-registry estimate
   // series only refreshes when Meduza/Mediazona publish a new modelling
@@ -49,6 +52,7 @@ export type MetricDbHook =
   | "ru-airdef-mod"
   | "ru-air-attacks"
   | "sbu-alfa"
+  | "rubikon"
   | "mediazona";
 
 export const SOURCE_TO_DB: Record<MetricSource, MetricDbHook> = {
@@ -59,6 +63,7 @@ export const SOURCE_TO_DB: Record<MetricSource, MetricDbHook> = {
   "ru-airdef-mod": "ru-airdef-mod",
   "ru-air-attacks": "ru-air-attacks",
   "sbu-alfa": "sbu-alfa",
+  "rubikon": "rubikon",
   "mediazona-roles": "mediazona",
   "mediazona-estimate": "mediazona",
 };
@@ -86,6 +91,7 @@ export const SOURCE_LABELS: Record<MetricSource, string> = {
   "ru-airdef-mod": "RU MoD AD",
   "ru-air-attacks": "RU Strikes",
   "sbu-alfa": "SBU Alfa",
+  "rubikon": "Rubikon",
   "mediazona-roles": "Mediazona — Roles",
   "mediazona-estimate": "Mediazona — Estimate",
 };
@@ -161,6 +167,13 @@ const SBU_ALFA_METRICS: CombinedMetric[] = SBU_ALFA_CATEGORY_KEYS.map((k) =>
   make("sbu-alfa", k, SBU_ALFA_CATEGORY_LABELS[k], MONTHLY_ONLY),
 );
 
+// Rubikon — monthly only. Includes the two non-target counters (combat
+// sorties, EW-suppressed drones); their labels say so, since the homepage
+// chart has no room for the caveat notes the dataset page shows.
+const RUBIKON_METRICS: CombinedMetric[] = RUBIKON_CATEGORY_KEYS.map((k) =>
+  make("rubikon", k, RUBIKON_CATEGORY_LABELS[k], MONTHLY_ONLY),
+);
+
 // Mediazona — monthly only. Two underlying tables published on different
 // cadences (the estimate series lags by ~6 months) — modelled as two separate
 // sources so the picker groups them apart and the cadence gap is visible.
@@ -181,6 +194,7 @@ export const COMBINED_METRICS: CombinedMetric[] = [
   ...RU_MOD_METRICS,
   ...RU_AIR_ATTACKS_METRICS,
   ...SBU_ALFA_METRICS,
+  ...RUBIKON_METRICS,
   ...MEDIAZONA_METRICS,
 ];
 

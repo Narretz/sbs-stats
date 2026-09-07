@@ -7,6 +7,7 @@ import {
   RuModDatabaseProvider, useRuModDatabaseContext,
   RuAirAttacksDatabaseProvider, useRuAirAttacksDatabaseContext,
   SbuAlfaDatabaseProvider, useSbuAlfaDatabaseContext,
+  RubikonDatabaseProvider, useRubikonDatabaseContext,
   UaLossesDatabaseProvider, useUaLossesDatabaseContext,
   MediazonaDatabaseProvider, useMediazonaDatabaseContext,
 } from "@/context/databases";
@@ -23,6 +24,7 @@ import { RuModMonthlyPage } from "@/pages/RuModMonthlyPage";
 import { RuAirAttacksDailyPage } from "@/pages/RuAirAttacksDailyPage";
 import { RuAirAttacksMonthlyPage } from "@/pages/RuAirAttacksMonthlyPage";
 import { SbuAlfaMonthlyPage } from "@/pages/SbuAlfaMonthlyPage";
+import { RubikonMonthlyPage } from "@/pages/RubikonMonthlyPage";
 import { UaLossesMonthlyPage } from "@/pages/UaLossesMonthlyPage";
 import { MediazonaWeeklyPage } from "@/pages/MediazonaWeeklyPage";
 import { MediazonaMonthlyPage } from "@/pages/MediazonaMonthlyPage";
@@ -87,6 +89,11 @@ export const SITE_REGISTRY: Partial<Record<Site, SiteConfig>> = {
     provider: SbuAlfaDatabaseProvider,
     useDbContext: useSbuAlfaDatabaseContext,
     pages: { monthly: SbuAlfaMonthlyPage },
+  },
+  rubikon: {
+    provider: RubikonDatabaseProvider,
+    useDbContext: useRubikonDatabaseContext,
+    pages: { monthly: RubikonMonthlyPage },
   },
   "ua-losses": {
     provider: UaLossesDatabaseProvider,

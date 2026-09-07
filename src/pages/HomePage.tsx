@@ -8,6 +8,7 @@ import { useDatabaseUaLosses } from "@/hooks/useDatabaseUaLosses";
 import { useDatabaseRuMod } from "@/hooks/useDatabaseRuMod";
 import { useDatabaseRuAirAttacks } from "@/hooks/useDatabaseRuAirAttacks";
 import { useDatabaseSbuAlfa } from "@/hooks/useDatabaseSbuAlfa";
+import { useDatabaseRubikon } from "@/hooks/useDatabaseRubikon";
 import { useDatabaseMediazona } from "@/hooks/useDatabaseMediazona";
 import { DailyMultiLineChart, type LineSeries, type YAxisMode, type ChartGranularity } from "@/components/DailyMultiLineChart";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
@@ -429,6 +430,7 @@ export function HomePage({ onGoToSite }: Props) {
   const ruMod = useDatabaseRuMod({ enabled: needed.has("ru-airdef-mod") });
   const ruAir = useDatabaseRuAirAttacks({ enabled: needed.has("ru-air-attacks") });
   const sbuAlfa = useDatabaseSbuAlfa({ enabled: needed.has("sbu-alfa") });
+  const rubikon = useDatabaseRubikon({ enabled: needed.has("rubikon") });
   // Mediazona's two MetricSource values share one underlying DB hook.
   const mediazonaNeeded = needed.has("mediazona-roles") || needed.has("mediazona-estimate");
   const mediazona = useDatabaseMediazona({ enabled: mediazonaNeeded });
@@ -469,6 +471,7 @@ export function HomePage({ onGoToSite }: Props) {
       [needed.has("ru-airdef-mod"), ruMod.loadState],
       [needed.has("ru-air-attacks"), ruAir.loadState],
       [needed.has("sbu-alfa"), sbuAlfa.loadState],
+      [needed.has("rubikon"), rubikon.loadState],
       [mediazonaNeeded, mediazona.loadState],
     ].every(([n, s]) => !n || s === "ready");
     if (!allReady) return;
@@ -507,6 +510,7 @@ export function HomePage({ onGoToSite }: Props) {
             ruMod: needed.has("ru-airdef-mod") ? ruMod.queryMonthly : undefined,
             ruAir: needed.has("ru-air-attacks") ? ruAir.queryMonthly : undefined,
             sbuAlfa: needed.has("sbu-alfa") ? sbuAlfa.queryCounters : undefined,
+            rubikon: needed.has("rubikon") ? rubikon.queryCounters : undefined,
             mediazonaRoles: needed.has("mediazona-roles") ? mediazona.queryRolesMonthly : undefined,
             mediazonaEstimate: needed.has("mediazona-estimate") ? mediazona.queryEstimateMonthly : undefined,
           })
@@ -533,6 +537,7 @@ export function HomePage({ onGoToSite }: Props) {
       ruMod.loadState, ruMod.queryDaily, ruMod.queryMonthly,
       ruAir.loadState, ruAir.queryDaily, ruAir.queryMonthly,
       sbuAlfa.loadState, sbuAlfa.queryCounters,
+      rubikon.loadState, rubikon.queryCounters,
       mediazona.loadState, mediazona.queryRolesMonthly, mediazona.queryEstimateMonthly]);
 
   // Refetch whole-dataset stats whenever the set of needed sources grows. The
@@ -549,6 +554,7 @@ export function HomePage({ onGoToSite }: Props) {
       // SBU Alfa + Mediazona are monthly-only; the daily global-stats bundle
       // doesn't carry them. Their charts fall back to window stats either way.
       "sbu-alfa": false,
+      "rubikon": false,
       "mediazona-roles": false,
       "mediazona-estimate": false,
     };
@@ -654,12 +660,13 @@ export function HomePage({ onGoToSite }: Props) {
       ["ru-airdef-mod", ruMod.loadState, needed.has("ru-airdef-mod")],
       ["ru-air-attacks", ruAir.loadState, needed.has("ru-air-attacks")],
       ["sbu-alfa", sbuAlfa.loadState, needed.has("sbu-alfa")],
+      ["rubikon", rubikon.loadState, needed.has("rubikon")],
       // Both Mediazona sources share one underlying DB hook — collapse to a
       // single "mediazona" label so we don't double-report.
       ["mediazona", mediazona.loadState, mediazonaNeeded],
     ];
     return states.filter(([, st, isNeeded]) => isNeeded && st === "loading").map(([s]) => s);
-  }, [needed, mediazonaNeeded, sbs.loadState, gsua.loadState, ruLosses.loadState, uaLosses.loadState, ruMod.loadState, ruAir.loadState, sbuAlfa.loadState, mediazona.loadState]);
+  }, [needed, mediazonaNeeded, sbs.loadState, gsua.loadState, ruLosses.loadState, uaLosses.loadState, ruMod.loadState, ruAir.loadState, sbuAlfa.loadState, rubikon.loadState, mediazona.loadState]);
 
   // Cross-source refresh state for the header indicator. Each underlying hook
   // has its own auto-refresh cadence, so a single combined countdown would be
@@ -677,8 +684,9 @@ export function HomePage({ onGoToSite }: Props) {
     { needed: needed.has("ru-airdef-mod"),     h: ruMod     },
     { needed: needed.has("ru-air-attacks"),    h: ruAir     },
     { needed: needed.has("sbu-alfa"),          h: sbuAlfa   },
+    { needed: needed.has("rubikon"),           h: rubikon   },
     { needed: mediazonaNeeded,                 h: mediazona },
-  ]), [needed, mediazonaNeeded, sbs, gsua, ruLosses, uaLosses, ruMod, ruAir, sbuAlfa, mediazona]);
+  ]), [needed, mediazonaNeeded, sbs, gsua, ruLosses, uaLosses, ruMod, ruAir, sbuAlfa, rubikon, mediazona]);
 
   const refreshAggregated = useMemo(() => {
     const active = sourceHandles.filter((s) => s.needed);

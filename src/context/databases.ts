@@ -10,6 +10,7 @@ import { useDatabaseRuLosses } from "@/hooks/useDatabaseRuLosses";
 import { useDatabaseRuMod } from "@/hooks/useDatabaseRuMod";
 import { useDatabaseRuAirAttacks } from "@/hooks/useDatabaseRuAirAttacks";
 import { useDatabaseSbuAlfa } from "@/hooks/useDatabaseSbuAlfa";
+import { useDatabaseRubikon } from "@/hooks/useDatabaseRubikon";
 import { useDatabaseUaLosses } from "@/hooks/useDatabaseUaLosses";
 import { useDatabaseMediazona } from "@/hooks/useDatabaseMediazona";
 
@@ -30,6 +31,9 @@ export const { Provider: RuAirAttacksDatabaseProvider, useDbContext: useRuAirAtt
 
 export const { Provider: SbuAlfaDatabaseProvider, useDbContext: useSbuAlfaDatabaseContext } =
   makeDatabaseContext(useDatabaseSbuAlfa, "SBU Alfa");
+
+export const { Provider: RubikonDatabaseProvider, useDbContext: useRubikonDatabaseContext } =
+  makeDatabaseContext(useDatabaseRubikon, "Rubikon");
 
 export const { Provider: UaLossesDatabaseProvider, useDbContext: useUaLossesDatabaseContext } =
   makeDatabaseContext(useDatabaseUaLosses, "UA losses");

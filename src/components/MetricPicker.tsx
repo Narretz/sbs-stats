@@ -23,6 +23,7 @@ const SOURCE_ORDER: MetricSource[] = [
   "ru-airdef-mod",
   "ru-air-attacks",
   "sbu-alfa",
+  "rubikon",
   "mediazona-roles",
   "mediazona-estimate",
 ];

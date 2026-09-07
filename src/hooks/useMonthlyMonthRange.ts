@@ -36,11 +36,20 @@ export interface MonthlyMonthRange {
 /**
  * @param totalMonths - the dataset's full row count, used to decide whether to
  *   hide the picker. Pass the un-sliced `allRows.length`.
+ * @param defaultMonths - initial window when the URL carries no `months=`.
+ *   Defaults to DEFAULT_MONTHS (12), which is right for the long-running
+ *   sources. Short datasets that have only just crossed the 12-month
+ *   picker threshold should pass "all": otherwise the moment they gain a
+ *   13th month the page silently stops showing the 1st, which reads as data
+ *   loss rather than as a window. Rubikon's two views do this.
  */
-export function useMonthlyMonthRange(totalMonths: number): MonthlyMonthRange {
+export function useMonthlyMonthRange(
+  totalMonths: number,
+  defaultMonths: MonthOption = DEFAULT_MONTHS,
+): MonthlyMonthRange {
   const monthOptions = useMemo(() => MONTH_OPTIONS, []);
   const [months, setMonthsState] = useState<MonthOption>(() =>
-    parseMonthsParam(new URLSearchParams(window.location.search).get("months"))
+    parseMonthsParam(new URLSearchParams(window.location.search).get("months"), defaultMonths)
   );
   const setMonths = (m: MonthOption) => {
     setMonthsState(m);

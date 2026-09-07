@@ -128,13 +128,14 @@ export interface Metric {
 
 // ─── App state ────────────────────────────────────────────────────────────────
 export type Page = "daily" | "hourly" | "monthly" | "weekly";
-export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa" | "mediazona" | "ru-missiles-hur" | "ua-losses";
+export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa" | "rubikon" | "mediazona" | "ru-missiles-hur" | "ua-losses";
 export const SITE_LABELS: Record<Site, string> = {
   sbs: "UA SBS STATISTICS - SBS",
   "ru-attacks-gsua": "COMBAT STATS - GSUA",
   "ru-losses-gsua": "RU LOSSES - GSUA",
   "ru-air-attacks-gsua": "RU MISSILE & UAV ATTACKS - GSUA",
   "sbu-alfa": "UA SBU ALFA MONTHLY RECAP - SBU",
+  rubikon: "RU RUBIKON MONTHLY RECAP - RUBIKON",
   "ru-airdef-mod": "UA UAV ATTACKS - RU MoD",
   mediazona: "RU DEATHS - MEDIAZONA",
   "ru-missiles-hur": "RU MISSILE STOCKS - HUR",
@@ -596,6 +597,224 @@ export interface SbuAlfaCounterRow {
   published_at: string | null;
   derived: boolean;
   derivation_note?: string;
+}
+
+// ─── Rubikon (Telegram monthly recap → rubikon.db) ────────────────────────────
+// Центр «Рубикон» is a Russian UAV unit; its Telegram channel posts one recap
+// of the previous month on the 3rd–4th (running since 2026-01). Numbers are
+// unit self-reports — frame them in the UI as claims, not verified counts.
+//
+// The unit says «Поражены» — *engaged* — with NO destroyed/damaged split, so
+// unlike SBS there is one number per category. Two of the post's numbers are
+// NOT targets engaged, which is what RubikonKind encodes:
+//   sorties        — "боевых вылетов": unit activity, not damage.
+//   engaged        — the "Поражены:" list.
+//   ew_suppressed  — drones JAMMED by electronic warfare, not struck. Charted
+//                    in its own section with a caveat note on every bar so it
+//                    can never be read as part of the engaged total.
+// See scripts/rubikon/parse.py — the keys below mirror its CATEGORY_ORDER.
+export const RUBIKON_CATEGORY_KEYS = [
+  "combat_sorties",
+  "personnel",
+  "tanks",
+  "afv_ifv",
+  "apc",
+  "spg",
+  "towed_artillery",
+  "mlrs",
+  "mortars",
+  "atgm",
+  "fire_weapons",
+  "sam",
+  "aa_guns",
+  "radar_ew",
+  "comms",
+  "uav_control_points",
+  "command_posts",
+  "deployment_points",
+  "engineering_structures",
+  "fortifications",
+  "depots",
+  "life_support",
+  "engineering_vehicles",
+  "motorcycles",
+  "vehicles",
+  "decoys",
+  "uav",
+  "baba_yaga",
+  "fixed_wing_uav",
+  "ugv",
+  "uav_ew_suppressed",
+] as const;
+export type RubikonCategoryKey = (typeof RUBIKON_CATEGORY_KEYS)[number];
+
+// English labels follow Rubikon's own terminology, EXCEPT where a category is
+// semantically identical to one this app already charts — then it reuses that
+// existing wording so the same thing reads the same everywhere:
+//   towed_artillery    ← TARGET_LABELS[3]  "Cannons, Howitzers"
+//   spg                ← TARGET_LABELS[4]  "Self Propelled Artillery"
+//   uav_control_points ← TARGET_LABELS[37] "Drone Launch Points" (same term,
+//                        "ПУ БпЛА" / "Пункты управления БПЛА")
+//   sam / aa_guns      ← TARGET_LABELS[32] / [33]
+//   motorcycles / vehicles / mortars ← TARGET_LABELS[18] / [7] / [6]
+//   fixed_wing_uav     ← TARGET_LABELS[25], ugv ← TARGET_LABELS[26]
+//   personnel          ← RU_LOSSES_METRIC_LABELS.personnel
+export const RUBIKON_CATEGORY_LABELS: Record<RubikonCategoryKey, string> = {
+  combat_sorties: "Combat Sorties",
+  personnel: "Personnel",
+  tanks: "Tanks",
+  // Rubikon counts "ББМ, БМП" and "Бронетранспортеры" as two separate lines,
+  // so we can't collapse them into SBS's combined "APCs / IFVs / ACVs".
+  afv_ifv: "IFVs / Armoured Combat Vehicles",
+  apc: "APCs",
+  spg: "Self Propelled Artillery",
+  towed_artillery: "Cannons, Howitzers",
+  mlrs: "MLRS",
+  mortars: "Mortars",
+  atgm: "ATGMs",
+  // «Огневые средства» — "fire assets", anything that delivers fire. The same
+  // list counts mortars, towed guns, SPGs, MLRS, ATGMs, SAMs and AA guns on
+  // their own lines, so this is the residual: crew-served infantry weapons
+  // and unclassified firing points. Our reading of the term, not a translation
+  // — see scripts/rubikon/README.md.
+  fire_weapons: "Crew-Served Weapons",
+  sam: "SAM",
+  aa_guns: "AA guns",
+  // "РЛС, РЭР, РЭБ" is ONE line in the source — radar, SIGINT and EW counted
+  // together. Not split here because the source doesn't split it.
+  radar_ew: "Radar / SIGINT / EW",
+  comms: "Communication Systems",
+  uav_control_points: "Drone Launch Points",
+  command_posts: "Command Posts",
+  // "ПВД / ОП" — пункт временной дислокации / опорный пункт.
+  deployment_points: "Deployment Points / Strongpoints",
+  engineering_structures: "Engineering Structures",
+  fortifications: "Fortifications",
+  depots: "Ammo / Fuel Depots",
+  life_support: "Life-Support Equipment",
+  engineering_vehicles: "Engineering Vehicles",
+  motorcycles: "Motorcycles",
+  vehicles: "Vehicles",
+  decoys: "Decoys / Mockups",
+  uav: "UAVs",
+  // Russian nickname for Ukraine's heavy multirotor night-bomber drones.
+  baba_yaga: "«Baba Yaga» Heavy UAVs",
+  fixed_wing_uav: "Fixed-wing UAVs",
+  ugv: "UGVs",
+  uav_ew_suppressed: "UAVs Suppressed by EW",
+};
+
+export type RubikonKind = "sorties" | "engaged" | "ew_suppressed";
+
+// The two categories that are NOT part of the "Поражены" (engaged) list. The
+// page charts them outside the targets grid; `combat_sorties` is activity and
+// `uav_ew_suppressed` is jamming, and neither belongs in a targets total.
+export const RUBIKON_SORTIES_KEY = "combat_sorties" satisfies RubikonCategoryKey;
+export const RUBIKON_EW_KEY = "uav_ew_suppressed" satisfies RubikonCategoryKey;
+
+// One row per (period, category) — what the charts consume. `period` is YYYY-MM.
+// `raw_label` is the verbatim Russian phrasing, shown in tooltips for audit.
+export interface RubikonCounterRow {
+  period: string;
+  category: RubikonCategoryKey;
+  kind: RubikonKind;
+  value: number;
+  raw_label: string | null;
+  url: string;
+  posted_at: string;
+}
+
+// ─── Rubikon published strike episodes («Итоги <месяца>» → rubikon.db) ────────
+// INGESTED BUT NOT SURFACED. The types below describe rows that
+// scripts/rubikon/parse_digest.py stores under report_type='monthly_digest';
+// no page reads them today. Kept so the shape is documented next to the data
+// and re-adding a view is a small change, not a re-derivation.
+//
+// Why there's no page: these are counts of the strike videos the channel
+// PUBLISHED, tallied by category — the same tally Lostarmour maintains from
+// those videos (every post footer links «Статистика «Рубикона» на Lostarmour»),
+// which is where the coarser, unfamiliar category set comes from. If we want
+// this measure it should come from Lostarmour's own data, not from
+// transcribing Rubikon's monthly summary of it: the summary is spotty
+// (13 months, one missing, per-category detail only for 6 of them, three
+// headline figures that are floors).
+//
+// It is also NOT a coarser version of the recap above. Both exist for
+// Jan/Feb/Mar 2026, posted days apart, and disagree by ~4×:
+//
+//   recap   «Применение … по плану начальника Генерального Штаба»
+//           — targets the unit CLAIMS to have engaged.   Jan 2026:  8 470
+//   digest  «Количество ОПУБЛИКОВАННЫХ эпизодов … официальным каналом»
+//           — strike videos the channel PUBLISHED.        Jan 2026:  2 152
+//
+// Published share is ~20–25% overall but ranges ~0.10 (dugouts) to ~0.95
+// (tanks) within a single month — publication selection, not a coarser count.
+// So it must never share an axis with the recap. Post 2551 prints both totals
+// side by side: 280 000 targets hit vs 45 000 published episodes.
+//
+// Categories are COARSER aggregates of the recap's and live in their own
+// namespace: `radar_comms` merges the recap's radar_ew + comms, `positions`
+// merges deployment_points + fortifications + engineering_structures, `armour`
+// merges afv_ifv + apc, `uav` merges uav + baba_yaga + fixed_wing_uav.
+// Keys mirror scripts/rubikon/parse_digest.py's CATEGORY_ORDER.
+export const RUBIKON_EPISODE_CATEGORY_KEYS = [
+  "episodes_total",
+  "uav",
+  "ugv",
+  "radar_comms",
+  "personnel",
+  "vehicles",
+  "positions",
+  "artillery",
+  "towed_artillery",
+  "spg",
+  "armour",
+  "tanks",
+  "infrastructure",
+  "vks_joint",
+  "other",
+] as const;
+export type RubikonEpisodeCategoryKey = (typeof RUBIKON_EPISODE_CATEGORY_KEYS)[number];
+
+export const RUBIKON_EPISODE_CATEGORY_LABELS: Record<RubikonEpisodeCategoryKey, string> = {
+  episodes_total: "Published Episodes — Total",
+  uav: "UAVs",
+  ugv: "UGVs",
+  radar_comms: "Radar / Comms / Surveillance",
+  personnel: "Personnel",
+  vehicles: "Vehicles",
+  positions: "Deployment Points / Field Fortifications",
+  artillery: "Artillery Systems",
+  // Sep + Oct 2025 only — from Nov the unit reports one merged `artillery`
+  // line, so these two stop rather than going to zero.
+  towed_artillery: "Cannons, Howitzers",
+  spg: "Self Propelled Artillery",
+  armour: "Armoured Combat Vehicles",
+  tanks: "Tanks",
+  infrastructure: "Infrastructure",
+  // Strikes flown jointly with the Russian Aerospace Forces — first broken
+  // out in March 2026, and counted inside that month's headline total.
+  vks_joint: "Joint Strikes with VKS",
+  other: "Other Targets",
+};
+
+// The headline count; every other key is one line of the structure list, and
+// where a breakdown exists its parts sum exactly to this.
+export const RUBIKON_EPISODES_TOTAL_KEY = "episodes_total" satisfies RubikonEpisodeCategoryKey;
+
+export type RubikonEpisodeKind = "published_total" | "published_episodes";
+
+// One row per (period, category). `bound` is 'at_least' where the source says
+// «превысило N» (a floor) rather than «составило N».
+export interface RubikonEpisodeRow {
+  period: string;
+  category: RubikonEpisodeCategoryKey;
+  kind: RubikonEpisodeKind;
+  value: number;
+  bound: "exact" | "at_least";
+  raw_label: string | null;
+  url: string;
+  posted_at: string;
 }
 
 // ─── Mediazona (confirmed named deaths + probate estimate → mediazona.db) ──────
