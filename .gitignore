@@ -12,6 +12,7 @@ vite.config.d.ts
 .env.*.local
 # Kaggle API credentials — never commit
 .env.kaggle
+.env.telegram
 
 # .env.production IS committed (no secrets, just the public DB URL)
 
@@ -35,6 +36,7 @@ data/ru-air-attacks-gsua.db
 data/sbs-foosint.db
 data/sbs.db
 data/sbu-alfa.db
+data/rubikon.db
 data/mediazona.db
 data/ua-losses.db
 
