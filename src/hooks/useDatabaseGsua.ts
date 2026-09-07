@@ -41,12 +41,23 @@ async function loadWorker(): Promise<WorkerHttpvfs> {
           serverMode: "full",
           url: DB_URL,
           requestChunkSize: REQUEST_CHUNK_SIZE,
-          // The R2 object is overwritten by every scrape. Without a cache-bust,
-          // the browser can serve stale cached byte-ranges mixed with fresh
-          // ones — producing inconsistent/empty reads (different queries touch
-          // different pages). A per-load token makes every worker (initial +
-          // each refresh) fetch a coherent snapshot. Mirrors the SBS loader's
-          // `?bust=` + no-store. (sql.js-httpvfs appends this as a query param.)
+          // The R2 object is overwritten by every scrape, and httpvfs reads it
+          // as many byte-ranges rather than one download. Without a cache-bust
+          // the caching layers (browser HTTP cache, CDN edge) can serve a range
+          // cached from the old object next to one fetched from the new — and
+          // since different queries touch different pages, the result is
+          // inconsistent or empty reads. A per-worker token gives every load
+          // its own cache key, so ranges cached under a previous token can
+          // never be mixed into this one. Mirrors the SBS loader's `?bust=` +
+          // no-store. (sql.js-httpvfs appends this as a query param.)
+          //
+          // It does NOT pin a version. R2 keys on the object path and ignores
+          // the query string, so if an upload lands mid-session the next range
+          // comes from the new file with the same token attached. Nothing on
+          // the client can prevent that: pinning needs the server in on it —
+          // ETag + If-Match so a mid-flight change fails instead of tearing
+          // silently, or immutable versioned object names. Exposure is one
+          // torn result set until the next refresh, three uploads a day.
           cacheBust: String(Date.now()),
         },
       },
