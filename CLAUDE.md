@@ -16,6 +16,7 @@ via sql.js / sql.js-httpvfs.
 | RU AIR DEFENSE — RU MoD | `ru-airdef-mod` | Russian MoD air-defense claims (Telegram) | [`scripts/ru_mod/`](scripts/ru_mod/README.md) → `ru-mod-ad.db` |
 | RU MISSILE & UAV ATTACKS — GSUA | `ru-air-attacks-gsua` | UA Air Force Command + General Staff strike reports (piterfm / Kaggle) | [`scripts/missile_attacks/`](scripts/missile_attacks/README.md) → `ru-air-attacks-gsua.db` |
 | UA SBU ALFA — MONTHLY RECAP | `sbu-alfa` | SBU press releases (Centre of Special Operations «А» monthly TOP-1 recap) | [`scripts/sbu_alfa/`](scripts/sbu_alfa/README.md) → `sbu-alfa.db` |
+| RU RUBIKON — MONTHLY RECAP | `rubikon` | Центр «Рубикон» (RU UAV unit) monthly Telegram recap | [`scripts/rubikon/`](scripts/rubikon/README.md) → `rubikon.db` |
 | RU DEATHS — MEDIAZONA | `mediazona` | Mediazona + Meduza confirmed named deaths + probate-registry estimate (CSV exports) | [`scripts/mediazona/`](scripts/mediazona/README.md) → `mediazona.db` |
 
 [`DATASETS.md`](DATASETS.md) tracks source research, recency, and candidate
@@ -69,6 +70,18 @@ GitHub Actions in `.github/workflows/`:
   news listing, slug-filters candidate URLs, and ingests any not already in
   the DB. Slug-drift-safe: matches only insert if the parser recognises
   `report_type='monthly_top1'` with a valid `period`.
+- `update-rubikon-db.yml` — Rubikon monthly recap. Daily 08:00 UTC on days
+  2–8 of each month (7 runs) — the channel posts on the 3rd–4th, so this is a
+  much tighter window than SBU Alfa's, which is why it's its own workflow
+  rather than a second job alongside it. `scripts/rubikon/ingest.py` reads the
+  public `t.me/s/icpbtrubicon` web preview (no Telegram API account, stdlib
+  only) and stores the channel's TWO monthly series — the General-Staff-plan
+  recap (3rd–4th, `report_type='monthly'`, the site) and the «Итоги»
+  published-episode digest (month end / 1st, `report_type='monthly_digest'`,
+  ingested but deliberately **not surfaced** — see scripts/rubikon/README.md).
+  The ~200 other posts a month, including the multi-month cumulative totals,
+  are rejected by the parsers' gates. Uploads gated on `changed=true`, like
+  SBU Alfa. Both series land inside the days-2–8 window.
 - `update-ua-losses-db.yml` — UA personnel losses (ualosses.org via Kaggle).
   Twice a month (07:00 UTC on the 1st & 15th) — the source re-uploads only every
   ~2 months, so this catches a release within ~2 weeks without a daily 30 MB
@@ -83,8 +96,9 @@ The scrapers that only re-read a recent window expose that window as a
 `workflow_dispatch` input, so a manual run can widen it after a parser fix — a
 post the parser dropped was never stored, so `reparse.py` can't recover it and
 only a re-scrape can. `update-telegram-web-dbs.yml`: `gsua_lookback_days` /
-`rumod_lookback_days` (default 2). `update-sbu-alfa-db.yml`: `pages` (default 3
-listing pages). `update-db.yml`: `all_months` (bypass the SBS 10-day / 6-hour
+`rumod_lookback_days` (default 2). `update-sbu-alfa-db.yml`: `pages` (default
+3 listing pages). `update-rubikon-db.yml`: `pages` (default 3 t.me/s preview
+pages). `update-db.yml`: `all_months` (bypass the SBS 10-day / 6-hour
 refresh thresholds). The Kaggle / CSV / article-bundle pipelines (RU losses, UA
 losses, missile attacks, Mediazona) re-pull the whole source every run, so a
 fix takes effect on the next run with no input to widen.
@@ -97,6 +111,12 @@ its own manual workflow: `reparse-gsua-db.yml` (inputs `since` =
 R2, runs `scripts/gsua/reparse.py` over it, and re-uploads the full and app
 copies. Kept separate from the scheduled scrape on purpose: different
 trigger, different blast radius.
+
+Rubikon has the same split without a workflow of its own: it stores each post's
+raw text, so `scripts/rubikon/ingest.py --reparse` (dry-run; `--apply` writes)
+re-reads the stored recaps locally after a parser fix, while `--max-pages` /
+the workflow's `pages` input widens the scrape for a recap that was dropped
+outright.
 
 ## Common commands
 

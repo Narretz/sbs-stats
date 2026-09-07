@@ -6,7 +6,7 @@ Research compiled 2026-05-25, refreshed 2026-06-24 (added §5 lostarmour, update
 verified via GitHub `pushed_at` / Kaggle versions / live API responses on that
 date. We currently ingest: SBS, GSUA per-direction combat, RU losses
 (PetroIvaniuk + mod.gov.ua), RU MoD air-defense, RU missile/UAV attacks
-(piterfm), SBU Alfa, Mediazona, and RU missile stockpiles (HUR prototype).
+(piterfm), SBU Alfa, Rubikon, Mediazona, and RU missile stockpiles (HUR prototype).
 
 Legend: **LIVE** = updated within the last few days · **STALE** = not updated · **GAP** = no
 off-the-shelf dataset, would need our own scraper.
@@ -558,6 +558,52 @@ Done (each is a live R2 SQLite + a site-picker entry):
 - **RU MoD air-defense intercepts** — `ru-mod-ad.db` (§3)
 - **RU missile/UAV attacks (piterfm)** — `ru-air-attacks-gsua.db` (§2)
 - **SBU Alfa monthly recap** — `sbu-alfa.db`
+- **Rubikon monthly recap** — `rubikon.db`; Центр «Рубикон» (RU UAV unit) posts one
+  fixed-shape recap of the previous month on the 3rd–4th to @icpbtrubicon, scraped from
+  the public `t.me/s` preview (no API account). Self-reported claims, «Поражены»
+  (*engaged*) with no destroyed/damaged split; sorties and EW-jammed drones are stored
+  and charted apart from the engaged counts. Series starts 2026-01.
+- **Rubikon published strikes** — same `rubikon.db`, `report_type='monthly_digest'`.
+  **Ingested and stored, but NOT surfaced in the UI** (no site, no page, not in the
+  homepage metric picker). The channel's «Итоги <месяца>» posts count the strike videos
+  it PUBLISHED, not targets claimed — a genuinely different measure, confirmed on the
+  months where both series exist (published ≈ 20–25% of claimed overall, but ~10% for
+  dugouts vs ~95% for tanks). Runs 2025-07 → 2026-08 (13 months, no 2025-12: Rubikon
+  skipped it in favour of an annual summary), with a per-category breakdown only for
+  2025-09 → 2026-03, in two different category shapes, and three headline figures that
+  are floors («превысило N»).
+  **These are Lostarmour's numbers.** Lostarmour catalogues and classifies Rubikon's
+  published strike videos (every Rubikon post footer links «Статистика «Рубикона» на
+  Lostarmour»), which is why the category set is coarser and unlike the recap's. So the
+  right way to get this measure is Lostarmour's own data (§5) — API or DB if we can get
+  access — not by transcribing Rubikon's monthly prose summary of it. The parser and
+  rows stay so the history isn't lost if that route opens up; re-adding a view is a
+  small change (the row types and the `queryEpisodes` read path are still in the
+  frontend, just unused).
+  *Checked 2026-09-07 — don't redo this scan:*
+  - **Lostarmour's Telegram is [@lost_armour](https://t.me/lost_armour)** (Rubikon post
+    2551 links `t.me/lost_armour/11100`). It **mirrors** Rubikon rather than publishing
+    its own monthly stats: 6 of the 7 monthly «Итоги» posts Feb–Aug 2026 are byte-identical
+    to Rubikon's, and the one that differs (June 2026, post 10145) is a *degraded* copy —
+    mistitled «Итоги мая 2026», missing a line. **The per-category breakdown stops at
+    March 2026 there too** (3 `Структура основных типов` posts across a 1 868-post
+    Jan-2026→Sep-2026 window, same months as Rubikon's channel). No reason to switch source.
+  - A **denser live series does exist** on both channels: «опубликовано свыше N 000
+    эпизодов» milestone posts every ~5–7 days (46 000 by 2026-09-07), carrying a
+    *cumulative percentage* structure with richer categories than the monthly digest —
+    a nested UAV split (multirotor / fixed-wing / НРТК), infrastructure, VKS joint
+    strikes, supply delivery, remote mining. **Not ingested:** per-interval counts would
+    have to be differenced from `pct × cumulative N` at irregular milestones, where N is
+    itself a floor («свыше 46 000») and pct is given to 0.1% — ±46 episodes per term
+    against intervals of ~1 000, i.e. error comparable to signal. The posts' own deltas
+    also use inconsistent baselines (one says «относительно отсечки в 40 000», the next
+    45 000).
+  - **lostarmour.info has no public machine path** (confirms §5): `robots.txt`,
+    `sitemap.xml` and `/api` all 302; `/tags/rubicon` is plain server-rendered HTML with
+    no embedded JSON, no pagination links, no per-item hrefs. Would need to email them.
+  Not ingested from the same channel: the annual «Итоги 2025» roll-up (post 903), the
+  cumulative "N 000 эпизодов" milestone posts, and the 2025 monthly sortie figures that
+  Rubikon has published only as labels inside an infographic JPEG (post 2551).
 - **Mediazona named deaths + probate estimate** — `mediazona.db`
 - **RU missile stockpiles (HUR)** — prototype JSON, site `ru-missiles-hur` (§9)
 
