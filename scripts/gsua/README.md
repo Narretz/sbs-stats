@@ -124,6 +124,12 @@ ones fall to a Title-case fallback and get a `_sanity_check` warning.
   (always at paragraph start, never mid-sentence after "На X напрямках").
 - **Apostrophe variants** (U+02BC ʼ, U+2019 ', ASCII ') and **en-dash in
   direction names** (U+2013) are normalised before lookup.
+- **Paired anchors share one total** ("На X і Y напрямках відбулося 15
+  боєзіткнень" = 15 across both, hence `attacks_group_size` and fair-share) —
+  *except* when the sentence ends in **`відповідно`**, which states one figure
+  per direction in name order ("…зросла до 13 і восьми відповідно"). Those get
+  their own values at `group_size = 1`. One instance in the corpus so far
+  (msg 15376), and reading it as a shared total charted 6.5 and 6.5.
 - **Word-form direction counts move around the sentence** while digit counts
   don't: the digit branch is position-free, but every word-form branch is
   anchored to a verb or noun on one side of the number. So "атакував двічі",

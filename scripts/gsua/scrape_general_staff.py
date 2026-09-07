@@ -144,6 +144,11 @@ class DirectionEntry:
     `group_size = k` (number of directions in that anchor) and a per-post
     `group_id` shared by all rows in the group. Downstream queries compute
     fair-share as `attacks * 1.0 / attacks_group_size`.
+
+    The exception is a "respectively" anchor — "…зросла до 13 і восьми
+    відповідно" — which states one figure PER direction. Those rows carry each
+    direction's own value with `group_size = 1`, because fair-share would halve
+    numbers that were never shared. See `_respective_counts`.
     """
     date: str = ""
     source: str = "telegram"
@@ -385,6 +390,55 @@ def _ua_word_to_num(word: str) -> int | None:
             return None
         total += n
     return total
+
+
+def _number_sequence(text: str) -> list[int]:
+    """Every number in `text`, in reading order, digit or Ukrainian word form.
+
+    Consecutive number words are summed as one value, matching
+    `_ua_word_to_num` ("двадцять п'ять" → 45); any other token ends the run,
+    so a separator like "13 і восьми" reads as two numbers, not one.
+    """
+    out: list[int] = []
+    run: list[int] = []
+    for tok in re.findall(r"\d+|[^\W\d_]+(?:['ʼ’][^\W\d_]+)*", text, re.UNICODE):
+        if tok.isdigit():
+            if run:
+                out.append(sum(run))
+                run = []
+            out.append(int(tok))
+            continue
+        n = UA_NUM.get(tok.lower().replace("ʼ", "'").replace("’", "'"))
+        if n is not None:
+            run.append(n)
+        elif run:
+            out.append(sum(run))
+            run = []
+    if run:
+        out.append(sum(run))
+    return out
+
+
+def _respective_counts(segment: str, expected: int) -> list[int] | None:
+    """Per-direction counts from a "respectively" anchor, or None.
+
+    "На Сіверському та Краматорському напрямках кількість штурмових дій
+    окупантів зросла до 13 і восьми **відповідно**" states one total PER
+    direction, in the order the names were listed — the inverse of the usual
+    paired anchor, where a single figure is shared across both and downstream
+    divides it fair-share. Reading it as a shared total charts 6.5 and 6.5
+    against a truth of 13 and 8.
+
+    `segment` must run from the end of the anchor to just before "відповідно",
+    so trailing prose ("…втратив 73 особи загиблими") can't contribute
+    numbers. Returns None unless exactly `expected` numbers are found: a
+    partial match means the sentence isn't the shape we think it is, and a
+    shared total is the safer reading.
+    """
+    if expected < 2:
+        return None
+    nums = _number_sequence(segment)
+    return nums if len(nums) == expected else None
 
 
 def _branch_4_only(text: str) -> int | None:
@@ -1394,20 +1448,36 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
             and _HAS_NUMBER.search(anchor_sentence)
         )
 
-        group_size = len(anchor_names)
+        # "Respectively": one figure per direction rather than one shared
+        # total. Gated on the marker AND on the count of numbers matching the
+        # count of names, so it can't touch the ordinary paired anchor. The
+        # slice starts after the anchor and stops at the marker, keeping the
+        # sentence's other numbers out. See _respective_counts.
+        per_direction = None
+        if not no_activity and len(anchor_names) > 1:
+            marker = re.search(r"відповідн\w*", anchor_sentence, re.IGNORECASE)
+            if marker:
+                per_direction = _respective_counts(
+                    anchor_sentence[match.end() - count_start:marker.start()],
+                    len(anchor_names),
+                )
+
+        # Each "respectively" figure is that direction's OWN total, so those
+        # rows are group_size=1 — they must not be divided fair-share.
+        group_size = 1 if per_direction else len(anchor_names)
         group_id = i if group_size > 1 else None
-        for dir_name in anchor_names:
+        for j, dir_name in enumerate(anchor_names):
             seen.add((msg.id, dir_name))
             entries.append(DirectionEntry(
                 date=report_date,
                 source=getattr(msg, "source", "telegram"),
                 source_id=str(msg.id),
                 direction=dir_name,
-                attacks=attacks,
+                attacks=per_direction[j] if per_direction else attacks,
                 ongoing=ongoing,
                 attacks_group_size=group_size,
                 attacks_group_id=group_id,
-                unparsed_count=unparsed,
+                unparsed_count=unparsed and not per_direction,
             ))
 
     return entries

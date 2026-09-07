@@ -1860,6 +1860,87 @@ class TestDirections:
 
 
 # ---------------------------------------------------------------------------
+# "respectively" anchors — one figure PER direction, not one shared total
+# ---------------------------------------------------------------------------
+
+class TestRespectiveCounts:
+    def _dirs(self, sentence, mid=15376, date="2024-06-12"):
+        text = _wrap_evening(sentence)
+        return {d.direction: d for d in gs.parse_directions(text, _msg(text, mid=mid), date)}
+
+    def test_splits_the_figures_across_the_named_directions(self):
+        # msg 15376 (2024-06-12), the only instance in the corpus: "зросла до
+        # 13 і восьми відповідно" is 13 for Siversk and 8 for Kramatorsk, in
+        # the order the names were listed.
+        d = self._dirs(
+            "На Сіверському та Краматорському напрямках кількість штурмових "
+            "дій окупантів зросла до 13 і восьми відповідно."
+        )
+        assert d["Siversk"].attacks == 13
+        assert d["Kramatorsk"].attacks == 8
+
+    def test_split_figures_are_not_a_shared_total(self):
+        # Each figure is that direction's OWN total, so group_size must be 1.
+        # Left at 2 the fair-share query would chart 6.5 and 4 — the exact bug
+        # this branch exists to prevent.
+        d = self._dirs(
+            "На Сіверському та Краматорському напрямках кількість штурмових "
+            "дій окупантів зросла до 13 і восьми відповідно."
+        )
+        assert d["Siversk"].attacks_group_size == 1
+        assert d["Kramatorsk"].attacks_group_size == 1
+        assert d["Siversk"].attacks_group_id is None
+
+    def test_ordinary_paired_anchor_is_untouched(self):
+        # Without the marker this is Ukrainian for "15 across both", which is
+        # what group_size=2 + fair-share encodes. The branch must not fire.
+        d = self._dirs(
+            "На Сіверському та Краматорському напрямках відбулося 15 "
+            "боєзіткнень."
+        )
+        assert d["Siversk"].attacks == 15
+        assert d["Kramatorsk"].attacks == 15
+        assert d["Siversk"].attacks_group_size == 2
+        assert d["Siversk"].attacks_group_id == d["Kramatorsk"].attacks_group_id
+
+    def test_falls_back_when_the_figures_dont_match_the_names(self):
+        # Two directions, one number: the sentence isn't the shape we think it
+        # is, so the shared-total reading is the safer one.
+        d = self._dirs(
+            "На Сіверському та Краматорському напрямках кількість штурмових "
+            "дій окупантів зросла до 13 відповідно."
+        )
+        assert d["Siversk"].attacks == d["Kramatorsk"].attacks == 13
+        assert d["Siversk"].attacks_group_size == 2
+
+    def test_numbers_after_the_marker_are_not_counted(self):
+        # The slice stops at "відповідно", so the losses sentence that follows
+        # in the real post can't turn a 2-name anchor into a 4-number one.
+        d = self._dirs(
+            "На Сіверському та Краматорському напрямках кількість штурмових "
+            "дій окупантів зросла до 13 і восьми відповідно, втративши 73 "
+            "особи загиблими та 122 пораненими."
+        )
+        assert d["Siversk"].attacks == 13
+        assert d["Kramatorsk"].attacks == 8
+
+
+class TestNumberSequence:
+    def test_reads_digits_and_words_in_order(self):
+        assert gs._number_sequence("до 13 і восьми") == [13, 8]
+
+    def test_consecutive_number_words_are_one_compound(self):
+        assert gs._number_sequence("до двадцять п’ять і восьми") == [25, 8]
+
+    def test_a_non_number_token_ends_a_run(self):
+        # "і" separates two values; without the break they'd sum to 21.
+        assert gs._number_sequence("тринадцять і вісім") == [13, 8]
+
+    def test_prose_without_numbers_is_empty(self):
+        assert gs._number_sequence("кількість штурмових дій окупантів") == []
+
+
+# ---------------------------------------------------------------------------
 # unparsed_count — the coverage flag behind the "possible direction-count gap"
 # warning. Every other sanity check fires on a value that looks wrong; this one
 # fires on a value that was never extracted at all.
