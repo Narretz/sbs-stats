@@ -620,6 +620,19 @@ export const UNMAPPED_NATIVES: Record<CompareEntityId, NativeKey[]> = {
   rubikon: NATIVE_KEYS.rubikon.filter((n) => !MAPPED_NATIVES.rubikon.has(n.key)),
 };
 
+// Caveats for native counters that appear outside a canonical row — whether in
+// an "only in" section or, for a single-entity view, appended to the table
+// proper. A counter that does not mean what the group header says needs to say
+// so wherever it is rendered.
+export const NATIVE_NOTES: Partial<Record<CompareEntityId, Record<string, string>>> = {
+  rubikon: {
+    // «подавлено системами РЭБ» — jammed, not hit, and excluded from every
+    // «Поражены» line. Under a "Hit / struck" header it would read as the
+    // unit's largest kill count.
+    uav_ew_suppressed: "SUPPRESSED, not struck — jammed by EW and counted apart from «Поражены»",
+  },
+};
+
 // ─── Formatting ──────────────────────────────────────────────────────────────
 export function fmtValue(v: CompareValue): string {
   const s = v.value.toLocaleString();

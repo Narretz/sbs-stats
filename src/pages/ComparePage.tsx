@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useRubikonDatabaseContext,
   useSbsDatabaseContext,
@@ -13,6 +13,7 @@ import {
   SBS_COLUMNS,
   ENTITY_LABELS,
   GROUP_LABELS,
+  NATIVE_NOTES,
   UNMAPPED_NATIVES,
   fmtPct,
   fmtValue,
@@ -228,7 +229,40 @@ export function ComparePage({ preset }: Props) {
     [columns],
   );
 
-  const visibleRows = useMemo(() => visibleRowsFor(entitiesInUse), [entitiesInUse]);
+  // With every column on the same entity there is no "other side" for a row to
+  // be absent from, so the "only in" framing is meaningless — those counters
+  // are just more of that unit's categories and belong in the table proper.
+  const soloEntity = entitiesInUse.length === 1 ? entitiesInUse[0] : null;
+
+  // Native counters outside the shared mapping that actually carry a non-zero
+  // value in one of that entity's selected months. SBS alone has ~20 target ids
+  // outside the mapping, most of them empty in any given month.
+  const nonZeroNatives = useCallback((entity: CompareEntityId) => {
+    const cols = columns.filter((c) => c.entity === entity);
+    return UNMAPPED_NATIVES[entity].filter((n) =>
+      cols.some((c) => {
+        const v = snapshots[entity].get(c.month, n.key);
+        return v != null && v.value !== 0;
+      }),
+    );
+  }, [columns, snapshots]);
+
+  const visibleRows = useMemo(() => {
+    const base = visibleRowsFor(entitiesInUse);
+    if (!soloEntity) return base;
+    // Appended to the last group so they simply continue the table — no header
+    // separates them, which is the whole point.
+    const extras: FlatRow[] = nonZeroNatives(soloEntity).map((n) => ({
+      group: "struck",
+      key: n.key,
+      id: `native/${n.key}`,
+      label: n.label,
+      indent: false,
+      map: { [soloEntity]: [n.key] },
+      scope: { [soloEntity]: NATIVE_NOTES[soloEntity]?.[n.key] },
+    }));
+    return [...base, ...extras];
+  }, [entitiesInUse, soloEntity, nonZeroNatives]);
 
   const valueFor = (col: Column, keys: readonly AnyNativeKey[] | undefined): CompareValue | null =>
     sumNatives(snapshots[col.entity], col.month, keys);
@@ -247,21 +281,14 @@ export function ComparePage({ preset }: Props) {
     );
 
   // "Only in <entity>" sections, in the order their entities first appear as
-  // columns. A native counter is listed only if it actually carries a non-zero
-  // value in one of that entity's selected months — SBS alone has ~20 target
-  // ids outside the shared mapping, most of them empty in any given month.
+  // columns. Empty when there is only one entity — those rows went into the
+  // main table above instead.
   const unmappedSections = useMemo(() => {
-    return entitiesInUse.map((entity) => {
-      const cols = columns.filter((c) => c.entity === entity);
-      const natives = UNMAPPED_NATIVES[entity].filter((n) =>
-        cols.some((c) => {
-          const v = snapshots[entity].get(c.month, n.key);
-          return v != null && v.value !== 0;
-        }),
-      );
-      return { entity, natives };
-    }).filter((s) => s.natives.length > 0);
-  }, [entitiesInUse, columns, snapshots]);
+    if (soloEntity) return [];
+    return entitiesInUse
+      .map((entity) => ({ entity, natives: nonZeroNatives(entity) }))
+      .filter((s) => s.natives.length > 0);
+  }, [entitiesInUse, soloEntity, nonZeroNatives]);
 
   const loading =
     sbs.loadState === "loading" || sbu.loadState === "loading" || rubikon.loadState === "loading";
@@ -510,6 +537,11 @@ export function ComparePage({ preset }: Props) {
                         </td>
                         {renderCells(
                           columns.map((c) => (c.entity === entity ? snapshots[entity].get(c.month, n.key) : null)),
+                          columns.map((c, i) =>
+                            c.entity === entity && firstColOfEntity.get(entity) === i
+                              ? NATIVE_NOTES[entity]?.[n.key]
+                              : undefined,
+                          ),
                         )}
                       </tr>
                     ))}
