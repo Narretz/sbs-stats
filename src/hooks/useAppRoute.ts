@@ -57,12 +57,24 @@ function writeSite(next: { site?: Site; page?: Page }) {
   window.history.pushState(null, "", `${window.location.pathname}?${p.toString()}`);
 }
 
+// Navigate to an unlisted `?view=…` page. Clears site/page so the URL doesn't
+// carry a stale site the view doesn't use — `cols` is left alone, so returning
+// to the compare view restores the columns you left it with.
+function writeSpecial(view: SpecialView) {
+  const p = new URLSearchParams(window.location.search);
+  p.delete("site");
+  p.delete("page");
+  p.set("view", view);
+  window.history.pushState(null, "", `${window.location.pathname}?${p.toString()}`);
+}
+
 // Clear site/page params; homepage owns its own params (metrics, days, …)
 // and we don't want stale site/page hanging around when we navigate home.
 function writeHome() {
   const p = new URLSearchParams(window.location.search);
   p.delete("site");
   p.delete("page");
+  p.delete("view");
   const qs = p.toString();
   window.history.pushState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
 }
@@ -83,7 +95,19 @@ export function useAppRoute() {
     setRouteState({ kind: "home" });
   };
 
+  const goSpecial = (view: SpecialView) => {
+    writeSpecial(view);
+    setRouteState({ kind: "special", view });
+  };
+
   const goSite = (site: Site, page?: Page) => {
+    // Leaving a special view has to clear `view`, or readUrl would keep
+    // resolving to it on the next popstate.
+    if (route.kind === "special") {
+      const p = new URLSearchParams(window.location.search);
+      p.delete("view");
+      window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
+    }
     const pages = pagesFor(site);
     const safePage: Page = page && pages.includes(page) ? page : pages[0];
     writeSite({ site, page: safePage });
@@ -104,5 +128,5 @@ export function useAppRoute() {
     setRouteState({ kind: "site", site: route.site, page: p });
   };
 
-  return { route, goHome, goSite, setSite, setPage, pagesFor };
+  return { route, goHome, goSite, goSpecial, setSite, setPage, pagesFor };
 }

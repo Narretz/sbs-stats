@@ -317,7 +317,9 @@ export function ComparePage({ preset }: Props) {
       const pct = i === 0 ? null : pctChange(base, v);
       return (
         <td key={i} style={cellStyle(uniqueMax && v != null && v.value === max)}>
-          <div title={v?.note ?? undefined}>
+          {/* The scope caveat no longer renders as a visible caption; it stays
+              on the hover tooltip so the information isn't lost. */}
+          <div title={[v?.note, scopes?.[i]].filter(Boolean).join(" — ") || undefined}>
             {v != null ? fmtValue(v) : "—"}
             {pct != null && (
               <span style={{ color: t.textMuted, marginLeft: 6, fontSize: 11 }}>
@@ -328,11 +330,6 @@ export function ComparePage({ preset }: Props) {
               <span style={{ color: t.textFaint, marginLeft: 4 }} title="Derived by this app, not stated by the source">*</span>
             )}
           </div>
-          {scopes?.[i] && (
-            <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontStyle: "italic" }}>
-              {scopes[i]}
-            </div>
-          )}
         </td>
       );
     });

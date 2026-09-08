@@ -5,7 +5,7 @@ import { SbsDatabaseProvider, SbuAlfaDatabaseProvider, RubikonDatabaseProvider }
 import { SITE_REGISTRY, type SiteConfig } from "@/sites/registry";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { RouteProvider } from "@/hooks/RouteContext";
-import { SiteHeader } from "@/components/SiteHeader";
+import { SiteHeader, SpecialViewHeader } from "@/components/SiteHeader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorScreen } from "@/components/Layout";
 import { ComparePage } from "@/pages/ComparePage";
@@ -137,6 +137,7 @@ function AppInner() {
             <SbsDatabaseProvider>
               <SbuAlfaDatabaseProvider>
                 <RubikonDatabaseProvider>
+                  <SpecialViewHeader title="COMPARE" />
                   <PageShell>
                     <ComparePage
                       preset={route.view === "sbs-vs-sbu-alfa" ? "sbs-vs-sbu-alfa" : undefined}

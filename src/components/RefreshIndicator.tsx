@@ -116,7 +116,9 @@ export function RefreshIndicator({ lastRefreshed, refreshCount, onRefresh, isLoa
           />
         </g>
       </svg>
-      <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 64 }}>
+      {/* Layout lives in CSS (.refresh-text): an inline `display` would win
+          over the media query that hides this in a wrapped header. */}
+      <div className="refresh-text">
         <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, lineHeight: 1 }}>
           {isLoading
             ? "refreshing…"

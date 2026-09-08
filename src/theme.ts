@@ -76,6 +76,32 @@ export const GLOBAL_CSS = (t: Theme) => `
   ::-webkit-scrollbar-thumb { background: ${t.border}; border-radius: 3px; }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
   @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  /* App header. Layout lives here rather than inline because inline styles beat
+     media queries — a hard-coded height/padding can't be overridden below. */
+  .app-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 0 24px; height: 52px;
+  }
+  .app-header-group { display: flex; align-items: center; gap: 10px; }
+  .app-header-brand { min-width: 140px; }
+  .app-header-brand-short { display: none; }
+  .refresh-text { display: flex; flex-direction: column; gap: 1px; min-width: 64px; }
+  @media (max-width: 860px) {
+    .app-header {
+      height: auto; min-height: 52px; padding: 8px 12px;
+      flex-wrap: wrap; row-gap: 8px; justify-content: flex-start;
+    }
+    .app-header-group { flex-wrap: wrap; gap: 8px; }
+    /* The brand stops reserving a 140px column and drops to an abbreviation, so
+       the site picker and nav have room to wrap onto one line rather than three. */
+    .app-header-brand { min-width: 0; }
+    .app-header-brand-long { display: none; }
+    .app-header-brand-short { display: inline; }
+    /* The countdown text is the least useful thing in a wrapped header — the
+       dial still shows progress and the whole control stays clickable. */
+    .refresh-text { display: none; }
+  }
+
   /* Hover-elevation for any chart card: a tooltip that overflows the card's
      bottom edge would otherwise be painted over by the next chart-card
      sibling in the grid. Lifting the hovered card's stacking context keeps
@@ -88,7 +114,10 @@ export const GLOBAL_CSS = (t: Theme) => `
      rather than a measured one. Below 640px the controls bar is static
      (see .page-controls-sticky) so only the header needs clearing. */
   .chart-card { scroll-margin-top: 124px; }
-  @media (max-width: 640px) { .chart-card { scroll-margin-top: 64px; } }
+  /* Matches the wrapped header heights measured at these widths — an anchored
+     chart has to clear the sticky header, not hide behind it. */
+  @media (max-width: 860px) { .chart-card { scroll-margin-top: 104px; } }
+  @media (max-width: 520px) { .chart-card { scroll-margin-top: 136px; } }
   /* The "#" deep-link affordance on a chart title: present but silent until
      the title is hovered or keyboard-focused. Generated content on purpose —
      as a real span it landed in the heading's textContent, so the title read
