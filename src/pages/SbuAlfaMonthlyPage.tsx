@@ -162,10 +162,10 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
         {" "}
         KIA is always given as a floor ("понад N") — see the tooltip "Self-reported floor" note. All other counters are bare numbers.
         {" "}
-        The first chart is <strong>ours, not SBU's</strong>: the equipment categories summed
-        together. It's a lower bound — SBU introduces its list with "серед" ("among") the objects
-        hit, so where the recap also states a total this sum reaches ~90% of it — and it excludes
-        the KIA line, which SBU counts apart from its "інших цілей" ("other targets") figure.
+        The first chart is <strong>ours, not SBU's</strong>: every listed category summed together,
+        personnel included. A lower bound twice over — KIA is given as "понад" ("over"), and the
+        equipment list is introduced with "серед" ("among") the objects hit. Not comparable with
+        SBU's own "інших цілей" ("other targets") total, which leaves personnel out.
       </>}
       dataWindow={dataWindow.minPeriod && dataWindow.maxPeriod ? (
         <details style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6 }}>

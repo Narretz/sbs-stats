@@ -526,13 +526,12 @@ export type RuAdMonthlyRow = {
 // scripts/sbu_alfa/parse.py for the bound model (mirrors HUR's reports.json).
 export const SBU_ALFA_CATEGORY_KEYS = [
   "enemy_kia",
-  // Synthesised by useDatabaseSbuAlfa, not stated by SBU: the sum of the
-  // enumerated equipment categories below. A LOWER BOUND on `targets_total`,
-  // not a replacement for it — SBU frames its bullets as "серед" ("among") the
-  // objects hit, and where both exist the sum lands ~90% of the stated total
-  // (2026-03: 6 681 vs 7 346; 2026-04: 9 451 vs 10 518). Excludes `enemy_kia`,
-  // which SBU itself counts apart from the "N інших цілей" ("N OTHER targets")
-  // figure.
+  // Synthesised by useDatabaseSbuAlfa, not stated by SBU: the sum of every
+  // category it listed, personnel included (matching how Rubikon counts
+  // «Живая сила»). NOT comparable with `targets_total` — that's SBU's "N інших
+  // цілей" ("N OTHER targets"), which excludes the KIA line. A lower bound
+  // twice over: KIA is "понад N" ("over"), and the equipment list is
+  // introduced with "серед" ("among") the objects hit.
   "targets_enumerated",
   "targets_total",
   "targets_destroyed",
@@ -560,7 +559,7 @@ export type SbuAlfaCategoryKey = (typeof SBU_ALFA_CATEGORY_KEYS)[number];
 
 export const SBU_ALFA_CATEGORY_LABELS: Record<SbuAlfaCategoryKey, string> = {
   enemy_kia: "Personnel Killed",
-  targets_enumerated: "All targets — sum of listed categories",
+  targets_enumerated: "All targets engaged — sum of categories",
   targets_total: "Other targets — total",
   targets_destroyed: "Other targets — destroyed",
   targets_damaged: "Other targets — damaged",

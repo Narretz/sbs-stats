@@ -61,10 +61,8 @@ function deriveTargetsTotal(rows: RubikonCounterRow[]): RubikonCounterRow[] {
       posted_at: seed.posted_at,
       derived: true,
       derivation_note:
-        `Our sum of all ${parts.length} «Поражены» categories for this month — Rubikon ` +
-        `does not publish a total. Personnel are included because the unit lists them ` +
-        `among the categories. Excludes combat sorties (activity, not damage) and ` +
-        `EW-suppressed drones (jammed, not struck).`,
+        `Sum of all ${parts.length} «Поражены» categories for this month — Rubikon ` +
+        `does not publish a total. Excludes EW-suppressed drones (jammed, not struck).`,
     });
   }
   return [...rows, ...synthesized].sort((a, b) =>

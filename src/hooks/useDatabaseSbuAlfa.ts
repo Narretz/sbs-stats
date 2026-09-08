@@ -58,15 +58,31 @@ function deriveVehiclesCombined(rows: SbuAlfaCounterRow[]): SbuAlfaCounterRow[] 
   );
 }
 
-// Categories that must NOT enter the enumerated-targets sum.
+// Categories that must NOT enter the enumerated sum: SBU's own aggregates of
+// the very parts being summed. Adding them back would double-count.
 //
-// `enemy_kia` because SBU counts personnel apart from equipment — its own
-// phrasing is "N ІНШИХ цілей" ("N OTHER targets"), i.e. the target total
-// already excludes the KIA line. The three `targets_*` are SBU's own
-// aggregates, so adding them to the parts they aggregate would double-count.
+// `enemy_kia` is deliberately NOT here — personnel are just another category
+// the unit reports hitting, and counting them matches how Rubikon treats
+// «Живая сила», which keeps the two datasets comparable. The old reason for
+// holding KIA out was to stay commensurable with `targets_total`, SBU's
+// "N ІНШИХ цілей" ("N OTHER targets") line — but SBU stopped publishing that
+// after 2026-04, so the sum is no longer being lined up against it.
 const NOT_A_TARGET_CATEGORY = new Set<SbuAlfaCategoryKey>([
-  "enemy_kia", "targets_total", "targets_destroyed", "targets_damaged",
+  "targets_total", "targets_destroyed", "targets_damaged",
 ]);
+
+// The sum is only as precise as its least precise part. KIA is the one bounded
+// counter SBU publishes ("понад N" → at_least, "майже N" → approx), so folding
+// it in makes the total bounded too — silently reporting it as `exact` would
+// overstate what the source said.
+const BOUND_PRECEDENCE: SbuAlfaBound[] = ["range", "up_to", "at_least", "approx", "exact"];
+
+function weakestBound(rows: SbuAlfaCounterRow[]): SbuAlfaBound {
+  for (const b of BOUND_PRECEDENCE) {
+    if (rows.some((r) => r.bound === b)) return b;
+  }
+  return "exact";
+}
 
 // Parent → the children it already contains. Verified against every published
 // month: armored_total is exactly tanks + ifvs (69 = 23+46, 62 = 15+47,
@@ -79,14 +95,17 @@ const PARENT_CHILDREN: Partial<Record<SbuAlfaCategoryKey, SbuAlfaCategoryKey[]>>
   vehicles_auto_total: ["vehicles_light", "vehicles_moto", "vehicles_trucks"],
 };
 
-// Sum the enumerated equipment categories into one synthetic row per period.
+// Sum every category SBU listed — personnel included — into one synthetic row
+// per period.
 //
-// This is NOT `targets_total`: SBU introduces its bullets with "серед"
-// ("among") the objects hit, so the list is partial. Where the source states
-// both, the sum comes to ~90% of it (2026-03: 6 681 of 7 346; 2026-04: 9 451
-// of 10 518). Charted as its own series and flagged as derived so it can't be
-// mistaken for SBU's own total — which is exactly why the hook has never
-// synthesised `targets_total` from these parts.
+// This is NOT `targets_total`, and is not comparable to it: that counter is
+// SBU's "N інших цілей" ("N OTHER targets"), which excludes the KIA line this
+// sum includes. It is a LOWER BOUND twice over — KIA is reported as "понад N"
+// ("over"), and the equipment list is introduced with "серед" ("among") the
+// objects hit, so on the two months where SBU also stated a total the
+// equipment part alone reached ~90% of it (2026-03: 6 681 of 7 346; 2026-04:
+// 9 451 of 10 518). Flagged as derived so it can't be read as SBU's own
+// figure — which is why the hook still never synthesises `targets_total`.
 function deriveEnumeratedTargets(rows: SbuAlfaCounterRow[]): SbuAlfaCounterRow[] {
   const byPeriod = new Map<string, SbuAlfaCounterRow[]>();
   for (const r of rows) {
@@ -107,22 +126,23 @@ function deriveEnumeratedTargets(rows: SbuAlfaCounterRow[]): SbuAlfaCounterRow[]
     );
     if (!parts.length) continue;
     const seed = parts[0];
+    const bound = weakestBound(parts);
     synthesized.push({
       period: seed.period,
       category: "targets_enumerated",
       value: parts.reduce((sum, r) => sum + r.value, 0),
       value_max: null,
-      bound: "exact",
+      bound,
       raw_label: null,
       url: seed.url,
       published_at: seed.published_at,
       derived: true,
       derivation_note:
-        `Our sum of the ${parts.length} equipment categories SBU listed this month, ` +
-        `not a figure SBU states. Excludes the KIA line, which SBU counts separately ` +
-        `("N інших цілей" = N OTHER targets). A LOWER BOUND: the recap introduces its ` +
-        `list with "серед" ("among") the objects hit, so where SBU also gives a total ` +
-        `this sum reaches only ~90% of it.`,
+        `Sum of all ${parts.length} categories listed this month. SBU does not publish a total ` +
+         `A LOWER BOUND: the KIA line is reported ` +
+        `as "понад N" ("over"), and the equipment list is introduced with "серед" ` +
+        `("among") the objects hit. Not comparable with SBU's own "інших цілей" ` +
+        `("other targets") total, which excludes personnel.`,
     });
   }
   return [...rows, ...synthesized].sort((a, b) =>
