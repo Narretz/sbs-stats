@@ -163,10 +163,12 @@ export function sumNatives(
 // cell reads "—". `scope` carries the per-entity caveat about what is actually
 // in the bucket — the reason these comparisons are readable at all.
 //
-// Groups exist because the two axes are not the same measurement: personnel are
-// "killed" (no hit/damaged split anywhere), equipment is "struck" (уражено /
-// «поражены» — hit, damage unspecified).
-export type CompareGroup = "killed" | "struck";
+// Groups exist because the two axes are not the same measurement. They are NOT
+// "killed" vs "struck": only SBS says killed. «Альфа» says «знешкодили» /
+// «відмінусували» (neutralised) and «Рубикон» files personnel under «Поражены»
+// (engaged) using the same verb it uses for tanks. Each column's verb is in its
+// scope caption, because the header can't be true of all three at once.
+export type CompareGroup = "personnel" | "struck";
 
 // What every row has, parent or child. Children reuse this shape, which is
 // also what makes a child structurally unable to have children of its own.
@@ -219,7 +221,7 @@ export function visibleRowsFor(entities: CompareEntityId[]): FlatRow[] {
 }
 
 export const GROUP_LABELS: Record<CompareGroup, string> = {
-  killed: "Killed",
+  personnel: "Personnel — each source's own wording",
   struck: "Hit / struck (уражено / поражены)",
 };
 
@@ -228,12 +230,12 @@ export const GROUP_LABELS: Record<CompareGroup, string> = {
 // labels. Only rows whose scope is non-obvious carry a note.
 export const CANONICAL_ROWS: CompareRow[] = [
   {
-    group: "killed", key: "personnel", label: "Personnel",
+    group: "personnel", key: "personnel", label: "Personnel",
     map: { sbs: ["personnel_killed"], "sbu-alfa": ["enemy_kia"], rubikon: ["personnel"] },
     scope: {
-      sbs: "killed only — wounded are a separate SBS counter",
-      "sbu-alfa": 'always phrased "понад N" (floor)',
-      rubikon: "«Живая сила»",
+      sbs: "KILLED — wounded are a separate SBS counter",
+      "sbu-alfa": "«знешкодили» / «відмінусували» — NEUTRALISED, not stated as killed; always qualified («понад» = over, «майже» = almost)",
+      rubikon: "«Живая сила» under «Поражены» — ENGAGED, the same verb used for tanks; no killed/wounded split",
     },
   },
   {
@@ -332,7 +334,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
     // overlap the Communication systems row.
     group: "struck", key: "radar", label: "Radar / SIGINT / EW",
     map: {
-      sbs: ["radar_vehicles", "ew_trench", "ew_vehicle", "ew_equipment"],
+      sbs: ["radar_vehicles", "radar_trench", "ew_trench", "ew_vehicle", "ew_equipment"],
       "sbu-alfa": ["radar"],
       rubikon: ["radar_ew"],
     },
@@ -343,20 +345,14 @@ export const CANONICAL_ROWS: CompareRow[] = [
     },
     children: [
       {
-        key: "ew_trench", label: "EW, trench",
-        map: { sbs: ["ew_trench"] },
-        scope: { sbs: "РЕБ (окопні)" },
+        key: "radars", label: "Radars", map: {sbs: ["radar_vehicles", "radar_trench"], "sbu-alfa": ['radar']},
+        scope: {sbs: 'Vehicles and trench'}
       },
       {
-        key: "ew_vehicle", label: "EW, vehicle",
-        map: { sbs: ["ew_vehicle"] },
-        scope: { sbs: "РЕБ (авто)" },
-      },
-      {
-        key: "ew_equipment", label: "EW, equipment",
-        map: { sbs: ["ew_equipment"] },
-        scope: { sbs: "РЕБ (техніка)" },
-      },
+        key: "ew", label: "EW",
+        map: { sbs: ["ew_trench", "ew_vehicle", "ew_equipment"] },
+        scope: { sbs: "РЕБ (окопні, авто, техніка)" },
+      }
     ],
   },
   {
@@ -432,8 +428,8 @@ export const CANONICAL_ROWS: CompareRow[] = [
     },
     scope: {
       sbs: "Склади + ОТ Склад БК / ПММ / майно — ammunition, fuel and supplies (the ОТ counters from 2026-07)",
-      "sbu-alfa": "«склади з боєприпасами та військовим майном» — ammunition and supplies; fuel not mentioned",
-      rubikon: "«Склады БК / ГСМ» — ammunition and fuel; supplies not mentioned",
+      "sbu-alfa": "«склади з боєприпасами та військовим майном» — ammunition and supplies",
+      rubikon: "«Склады БК / ГСМ» — ammunition and fuel",
     },
     children: [
       {

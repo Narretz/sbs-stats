@@ -234,9 +234,7 @@ export function ComparePage({ preset }: Props) {
     sumNatives(snapshots[col.entity], col.month, keys);
 
   // A scope caveat describes the entity's bucket, not the month, so repeating
-  // it under every column of the same entity is noise — worst in the
-  // month-to-month case, where all columns are one entity. Show it once, under
-  // that entity's leftmost column.
+  // it under every column of the same entity is noise
   const firstColOfEntity = useMemo(() => {
     const seen = new Map<CompareEntityId, number>();
     columns.forEach((c, i) => { if (!seen.has(c.entity)) seen.set(c.entity, i); });
@@ -335,7 +333,7 @@ export function ComparePage({ preset }: Props) {
     border: `1px solid ${t.border}`, borderRadius: 4,
   };
 
-  const groups: CompareGroup[] = ["killed", "struck"];
+  const groups: CompareGroup[] = ["personnel", "struck"];
 
   return (
     <div>
@@ -391,7 +389,7 @@ export function ComparePage({ preset }: Props) {
 
         {columns.length > 1 && (
           <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted }}>
-            % change is against the leftmost column
+            % change is against the baseline column
           </span>
         )}
       </div>
