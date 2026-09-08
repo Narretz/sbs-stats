@@ -24,24 +24,28 @@ async function counts(page: Page) {
 }
 
 test.describe("Controls row visibility", () => {
-  test("no controls while the database is still loading", async ({ page }) => {
-    // Hold the DB response open so the loading state is observable.
+  test("controls appear only once the data has loaded", async ({ page }) => {
+    // Hold the DB response open, assert the loading state, then release it and
+    // assert the loaded state — one test for the transition rather than two
+    // snapshots that could both pass while the change between them is wrong.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
     await page.route("**/*.db*", async (route) => {
-      await new Promise((r) => setTimeout(r, 3000));
+      await held;
       await route.continue();
     });
+
     await page.goto("/?site=sbs&page=daily");
     await expect(page.getByText(/Loading/i).first()).toBeVisible();
-    expect((await counts(page)).row).toBe(0);
-    expect((await counts(page)).scope).toBe(0);
-  });
+    const loading = await counts(page);
+    expect(loading.row, "no controls over the loading screen").toBe(0);
+    expect(loading.scope).toBe(0);
 
-  test("controls appear once the data has loaded", async ({ page }) => {
-    await page.goto("/?site=sbs&page=daily");
+    release();
     await page.waitForSelector(".recharts-surface");
-    const c = await counts(page);
-    expect(c.row).toBe(1);
-    expect(c.scope).toBe(1);
+    const loaded = await counts(page);
+    expect(loaded.row, "controls arrive with the charts").toBe(1);
+    expect(loaded.scope).toBe(1);
   });
 
   // Both fixture datasets are deliberately tiny (see e2e/build-fixtures.mjs),
