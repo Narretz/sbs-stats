@@ -12,8 +12,13 @@
 // never reported a single hit (34) last.
 export const TARGET_IDS = [
   1, 2, 32, 9, 7, 18, 19, 3, 4, 5, 6, 21, 22, 24, 25, 30, 31, 37, 23, 33, 35, 26, 29, 10, 12, 41, 42, 43,
-  8, 11, 13, 14, 15, 16, 17, 20, 27, 28, 36, 38, 39, 40,
-  34,
+  8, 11, 13, 14, 16, 17, 20, 27, 28, 36, 38, 39, 40,
+  // Commented out rather than deleted — both are real ids the API publishes,
+  // they just have nothing to show. Re-enable here and in TARGET_LABELS (and
+  // SBS_TARGETS in src/compare/registry.ts) if that changes.
+  //   15 — "ОС РОВ", the personnel counter restated as a target class
+  //   34 — "ППО", has never reported a hit in any month on record
+  // 15, 34,
 ] as const;
 export type TargetId = (typeof TARGET_IDS)[number];
 
@@ -52,11 +57,12 @@ export const TARGET_LABELS: Record<TargetId, string> = {
   11: "EW, equipment",                // РЕБ (техніка) — cf. 10 trench, 12 auto
   13: "Antennas",                     // Антени
   14: "Network Equipment",            // Мережеве обладнання
-  // "ОС РОВ" — особовий склад російських окупаційних військ. This is NOT a
+  // 15 ("ОС РОВ", особовий склад російських окупаційних військ) is NOT a
   // separate target class: hit_15 equals personnel_killed + personnel_wounded
   // and destroyed_15 equals personnel_killed, exactly, in every month on
-  // record. It is the personnel counter restated inside the target list.
-  15: "Personnel (restates Killed + Wounded)",
+  // record. It is the personnel counter restated inside the target list, so
+  // charting it would duplicate the personnel metrics already on the page.
+  // 15: "Personnel (restates Killed + Wounded)",
   16: "Strategic Infrastructure",     // Стратегічна інфраструктура
   17: "Tactical Infrastructure",      // Тактична інфраструктура
   20: "Depots",                       // Склади
@@ -70,8 +76,9 @@ export const TARGET_LABELS: Record<TargetId, string> = {
   38: "Depot: Ammunition",            // ОТ Склад БК
   39: "Depot: Fuel",                  // ОТ Склад ПММ
   40: "Depot: Supplies",              // ОТ Склад майна
-  // Never reported a hit in any month on record.
-  34: "Air Defense (unspecified)",    // ППО
+  // 34 ("ППО") has never reported a hit in any month on record — an empty
+  // chart on every page it appears.
+  // 34: "Air Defense (unspecified)",
 };
 
 // ─── Base numeric stat keys ───────────────────────────────────────────────────

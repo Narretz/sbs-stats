@@ -62,17 +62,18 @@ export const SBS_TARGETS = {
   ew_equipment: 11,
   antennas: 13,
   network_equipment: 14,
-  personnel_all: 15,
   strategic_infrastructure: 16,
   tactical_infrastructure: 17,
   depots: 20,
   cameras: 27,
   other: 28,
-  air_defense_generic: 34,
   mlrs_portable: 36,
   depot_ammo: 38,
   depot_fuel: 39,
   depot_supplies: 40,
+  // 15 ("ОС РОВ") and 34 ("ППО") are commented out of TARGET_IDS — see the note
+  // there. Restore a slug here alongside re-enabling the id, or the
+  // exhaustiveness check below will flag it.
 } as const satisfies Record<string, TargetId>;
 
 // `satisfies` above catches a slug pointing at an id that doesn't exist. This
@@ -492,11 +493,11 @@ const SBU_NOT_NATIVE = new Set<SbuAlfaCategoryKey>([
 ]);
 const RUBIKON_NOT_NATIVE = new Set<RubikonCategoryKey>(["targets_engaged_all"]);
 
-// SBS's id 15 ("ОС РОВ") is the personnel counter restated inside the target
-// list — hit_15 is killed + wounded, destroyed_15 is killed, exactly, every
-// month. Listing it would put a second, larger "Personnel" row in the SBS
-// "only in" section, next to the canonical one.
-const SBS_NOT_NATIVE = new Set<SbsNativeKey>(["personnel_all"]);
+// Empty today: SBS's one restating counter (id 15, "ОС РОВ" — the personnel
+// figures repeated as a target class) is commented out of TARGET_IDS entirely,
+// so it never reaches here. Kept as the hook for the next counter that restates
+// another, which would otherwise show up twice in the "only in" section.
+const SBS_NOT_NATIVE = new Set<SbsNativeKey>([]);
 
 // SBS: the `hit_*` columns only. `destroyed_*` is a subset of `hit_*` (the
 // source reports both), and `total_*` sums the lot — either would double-count
