@@ -409,7 +409,16 @@ export const CANONICAL_ROWS: CompareRow[] = [
     },
   },
   {
-    group: "struck", key: "depots", label: "Ammo / fuel depots",
+    // Depots of ANY kind — the union, because no two sources scope the counter
+    // the same way and none of them can be split to match another:
+    //   SBS      generic Склади + ammunition + fuel + supplies (four counters)
+    //   «Альфа»  ammunition and supplies, one counter, fuel never mentioned
+    //   «Рубикон» ammunition and fuel, one counter, supplies never mentioned
+    // So «Альфа» and «Рубикон» each omit a category the other includes, and
+    // the row can only be read as "depots, however each unit counts them".
+    // Labelled "Depots" rather than the old "Ammo / fuel depots", which was
+    // «Рубикон»'s scope applied to all three columns.
+    group: "struck", key: "depots", label: "Depots",
     // The three "ОТ Склад" counters start 2026-07 and run alongside Склади
     // rather than replacing it. They are DISJOINT from it, not a breakdown of
     // it: on 2026-07-08 Склади is 0 while ОТ Склад БК is 1, and on eight other
@@ -422,7 +431,9 @@ export const CANONICAL_ROWS: CompareRow[] = [
       rubikon: ["depots"],
     },
     scope: {
-      sbs: "Склади + the three ОТ Склад counters (separate categories, from 2026-07)",
+      sbs: "Склади + ОТ Склад БК / ПММ / майно — ammunition, fuel and supplies (the ОТ counters from 2026-07)",
+      "sbu-alfa": "«склади з боєприпасами та військовим майном» — ammunition and supplies; fuel not mentioned",
+      rubikon: "«Склады БК / ГСМ» — ammunition and fuel; supplies not mentioned",
     },
     children: [
       {
