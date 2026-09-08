@@ -243,8 +243,9 @@ CATEGORY_ALIASES: dict[str, str] = {
 CATEGORY_SORTIES = "combat_sorties"
 CATEGORY_EW = "uav_ew_suppressed"
 
-# Every canonical key the parser can emit, in the order the frontend charts
-# them. Kept here (not just in the alias map) so the ordering is one list.
+# Every canonical key the parser can emit. Kept here (not just in the alias map)
+# so there is one list to add to. The order fixes the order counters are emitted
+# and stored
 CATEGORY_ORDER = [
     CATEGORY_SORTIES,
     "personnel",

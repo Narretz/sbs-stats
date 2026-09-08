@@ -195,8 +195,8 @@ export function RubikonMonthlyPage({ refreshKey }: Props) {
       loadingMessage="Loading Rubikon database…"
       gridChildren={<>
         {hasSorties && chartFor(RUBIKON_SORTIES_KEY, true)}
-        {hasEw && chartFor(RUBIKON_EW_KEY, true)}
         {presentCategories.map((k) => chartFor(k, false))}
+        {hasEw && chartFor(RUBIKON_EW_KEY, true)}
       </>}
     />
   );
