@@ -320,19 +320,43 @@ export const CANONICAL_ROWS: CompareRow[] = [
     },
   },
   {
-    // SBU switched from bare "N РЛС" (Apr/May) to "N засоби РЛС та РЕБ" (Jun);
-    // the parser stores both under `radar`. SBS's closest bucket is id 9
-    // (vehicle-mounted radar/ELINT/comms) — broader than pure РЛС but the
-    // tightest match. The trench-mounted EW counter stays out: static
-    // installations SBU wouldn't be counting. Rubikon's single «РЛС, РЭР, РЭБ»
-    // line is the widest of the three — it is the source that doesn't split.
-    group: "struck", key: "radar", label: "Radars",
-    map: { sbs: ["radar_vehicles"], "sbu-alfa": ["radar"], rubikon: ["radar_ew"] },
+    // Rubikon publishes «РЛС, РЭР, РЭБ» as ONE line and SBU bundles РЕБ into
+    // its radar counter from June, so the row is radar + SIGINT + EW whether we
+    // like it or not. SBS is the only source that splits EW onto its own
+    // counters — mapping it to id 9 alone made it read 18 against Rubikon's 210
+    // in 2026-06, a ~12x gap that was our mapping, not the war. Its EW counters
+    // are summed in to match, and nested below so the split stays visible.
+    //
+    // id 8 (РЛС та ЗС, trench) stays out: it also carries зв'язок, which would
+    // overlap the Communication systems row.
+    group: "struck", key: "radar", label: "Radar / SIGINT / EW",
+    map: {
+      sbs: ["radar_vehicles", "ew_trench", "ew_vehicle", "ew_equipment"],
+      "sbu-alfa": ["radar"],
+      rubikon: ["radar_ew"],
+    },
     scope: {
-      sbs: "РЛС, РЕР та зв'язок (комплекси) — vehicle-mounted",
-      "sbu-alfa": "РЛС (Apr/May); від Jun bundles РЕБ (EW)",
+      sbs: "РЛС/РЕР/зв'язок complexes + all three РЕБ counters",
+      "sbu-alfa": "bare РЛС until May — narrower than this row; bundles РЕБ from Jun",
       rubikon: "«РЛС, РЭР, РЭБ» — one line, radar + SIGINT + EW together",
     },
+    children: [
+      {
+        key: "ew_trench", label: "EW, trench",
+        map: { sbs: ["ew_trench"] },
+        scope: { sbs: "РЕБ (окопні)" },
+      },
+      {
+        key: "ew_vehicle", label: "EW, vehicle",
+        map: { sbs: ["ew_vehicle"] },
+        scope: { sbs: "РЕБ (авто)" },
+      },
+      {
+        key: "ew_equipment", label: "EW, equipment",
+        map: { sbs: ["ew_equipment"] },
+        scope: { sbs: "РЕБ (техніка)" },
+      },
+    ],
   },
   {
     // Not in the old hardcoded table, which only ever had two columns and no
@@ -368,23 +392,54 @@ export const CANONICAL_ROWS: CompareRow[] = [
     },
   },
   {
+    // SBU's line is "засобів зв'язку та спостереження" — comms AND surveillance
+    // — so SBS's cameras belong here rather than on their own. This is one of
+    // the few rows where the three sources land within the same order of
+    // magnitude, SBS being a whole branch.
     group: "struck", key: "comms", label: "Communication systems",
-    map: { "sbu-alfa": ["comms"], rubikon: ["comms"] },
+    map: {
+      sbs: ["antennas", "network_equipment", "cameras"],
+      "sbu-alfa": ["comms"],
+      rubikon: ["comms"],
+    },
     scope: {
-      sbs: "no separate counter — comms sit inside Radars (Vehicles)",
+      sbs: "Антени + мережеве обладнання + камери",
       "sbu-alfa": "засобів зв'язку та спостереження",
     },
   },
   {
     group: "struck", key: "depots", label: "Ammo / fuel depots",
-    map: { sbs: ["depots"], "sbu-alfa": ["depots"], rubikon: ["depots"] },
-    scope: {
-      // The three "ОТ Склад" counters (ammunition / fuel / supplies) start
-      // 2026-07 and run alongside Склади rather than replacing it, so whether
-      // they are a subset of it is unknown. Left out of this row and listed
-      // separately rather than risk summing a category into itself.
-      sbs: "Склади — the 2026-07 ОТ sub-depots are listed separately",
+    // The three "ОТ Склад" counters start 2026-07 and run alongside Склади
+    // rather than replacing it. They are DISJOINT from it, not a breakdown of
+    // it: on 2026-07-08 Склади is 0 while ОТ Склад БК is 1, and on eight other
+    // days a sub-depot exceeds Склади in the same snapshot — a subset can't do
+    // that. So they are summed in (leaving them out would understate SBS) and
+    // also listed as children, purely so the split stays visible.
+    map: {
+      sbs: ["depots", "depot_ammo", "depot_fuel", "depot_supplies"],
+      "sbu-alfa": ["depots"],
+      rubikon: ["depots"],
     },
+    scope: {
+      sbs: "Склади + the three ОТ Склад counters (separate categories, from 2026-07)",
+    },
+    children: [
+      {
+        key: "depot_ammo", label: "Depot: Ammunition",
+        map: { sbs: ["depot_ammo"] },
+        scope: { sbs: "ОТ Склад БК — from 2026-07" },
+      },
+      {
+        key: "depot_fuel", label: "Depot: Fuel",
+        map: { sbs: ["depot_fuel"] },
+        scope: { sbs: "ОТ Склад ПММ — from 2026-07" },
+      },
+      {
+        key: "depot_supplies", label: "Depot: Supplies",
+        map: { sbs: ["depot_supplies"] },
+        scope: { sbs: "ОТ Склад майна — from 2026-07" },
+      },
+    ],
   },
   {
     // SBS contributes dugouts only. Shelters (id 21) stay out even though the
