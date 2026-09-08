@@ -84,13 +84,19 @@ export type _UnnamedTargetIds = _AssertNever<
   Exclude<TargetId, (typeof SBS_TARGETS)[keyof typeof SBS_TARGETS]>
 >;
 
-// SBS is those slugs plus the one personnel counter; `destroyed_*` and
-// `total_*` are excluded by construction (see SBS_NATIVES below for why).
-export type SbsNativeKey = "personnel_killed" | keyof typeof SBS_TARGETS;
+// SBS is those slugs plus its three personnel counters. `destroyed_*` and the
+// `total_targets_*` roll-ups are excluded by construction (see SBS_NATIVES).
+// `total_personnel_casualties` is the one aggregate that IS included: it is
+// exactly killed + wounded in every month on record, and it is the only SBS
+// figure commensurable with what the other two units publish.
+type SbsPersonnelKey = "personnel_killed" | "personnel_wounded" | "total_personnel_casualties";
+export type SbsNativeKey = SbsPersonnelKey | keyof typeof SBS_TARGETS;
 
 // Slug → the column the SBS monthly row actually carries.
-export const SBS_COLUMNS: Record<SbsNativeKey, "personnel_killed" | HitKey> = {
+export const SBS_COLUMNS: Record<SbsNativeKey, SbsPersonnelKey | HitKey> = {
   personnel_killed: "personnel_killed",
+  personnel_wounded: "personnel_wounded",
+  total_personnel_casualties: "total_personnel_casualties",
   ...(Object.fromEntries(
     Object.entries(SBS_TARGETS).map(([slug, id]) => [slug, `hit_${id}` as HitKey]),
   ) as Record<keyof typeof SBS_TARGETS, HitKey>),
@@ -221,7 +227,7 @@ export function visibleRowsFor(entities: CompareEntityId[]): FlatRow[] {
 }
 
 export const GROUP_LABELS: Record<CompareGroup, string> = {
-  personnel: "Personnel — each source's own wording",
+  personnel: "Personnel",
   struck: "Hit / struck (уражено / поражены)",
 };
 
@@ -230,13 +236,39 @@ export const GROUP_LABELS: Record<CompareGroup, string> = {
 // labels. Only rows whose scope is non-obvious carry a note.
 export const CANONICAL_ROWS: CompareRow[] = [
   {
-    group: "personnel", key: "personnel", label: "Personnel",
-    map: { sbs: ["personnel_killed"], "sbu-alfa": ["enemy_kia"], rubikon: ["personnel"] },
-    scope: {
-      sbs: "KILLED — wounded are a separate SBS counter",
-      "sbu-alfa": "«знешкодили» / «відмінусували» — NEUTRALISED, not stated as killed; always qualified («понад» = over, «майже» = almost)",
-      rubikon: "«Живая сила» under «Поражены» — ENGAGED, the same verb used for tanks; no killed/wounded split",
+    // Matched on the BROADEST reading, which is the only one all three support.
+    // «Рубикон» files personnel under «Поражены» (engaged) and «Альфа» says
+    // «знешкодили» (neutralised) — neither is killed-only, and neither
+    // publishes a killed/wounded split. SBS does, so pairing its killed figure
+    // against them understated it roughly 2x (2026-07: 5,483 against a real
+    // 11,609). Its casualties total is the like-for-like; the split it alone
+    // publishes is nested below.
+    group: "personnel", key: "personnel", label: "Personnel engaged / casualties",
+    map: {
+      sbs: ["total_personnel_casualties"],
+      "sbu-alfa": ["enemy_kia"],
+      rubikon: ["personnel"],
     },
+    scope: {
+      sbs: "killed + wounded — SBS is the only source that separates them",
+      "sbu-alfa": "«знешкодили» / «відмінусували» — NEUTRALISED, not split; always qualified («понад» = over, «майже» = almost)",
+      rubikon: "«Живая сила» under «Поражены» — ENGAGED, the same verb used for tanks; not split",
+    },
+    children: [
+      {
+        key: "personnel_killed", label: "of which: killed",
+        map: { sbs: ["personnel_killed"] },
+        scope: {
+          sbs: "personnel.killed",
+          "sbu-alfa": "not published separately",
+          rubikon: "not published separately",
+        },
+      },
+      {
+        key: "personnel_wounded", label: "of which: wounded",
+        map: { sbs: ["personnel_wounded"] },
+      },
+    ],
   },
   {
     group: "struck", key: "drones", label: "Drones (UAVs + UGVs)",
@@ -511,6 +543,8 @@ const SBS_NOT_NATIVE = new Set<SbsNativeKey>([]);
 // against the hit-based canonical rows.
 const SBS_NATIVES: NativeKey[] = [
   { key: "personnel_killed", label: "Personnel Killed" },
+  { key: "personnel_wounded", label: "Personnel Wounded" },
+  { key: "total_personnel_casualties", label: "Personnel Casualties" },
   ...Object.entries(SBS_TARGETS)
     .filter(([slug]) => !SBS_NOT_NATIVE.has(slug as SbsNativeKey))
     .map(([slug, id]) => ({ key: slug as SbsNativeKey, label: TARGET_LABELS[id] })),
