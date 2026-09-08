@@ -489,6 +489,7 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
         )
         SELECT
           b.date,
+          b.snapshot_at       AS snapshot_at,
           b.combat_engagements AS total,
           d.direction         AS direction,
           -- Fair-share: paired-anchor sentences ("На X і Y напрямках N ...")
@@ -511,7 +512,10 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
           ON p.source = b.source AND p.date = b.date AND p.snapshot_at = b.snapshot_at
         LEFT JOIN directions d
           ON d.source = p.source AND d.source_id = p.source_id AND d.scraped_at = p.scraped_at
-        GROUP BY b.date, d.direction
+        -- b.snapshot_at is functionally dependent on b.date (best_per_date is
+        -- one row per date), so grouping by it splits nothing; it's listed to
+        -- carry the value out rather than rely on a bare column.
+        GROUP BY b.date, b.snapshot_at, d.direction
         ORDER BY b.date ASC
       `;
       const rows = (await worker.db.query(sql)) as Record<string, unknown>[];
@@ -525,7 +529,9 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
         if (!row) {
           row = {
             date, total, attributed: 0, unattributed: 0,
-            byDirection: {}, is_today: date === todayStr,
+            byDirection: {},
+            snapshot_at: typeof r.snapshot_at === "string" ? r.snapshot_at : null,
+            is_today: date === todayStr,
           };
           byDate.set(date, row);
         }

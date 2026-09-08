@@ -247,6 +247,10 @@ export interface GsuaDirectionCoverageRow {
   // axis for the window it is actually showing instead of assuming the
   // composition it has today.
   mergedAxes?: string[];
+  // `snapshot_at` of the report this bucket was built from, daily only. When
+  // its date equals the bucket's, the day's wrap-up report (posted the next
+  // morning) isn't in yet, so the figures are an interim reading.
+  snapshot_at?: string | null;
   is_today: boolean;
 }
 

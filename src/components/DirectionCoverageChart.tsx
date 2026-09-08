@@ -64,7 +64,7 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
   const c = chartColors(t);
   const bucketLabel = granularity === "monthly" ? "months" : "days";
 
-  const { stacks, flat, summary, mergedByBucket } = useMemo(() => {
+  const { stacks, flat, summary, mergedByBucket, interimByBucket } = useMemo(() => {
     // One stack per direction seen in the window — no "Other" bucket; the
     // full dataset never carries more than 16 distinct directions on a
     // single day, so the legend stays manageable.
@@ -90,6 +90,19 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
     const mergedByBucket = new Map<string, Set<string>>(
       data.map((row) => [row.date, new Set(row.mergedAxes ?? [])]),
     );
+
+    // The report each bucket was built from. A snapshot dated the same day as
+    // the bucket means the wrap-up report — the GS posts it the next morning —
+    // hasn't landed, so the bar is an interim reading and will grow. Monthly
+    // buckets aggregate many reports and carry no snapshot, so they never
+    // show the marker.
+    const interimByBucket = new Map<string, string>();
+    for (const row of data) {
+      const snap = row.snapshot_at;
+      if (snap && snap.slice(0, 10) === row.date) {
+        interimByBucket.set(row.date, snap.slice(11, 16));
+      }
+    }
 
     // An axis whose composition changed is named for the window on screen.
     // Showing only pre-merge buckets, it is the sector under its old name;
@@ -141,7 +154,7 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
       directionCount: totalPerDir.size,
     };
 
-    return { stacks, flat, summary, mergedByBucket };
+    return { stacks, flat, summary, mergedByBucket, interimByBucket };
   }, [data]);
 
 
@@ -231,8 +244,32 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
                     };
                   }),
               ];
+              // Directions actually named in this bucket. Counted off the
+              // stacks rather than the rendered rows so it keys on the stack's
+              // identity, not on its label or colour.
+              const directionCount = stacks.filter((s) => {
+                if (s.key === UNATTRIBUTED_KEY) return false;
+                const v = d[s.key];
+                return typeof v === "number" && v > 0;
+              }).length;
+              const interim = interimByBucket.get(d.date);
               return (
-                <TooltipCard header={d.date} minWidth={240}>
+                <TooltipCard
+                  header={
+                    <>
+                      {d.date}
+                      {interim && (
+                        // `accent` is the theme's today/in-progress highlight,
+                        // which is exactly what an interim reading is.
+                        <span style={{ color: t.accent }}>
+                          {" · "}interim {interim} report
+                        </span>
+                      )}
+                      {" · "}{directionCount} direction{directionCount === 1 ? "" : "s"}
+                    </>
+                  }
+                  minWidth={240}
+                >
                   <TooltipTable rows={rows} />
                 </TooltipCard>
               );
