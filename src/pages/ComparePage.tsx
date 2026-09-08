@@ -333,7 +333,7 @@ export function ComparePage({ preset }: Props) {
     border: `1px solid ${t.border}`, borderRadius: 4,
   };
 
-  const groups: CompareGroup[] = ["personnel", "struck"];
+  const groups: CompareGroup[] = ["activity", "personnel", "struck"];
 
   return (
     <div>
@@ -478,7 +478,7 @@ export function ComparePage({ preset }: Props) {
                     <Fragment key={group}>
                       {sectionHeader(GROUP_LABELS[group], gi > 0)}
                       {rowsInGroup.map((r) => (
-                        <tr key={r.key}>
+                        <tr key={r.id}>
                           <td style={{
                             padding: r.indent ? "6px 16px 6px 32px" : "6px 16px",
                             color: r.indent ? t.textMuted : t.text,
@@ -499,7 +499,7 @@ export function ComparePage({ preset }: Props) {
 
                 {unmappedSections.map(({ entity, natives }) => (
                   <Fragment key={`unmapped-${entity}`}>
-                    {sectionHeader(`Only in ${ENTITY_LABELS[entity]} — outside the shared mapping`, true)}
+                    {sectionHeader(`Only in ${ENTITY_LABELS[entity]}`, true)}
                     {natives.map((n) => (
                       <tr key={`${entity}-${n.key}`}>
                         <td style={{
@@ -518,17 +518,6 @@ export function ComparePage({ preset }: Props) {
               </tbody>
             </table>
           </div>
-
-          <p style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, marginTop: 10, lineHeight: 1.55 }}>
-            SBS values sum its per-target counters (the same categories its own charts use);
-            «Альфа» and «Рубикон» values come from their monthly recaps. Prefixes mark the source's own
-            qualifier — <code>≥</code> for "понад", <code>~</code> for "близько". <code>*</code> marks a figure this app
-            derived rather than the source stating it. Highlight = largest stated value in the row;
-            ties leave every cell uncoloured. Percentages compare stated numbers regardless of those
-            qualifiers, and are omitted when the baseline is zero or absent. The "only in" sections list
-            counters with no equivalent in the other datasets; source aggregates and roll-ups are left
-            out of them so nothing is counted twice.
-          </p>
         </>
       )}
     </div>

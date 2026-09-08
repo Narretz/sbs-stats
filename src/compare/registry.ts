@@ -90,13 +90,16 @@ export type _UnnamedTargetIds = _AssertNever<
 // exactly killed + wounded in every month on record, and it is the only SBS
 // figure commensurable with what the other two units publish.
 type SbsPersonnelKey = "personnel_killed" | "personnel_wounded" | "total_personnel_casualties";
-export type SbsNativeKey = SbsPersonnelKey | keyof typeof SBS_TARGETS;
+type SbsFlightKey = "flights_strike" | "flights_recon";
+export type SbsNativeKey = SbsPersonnelKey | SbsFlightKey | keyof typeof SBS_TARGETS;
 
 // Slug → the column the SBS monthly row actually carries.
-export const SBS_COLUMNS: Record<SbsNativeKey, SbsPersonnelKey | HitKey> = {
+export const SBS_COLUMNS: Record<SbsNativeKey, SbsPersonnelKey | SbsFlightKey | HitKey> = {
   personnel_killed: "personnel_killed",
   personnel_wounded: "personnel_wounded",
   total_personnel_casualties: "total_personnel_casualties",
+  flights_strike: "flights_strike",
+  flights_recon: "flights_recon",
   ...(Object.fromEntries(
     Object.entries(SBS_TARGETS).map(([slug, id]) => [slug, `hit_${id}` as HitKey]),
   ) as Record<keyof typeof SBS_TARGETS, HitKey>),
@@ -174,7 +177,7 @@ export function sumNatives(
 // «відмінусували» (neutralised) and «Рубикон» files personnel under «Поражены»
 // (engaged) using the same verb it uses for tanks. Each column's verb is in its
 // scope caption, because the header can't be true of all three at once.
-export type CompareGroup = "personnel" | "struck";
+export type CompareGroup = "activity" | "personnel" | "struck";
 
 // What every row has, parent or child. Children reuse this shape, which is
 // also what makes a child structurally unable to have children of its own.
@@ -206,6 +209,11 @@ export interface CompareRow extends CompareRowBase {
 export interface FlatRow extends CompareRowBase {
   group: CompareGroup;
   indent: boolean;
+  // Unique across the whole table, which `key` is not: a child's key only has
+  // to be unique among its siblings, so "Vehicles" can sit under "Vehicles
+  // (autos)" with both keyed `vehicles`. Namespacing children by their parent
+  // keeps React's key space clean — a collision there silently drops rows.
+  id: string;
 }
 
 // The rows worth rendering for the entities currently in columns, already
@@ -220,13 +228,19 @@ export function visibleRowsFor(entities: CompareEntityId[]): FlatRow[] {
   for (const row of CANONICAL_ROWS) {
     const children = (row.children ?? []).filter(mapped);
     if (!mapped(row) && !children.length) continue;
-    out.push({ ...row, indent: false });
-    for (const child of children) out.push({ ...child, group: row.group, indent: true });
+    out.push({ ...row, indent: false, id: row.key });
+    for (const child of children) {
+      out.push({ ...child, group: row.group, indent: true, id: `${row.key}/${child.key}` });
+    }
   }
   return out;
 }
 
 export const GROUP_LABELS: Record<CompareGroup, string> = {
+  // Sorties are what the unit did, not what it destroyed — a separate axis
+  // from everything below, and the denominator for it. Ordered first because
+  // «Рубикон»'s own recap opens with the sortie count before «Поражены:».
+  activity: "Activity — sorties flown",
   personnel: "Personnel",
   struck: "Hit / struck (уражено / поражены)",
 };
@@ -235,6 +249,32 @@ export const GROUP_LABELS: Record<CompareGroup, string> = {
 // and raw press-release phrasing, Rubikon's from its own «Поражены» line
 // labels. Only rows whose scope is non-obvious carry a note.
 export const CANONICAL_ROWS: CompareRow[] = [
+  {
+    // «Боевой вылет» covers any operational sortie, reconnaissance included,
+    // and «Рубикон» publishes one figure — so SBS's two counters are summed to
+    // match, with its split nested below. «Альфа» publishes no sortie count;
+    // it is not a drone-flying unit in the way the other two are.
+    group: "activity", key: "sorties", label: "Combat sorties",
+    map: {
+      sbs: ["flights_strike", "flights_recon"],
+      rubikon: ["combat_sorties"],
+    },
+    scope: {
+      sbs: "strike + recon",
+      "sbu-alfa": "no sortie counter published",
+      rubikon: "«Выполнено N боевых вылетов»",
+    },
+    children: [
+      {
+        key: "flights_strike", label: "strike",
+        map: { sbs: ["flights_strike"] },
+      },
+      {
+        key: "flights_recon", label: "recon",
+        map: { sbs: ["flights_recon"] },
+      },
+    ],
+  },
   {
     // Matched on the BROADEST reading, which is the only one all three support.
     // «Рубикон» files personnel under «Поражены» (engaged) and «Альфа» says
@@ -286,7 +326,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
     group: "struck", key: "vehicles", label: "Vehicles (autos)",
     map: { sbs: ["vehicles", "buggies", "motorcycles"], "sbu-alfa": ["vehicles_auto_total"], rubikon: ["vehicles", "motorcycles"] },
     scope: {
-      sbs: "Vehicles + Motorcycles +  Military buggies",
+      sbs: "Vehicles + motorcycles + military buggies",
       "sbu-alfa": "одиниць автомобільної техніки; may bundle motorcycles",
     },
     children: [{key: 'vehicles', 'label': 'Vehicles', map: {sbs: ['vehicles'], rubikon: ["vehicles", "engineering_vehicles"] }, scope: {
@@ -363,8 +403,9 @@ export const CANONICAL_ROWS: CompareRow[] = [
     // in 2026-06, a ~12x gap that was our mapping, not the war. Its EW counters
     // are summed in to match, and nested below so the split stays visible.
     //
-    // id 8 (РЛС та ЗС, trench) stays out: it also carries зв'язок, which would
-    // overlap the Communication systems row.
+    // id 8 (РЛС та ЗС, trench) is included even though it also carries зв'язок:
+    // the Comms row is built from Антени / мережеве обладнання / камери, none
+    // of which is id 8, so the two rows don't overlap on any counter.
     group: "struck", key: "radar", label: "Radar / SIGINT / EW",
     map: {
       sbs: ["radar_vehicles", "radar_trench", "ew_trench", "ew_vehicle", "ew_equipment"],
@@ -372,7 +413,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
       rubikon: ["radar_ew"],
     },
     scope: {
-      sbs: "РЛС/РЕР/зв'язок complexes + all three РЕБ counters",
+      sbs: "РЛС complexes + trench РЛС/ЗС + all three РЕБ counters",
       "sbu-alfa": "bare РЛС until May — narrower than this row; bundles РЕБ from Jun",
       rubikon: "«РЛС, РЭР, РЭБ» — one line, radar + SIGINT + EW together",
     },
@@ -483,16 +524,16 @@ export const CANONICAL_ROWS: CompareRow[] = [
     // dugouts and read as temporary cover rather than built works, which is
     // what pushed the combined SBS figure to ~10x «Альфа»'s. They remain in
     // the SBS "only in" section.
-    group: "struck", key: "fortifications", label: "Fortifications / engineering",
+    group: "struck", key: "fortifications", label: "Fortifications / engineering / strongpoints",
     map: {
       sbs: ["dugouts"],
       "sbu-alfa": ["fortifications"],
-      rubikon: ["fortifications", "engineering_structures"],
+      rubikon: ["fortifications", "engineering_structures", "deployment_points"],
     },
     scope: {
       sbs: "assumes dugouts are fortified, and shelters are temporary hideouts, basements etc. (see below)",
       "sbu-alfa": "укріплень та інженерних споруд",
-      rubikon: "Фортификационные + инженерные сооружения (two source lines)",
+      rubikon: "Фортификационные + инженерные сооружения, strongpoints (three source lines)",
     },
   },
   {
@@ -541,6 +582,8 @@ const SBS_NATIVES: NativeKey[] = [
   { key: "personnel_killed", label: "Personnel Killed" },
   { key: "personnel_wounded", label: "Personnel Wounded" },
   { key: "total_personnel_casualties", label: "Personnel Casualties" },
+  { key: "flights_strike", label: "Strike Sorties" },
+  { key: "flights_recon", label: "Recon Sorties" },
   ...Object.entries(SBS_TARGETS)
     .filter(([slug]) => !SBS_NOT_NATIVE.has(slug as SbsNativeKey))
     .map(([slug, id]) => ({ key: slug as SbsNativeKey, label: TARGET_LABELS[id] })),
