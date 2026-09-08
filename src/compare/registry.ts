@@ -4,6 +4,7 @@ import {
   SBU_ALFA_CATEGORY_KEYS,
   SBU_ALFA_CATEGORY_LABELS,
   TARGET_LABELS,
+  type HitKey,
   type RubikonCategoryKey,
   type SbuAlfaBound,
   type SbuAlfaCategoryKey,
@@ -16,6 +17,26 @@ import {
 // (below), and a snapshot builder in ComparePage that reads its hook.
 export const COMPARE_ENTITIES = ["sbs", "sbu-alfa", "rubikon"] as const;
 export type CompareEntityId = (typeof COMPARE_ENTITIES)[number];
+
+// ─── Native keys ─────────────────────────────────────────────────────────────
+// The vocabulary each entity can be asked for, as a type. This is what makes a
+// row's `map` autocomplete and — more to the point — makes a wrong key a
+// compile error instead of a cell that silently renders "—".
+//
+// SBS is the `hit_*` columns plus the one personnel counter; `destroyed_*` and
+// `total_*` are excluded by construction (see SBS_NATIVES below for why).
+export type SbsNativeKey = "personnel_killed" | HitKey;
+
+export interface EntityNativeKey {
+  sbs: SbsNativeKey;
+  "sbu-alfa": SbuAlfaCategoryKey;
+  rubikon: RubikonCategoryKey;
+}
+
+// Any entity's key. Used where a value is looked up after the entity is only
+// known as a union (the table cells), so narrowing has already served its
+// purpose at the point the mapping was written.
+export type AnyNativeKey = EntityNativeKey[CompareEntityId];
 
 export const ENTITY_LABELS: Record<CompareEntityId, string> = {
   sbs: "SBS (USF)",
@@ -40,7 +61,7 @@ export interface CompareValue {
 export interface EntitySnapshot {
   id: CompareEntityId;
   months: string[];                                  // ascending, "YYYY-MM"
-  get(month: string, nativeKey: string): CompareValue | null;
+  get(month: string, nativeKey: AnyNativeKey): CompareValue | null;
 }
 
 // The sum is only as precise as its least precise part — same rule the SBU
@@ -52,7 +73,7 @@ const BOUND_PRECEDENCE: SbuAlfaBound[] = ["range", "up_to", "at_least", "approx"
 export function sumNatives(
   snap: EntitySnapshot,
   month: string,
-  keys: readonly string[] | undefined,
+  keys: readonly AnyNativeKey[] | undefined,
 ): CompareValue | null {
   if (!keys?.length) return null;
   const parts = keys.map((k) => snap.get(month, k)).filter((p): p is CompareValue => p != null);
@@ -83,7 +104,10 @@ export interface CompareRow {
   key: string;                                        // stable id (URL/tests)
   label: string;
   indent?: boolean;
-  map: Partial<Record<CompareEntityId, string[]>>;
+  // Per-entity native keys, summed into one cell. Typed against that entity's
+  // own vocabulary, so `"sbu-alfa": ["uav_crews"]` fails to compile — the key
+  // is `drone_crews`.
+  map: { [E in CompareEntityId]?: EntityNativeKey[E][] };
   scope?: Partial<Record<CompareEntityId, string>>;
 }
 
@@ -216,9 +240,18 @@ export const CANONICAL_ROWS: CompareRow[] = [
     // id 23 is the retired launch-point counter (SBS moved to id 37 in
     // 2026-03); summing both keeps one continuous series across the switch.
     group: "struck", key: "uav_launch_points", label: "Drone launch / control points",
-    map: { sbs: ["hit_37", "hit_23"], rubikon: ["uav_control_points"] },
+    map: {
+      sbs: ["hit_37", "hit_23"],
+      "sbu-alfa": ["drone_crews"],
+      rubikon: ["uav_control_points"],
+    },
     scope: {
       sbs: "Drone Launch Points (ids 37 + 23, the pre-2026-03 counter)",
+      // Not the same object as the other two: «Альфа» counts розрахунків —
+      // the crews — where SBS and Rubikon count the sites they operate from.
+      // Kept on this row as the nearest equivalent, flagged so the difference
+      // is on screen rather than only here.
+      "sbu-alfa": "розрахунків БпЛА — crews (teams), not the sites they fly from",
       rubikon: "«Пункты управления БПЛА»",
     },
   },
@@ -266,7 +299,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
 // Every key an entity can produce, in display order, with its label. Anything
 // here that no canonical row consumes becomes an "only in <entity>" row.
 export interface NativeKey {
-  key: string;
+  key: AnyNativeKey;
   label: string;
 }
 
@@ -287,7 +320,7 @@ const RUBIKON_NOT_NATIVE = new Set<RubikonCategoryKey>(["targets_engaged_all"]);
 const SBS_NATIVES: NativeKey[] = [
   { key: "personnel_killed", label: "Personnel Killed" },
   ...Object.keys(TARGET_LABELS).map((id) => ({
-    key: `hit_${id}`,
+    key: `hit_${Number(id) as TargetId}` as HitKey,
     label: TARGET_LABELS[Number(id) as TargetId],
   })),
 ];

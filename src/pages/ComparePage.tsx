@@ -18,6 +18,7 @@ import {
   fmtValue,
   pctChange,
   sumNatives,
+  type AnyNativeKey,
   type CompareEntityId,
   type CompareGroup,
   type CompareValue,
@@ -226,7 +227,7 @@ export function ComparePage({ preset }: Props) {
     [entitiesInUse],
   );
 
-  const valueFor = (col: Column, keys: readonly string[] | undefined): CompareValue | null =>
+  const valueFor = (col: Column, keys: readonly AnyNativeKey[] | undefined): CompareValue | null =>
     sumNatives(snapshots[col.entity], col.month, keys);
 
   // A scope caveat describes the entity's bucket, not the month, so repeating
