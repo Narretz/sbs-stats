@@ -58,6 +58,21 @@ export const SBS_TARGETS = {
   planes: 41,
   fleet: 42,
   energy_nodes: 43,
+  radar_trench: 8,
+  ew_equipment: 11,
+  antennas: 13,
+  network_equipment: 14,
+  personnel_all: 15,
+  strategic_infrastructure: 16,
+  tactical_infrastructure: 17,
+  depots: 20,
+  cameras: 27,
+  other: 28,
+  air_defense_generic: 34,
+  mlrs_portable: 36,
+  depot_ammo: 38,
+  depot_fuel: 39,
+  depot_supplies: 40,
 } as const satisfies Record<string, TargetId>;
 
 // `satisfies` above catches a slug pointing at an id that doesn't exist. This
@@ -247,13 +262,17 @@ export const CANONICAL_ROWS: CompareRow[] = [
     },
   },
   {
-    group: "struck", key: "artillery", label: "Artillery / SPGs",
+    group: "struck", key: "artillery", label: "Artillery",
     map: { sbs: ["cannons_howitzers", "spg"], "sbu-alfa": ["artillery"], rubikon: ["towed_artillery", "spg"] },
     scope: {
       sbs: "Cannons/Howitzers + Self-Propelled Artillery",
       "sbu-alfa": "артилерійських систем і САУ",
       rubikon: "Орудия/гаубицы + САУ — mortars counted separately",
     },
+    children: [{
+      key: 'spg', label: 'SPG', map: {sbs: ['spg'], "rubikon": ['spg']}}, {
+      key: 'howitzer', label: 'Howitzers', map: {sbs: ['cannons_howitzers'], "rubikon": ['towed_artillery']}
+    }]
   },
   {
     group: "struck", key: "armored", label: "Armored (total)",
@@ -358,8 +377,14 @@ export const CANONICAL_ROWS: CompareRow[] = [
   },
   {
     group: "struck", key: "depots", label: "Ammo / fuel depots",
-    map: { "sbu-alfa": ["depots"], rubikon: ["depots"] },
-    scope: { sbs: "no depot counter in the SBS target list" },
+    map: { sbs: ["depots"], "sbu-alfa": ["depots"], rubikon: ["depots"] },
+    scope: {
+      // The three "ОТ Склад" counters (ammunition / fuel / supplies) start
+      // 2026-07 and run alongside Склади rather than replacing it, so whether
+      // they are a subset of it is unknown. Left out of this row and listed
+      // separately rather than risk summing a category into itself.
+      sbs: "Склади — the 2026-07 ОТ sub-depots are listed separately",
+    },
   },
   {
     // SBS contributes dugouts only. Shelters (id 21) stay out even though the
@@ -412,15 +437,20 @@ const SBU_NOT_NATIVE = new Set<SbuAlfaCategoryKey>([
 ]);
 const RUBIKON_NOT_NATIVE = new Set<RubikonCategoryKey>(["targets_engaged_all"]);
 
+// SBS's id 15 ("ОС РОВ") is the personnel counter restated inside the target
+// list — hit_15 is killed + wounded, destroyed_15 is killed, exactly, every
+// month. Listing it would put a second, larger "Personnel" row in the SBS
+// "only in" section, next to the canonical one.
+const SBS_NOT_NATIVE = new Set<SbsNativeKey>(["personnel_all"]);
+
 // SBS: the `hit_*` columns only. `destroyed_*` is a subset of `hit_*` (the
 // source reports both), and `total_*` sums the lot — either would double-count
 // against the hit-based canonical rows.
 const SBS_NATIVES: NativeKey[] = [
   { key: "personnel_killed", label: "Personnel Killed" },
-  ...Object.entries(SBS_TARGETS).map(([slug, id]) => ({
-    key: slug as SbsNativeKey,
-    label: TARGET_LABELS[id],
-  })),
+  ...Object.entries(SBS_TARGETS)
+    .filter(([slug]) => !SBS_NOT_NATIVE.has(slug as SbsNativeKey))
+    .map(([slug, id]) => ({ key: slug as SbsNativeKey, label: TARGET_LABELS[id] })),
 ];
 
 export const NATIVE_KEYS: Record<CompareEntityId, NativeKey[]> = {

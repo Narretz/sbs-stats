@@ -4,7 +4,17 @@
 // endpoint, but their previous-month rollup endpoint still folds the total
 // back into 23 — so id 23 reads ~0 on daily charts but big monthly numbers on
 // the monthly chart. Both ids are charted so the discrepancy is visible.
-export const TARGET_IDS = [1, 2, 32, 9, 7, 18, 19, 3, 4, 5, 6, 21, 22, 24, 25, 30, 31, 37, 23, 33, 35, 26, 29, 10, 12, 41, 42, 43] as const;
+//
+// Names below are SBS's own `targetClass` strings from the API payload (the
+// ingest reads only targetClassId/hit/destroyed and drops the name), so they
+// are the source's wording, not a reconstruction. The trailing block was added
+// later — every id the API publishes, in ascending order, with the one that has
+// never reported a single hit (34) last.
+export const TARGET_IDS = [
+  1, 2, 32, 9, 7, 18, 19, 3, 4, 5, 6, 21, 22, 24, 25, 30, 31, 37, 23, 33, 35, 26, 29, 10, 12, 41, 42, 43,
+  8, 11, 13, 14, 15, 16, 17, 20, 27, 28, 36, 38, 39, 40,
+  34,
+] as const;
 export type TargetId = (typeof TARGET_IDS)[number];
 
 export const TARGET_LABELS: Record<TargetId, string> = {
@@ -35,7 +45,33 @@ export const TARGET_LABELS: Record<TargetId, string> = {
   12: "EW, vehicle",
   41: "Fixed-wing planes",
   42: "Fleet",
-  43: "Energy Nodes"
+  43: "Energy Nodes",
+
+  // ── Published by the API all along, labelled here from 2026-09 ──────────────
+  8:  "Radars / Comms (Trench)",      // РЛС та ЗС (окопні) — cf. 9, vehicle-mounted
+  11: "EW, equipment",                // РЕБ (техніка) — cf. 10 trench, 12 auto
+  13: "Antennas",                     // Антени
+  14: "Network Equipment",            // Мережеве обладнання
+  // "ОС РОВ" — особовий склад російських окупаційних військ. This is NOT a
+  // separate target class: hit_15 equals personnel_killed + personnel_wounded
+  // and destroyed_15 equals personnel_killed, exactly, in every month on
+  // record. It is the personnel counter restated inside the target list.
+  15: "Personnel (restates Killed + Wounded)",
+  16: "Strategic Infrastructure",     // Стратегічна інфраструктура
+  17: "Tactical Infrastructure",      // Тактична інфраструктура
+  20: "Depots",                       // Склади
+  27: "Cameras",                      // Камери
+  28: "Other",                        // Інше
+  36: "MLRS, portable",               // РСЗВ: Портативний — from 2026-07
+  // "ОТ Склад …" — БК = боєкомплект, ПММ = паливно-мастильні матеріали,
+  // майно = property/supplies. All three start 2026-07 and run alongside id 20
+  // (Склади), which did not drop when they appeared. The "ОТ" prefix is not
+  // expanded anywhere in the source.
+  38: "Depot: Ammunition",            // ОТ Склад БК
+  39: "Depot: Fuel",                  // ОТ Склад ПММ
+  40: "Depot: Supplies",              // ОТ Склад майна
+  // Never reported a hit in any month on record.
+  34: "Air Defense (unspecified)",    // ППО
 };
 
 // ─── Base numeric stat keys ───────────────────────────────────────────────────
