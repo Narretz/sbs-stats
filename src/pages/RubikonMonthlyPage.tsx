@@ -13,6 +13,7 @@ import {
   RUBIKON_CATEGORY_LABELS,
   RUBIKON_EW_KEY,
   RUBIKON_SORTIES_KEY,
+  RUBIKON_TARGETS_TOTAL_KEY,
   type MonthlyDataPoint,
   type RubikonCategoryKey,
   type RubikonCounterRow,
@@ -53,9 +54,13 @@ function toDataset(
   return periods.map((period) => {
     const r = byPeriod.get(period);
     if (!r) return { date: period, value: null, note: kindNote };
-    const note = kindNote
-      ? `${kindNote} Source phrasing: "${r.raw_label ?? ""}"`
-      : undefined;
+    // A derived row is our arithmetic, not Rubikon's figure — say so, and
+    // there's no source phrasing to quote for it.
+    const note = r.derived
+      ? r.derivation_note
+      : kindNote
+        ? `${kindNote} Source phrasing: "${r.raw_label ?? ""}"`
+        : undefined;
     return { date: period, value: r.value, note };
   });
 }
@@ -100,11 +105,15 @@ export function RubikonMonthlyPage({ refreshKey }: Props) {
   const presentCategories = useMemo(() => {
     const seen = new Set(visibleRows.map((r) => r.category));
     return RUBIKON_CATEGORY_KEYS.filter(
-      (k) => seen.has(k) && k !== RUBIKON_SORTIES_KEY && k !== RUBIKON_EW_KEY,
+      (k) => seen.has(k)
+        && k !== RUBIKON_SORTIES_KEY
+        && k !== RUBIKON_EW_KEY
+        && k !== RUBIKON_TARGETS_TOTAL_KEY,   // its own roll-up; charted above
     );
   }, [visibleRows]);
 
   const hasSorties = visibleRows.some((r) => r.category === RUBIKON_SORTIES_KEY);
+  const hasTargetsTotal = visibleRows.some((r) => r.category === RUBIKON_TARGETS_TOTAL_KEY);
   const hasEw = visibleRows.some((r) => r.category === RUBIKON_EW_KEY);
 
   // Whole-dataset stats per category, from the un-sliced `rows` so the "all"
@@ -153,6 +162,10 @@ export function RubikonMonthlyPage({ refreshKey }: Props) {
         {" "}
         The unit reports «Поражены» — <em>engaged</em> — with no destroyed / damaged split, so each
         category is a single self-reported claim.
+        {" "}
+        The first chart is <strong>ours, not Rubikon's</strong>: every «Поражены» category added up,
+        since the unit publishes no total. It leaves out combat sorties (activity, not damage) and
+        EW-suppressed drones (jammed, not struck).
       </>}
       dataWindow={dataWindow.minPeriod && dataWindow.maxPeriod ? (
         <details style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6 }}>
@@ -194,6 +207,7 @@ export function RubikonMonthlyPage({ refreshKey }: Props) {
       hasData={hasData}
       loadingMessage="Loading Rubikon database…"
       gridChildren={<>
+        {hasTargetsTotal && chartFor(RUBIKON_TARGETS_TOTAL_KEY, true)}
         {hasSorties && chartFor(RUBIKON_SORTIES_KEY, true)}
         {presentCategories.map((k) => chartFor(k, false))}
         {hasEw && chartFor(RUBIKON_EW_KEY, true)}

@@ -526,6 +526,14 @@ export type RuAdMonthlyRow = {
 // scripts/sbu_alfa/parse.py for the bound model (mirrors HUR's reports.json).
 export const SBU_ALFA_CATEGORY_KEYS = [
   "enemy_kia",
+  // Synthesised by useDatabaseSbuAlfa, not stated by SBU: the sum of the
+  // enumerated equipment categories below. A LOWER BOUND on `targets_total`,
+  // not a replacement for it — SBU frames its bullets as "серед" ("among") the
+  // objects hit, and where both exist the sum lands ~90% of the stated total
+  // (2026-03: 6 681 vs 7 346; 2026-04: 9 451 vs 10 518). Excludes `enemy_kia`,
+  // which SBU itself counts apart from the "N інших цілей" ("N OTHER targets")
+  // figure.
+  "targets_enumerated",
   "targets_total",
   "targets_destroyed",
   "targets_damaged",
@@ -552,6 +560,7 @@ export type SbuAlfaCategoryKey = (typeof SBU_ALFA_CATEGORY_KEYS)[number];
 
 export const SBU_ALFA_CATEGORY_LABELS: Record<SbuAlfaCategoryKey, string> = {
   enemy_kia: "Personnel Killed",
+  targets_enumerated: "All targets — sum of listed categories",
   targets_total: "Other targets — total",
   targets_destroyed: "Other targets — destroyed",
   targets_damaged: "Other targets — damaged",
@@ -615,6 +624,12 @@ export interface SbuAlfaCounterRow {
 // See scripts/rubikon/parse.py — the keys below mirror its CATEGORY_ORDER.
 export const RUBIKON_CATEGORY_KEYS = [
   "combat_sorties",
+  // Synthesised by useDatabaseRubikon, not stated by Rubikon: the sum of every
+  // «Поражены» category. Clean to total because the unit's categories are
+  // disjoint lines with no parent/child nesting. Deliberately excludes combat
+  // sorties (activity, not damage) and EW-suppressed drones (jammed, not
+  // struck) — the two counters that aren't targets engaged.
+  "targets_engaged_all",
   "personnel",
   "tanks",
   "afv_ifv",
@@ -661,6 +676,7 @@ export type RubikonCategoryKey = (typeof RUBIKON_CATEGORY_KEYS)[number];
 //   personnel          ← RU_LOSSES_METRIC_LABELS.personnel
 export const RUBIKON_CATEGORY_LABELS: Record<RubikonCategoryKey, string> = {
   combat_sorties: "Combat Sorties",
+  targets_engaged_all: "All targets engaged — sum of categories",
   personnel: "Personnel",
   tanks: "Tanks",
   // Rubikon counts "ББМ, БМП" and "Бронетранспортеры" as two separate lines,
@@ -711,6 +727,9 @@ export type RubikonKind = "sorties" | "engaged" | "ew_suppressed";
 // `uav_ew_suppressed` is jamming, and neither belongs in a targets total.
 export const RUBIKON_SORTIES_KEY = "combat_sorties" satisfies RubikonCategoryKey;
 export const RUBIKON_EW_KEY = "uav_ew_suppressed" satisfies RubikonCategoryKey;
+// Synthetic roll-up of the «Поражены» list; charted on its own, never inside
+// the per-category grid (it would be its own parent there).
+export const RUBIKON_TARGETS_TOTAL_KEY = "targets_engaged_all" satisfies RubikonCategoryKey;
 
 // One row per (period, category) — what the charts consume. `period` is YYYY-MM.
 // `raw_label` is the verbatim Russian phrasing, shown in tooltips for audit.
@@ -722,6 +741,11 @@ export interface RubikonCounterRow {
   raw_label: string | null;
   url: string;
   posted_at: string;
+  // True for rows the hook computes rather than the parser storing — today
+  // just `targets_engaged_all`. The page turns this into a tooltip note so a
+  // reader can tell our arithmetic from Rubikon's own figures.
+  derived?: boolean;
+  derivation_note?: string;
 }
 
 // ─── Rubikon published strike episodes («Итоги <месяца>» → rubikon.db) ────────

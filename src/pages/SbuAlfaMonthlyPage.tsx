@@ -101,7 +101,9 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
   const presentCategories = useMemo(() => {
     const seen = new Set(visibleRows.map((r) => r.category));
     return SBU_ALFA_CATEGORY_KEYS.filter(
-      (k) => seen.has(k) && k !== "targets_total" && k !== "targets_destroyed" && k !== "targets_damaged"
+      (k) => seen.has(k)
+        && k !== "targets_total" && k !== "targets_destroyed" && k !== "targets_damaged"
+        && k !== "targets_enumerated"   // our roll-up of the rest; charted above
     );
   }, [visibleRows]);
 
@@ -121,6 +123,7 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
     }));
   }, [visibleRows, periods]);
   const hasTargetsData = targetsStack.some((p) => p.destroyed != null || p.damaged != null);
+  const hasEnumeratedTargets = visibleRows.some((r) => r.category === "targets_enumerated");
 
   // Whole-dataset stats per category, from the un-sliced `rows` so the "all"
   // stat scope reflects every published month — not just the picker window.
@@ -159,6 +162,10 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
         {" "}
         KIA is always given as a floor ("понад N") — see the tooltip "Self-reported floor" note. All other counters are bare numbers.
         {" "}
+        The first chart is <strong>ours, not SBU's</strong>: the equipment categories summed
+        together. It's a lower bound — SBU introduces its list with "серед" ("among") the objects
+        hit, so where the recap also states a total this sum reaches ~90% of it — and it excludes
+        the KIA line, which SBU counts apart from its "інших цілей" ("other targets") figure.
       </>}
       dataWindow={dataWindow.minPeriod && dataWindow.maxPeriod ? (
         <details style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6 }}>
@@ -200,6 +207,17 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
       hasData={hasData}
       loadingMessage="Loading SBU Alfa database…"
       gridChildren={<>
+        {hasEnumeratedTargets && (
+          <MonthlyBarChart
+            key="targets_enumerated"
+            title={SBU_ALFA_CATEGORY_LABELS.targets_enumerated}
+            data={toDataset(visibleRows, "targets_enumerated", periods)}
+            wfull
+            globalMax={allStats.targets_enumerated?.max ?? 0}
+            globalMedian={allStats.targets_enumerated?.median ?? 0}
+            globalTotal={allStats.targets_enumerated?.total ?? 0}
+          />
+        )}
         {presentCategories.map((k) => (
           <MonthlyBarChart
             key={k}

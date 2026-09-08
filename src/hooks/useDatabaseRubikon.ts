@@ -26,6 +26,52 @@ const dbCache = makeResourceCache<Database>();
 // window. A 24h client refresh is more than enough.
 export const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
+// Roll the «Поражены» list up into one synthetic row per month.
+//
+// Simpler than SBU Alfa's equivalent because Rubikon's categories are disjoint
+// lines with no parent/child nesting — "БПЛА", "Баба-Яга" and "Дроны
+// самолетного типа" are three separate entries, not a total and its parts, and
+// likewise "ББМ, БМП" vs "Бронетранспортеры". So summing `kind='engaged'`
+// double-counts nothing.
+//
+// `kind` is doing the work here: it excludes combat sorties (activity, not
+// damage) and EW-suppressed drones (jammed, not struck) without naming them,
+// so a future counter that is also not a target engaged stays out by default
+// rather than by being remembered.
+function deriveTargetsTotal(rows: RubikonCounterRow[]): RubikonCounterRow[] {
+  const byPeriod = new Map<string, RubikonCounterRow[]>();
+  for (const r of rows) {
+    const list = byPeriod.get(r.period) ?? [];
+    list.push(r);
+    byPeriod.set(r.period, list);
+  }
+  const synthesized: RubikonCounterRow[] = [];
+  for (const [, list] of byPeriod) {
+    if (list.some((r) => r.category === "targets_engaged_all")) continue;
+    const parts = list.filter((r) => r.kind === "engaged");
+    if (!parts.length) continue;
+    const seed = parts[0];
+    synthesized.push({
+      period: seed.period,
+      category: "targets_engaged_all",
+      kind: "engaged",
+      value: parts.reduce((sum, r) => sum + r.value, 0),
+      raw_label: null,
+      url: seed.url,
+      posted_at: seed.posted_at,
+      derived: true,
+      derivation_note:
+        `Our sum of all ${parts.length} «Поражены» categories for this month — Rubikon ` +
+        `does not publish a total. Personnel are included because the unit lists them ` +
+        `among the categories. Excludes combat sorties (activity, not damage) and ` +
+        `EW-suppressed drones (jammed, not struck).`,
+    });
+  }
+  return [...rows, ...synthesized].sort((a, b) =>
+    a.period === b.period ? a.category.localeCompare(b.category) : a.period.localeCompare(b.period)
+  );
+}
+
 export function useDatabaseRubikon({ enabled = true }: { enabled?: boolean } = {}) {
   const { resource: db, loadState, error, lastRefreshed, refresh, refreshCount, refreshIntervalMs } =
     useRefreshableResource({
@@ -58,7 +104,7 @@ export function useDatabaseRubikon({ enabled = true }: { enabled?: boolean } = {
       WHERE r.report_type = 'monthly'
         AND r.period IS NOT NULL
       ORDER BY r.period ASC, c.category ASC`;
-    return queryRows<Record<string, unknown>>(db, sql).map((r) => ({
+    const stored: RubikonCounterRow[] = queryRows<Record<string, unknown>>(db, sql).map((r) => ({
       period: String(r.period),
       category: r.category as RubikonCategoryKey,
       kind: r.kind as RubikonKind,
@@ -66,7 +112,9 @@ export function useDatabaseRubikon({ enabled = true }: { enabled?: boolean } = {
       raw_label: r.raw_label == null ? null : String(r.raw_label),
       url: String(r.url),
       posted_at: String(r.posted_at),
+      derived: false,
     }));
+    return deriveTargetsTotal(stored);
   }, [db]);
 
   // The «Итоги» published-episode series. Same table, different report_type.

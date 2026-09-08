@@ -58,6 +58,78 @@ function deriveVehiclesCombined(rows: SbuAlfaCounterRow[]): SbuAlfaCounterRow[] 
   );
 }
 
+// Categories that must NOT enter the enumerated-targets sum.
+//
+// `enemy_kia` because SBU counts personnel apart from equipment — its own
+// phrasing is "N ІНШИХ цілей" ("N OTHER targets"), i.e. the target total
+// already excludes the KIA line. The three `targets_*` are SBU's own
+// aggregates, so adding them to the parts they aggregate would double-count.
+const NOT_A_TARGET_CATEGORY = new Set<SbuAlfaCategoryKey>([
+  "enemy_kia", "targets_total", "targets_destroyed", "targets_damaged",
+]);
+
+// Parent → the children it already contains. Verified against every published
+// month: armored_total is exactly tanks + ifvs (69 = 23+46, 62 = 15+47,
+// 33 = 7+26, 67 = 20+47), and vehicles_auto_total is light + moto + trucks
+// (stated from May, derived above for March/April). Counting both sides would
+// double-count, so when a parent is present its children are skipped; when it
+// is absent the children stand in for it.
+const PARENT_CHILDREN: Partial<Record<SbuAlfaCategoryKey, SbuAlfaCategoryKey[]>> = {
+  armored_total: ["tanks", "ifvs"],
+  vehicles_auto_total: ["vehicles_light", "vehicles_moto", "vehicles_trucks"],
+};
+
+// Sum the enumerated equipment categories into one synthetic row per period.
+//
+// This is NOT `targets_total`: SBU introduces its bullets with "серед"
+// ("among") the objects hit, so the list is partial. Where the source states
+// both, the sum comes to ~90% of it (2026-03: 6 681 of 7 346; 2026-04: 9 451
+// of 10 518). Charted as its own series and flagged as derived so it can't be
+// mistaken for SBU's own total — which is exactly why the hook has never
+// synthesised `targets_total` from these parts.
+function deriveEnumeratedTargets(rows: SbuAlfaCounterRow[]): SbuAlfaCounterRow[] {
+  const byPeriod = new Map<string, SbuAlfaCounterRow[]>();
+  for (const r of rows) {
+    const list = byPeriod.get(r.period) ?? [];
+    list.push(r);
+    byPeriod.set(r.period, list);
+  }
+  const synthesized: SbuAlfaCounterRow[] = [];
+  for (const [, list] of byPeriod) {
+    if (list.some((r) => r.category === "targets_enumerated")) continue;
+    const present = new Set(list.map((r) => r.category));
+    const covered = new Set<SbuAlfaCategoryKey>();
+    for (const [parent, children] of Object.entries(PARENT_CHILDREN)) {
+      if (present.has(parent as SbuAlfaCategoryKey)) children.forEach((c) => covered.add(c));
+    }
+    const parts = list.filter(
+      (r) => !NOT_A_TARGET_CATEGORY.has(r.category) && !covered.has(r.category),
+    );
+    if (!parts.length) continue;
+    const seed = parts[0];
+    synthesized.push({
+      period: seed.period,
+      category: "targets_enumerated",
+      value: parts.reduce((sum, r) => sum + r.value, 0),
+      value_max: null,
+      bound: "exact",
+      raw_label: null,
+      url: seed.url,
+      published_at: seed.published_at,
+      derived: true,
+      derivation_note:
+        `Our sum of the ${parts.length} equipment categories SBU listed this month, ` +
+        `not a figure SBU states. Excludes the KIA line, which SBU counts separately ` +
+        `("N інших цілей" = N OTHER targets). A LOWER BOUND: the recap introduces its ` +
+        `list with "серед" ("among") the objects hit, so where SBU also gives a total ` +
+        `this sum reaches only ~90% of it.`,
+    });
+  }
+  return [...rows, ...synthesized].sort((a, b) =>
+    a.period === b.period ? a.category.localeCompare(b.category) : a.period.localeCompare(b.period)
+  );
+}
+
 export function useDatabaseSbuAlfa({ enabled = true }: { enabled?: boolean } = {}) {
   const { resource: db, loadState, error, lastRefreshed, refresh, refreshCount, refreshIntervalMs } =
     useRefreshableResource({
@@ -110,7 +182,11 @@ export function useDatabaseSbuAlfa({ enabled = true }: { enabled?: boolean } = {
     // the source explicitly frames the bullets as "серед" / "among" the hit
     // objects, with an unenumerated remainder (~10% of targets_total). Summing
     // would understate it.
-    return deriveVehiclesCombined(stored);
+    // Order matters: the vehicles parent must exist before the enumerated sum
+    // runs, or March/April would sum the three vehicle children instead and
+    // land on the same number by a different route (fine here, but only by
+    // luck — the parent/child skip is what keeps it correct in general).
+    return deriveEnumeratedTargets(deriveVehiclesCombined(stored));
   }, [db]);
 
   const queryDataWindow = useCallback((): { minPeriod: string | null; maxPeriod: string | null } => {
