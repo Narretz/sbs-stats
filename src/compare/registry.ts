@@ -23,9 +23,62 @@ export type CompareEntityId = (typeof COMPARE_ENTITIES)[number];
 // row's `map` autocomplete and — more to the point — makes a wrong key a
 // compile error instead of a cell that silently renders "—".
 //
-// SBS is the `hit_*` columns plus the one personnel counter; `destroyed_*` and
+// SBS is the odd one out: its source columns are numbered target ids
+// (`hit_24`), not names, so a mapping written against them is unreadable and
+// unverifiable by eye. These slugs are the vocabulary rows are written in;
+// `SBS_COLUMNS` below is the only place the numbers appear. Ordered by target
+// id, which is also the order the "only in SBS" section lists them.
+export const SBS_TARGETS = {
+  tanks: 1,
+  apcs_ifvs: 2,
+  cannons_howitzers: 3,
+  spg: 4,
+  mlrs: 5,
+  mortars: 6,
+  vehicles: 7,
+  radar_vehicles: 9,
+  ew_trench: 10,
+  ew_vehicle: 12,
+  motorcycles: 18,
+  buggies: 19,
+  shelters: 21,
+  dugouts: 22,
+  // Retired in 2026-03 when SBS moved launch points to id 37.
+  drone_launch_points_legacy: 23,
+  copter_uav: 24,
+  fixed_wing_uav: 25,
+  ugv: 26,
+  helicopters: 29,
+  shahed: 30,
+  gerbera: 31,
+  sam: 32,
+  aa_guns: 33,
+  anti_drone_uav: 35,
+  drone_launch_points: 37,
+  planes: 41,
+  fleet: 42,
+  energy_nodes: 43,
+} as const satisfies Record<string, TargetId>;
+
+// `satisfies` above catches a slug pointing at an id that doesn't exist. This
+// catches the other direction: a new target id added to TARGET_LABELS that
+// nothing here names, which would otherwise silently drop out of the table.
+type _AssertNever<T extends never> = T;
+export type _UnnamedTargetIds = _AssertNever<
+  Exclude<TargetId, (typeof SBS_TARGETS)[keyof typeof SBS_TARGETS]>
+>;
+
+// SBS is those slugs plus the one personnel counter; `destroyed_*` and
 // `total_*` are excluded by construction (see SBS_NATIVES below for why).
-export type SbsNativeKey = "personnel_killed" | HitKey;
+export type SbsNativeKey = "personnel_killed" | keyof typeof SBS_TARGETS;
+
+// Slug → the column the SBS monthly row actually carries.
+export const SBS_COLUMNS: Record<SbsNativeKey, "personnel_killed" | HitKey> = {
+  personnel_killed: "personnel_killed",
+  ...(Object.fromEntries(
+    Object.entries(SBS_TARGETS).map(([slug, id]) => [slug, `hit_${id}` as HitKey]),
+  ) as Record<keyof typeof SBS_TARGETS, HitKey>),
+};
 
 export interface EntityNativeKey {
   sbs: SbsNativeKey;
@@ -124,7 +177,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
     group: "killed", key: "personnel", label: "Personnel",
     map: { sbs: ["personnel_killed"], "sbu-alfa": ["enemy_kia"], rubikon: ["personnel"] },
     scope: {
-      sbs: "personnel_killed",
+      sbs: "killed only — wounded are a separate SBS counter",
       "sbu-alfa": 'always phrased "понад N" (floor)',
       rubikon: "«Живая сила»",
     },
@@ -132,9 +185,9 @@ export const CANONICAL_ROWS: CompareRow[] = [
   {
     group: "struck", key: "drones", label: "Drones (UAVs + UGVs)",
     map: {
-      // id 26 = "Ворожі НРК" (enemy UGVs). Summed in so both sides count the
+      // `ugv` (id 26, "Ворожі НРК") is summed in so both sides count the
       // same "БпЛА + наземних роботизованих комплексів" bucket SBU's recap uses.
-      sbs: ["hit_24", "hit_25", "hit_30", "hit_31", "hit_26"],
+      sbs: ["copter_uav", "fixed_wing_uav", "shahed", "gerbera", "ugv"],
       "sbu-alfa": ["drones"],
       // Rubikon lists four drone lines separately; summed to reach the same
       // bucket. «Баба-Яга» is a heavy multirotor, so it belongs with the UAVs.
@@ -148,7 +201,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
   },
   {
     group: "struck", key: "vehicles", label: "Vehicles (autos)",
-    map: { sbs: ["hit_7", "hit_19"], "sbu-alfa": ["vehicles_auto_total"], rubikon: ["vehicles"] },
+    map: { sbs: ["vehicles", "buggies"], "sbu-alfa": ["vehicles_auto_total"], rubikon: ["vehicles"] },
     scope: {
       sbs: "Vehicles + Military buggies — excludes motorcycles",
       "sbu-alfa": "одиниць автомобільної техніки; may bundle motorcycles",
@@ -157,7 +210,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
   },
   {
     group: "struck", key: "artillery", label: "Artillery / SPGs",
-    map: { sbs: ["hit_3", "hit_4"], "sbu-alfa": ["artillery"], rubikon: ["towed_artillery", "spg"] },
+    map: { sbs: ["cannons_howitzers", "spg"], "sbu-alfa": ["artillery"], rubikon: ["towed_artillery", "spg"] },
     scope: {
       sbs: "Cannons/Howitzers + Self-Propelled Artillery",
       "sbu-alfa": "артилерійських систем і САУ",
@@ -167,7 +220,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
   {
     group: "struck", key: "armored", label: "Armored (total)",
     map: {
-      sbs: ["hit_1", "hit_2"], "sbu-alfa": ["armored_total"],
+      sbs: ["tanks", "apcs_ifvs"], "sbu-alfa": ["armored_total"],
       rubikon: ["tanks", "afv_ifv", "apc"],
     },
     scope: {
@@ -178,11 +231,11 @@ export const CANONICAL_ROWS: CompareRow[] = [
   },
   {
     group: "struck", key: "tanks", label: "Tanks", indent: true,
-    map: { sbs: ["hit_1"], "sbu-alfa": ["tanks"], rubikon: ["tanks"] },
+    map: { sbs: ["tanks"], "sbu-alfa": ["tanks"], rubikon: ["tanks"] },
   },
   {
     group: "struck", key: "ifvs", label: "IFVs / APCs", indent: true,
-    map: { sbs: ["hit_2"], "sbu-alfa": ["ifvs"], rubikon: ["afv_ifv", "apc"] },
+    map: { sbs: ["apcs_ifvs"], "sbu-alfa": ["ifvs"], rubikon: ["afv_ifv", "apc"] },
     scope: {
       sbs: "APCs / IFVs / ACVs",
       "sbu-alfa": "бойових броньованих машин",
@@ -191,7 +244,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
   },
   {
     group: "struck", key: "air_defense", label: "Air defense",
-    map: { sbs: ["hit_32", "hit_33"], "sbu-alfa": ["air_defense"], rubikon: ["sam", "aa_guns"] },
+    map: { sbs: ["sam", "aa_guns"], "sbu-alfa": ["air_defense"], rubikon: ["sam", "aa_guns"] },
     scope: {
       sbs: "SAM + AA guns",
       "sbu-alfa": "засобів ППО / протиповітряної оборони",
@@ -200,7 +253,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
   },
   {
     group: "struck", key: "mlrs", label: "MLRS",
-    map: { sbs: ["hit_5"], "sbu-alfa": ["mlrs"], rubikon: ["mlrs"] },
+    map: { sbs: ["mlrs"], "sbu-alfa": ["mlrs"], rubikon: ["mlrs"] },
     scope: {
       sbs: "MLRS (bundled SAM / AA guns until 2026-03)",
       "sbu-alfa": "РСЗВ",
@@ -211,11 +264,11 @@ export const CANONICAL_ROWS: CompareRow[] = [
     // SBU switched from bare "N РЛС" (Apr/May) to "N засоби РЛС та РЕБ" (Jun);
     // the parser stores both under `radar`. SBS's closest bucket is id 9
     // (vehicle-mounted radar/ELINT/comms) — broader than pure РЛС but the
-    // tightest match. hit_8/hit_10 (trench radar & EW) stay out: static
+    // tightest match. The trench-mounted EW counter stays out: static
     // installations SBU wouldn't be counting. Rubikon's single «РЛС, РЭР, РЭБ»
     // line is the widest of the three — it is the source that doesn't split.
     group: "struck", key: "radar", label: "Radars",
-    map: { sbs: ["hit_9"], "sbu-alfa": ["radar"], rubikon: ["radar_ew"] },
+    map: { sbs: ["radar_vehicles"], "sbu-alfa": ["radar"], rubikon: ["radar_ew"] },
     scope: {
       sbs: "РЛС, РЕР та зв'язок (комплекси) — vehicle-mounted",
       "sbu-alfa": "РЛС (Apr/May); від Jun bundles РЕБ (EW)",
@@ -228,25 +281,25 @@ export const CANONICAL_ROWS: CompareRow[] = [
     // has a matching target id, so it earns a shared row — otherwise the same
     // category would appear twice, once in each unit's "only in" section.
     group: "struck", key: "mortars", label: "Mortars",
-    map: { sbs: ["hit_6"], rubikon: ["mortars"] },
+    map: { sbs: ["mortars"], rubikon: ["mortars"] },
     scope: { "sbu-alfa": "not broken out — «Альфа» reports артилерійських систем і САУ only" },
   },
   {
     group: "struck", key: "motorcycles", label: "Motorcycles",
-    map: { sbs: ["hit_18"], rubikon: ["motorcycles"] },
+    map: { sbs: ["motorcycles"], rubikon: ["motorcycles"] },
     scope: { "sbu-alfa": "folded into its автомобільної техніки line — see Vehicles (autos)" },
   },
   {
-    // id 23 is the retired launch-point counter (SBS moved to id 37 in
-    // 2026-03); summing both keeps one continuous series across the switch.
+    // SBS renumbered its launch-point counter in 2026-03; summing the
+    // current one and the retired one keeps a continuous series across it.
     group: "struck", key: "uav_launch_points", label: "Drone launch / control points",
     map: {
-      sbs: ["hit_37", "hit_23"],
+      sbs: ["drone_launch_points", "drone_launch_points_legacy"],
       "sbu-alfa": ["drone_crews"],
       rubikon: ["uav_control_points"],
     },
     scope: {
-      sbs: "Drone Launch Points (ids 37 + 23, the pre-2026-03 counter)",
+      sbs: "Drone Launch Points, plus the counter it replaced in 2026-03",
       // Not the same object as the other two: «Альфа» counts розрахунків —
       // the crews — where SBS and Rubikon count the sites they operate from.
       // Kept on this row as the nearest equivalent, flagged so the difference
@@ -259,7 +312,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
     group: "struck", key: "comms", label: "Communication systems",
     map: { "sbu-alfa": ["comms"], rubikon: ["comms"] },
     scope: {
-      sbs: "no separate counter — comms sit inside id 9, see Radars",
+      sbs: "no separate counter — comms sit inside Radars (Vehicles)",
       "sbu-alfa": "засобів зв'язку та спостереження",
     },
   },
@@ -269,14 +322,19 @@ export const CANONICAL_ROWS: CompareRow[] = [
     scope: { sbs: "no depot counter in the SBS target list" },
   },
   {
-    // SBS is deliberately absent here, carried over from the old page: it
-    // reports shelters and dugouts at roughly 10x «Альфа»'s fortification
-    // count, which breaks the "same measurement" reading the row implies.
-    // Those ids stay in the SBS "only in" section instead.
+    // SBS contributes dugouts only. Shelters (id 21) stay out even though the
+    // old page lumped the two together as "fortifications": they run ~2x
+    // dugouts and read as temporary cover rather than built works, which is
+    // what pushed the combined SBS figure to ~10x «Альфа»'s. They remain in
+    // the SBS "only in" section.
     group: "struck", key: "fortifications", label: "Fortifications / engineering",
-    map: { "sbu-alfa": ["fortifications"], rubikon: ["fortifications", "engineering_structures"] },
+    map: {
+      sbs: ["dugouts"],
+      "sbu-alfa": ["fortifications"],
+      rubikon: ["fortifications", "engineering_structures"],
+    },
     scope: {
-      sbs: "excluded — SBS reports shelters/dugouts at ~10x this scale (listed separately below)",
+      sbs: "assumes dugouts are fortified, and shelters are temporary hideouts, basements etc. (see below)",
       "sbu-alfa": "укріплень та інженерних споруд",
       rubikon: "Фортификационные + инженерные сооружения (two source lines)",
     },
@@ -285,13 +343,13 @@ export const CANONICAL_ROWS: CompareRow[] = [
     // Rubikon has published no aircraft or naval line — a UAV unit operating
     // over the line of contact. Absent, not zero.
     group: "struck", key: "aircraft", label: "Aircraft",
-    map: { sbs: ["hit_29", "hit_41"], "sbu-alfa": ["aircraft"] },
+    map: { sbs: ["helicopters", "planes"], "sbu-alfa": ["aircraft"] },
     scope: { sbs: "Helicopters + Fixed-wing planes", "sbu-alfa": "літак / одиниць авіаційної техніки" },
   },
   {
     group: "struck", key: "watercraft", label: "Fleet / watercraft",
-    map: { sbs: ["hit_42"], "sbu-alfa": ["watercraft"] },
-    scope: { sbs: "Флот (id 42) — naval targets", "sbu-alfa": "одиниць водного транспорту" },
+    map: { sbs: ["fleet"], "sbu-alfa": ["watercraft"] },
+    scope: { sbs: "Флот — naval targets", "sbu-alfa": "одиниць водного транспорту" },
   },
 ];
 
@@ -319,9 +377,9 @@ const RUBIKON_NOT_NATIVE = new Set<RubikonCategoryKey>(["targets_engaged_all"]);
 // against the hit-based canonical rows.
 const SBS_NATIVES: NativeKey[] = [
   { key: "personnel_killed", label: "Personnel Killed" },
-  ...Object.keys(TARGET_LABELS).map((id) => ({
-    key: `hit_${Number(id) as TargetId}` as HitKey,
-    label: TARGET_LABELS[Number(id) as TargetId],
+  ...Object.entries(SBS_TARGETS).map(([slug, id]) => ({
+    key: slug as SbsNativeKey,
+    label: TARGET_LABELS[id],
   })),
 ];
 

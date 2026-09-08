@@ -11,6 +11,7 @@ import { FONTS } from "@/theme";
 import {
   CANONICAL_ROWS,
   COMPARE_ENTITIES,
+  SBS_COLUMNS,
   ENTITY_LABELS,
   GROUP_LABELS,
   UNMAPPED_NATIVES,
@@ -23,6 +24,7 @@ import {
   type CompareGroup,
   type CompareValue,
   type EntitySnapshot,
+  type SbsNativeKey,
 } from "@/compare/registry";
 import type {
   MonthlyRow,
@@ -107,7 +109,10 @@ export function ComparePage({ preset }: Props) {
       months: [...byMonth.keys()].sort(),
       get(month, key) {
         const row = byMonth.get(month) as Record<string, unknown> | undefined;
-        const v = row?.[key];
+        // Rows address SBS by slug ("copter_uav"); the DB column is the target
+        // id ("hit_24"). Only SBS keys ever reach this snapshot, so the cast is
+        // the union-to-member narrowing the call site already guarantees.
+        const v = row?.[SBS_COLUMNS[key as SbsNativeKey]];
         return typeof v === "number" ? { value: v, bound: "exact", derived: false } : null;
       },
     };
@@ -519,7 +524,7 @@ export function ComparePage({ preset }: Props) {
           </div>
 
           <p style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, marginTop: 10, lineHeight: 1.55 }}>
-            SBS values sum the source's <code>hit_*</code> columns (target IDs mapped in <code>src/types/index.ts</code>);
+            SBS values sum its per-target counters (the same categories its own charts use);
             «Альфа» and «Рубикон» values come from their monthly recaps. Prefixes mark the source's own
             qualifier — <code>≥</code> for "понад", <code>~</code> for "близько". <code>*</code> marks a figure this app
             derived rather than the source stating it. Highlight = largest stated value in the row;
