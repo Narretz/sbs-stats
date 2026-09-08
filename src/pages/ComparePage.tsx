@@ -20,7 +20,6 @@ import {
   pctChange,
   sumNatives,
   visibleRowsFor,
-  type AnyNativeKey,
   type CompareEntityId,
   type CompareGroup,
   type CompareValue,
@@ -280,8 +279,10 @@ export function ComparePage({ preset }: Props) {
     return [...base, ...extras];
   }, [entitiesInUse, soloEntity, nonZeroNatives]);
 
-  const valueFor = (col: Column, keys: readonly AnyNativeKey[] | undefined): CompareValue | null =>
-    sumNatives(snapshots[col.entity], col.month, keys);
+  const valueFor = (row: FlatRow, col: Column): CompareValue | null =>
+    row.resolve
+      ? (row.resolve(col.entity, col.month)?.value ?? null)
+      : sumNatives(snapshots[col.entity], col.month, row.map[col.entity]);
 
   // A scope caveat describes the entity's bucket, not the month, so repeating
   // it under every column of the same entity is noise
@@ -293,7 +294,12 @@ export function ComparePage({ preset }: Props) {
 
   const scopesFor = (row: FlatRow) =>
     columns.map((c, i) =>
-      firstColOfEntity.get(c.entity) === i ? row.scope?.[c.entity] : undefined,
+      // A resolved caption changes with the column's month, so it shows on
+      // every column; a static one describes the entity's bucket and is
+      // deduplicated to that entity's leftmost column.
+      row.resolve
+        ? row.resolve(c.entity, c.month)?.scope
+        : firstColOfEntity.get(c.entity) === i ? row.scope?.[c.entity] : undefined,
     );
 
   // "Only in <entity>" sections, in the order their entities first appear as
@@ -376,7 +382,7 @@ export function ComparePage({ preset }: Props) {
 
 
 
-  const groups: CompareGroup[] = ["activity", "personnel", "struck"];
+  const groups: CompareGroup[] = ["context", "activity", "personnel", "struck"];
 
   return (
     <div>
@@ -561,7 +567,7 @@ export function ComparePage({ preset }: Props) {
                             {r.label}
                           </td>
                           {renderCells(
-                            columns.map((c) => valueFor(c, r.map[c.entity])),
+                            columns.map((c) => valueFor(r, c)),
                             scopesFor(r),
                           )}
                         </tr>

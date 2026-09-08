@@ -166,6 +166,76 @@ export function sumNatives(
   };
 }
 
+// ─── Unit size ───────────────────────────────────────────────────────────────
+// Headcount is the one thing in this table the units do NOT publish, so these
+// are outside estimates with all the softness that implies. Each entry is dated
+// and the row resolves the newest estimate at or before the column's month —
+// so a 2025 column shows what «Рубикон» was in 2025, not what it is now.
+//
+// Read them as orders of magnitude. SBS's is a factor-of-two range, «Альфа»'s
+// is a statutory ceiling rather than a headcount, and only «Рубикон» has
+// anything resembling a series.
+export interface UnitSizeEstimate {
+  asOf: string;          // "YYYY-MM" the figure describes
+  value: number;
+  bound: SbuAlfaBound;
+  scope: string;         // caption under the number
+  note: string;          // hover: provenance
+}
+
+const UNIT_SIZE: Record<CompareEntityId, UnitSizeEstimate[]> = {
+  // Ascending by asOf.
+  sbs: [
+    {
+      asOf: "2024-06", value: 3000, bound: "approx",
+      scope: "at founding (11 Jun 2024) — a new branch, not a unit",
+      note: "Unmanned Systems Forces stood up 11 Jun 2024 under Col. Vadym Sukharevsky. Source: Wikipedia, Unmanned Systems Forces (Ukraine).",
+    },
+    {
+      asOf: "2026-01", value: 60000, bound: "approx",
+      scope: "estimates span 40,000–80,000 · whole branch incl. support · ~2.2% of the AFU",
+      note: "A service branch of 8+ unmanned systems brigades plus regiments, battalions, training and logistics — the headcount includes everyone, not just operators. Still growing: the 445th and 446th brigades formed during 2026. Source: Wikipedia / Euromaidan Press, Sep 2026.",
+    },
+  ],
+  "sbu-alfa": [
+    {
+      asOf: "2025-06", value: 10000, bound: "up_to",
+      scope: "STATUTORY CEILING, not a headcount · actual never published, reported as \"a few thousand\"",
+      note: "Draft law No. 13353 (9 Jun 2025) set Alfa at no fewer than 10,000 in peace and wartime and renamed it Centre of Special Operations «А»; the same law raised the whole SBU cap to 37,000/41,000. The figure is what the unit was authorised to grow into, not what it fields. Source: Ukrainian Military Pages / EMPR, Jun 2025.",
+    },
+  ],
+  rubikon: [
+    {
+      asOf: "2025-04", value: 1450, bound: "approx",
+      scope: "7–8 detachments of 100–150",
+      note: "Source: FPRI analysis of the Two Marines dataset (Putiata & Lee), Jun 2026.",
+    },
+    {
+      asOf: "2025-11", value: 5000, bound: "approx",
+      scope: "~3.5x in a year · authorised strength 9,000",
+      note: "Source: FPRI / Two Marines (Putiata & Lee), Jun 2026; Hvylya, Nov 2025.",
+    },
+    {
+      asOf: "2026-06", value: 5000, bound: "approx",
+      scope: "authorised 9,000 · 17 detachments + 2 battalions + 6 companies · detachment establishment 149 → 474",
+      note: "Detachments became self-contained formations with their own FPV, recon, EW and counter-UAV elements rather than pure drone teams. Subordinate to Russia's Unmanned Systems Troops; commander Col. Sergey Budnikov. Source: FPRI / Two Marines (Putiata & Lee), Jun 2026.",
+    },
+  ],
+};
+
+// Newest estimate at or before `month`. Null before the first one — better an
+// empty cell than a figure predating the column it sits in.
+export function unitSizeAt(entity: CompareEntityId, month: string): ResolvedCell | null {
+  const applicable = UNIT_SIZE[entity].filter((e) => e.asOf <= month);
+  const e = applicable[applicable.length - 1];
+  if (!e) return null;
+  const stale = e.asOf !== month ? ` (as of ${e.asOf})` : "";
+  return {
+    value: { value: e.value, bound: e.bound, derived: false, note: e.note },
+    scope: `${e.scope}${stale}`,
+  };
+}
+
 // ─── Canonical rows ──────────────────────────────────────────────────────────
 // The shared measurement axes. `map` lists the native keys each entity
 // contributes (summed); an entity absent from `map` has no equivalent and its
@@ -177,10 +247,18 @@ export function sumNatives(
 // «відмінусували» (neutralised) and «Рубикон» files personnel under «Поражены»
 // (engaged) using the same verb it uses for tanks. Each column's verb is in its
 // scope caption, because the header can't be true of all three at once.
-export type CompareGroup = "activity" | "personnel" | "struck";
+export type CompareGroup = "context" | "activity" | "personnel" | "struck";
 
 // What every row has, parent or child. Children reuse this shape, which is
 // also what makes a child structurally unable to have children of its own.
+// A cell whose value doesn't come from a dataset — see UNIT_SIZE. Returns its
+// own caption too, because unlike a static scope note the wording changes with
+// the column's month.
+export interface ResolvedCell {
+  value: CompareValue;
+  scope: string;
+}
+
 export interface CompareRowBase {
   key: string;                                        // stable id (URL/tests)
   label: string;
@@ -189,6 +267,9 @@ export interface CompareRowBase {
   // is `drone_crews`.
   map: { [E in CompareEntityId]?: EntityNativeKey[E][] };
   scope?: Partial<Record<CompareEntityId, string>>;
+  // Supplies the cell directly instead of summing native keys. `map` is then
+  // empty and the row is always shown.
+  resolve?: (entity: CompareEntityId, month: string) => ResolvedCell | null;
 }
 
 export interface CompareRow extends CompareRowBase {
@@ -227,7 +308,7 @@ export function visibleRowsFor(entities: CompareEntityId[]): FlatRow[] {
   const out: FlatRow[] = [];
   for (const row of CANONICAL_ROWS) {
     const children = (row.children ?? []).filter(mapped);
-    if (!mapped(row) && !children.length) continue;
+    if (!row.resolve && !mapped(row) && !children.length) continue;
     out.push({ ...row, indent: false, id: row.key });
     for (const child of children) {
       out.push({ ...child, group: row.group, indent: true, id: `${row.key}/${child.key}` });
@@ -237,6 +318,10 @@ export function visibleRowsFor(entities: CompareEntityId[]): FlatRow[] {
 }
 
 export const GROUP_LABELS: Record<CompareGroup, string> = {
+  // The one group that is NOT a unit self-report — outside estimates, so that
+  // everything below it can be read per capita. Kept first because it is the
+  // denominator for the rest of the table.
+  context: "Unit size — outside estimates, not reported by the units",
   // Sorties are what the unit did, not what it destroyed — a separate axis
   // from everything below, and the denominator for it. Ordered first because
   // «Рубикон»'s own recap opens with the sortie count before «Поражены:».
@@ -249,6 +334,11 @@ export const GROUP_LABELS: Record<CompareGroup, string> = {
 // and raw press-release phrasing, Rubikon's from its own «Поражены» line
 // labels. Only rows whose scope is non-obvious carry a note.
 export const CANONICAL_ROWS: CompareRow[] = [
+  {
+    group: "context", key: "unit_size", label: "Unit size (personnel)",
+    map: {},
+    resolve: unitSizeAt,
+  },
   {
     // «Боевой вылет» covers any operational sortie, reconnaissance included,
     // and «Рубикон» publishes one figure — so SBS's two counters are summed to
