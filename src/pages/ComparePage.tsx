@@ -9,7 +9,6 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { FONTS } from "@/theme";
 import {
-  CANONICAL_ROWS,
   COMPARE_ENTITIES,
   SBS_COLUMNS,
   ENTITY_LABELS,
@@ -19,11 +18,13 @@ import {
   fmtValue,
   pctChange,
   sumNatives,
+  visibleRowsFor,
   type AnyNativeKey,
   type CompareEntityId,
   type CompareGroup,
   type CompareValue,
   type EntitySnapshot,
+  type FlatRow,
   type SbsNativeKey,
 } from "@/compare/registry";
 import type {
@@ -227,10 +228,7 @@ export function ComparePage({ preset }: Props) {
     [columns],
   );
 
-  const visibleRows = useMemo(
-    () => CANONICAL_ROWS.filter((r) => entitiesInUse.some((e) => r.map[e]?.length)),
-    [entitiesInUse],
-  );
+  const visibleRows = useMemo(() => visibleRowsFor(entitiesInUse), [entitiesInUse]);
 
   const valueFor = (col: Column, keys: readonly AnyNativeKey[] | undefined): CompareValue | null =>
     sumNatives(snapshots[col.entity], col.month, keys);
@@ -245,7 +243,7 @@ export function ComparePage({ preset }: Props) {
     return seen;
   }, [columns]);
 
-  const scopesFor = (row: (typeof CANONICAL_ROWS)[number]) =>
+  const scopesFor = (row: FlatRow) =>
     columns.map((c, i) =>
       firstColOfEntity.get(c.entity) === i ? row.scope?.[c.entity] : undefined,
     );

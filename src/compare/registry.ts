@@ -152,16 +152,54 @@ export function sumNatives(
 // «поражены» — hit, damage unspecified).
 export type CompareGroup = "killed" | "struck";
 
-export interface CompareRow {
-  group: CompareGroup;
+// What every row has, parent or child. Children reuse this shape, which is
+// also what makes a child structurally unable to have children of its own.
+export interface CompareRowBase {
   key: string;                                        // stable id (URL/tests)
   label: string;
-  indent?: boolean;
   // Per-entity native keys, summed into one cell. Typed against that entity's
   // own vocabulary, so `"sbu-alfa": ["uav_crews"]` fails to compile — the key
   // is `drone_crews`.
   map: { [E in CompareEntityId]?: EntityNativeKey[E][] };
   scope?: Partial<Record<CompareEntityId, string>>;
+}
+
+export interface CompareRow extends CompareRowBase {
+  group: CompareGroup;
+  // A breakdown of this row, rendered indented directly beneath it. Nesting is
+  // the structure: a child can't drift away from its parent when CANONICAL_ROWS
+  // is reordered, the way two adjacent flat rows could.
+  //
+  // Children are NOT summed into the parent and never subtracted from it — the
+  // table only displays values, so a child appearing next to the parent that
+  // contains it double-counts nothing. (Contrast useDatabaseSbuAlfa's
+  // PARENT_CHILDREN, which does sum and therefore has to skip children.)
+  children?: CompareRowBase[];
+}
+
+// One rendered line: a parent, or a child flattened out with the group it
+// inherits and the indent that shows the relationship.
+export interface FlatRow extends CompareRowBase {
+  group: CompareGroup;
+  indent: boolean;
+}
+
+// The rows worth rendering for the entities currently in columns, already
+// flattened in display order.
+//
+// A subtree survives if the parent OR any child has a mapping — dropping a
+// parent whose children still have data would hide those rows entirely, so the
+// parent stays even when it can only render dashes.
+export function visibleRowsFor(entities: CompareEntityId[]): FlatRow[] {
+  const mapped = (r: CompareRowBase) => entities.some((e) => r.map[e]?.length);
+  const out: FlatRow[] = [];
+  for (const row of CANONICAL_ROWS) {
+    const children = (row.children ?? []).filter(mapped);
+    if (!mapped(row) && !children.length) continue;
+    out.push({ ...row, indent: false });
+    for (const child of children) out.push({ ...child, group: row.group, indent: true });
+  }
+  return out;
 }
 
 export const GROUP_LABELS: Record<CompareGroup, string> = {
@@ -228,19 +266,21 @@ export const CANONICAL_ROWS: CompareRow[] = [
       "sbu-alfa": "одиниць броньованої техніки (танки + ББМ)",
       rubikon: "Танки + ББМ/БМП + БТР",
     },
-  },
-  {
-    group: "struck", key: "tanks", label: "Tanks", indent: true,
-    map: { sbs: ["tanks"], "sbu-alfa": ["tanks"], rubikon: ["tanks"] },
-  },
-  {
-    group: "struck", key: "ifvs", label: "IFVs / APCs", indent: true,
-    map: { sbs: ["apcs_ifvs"], "sbu-alfa": ["ifvs"], rubikon: ["afv_ifv", "apc"] },
-    scope: {
-      sbs: "APCs / IFVs / ACVs",
-      "sbu-alfa": "бойових броньованих машин",
-      rubikon: "ББМ, БМП + Бронетранспортеры (two source lines)",
-    },
+    children: [
+      {
+        key: "tanks", label: "Tanks",
+        map: { sbs: ["tanks"], "sbu-alfa": ["tanks"], rubikon: ["tanks"] },
+      },
+      {
+        key: "ifvs", label: "IFVs / APCs",
+        map: { sbs: ["apcs_ifvs"], "sbu-alfa": ["ifvs"], rubikon: ["afv_ifv", "apc"] },
+        scope: {
+          sbs: "APCs / IFVs / ACVs",
+          "sbu-alfa": "бойових броньованих машин",
+          rubikon: "ББМ, БМП + Бронетранспортеры (two source lines)",
+        },
+      },
+    ],
   },
   {
     group: "struck", key: "air_defense", label: "Air defense",
@@ -398,8 +438,10 @@ const MAPPED_NATIVES: Record<CompareEntityId, Set<string>> = {
   sbs: new Set(), "sbu-alfa": new Set(), rubikon: new Set(),
 };
 for (const row of CANONICAL_ROWS) {
-  for (const [entity, keys] of Object.entries(row.map)) {
-    for (const k of keys ?? []) MAPPED_NATIVES[entity as CompareEntityId].add(k);
+  for (const r of [row, ...(row.children ?? [])]) {
+    for (const [entity, keys] of Object.entries(r.map)) {
+      for (const k of keys ?? []) MAPPED_NATIVES[entity as CompareEntityId].add(k);
+    }
   }
 }
 
