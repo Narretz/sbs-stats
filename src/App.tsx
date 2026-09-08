@@ -1,14 +1,14 @@
 import { useTheme } from "@/hooks/useTheme";
 import { ThemeProvider } from "@/hooks/ThemeProvider";
 import { StatScopeProvider } from "@/hooks/StatScopeProvider";
-import { SbsDatabaseProvider, SbuAlfaDatabaseProvider } from "@/context/databases";
+import { SbsDatabaseProvider, SbuAlfaDatabaseProvider, RubikonDatabaseProvider } from "@/context/databases";
 import { SITE_REGISTRY, type SiteConfig } from "@/sites/registry";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { RouteProvider } from "@/hooks/RouteContext";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorScreen } from "@/components/Layout";
-import { SbsVsSbuAlfaPage } from "@/pages/SbsVsSbuAlfaPage";
+import { ComparePage } from "@/pages/ComparePage";
 import { MissilesPage } from "@/pages/MissilesPage";
 import { HomePage } from "@/pages/HomePage";
 import type { Page, Site } from "@/types";
@@ -132,11 +132,17 @@ function AppInner() {
             <MissilesRoot site={site} setSite={setSite} setPage={setPage} />
           </ErrorShell>
         )}
-        {route.kind === "special" && route.view === "sbs-vs-sbu-alfa" && (
+        {route.kind === "special" && (
           <ErrorShell>
             <SbsDatabaseProvider>
               <SbuAlfaDatabaseProvider>
-                <PageShell><SbsVsSbuAlfaPage /></PageShell>
+                <RubikonDatabaseProvider>
+                  <PageShell>
+                    <ComparePage
+                      preset={route.view === "sbs-vs-sbu-alfa" ? "sbs-vs-sbu-alfa" : undefined}
+                    />
+                  </PageShell>
+                </RubikonDatabaseProvider>
               </SbuAlfaDatabaseProvider>
             </SbsDatabaseProvider>
           </ErrorShell>

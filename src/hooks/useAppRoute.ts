@@ -20,7 +20,11 @@ function pagesFor(site: Site): Page[] {
 // Registry of unlisted `?view=…` pages. These are reachable by URL only
 // (not surfaced in the site picker or homepage) and typically render a
 // standalone comparison across multiple datasets.
-export const SPECIAL_VIEWS = ["sbs-vs-sbu-alfa"] as const;
+//
+// `sbs-vs-sbu-alfa` was the hardcoded SBS-vs-«Альфа» table, since generalised
+// into `compare`. It is kept as an alias so saved links keep working: it
+// renders the same page with those two columns preselected.
+export const SPECIAL_VIEWS = ["compare", "sbs-vs-sbu-alfa"] as const;
 export type SpecialView = (typeof SPECIAL_VIEWS)[number];
 
 export type Route =
