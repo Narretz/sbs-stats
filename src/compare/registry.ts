@@ -250,22 +250,17 @@ export const CANONICAL_ROWS: CompareRow[] = [
       rubikon: ["personnel"],
     },
     scope: {
-      sbs: "killed + wounded — SBS is the only source that separates them",
-      "sbu-alfa": "«знешкодили» / «відмінусували» — NEUTRALISED, not split; always qualified («понад» = over, «майже» = almost)",
-      rubikon: "«Живая сила» under «Поражены» — ENGAGED, the same verb used for tanks; not split",
+      sbs: "killed + wounded",
+      "sbu-alfa": "«знешкодили» / «відмінусували» — neutralised; always qualified («понад» = over, «майже» = almost)",
+      rubikon: "«Живая сила» under «Поражены» — engaged",
     },
     children: [
       {
-        key: "personnel_killed", label: "of which: killed",
+        key: "personnel_killed", label: "killed",
         map: { sbs: ["personnel_killed"] },
-        scope: {
-          sbs: "personnel.killed",
-          "sbu-alfa": "not published separately",
-          rubikon: "not published separately",
-        },
       },
       {
-        key: "personnel_wounded", label: "of which: wounded",
+        key: "personnel_wounded", label: "wounded",
         map: { sbs: ["personnel_wounded"] },
       },
     ],
@@ -289,12 +284,18 @@ export const CANONICAL_ROWS: CompareRow[] = [
   },
   {
     group: "struck", key: "vehicles", label: "Vehicles (autos)",
-    map: { sbs: ["vehicles", "buggies"], "sbu-alfa": ["vehicles_auto_total"], rubikon: ["vehicles"] },
+    map: { sbs: ["vehicles", "buggies", "motorcycles"], "sbu-alfa": ["vehicles_auto_total"], rubikon: ["vehicles", "motorcycles"] },
     scope: {
-      sbs: "Vehicles + Military buggies — excludes motorcycles",
+      sbs: "Vehicles + Motorcycles +  Military buggies",
       "sbu-alfa": "одиниць автомобільної техніки; may bundle motorcycles",
-      rubikon: "«Автомобили» — motorcycles counted on their own line",
     },
+    children: [{key: 'vehicles', 'label': 'Vehicles', map: {sbs: ['vehicles'], rubikon: ["vehicles", "engineering_vehicles"] }, scope: {
+      sbs: 'Logistics, Engr. & special vehicles, refuelers etc.',
+      rubikon: 'Vehicles, including engineering vehicles'
+    } }, {
+      key: "motorcycles", label: "Motorcycles",
+      map: { sbs: ["motorcycles"], rubikon: ["motorcycles"] },
+    }]
   },
   {
     group: "struck", key: "artillery", label: "Artillery",
@@ -395,11 +396,6 @@ export const CANONICAL_ROWS: CompareRow[] = [
     group: "struck", key: "mortars", label: "Mortars",
     map: { sbs: ["mortars"], rubikon: ["mortars"] },
     scope: { "sbu-alfa": "not broken out — «Альфа» reports артилерійських систем і САУ only" },
-  },
-  {
-    group: "struck", key: "motorcycles", label: "Motorcycles",
-    map: { sbs: ["motorcycles"], rubikon: ["motorcycles"] },
-    scope: { "sbu-alfa": "folded into its автомобільної техніки line — see Vehicles (autos)" },
   },
   {
     // SBS renumbered its launch-point counter in 2026-03; summing the
