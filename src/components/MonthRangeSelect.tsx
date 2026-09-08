@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useTheme } from "@/hooks/useTheme";
-import { FONTS } from "@/theme";
 import { type MonthOption } from "@/utils/monthRange";
 
 interface Props {
@@ -13,7 +11,6 @@ interface Props {
 // shape (preset select + custom number input + "all" sentinel) so the layout
 // inside a chart card doesn't shift when you toggle granularity.
 export function MonthRangeSelect({ options, value, onChange }: Props) {
-  const { theme: t } = useTheme();
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(value === "all" ? "" : String(value));
 
@@ -55,7 +52,7 @@ export function MonthRangeSelect({ options, value, onChange }: Props) {
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
+      <span className="ctl-label">
         Time Window
       </span>
       <select
@@ -66,16 +63,7 @@ export function MonthRangeSelect({ options, value, onChange }: Props) {
           else if (v === "custom") return;
           else onChange(Number(v));
         }}
-        style={{
-          background: t.bgAlt,
-          color: t.text,
-          border: `1px solid ${t.border}`,
-          borderRadius: 4,
-          padding: "5px 8px",
-          fontFamily: FONTS.mono,
-          fontSize: 11,
-          cursor: "pointer",
-        }}
+        className="ctl"
       >
         {options.map((opt) => (
           <option key={String(opt)} value={String(opt)}>{labelFor(opt)}</option>
@@ -101,16 +89,8 @@ export function MonthRangeSelect({ options, value, onChange }: Props) {
         onKeyDown={(e) => {
           if (e.key === "Enter") inputRef.current?.blur();
         }}
-        style={{
-          background: t.bgAlt,
-          color: t.text,
-          border: `1px solid ${t.border}`,
-          borderRadius: 4,
-          padding: "5px 6px",
-          fontFamily: FONTS.mono,
-          fontSize: 11,
-          width: 52,
-        }}
+        className="ctl"
+        style={{ width: 52, cursor: "text" }}
         aria-label="Time window (months)"
       />
     </div>

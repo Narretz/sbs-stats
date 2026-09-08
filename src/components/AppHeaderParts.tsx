@@ -71,23 +71,13 @@ export function Brand({ onHome }: { onHome?: () => void }) {
 export function SitePicker({
   value, onChange,
 }: { value: Site | null; onChange: (site: Site) => void }) {
-  const { theme: t } = useTheme();
   return (
     <select
       data-testid="site-picker"
       value={value ?? ""}
       onChange={(e) => { if (e.target.value) onChange(e.target.value as Site); }}
-      style={{
-        background: t.bgAlt,
-        color: t.text,
-        border: `1px solid ${t.border}`,
-        borderRadius: 4,
-        padding: "5px 8px",
-        fontFamily: FONTS.mono,
-        fontSize: 11,
-        cursor: "pointer",
-        maxWidth: "100%",
-      }}
+      className="ctl"
+      style={{ maxWidth: "100%" }}
     >
       {value === null && <option value="">browse by site…</option>}
       {SITES.map((s) => (
@@ -98,15 +88,13 @@ export function SitePicker({
 }
 
 export function ThemeToggle() {
-  const { mode, theme: t, toggle } = useTheme();
+  const { mode, toggle } = useTheme();
   return (
     <button
       onClick={toggle}
       title={`Switch to ${mode === "light" ? "dark" : "light"} mode`}
-      style={{
-        background: t.bgAlt, border: `1px solid ${t.border}`, borderRadius: 4,
-        padding: "5px 10px", cursor: "pointer", fontSize: 14, lineHeight: 1, color: t.text,
-      }}
+      className="ctl"
+      style={{ padding: "5px 10px", fontSize: 14, lineHeight: 1 }}
     >
       {mode === "light" ? "🌙" : "☀️"}
     </button>
@@ -114,28 +102,20 @@ export function ThemeToggle() {
 }
 
 // Dashed outline so it reads as leaving the current site rather than as another
-// page of it. Renders nothing when already on the compare view.
+// page of it. Stays visible on the compare view itself, in the pressed state —
+// a nav item that vanishes once you arrive gives no sense of where you are.
 export function CompareLink() {
-  const { theme: t } = useTheme();
   const { route, goSpecial } = useRoute();
-  if (route.kind === "special") return null;
+  const active = route.kind === "special";
   return (
     <button
+      className={active ? "ctl" : "ctl ctl-dashed"}
       data-testid="nav-compare"
       onClick={() => goSpecial("compare")}
+      aria-pressed={active || undefined}
+      aria-current={active ? "page" : undefined}
       title="Compare units side by side"
-      style={{
-        background: "transparent",
-        color: t.textMuted,
-        border: `1px dashed ${t.border}`,
-        borderRadius: 4,
-        padding: "5px 8px",
-        fontFamily: FONTS.display,
-        fontSize: 12,
-        cursor: "pointer",
-        letterSpacing: "0.04em",
-        whiteSpace: "nowrap",
-      }}
+      style={{ whiteSpace: "nowrap", letterSpacing: "0.04em" }}
     >
       COMPARE
     </button>

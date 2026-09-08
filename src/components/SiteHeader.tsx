@@ -1,6 +1,5 @@
 import { useTheme } from "@/hooks/useTheme";
 import { useRoute } from "@/hooks/RouteContext";
-import { FONTS } from "@/theme";
 import type { Page, Site } from "@/types";
 import { RefreshIndicator } from "@/components/RefreshIndicator";
 import {
@@ -37,8 +36,7 @@ const PAGE_LABEL: Record<Page, string> = {
 // Header for the unlisted `?view=…` comparison page. It has no site or page
 // nav of its own, but it still needs a way back and a theme toggle — linking to
 // a page with neither would make it a dead end.
-export function SpecialViewHeader({ title }: { title: string }) {
-  const { theme: t } = useTheme();
+export function SpecialViewHeader() {
   const { goHome, goSite } = useRoute();
   return (
     <AppHeader>
@@ -48,12 +46,9 @@ export function SpecialViewHeader({ title }: { title: string }) {
             mode the homepage uses. Without it this view was a cul-de-sac you
             could only leave via Home. */}
         <SitePicker value={null} onChange={(s) => goSite(s)} />
-        <span style={{
-          fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted,
-          letterSpacing: "0.04em", whiteSpace: "nowrap",
-        }}>
-          {title}
-        </span>
+        {/* The same button the site headers carry, in its pressed state — it is
+            what tells you which view you are on. */}
+        <CompareLink />
       </AppHeaderGroup>
       <AppHeaderGroup>
         <ThemeToggle />
@@ -76,18 +71,12 @@ export function SiteHeader({
       key={target}
       data-testid={`nav-${target}`}
       onClick={() => onPageChange(target)}
+      className="ctl"
+      aria-pressed={page === target || undefined}
+      aria-current={page === target ? "page" : undefined}
       style={{
-        background: page === target ? t.primary : "transparent",
-        color: page === target ? "#ffffff" : t.textMuted,
-        border: `1px solid ${page === target ? t.primary : t.border}`,
-        borderRadius: 4,
-        padding: "5px 8px",
-        fontFamily: FONTS.display,
-        fontSize: 12,
-        fontWeight: page === target ? 700 : 400,
-        cursor: "pointer",
+        color: page === target ? undefined : t.textMuted,
         letterSpacing: "0.04em",
-        transition: "all 0.15s",
       }}
     >
       {label}

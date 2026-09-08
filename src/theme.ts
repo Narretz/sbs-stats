@@ -76,6 +76,55 @@ export const GLOBAL_CSS = (t: Theme) => `
   ::-webkit-scrollbar-thumb { background: ${t.border}; border-radius: 3px; }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
   @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  /* ── Controls ──────────────────────────────────────────────────────────────
+     One look for every chart/table control: selects, buttons, toggles, on the
+     site pages and the compare view alike. Base styling lives here rather than
+     inline because :hover can't be expressed inline at all, and an inline
+     border/background would beat these rules anyway. */
+  .ctl {
+    background: ${t.surface};
+    color: ${t.text};
+    border: 1px solid ${t.border};
+    border-radius: 4px;
+    padding: 5px 8px;
+    font-family: ${FONTS.mono};
+    font-size: 11px;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  }
+  .ctl:hover { border-color: ${t.primary}; }
+  .ctl:focus-visible { outline: 2px solid ${t.primary}; outline-offset: 1px; }
+  .ctl:disabled { opacity: 0.5; cursor: default; }
+  .ctl:disabled:hover { border-color: ${t.border}; }
+  /* Pressed/selected: the same treatment the page nav uses for the current page. */
+  .ctl[aria-pressed="true"] {
+    background: ${t.primary};
+    color: #ffffff;
+    border-color: ${t.primary};
+    font-weight: 700;
+  }
+  .ctl[aria-pressed="true"]:hover { border-color: ${t.primary}; }
+  /* Leaves the current site rather than moving within it. */
+  .ctl-dashed { border-style: dashed; color: ${t.textMuted}; background: transparent; }
+  .ctl-dashed:hover { color: ${t.text}; border-color: ${t.primary}; }
+  /* Checkbox in button chrome: the label is the hit area, the tick carries the
+     state. No filled background — this toggles a detail, it isn't a mode. */
+  .ctl-check { display: inline-flex; align-items: center; gap: 6px; user-select: none; }
+  .ctl-check input { cursor: pointer; margin: 0; accent-color: ${t.primary}; }
+  /* :has(:focus-visible), not :focus-within — the latter also fires on a mouse
+     click and would leave a focus ring behind after every toggle. */
+  .ctl-check:has(input:focus-visible) { outline: 2px solid ${t.primary}; outline-offset: 1px; }
+  .ctl-check:has(input:checked) { border-color: ${t.primary}; color: ${t.text}; }
+
+  .ctl-label {
+    font-family: ${FONTS.mono};
+    font-size: 10px;
+    color: ${t.textMuted};
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
   /* App header. Layout lives here rather than inline because inline styles beat
      media queries — a hard-coded height/padding can't be overridden below. */
   .app-header {

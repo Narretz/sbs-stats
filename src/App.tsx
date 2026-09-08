@@ -137,7 +137,7 @@ function AppInner() {
             <SbsDatabaseProvider>
               <SbuAlfaDatabaseProvider>
                 <RubikonDatabaseProvider>
-                  <SpecialViewHeader title="COMPARE" />
+                  <SpecialViewHeader />
                   <PageShell>
                     <ComparePage
                       preset={route.view === "sbs-vs-sbu-alfa" ? "sbs-vs-sbu-alfa" : undefined}

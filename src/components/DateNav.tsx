@@ -1,5 +1,4 @@
 import { useTheme } from "@/hooks/useTheme";
-import { FONTS } from "@/theme";
 
 interface Props {
   value: string;        // selected date ("" = none / live)
@@ -15,38 +14,24 @@ export function DateNav({ value, max, onChange, onShift, canGoNext }: Props) {
   const { theme: t } = useTheme();
   return (
     <div style={{display: "flex", alignItems: "center", gap: 6}}>
-      <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
+      <span className="ctl-label">
         Date
       </span>
     <div style={{ display: "flex", gap: "3px" }}>
-      <button onClick={() => onShift(-1)} style={{
-        background: t.bgAlt, color: t.textMuted,
-        border: `1px solid ${t.border}`,
-        fontFamily: FONTS.mono, fontSize: 11,
-        borderRadius: 4, padding: "5px 8px", height: "25px", cursor: "pointer",
-      }}>&lt;</button>
+      <button className="ctl" onClick={() => onShift(-1)} aria-label="Previous day"
+        style={{ color: t.textMuted, height: 25 }}>&lt;</button>
       <input
         type="date"
         value={value}
         max={max}
         onChange={(e) => onChange(e.target.value)}
-        style={{
-          background: value ? t.primary : t.bgAlt,
-          color: value ? "#fff" : t.textMuted,
-          border: `1px solid ${value ? t.primary : t.border}`,
-          borderRadius: 4, padding: "5px 8px",
-          fontFamily: FONTS.mono, fontSize: 11,
-          cursor: "pointer", transition: "all 0.15s",
-          colorScheme: "dark",
-        }}
+        className="ctl"
+        // A set date is the "active" state, same treatment as a pressed toggle.
+        aria-pressed={value ? true : undefined}
+        style={{ colorScheme: "dark" }}
       />
-      <button onClick={() => onShift(1)} disabled={!canGoNext} style={{
-        background: t.bgAlt, color: canGoNext ? t.textMuted : t.border,
-        border: `1px solid ${t.border}`,
-        fontFamily: FONTS.mono, fontSize: 11,
-        borderRadius: 4, padding: "5px 8px", height: "25px",
-        cursor: canGoNext ? "pointer" : "not-allowed",
-      }}>&gt;</button>
+      <button className="ctl" onClick={() => onShift(1)} disabled={!canGoNext} aria-label="Next day"
+        style={{ color: t.textMuted, height: 25 }}>&gt;</button>
     </div>
     </div>
   );

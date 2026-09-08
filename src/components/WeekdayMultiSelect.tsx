@@ -40,19 +40,16 @@ export function WeekdayMultiSelect({ selected, onChange, todayDow }: WeekdayMult
 
   return (
     <div ref={wrapRef} style={{ position: "relative", display: "flex", alignItems: "center", gap: 6 }}>
-      <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
+      <span className="ctl-label">
         Weekdays
       </span>
       <button
+        className="ctl"
         onClick={() => setOpen(o => !o)}
+        aria-pressed={active || undefined}
         style={{
-          background: active ? t.primary : t.bgAlt,
-          color: active ? "#fff" : t.textMuted,
-          border: `1px solid ${active ? t.primary : t.border}`,
-          borderRadius: 4, padding: "5px 12px",
-          fontFamily: FONTS.mono, fontSize: 11,
-          fontWeight: active ? 700 : 400,
-          cursor: "pointer", transition: "all 0.15s",
+          padding: "5px 12px",
+          color: active ? undefined : t.textMuted,
           display: "inline-flex", alignItems: "center", gap: 6,
         }}
       >
@@ -62,7 +59,7 @@ export function WeekdayMultiSelect({ selected, onChange, todayDow }: WeekdayMult
       {open && (
         <div style={{
           position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 200,
-          background: t.bgAlt, border: `1px solid ${t.border}`,
+          background: t.surface, border: `1px solid ${t.border}`,
           borderRadius: 4, padding: 6, minWidth: 140,
           boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
           fontFamily: FONTS.mono, fontSize: 11,

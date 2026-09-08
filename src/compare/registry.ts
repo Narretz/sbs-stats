@@ -260,8 +260,6 @@ export const CANONICAL_ROWS: CompareRow[] = [
       rubikon: ["combat_sorties"],
     },
     scope: {
-      sbs: "strike + recon",
-      "sbu-alfa": "no sortie counter published",
       rubikon: "«Выполнено N боевых вылетов»",
     },
     children: [
@@ -290,7 +288,6 @@ export const CANONICAL_ROWS: CompareRow[] = [
       rubikon: ["personnel"],
     },
     scope: {
-      sbs: "killed + wounded",
       "sbu-alfa": "«знешкодили» / «відмінусували» — neutralised; always qualified («понад» = over, «майже» = almost)",
       rubikon: "«Живая сила» under «Поражены» — engaged",
     },

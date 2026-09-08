@@ -374,12 +374,7 @@ export function ComparePage({ preset }: Props) {
     </tr>
   );
 
-  const selectStyle = {
-    fontFamily: FONTS.mono, fontSize: 11,
-    padding: "4px 6px",
-    background: t.surface, color: t.text,
-    border: `1px solid ${t.border}`, borderRadius: 4,
-  };
+
 
   const groups: CompareGroup[] = ["activity", "personnel", "struck"];
 
@@ -401,30 +396,30 @@ export function ComparePage({ preset }: Props) {
       {/* Toolbar: global month + add column. Always visible, including on the
           empty table, since it is the only way to populate it. */}
       <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", marginBottom: 20 }}>
-        <label style={{ fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted }}>
+        <label className="ctl-label">
           Month (all columns):{" "}
           <select
+            className="ctl"
             data-testid="compare-global-month"
             value={globalMonth}
             onChange={(e) => e.target.value && setAllMonths(e.target.value)}
             disabled={!columns.length}
-            style={selectStyle}
           >
             {!globalMonth && <option value="">{columns.length ? "Mixed" : "—"}</option>}
             {allMonths.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </label>
 
-        <label style={{ fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted }}>
+        <label className="ctl-label">
           Add column:{" "}
           <select
+            className="ctl"
             data-testid="compare-add-column"
             value=""
             onChange={(e) => {
               if (e.target.value) addColumn(e.target.value as CompareEntityId);
               e.target.value = "";
             }}
-            style={selectStyle}
           >
             <option value="">+ pick a unit…</option>
             {COMPARE_ENTITIES.map((e) => (
@@ -434,32 +429,32 @@ export function ComparePage({ preset }: Props) {
         </label>
 
         {columns.length > 1 && (
-          <label style={{ fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted }}>
+          <label className="ctl-label">
             % against:{" "}
             <select
+              className="ctl"
               data-testid="compare-pct-mode"
               value={pctMode}
               onChange={(e) => setPctMode(e.target.value as PctMode)}
-              style={selectStyle}
-            >
+              >
               <option value="first">baseline column</option>
               <option value="prev">previous column</option>
             </select>
           </label>
         )}
 
-        <label style={{
-          fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted,
-          display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
-        }}>
+        {/* A real checkbox inside button chrome. The <label> wrapper makes the
+            whole box the hit area natively — no click handler needed — and it
+            deliberately skips aria-pressed, so it never takes the filled blue
+            of the mode buttons; the tick is what reads as checked. */}
+        <label className="ctl ctl-check">
           <input
             data-testid="compare-show-scope"
             type="checkbox"
             checked={showScope}
             onChange={(e) => setShowScope(e.target.checked)}
-            style={{ cursor: "pointer" }}
           />
-          Show scope notes
+          Scope notes
         </label>
       </div>
 
@@ -522,9 +517,10 @@ export function ComparePage({ preset }: Props) {
                       </div>
                       <div style={{ marginTop: 4 }}>
                         <select
+                          className="ctl"
                           value={c.month}
                           onChange={(e) => setColumnMonth(c.id, e.target.value)}
-                          style={{ ...selectStyle, textTransform: "none" }}
+                          style={{ textTransform: "none" }}
                         >
                           {/* A month the global picker set but this entity
                               never covered still needs an option, or the

@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useTheme } from "@/hooks/useTheme";
-import { FONTS } from "@/theme";
 
 interface Props<T extends number> {
   options: readonly T[];
@@ -12,7 +10,6 @@ interface Props<T extends number> {
 // input commits a custom value on Enter or blur. If `value` isn't a preset the
 // select shows "Custom"; selecting "Custom" explicitly just focuses the input.
 export function DayRangeSelect<T extends number>({ options, value, onChange }: Props<T>) {
-  const { theme: t } = useTheme();
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(String(value));
 
@@ -51,36 +48,18 @@ export function DayRangeSelect<T extends number>({ options, value, onChange }: P
   };
   useEffect(() => cancelDebounce, []);
 
-  const inputStyle = {
-    background: t.bgAlt,
-    color: t.text,
-    border: `1px solid ${t.border}`,
-    borderRadius: 4,
-    padding: "5px 6px",
-    fontFamily: FONTS.mono,
-    fontSize: 11,
-    width: 52,
-  } as const;
+  const inputStyle = { width: 52, cursor: "text" } as const;
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
+      <span className="ctl-label">
         Time Window
       </span>
       <select
         data-testid="day-range"
         value={isPreset ? String(value) : "custom"}
         onChange={(e) => onChange(Number(e.target.value) as T)}
-        style={{
-          background: t.bgAlt,
-          color: t.text,
-          border: `1px solid ${t.border}`,
-          borderRadius: 4,
-          padding: "5px 8px",
-          fontFamily: FONTS.mono,
-          fontSize: 11,
-          cursor: "pointer",
-        }}
+        className="ctl"
       >
         {options.map((d) => (
           <option key={d} value={d}>{d}d</option>
@@ -107,6 +86,7 @@ export function DayRangeSelect<T extends number>({ options, value, onChange }: P
         onKeyDown={(e) => {
           if (e.key === "Enter") inputRef.current?.blur();
         }}
+        className="ctl"
         style={inputStyle}
         aria-label="Time window (days)"
       />

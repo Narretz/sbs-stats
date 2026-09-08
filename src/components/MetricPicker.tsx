@@ -135,7 +135,7 @@ export function MetricPicker({ selected, onChange, view }: Props) {
   const closeProps: PopoverProps = { popovertarget: popoverId, popovertargetaction: "hide" };
 
   const btnStyle = {
-    background: t.bgAlt,
+    background: t.surface,
     color: t.text,
     border: `1px solid ${t.border}`,
     borderRadius: 4,
@@ -151,7 +151,7 @@ export function MetricPicker({ selected, onChange, view }: Props) {
         ref={triggerRef}
         {...triggerProps}
         style={{
-          background: t.bgAlt,
+          background: t.surface,
           color: t.text,
           border: `1px solid ${t.border}`,
           borderRadius: 4,

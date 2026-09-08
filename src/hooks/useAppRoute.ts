@@ -52,6 +52,10 @@ function readUrl(): Route {
 // …) still use replaceState from HomePage — those are tweaks, not navigations.
 function writeSite(next: { site?: Site; page?: Page }) {
   const p = new URLSearchParams(window.location.search);
+  // Clear `view` in the pushed URL, not the current one: rewriting the entry we
+  // are leaving would destroy it, and Back would return to a compare URL with
+  // no `view` on it. The compare page stays in the history stack.
+  p.delete("view");
   if (next.site !== undefined) p.set("site", next.site);
   if (next.page !== undefined) p.set("page", next.page);
   window.history.pushState(null, "", `${window.location.pathname}?${p.toString()}`);
@@ -101,13 +105,6 @@ export function useAppRoute() {
   };
 
   const goSite = (site: Site, page?: Page) => {
-    // Leaving a special view has to clear `view`, or readUrl would keep
-    // resolving to it on the next popstate.
-    if (route.kind === "special") {
-      const p = new URLSearchParams(window.location.search);
-      p.delete("view");
-      window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
-    }
     const pages = pagesFor(site);
     const safePage: Page = page && pages.includes(page) ? page : pages[0];
     writeSite({ site, page: safePage });
