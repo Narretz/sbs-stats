@@ -102,6 +102,30 @@ def test_counters_are_ordered_and_unique(fixture: str) -> None:
     assert cats == sorted(cats, key=CATEGORY_ORDER.index)
 
 
+def test_unknown_category_is_flagged_not_dropped() -> None:
+    """A category the channel has never used must surface in `unmatched`.
+
+    This is the drift detector doing its job — the sibling
+    test_no_unmatched_lines only proves it stays quiet on known wording, which
+    a detector that never fires would also pass. The recap is a strict
+    one-counter-per-line list, so every line is either claimed or flagged;
+    there is no heuristic to fall through.
+
+    The post is still parsed and stored, minus that counter — the raw text is
+    kept, so adding an alias and re-running `ingest.py --reparse` recovers the
+    value without a re-scrape.
+    """
+    text = _load("2026-08-post2550.txt").replace(
+        "Танки - 5", "Танки - 5\nГаубицы М777 - 7\nКорабли - 2"
+    )
+    report = parse(text)
+    assert report.report_type == "monthly"      # the month is not lost
+    assert report.unmatched == ["Гаубицы М777 - 7", "Корабли - 2"]
+    # …and the unknown lines did not sneak in under some other category.
+    assert 7 not in [c.value for c in report.counters if c.category != "towed_artillery"]
+    assert all(c.category in CATEGORY_ORDER for c in report.counters)
+
+
 def test_non_recap_post_is_rejected() -> None:
     """The 30 Dec 2025 cumulative report must NOT enter the monthly series.
 

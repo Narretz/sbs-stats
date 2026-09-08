@@ -124,6 +124,34 @@ def test_breakdown_sums_to_headline(fixture, posted, total) -> None:
     assert r.warnings == []
 
 
+def test_unknown_bullet_is_flagged_not_dropped() -> None:
+    """An unrecognised bullet surfaces in `unmatched` rather than vanishing."""
+    text = _load("digest-2026-03-post1289.txt").replace(
+        "• Танки - 13", "• Танки - 13\n• Морские дроны - 9"
+    )
+    r = parse(text, date(2026, 3, 31))
+    assert r.report_type == "monthly_digest"
+    assert r.unmatched == ["• Морские дроны - 9 (+85%)"]
+
+
+def test_new_category_also_trips_the_sum_check() -> None:
+    """A REAL new category trips two independent detectors, not one.
+
+    The unit counts it in the headline as well as listing it, so the matched
+    bullets no longer add up — which is caught even if the alias table somehow
+    swallowed the line. Two signals for the same drift is the point: the sum
+    check needs no vocabulary at all.
+    """
+    text = (
+        _load("digest-2026-03-post1289.txt")
+        .replace("составило 3170", "составило 3179")
+        .replace("• Танки - 13", "• Танки - 13\n• Морские дроны - 9")
+    )
+    r = parse(text, date(2026, 3, 31))
+    assert r.unmatched == ["• Морские дроны - 9 (+85%)"]
+    assert any("breakdown sums to 3170" in w and "3179" in w for w in r.warnings)
+
+
 def test_summer_aggregate_bullets_are_not_august() -> None:
     """Post 481's bullets cover Jun+Jul+Aug 2025 — they are not August's.
 

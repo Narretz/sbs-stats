@@ -371,19 +371,34 @@ def _print_report(post_id: int, report: Parsed) -> None:
         print(f"    {category:22s} {kind:18s} {value:>8d}{flag}")
 
 
+def _annotate(title: str, message: str) -> None:
+    """Emit a warning, as a GitHub Actions annotation when running in CI.
+
+    A bare stderr line lands in the middle of a job log nobody opens on a green
+    run — and these runs ARE green: an unrecognised category doesn't fail the
+    ingest, because failing would skip the R2 upload and lose the whole month
+    over one counter. The annotation surfaces on the run summary instead, so
+    drift is visible without being fatal. One flat line locally.
+    """
+    flat = " ".join(message.split())
+    if os.environ.get("GITHUB_ACTIONS"):
+        print(f"::warning title={title}::{flat}")
+    print(f"WARNING: {flat}", file=sys.stderr)
+
+
 def _warn(post_id: int, report: Parsed) -> None:
     """Surface drift and source oddities instead of dropping them silently."""
     module = "parse.py" if report.report_type == "monthly" else "parse_digest.py"
     if report.unmatched:
-        print(
-            f"WARNING: post {post_id} has {len(report.unmatched)} line(s) no "
-            f"category claimed (new or renamed?) — add an alias in "
+        _annotate(
+            "Rubikon: unrecognised category",
+            f"post {post_id} has {len(report.unmatched)} line(s) no category "
+            f"claimed (new or renamed?) — add an alias in "
             f"scripts/rubikon/{module}, then re-run with --reparse: "
             f"{report.unmatched}",
-            file=sys.stderr,
         )
     for w in report.warnings:
-        print(f"WARNING: post {post_id}: {w}", file=sys.stderr)
+        _annotate("Rubikon: source oddity", f"post {post_id}: {w}")
 
 
 # ── modes ───────────────────────────────────────────────────────────────────

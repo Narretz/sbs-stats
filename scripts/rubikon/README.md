@@ -223,6 +223,29 @@ A re-scrape that parses to identical counters inserts nothing, so the daily CI
 poll only writes (and only re-uploads to R2) when the recap actually lands or
 is edited.
 
+## New-category detection
+
+Both parsers flag drift rather than dropping it. The source is a strict
+one-item-per-line list, so there's no heuristic: every `Label - N` line (recap)
+and `• Label - N` bullet (digest) either matches an alias or lands in
+`unmatched`, which `ingest.py` prints — and, under GitHub Actions, raises as a
+`::warning` annotation on the run summary.
+
+An unrecognised category does **not** fail the ingest and does **not** stop the
+month being stored. Because the raw text is kept, adding the alias and re-running
+`ingest.py --reparse --apply` recovers the missing value with no re-scrape.
+
+The digest has a **second, vocabulary-free** detector: a real new category is
+counted in the headline as well as listed, so the matched bullets stop summing
+to it and the sum check fires too — drift is caught even if the alias table
+somehow swallowed the line.
+
+```
+WARNING: post 2550 has 1 line(s) no category claimed (new or renamed?) —
+add an alias in scripts/rubikon/parse.py, then re-run with --reparse:
+['Гаубицы М777 - 7']
+```
+
 ## Tests
 
 ```sh
