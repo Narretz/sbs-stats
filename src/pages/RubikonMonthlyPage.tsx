@@ -163,9 +163,9 @@ export function RubikonMonthlyPage({ refreshKey }: Props) {
         The unit reports «Поражены» — <em>engaged</em> — with no destroyed / damaged split, so each
         category is a single self-reported claim.
         {" "}
-        The first chart is <strong>ours, not Rubikon's</strong>: every «Поражены» category added up,
-        since the unit publishes no total. It leaves out combat sorties (activity, not damage) and
-        EW-suppressed drones (jammed, not struck).
+        The first chart is synthetic: every «Поражены» category added up,
+        since the unit publishes no total. It leaves out combat sorties (activity) and
+        EW-suppressed drones (not engaged in the traditional sense).
       </>}
       dataWindow={dataWindow.minPeriod && dataWindow.maxPeriod ? (
         <details style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6 }}>
