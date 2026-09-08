@@ -3,6 +3,9 @@ import { useRoute } from "@/hooks/RouteContext";
 import { FONTS } from "@/theme";
 import { SITES, SITE_LABELS, type Page, type Site } from "@/types";
 import { RefreshIndicator } from "@/components/RefreshIndicator";
+import {
+  AppHeader, AppHeaderGroup, Brand, CompareLink, ThemeToggle,
+} from "@/components/AppHeaderParts";
 
 interface SiteHeaderProps {
   site: Site;
@@ -31,61 +34,6 @@ const PAGE_LABEL: Record<Page, string> = {
   weekly: "WEEKLY",
 };
 
-// Brand wordmark, abbreviated on narrow screens via CSS (both spans are in the
-// DOM; the media query picks one). Doubles as the Home link.
-function Brand({ onHome }: { onHome?: () => void }) {
-  const { theme: t } = useTheme();
-  return (
-    <button
-      onClick={onHome}
-      disabled={!onHome}
-      title={onHome ? "Home" : undefined}
-      style={{
-        display: "flex", alignItems: "center",
-        background: "transparent", border: "none", padding: 0,
-        cursor: onHome ? "pointer" : "default",
-      }}
-    >
-      <span
-        className="app-header-brand"
-        style={{
-          fontFamily: FONTS.display, fontSize: 13, fontWeight: 700,
-          color: t.text, letterSpacing: "0.06em", textAlign: "left",
-          whiteSpace: "nowrap",
-        }}
-      >
-        <span className="app-header-brand-long">RU-UA WAR STATISTICS</span>
-        <span className="app-header-brand-short">RU-UA WAR</span>
-      </span>
-    </button>
-  );
-}
-
-function ThemeToggle() {
-  const { mode, theme: t, toggle } = useTheme();
-  return (
-    <button
-      onClick={toggle}
-      title={`Switch to ${mode === "light" ? "dark" : "light"} mode`}
-      style={{
-        background: t.bgAlt, border: `1px solid ${t.border}`, borderRadius: 4,
-        padding: "5px 10px", cursor: "pointer", fontSize: 14, lineHeight: 1, color: t.text,
-      }}
-    >
-      {mode === "light" ? "🌙" : "☀️"}
-    </button>
-  );
-}
-
-const headerShell = (background: string, border: string) => ({
-  borderBottom: `1px solid ${border}`,
-  backdropFilter: "blur(8px)",
-  position: "sticky" as const,
-  top: 0,
-  zIndex: 10,
-  background,
-});
-
 // Header for the unlisted `?view=…` comparison page. It has no site or page
 // nav of its own, but it still needs a way back and a theme toggle — linking to
 // a page with neither would make it a dead end.
@@ -93,8 +41,8 @@ export function SpecialViewHeader({ title }: { title: string }) {
   const { theme: t } = useTheme();
   const { goHome } = useRoute();
   return (
-    <header className="app-header" style={headerShell(t.headerBg, t.border)}>
-      <div className="app-header-group">
+    <AppHeader>
+      <AppHeaderGroup>
         <Brand onHome={goHome} />
         <span style={{
           fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted,
@@ -102,11 +50,11 @@ export function SpecialViewHeader({ title }: { title: string }) {
         }}>
           {title}
         </span>
-      </div>
-      <div className="app-header-group">
+      </AppHeaderGroup>
+      <AppHeaderGroup>
         <ThemeToggle />
-      </div>
-    </header>
+      </AppHeaderGroup>
+    </AppHeader>
   );
 }
 
@@ -116,7 +64,7 @@ export function SiteHeader({
   showRefresh = true,
 }: SiteHeaderProps) {
   const { theme: t } = useTheme();
-  const { goHome, goSpecial } = useRoute();
+  const { goHome } = useRoute();
   const homeHandler = hideHome ? undefined : goHome;
 
   const navBtn = (target: Page, label: string) => (
@@ -143,9 +91,9 @@ export function SiteHeader({
   );
 
   return (
-    <header className="app-header" style={headerShell(t.headerBg, t.border)}>
+    <AppHeader>
       {/* Brand + site picker */}
-      <div className="app-header-group">
+      <AppHeaderGroup>
         <Brand onHome={homeHandler} />
         <select
           data-testid="site-picker"
@@ -168,30 +116,12 @@ export function SiteHeader({
             </option>
           ))}
         </select>
-      </div>
+      </AppHeaderGroup>
 
       {/* Nav + compare + refresh + theme */}
-      <div className="app-header-group">
+      <AppHeaderGroup>
         {pages.map((p) => navBtn(p, PAGE_LABEL[p]))}
-        <button
-          data-testid="nav-compare"
-          onClick={() => goSpecial("compare")}
-          title="Compare units side by side"
-          style={{
-            background: "transparent",
-            color: t.textMuted,
-            border: `1px dashed ${t.border}`,
-            borderRadius: 4,
-            padding: "5px 8px",
-            fontFamily: FONTS.display,
-            fontSize: 12,
-            cursor: "pointer",
-            letterSpacing: "0.04em",
-            whiteSpace: "nowrap",
-          }}
-        >
-          COMPARE
-        </button>
+        <CompareLink />
         {showRefresh && (
           <RefreshIndicator
             lastRefreshed={lastRefreshed}
@@ -202,7 +132,7 @@ export function SiteHeader({
           />
         )}
         <ThemeToggle />
-      </div>
-    </header>
+      </AppHeaderGroup>
+    </AppHeader>
   );
 }

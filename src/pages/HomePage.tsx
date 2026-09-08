@@ -17,6 +17,9 @@ import { DateNav } from "@/components/DateNav";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MetricPicker } from "@/components/MetricPicker";
 import { RefreshIndicator } from "@/components/RefreshIndicator";
+import {
+  AppHeader, AppHeaderGroup, Brand, CompareLink, ThemeToggle,
+} from "@/components/AppHeaderParts";
 import { DAY_OPTIONS, type DayOption, parseDaysParam } from "@/utils/dayRange";
 import { MONTH_OPTIONS, type MonthOption } from "@/utils/monthRange";
 import { useStatScope, type StatScope } from "@/hooks/useStatScope";
@@ -353,7 +356,7 @@ interface Props {
 }
 
 export function HomePage({ onGoToSite }: Props) {
-  const { mode, theme: t, toggle } = useTheme();
+  const { theme: t } = useTheme();
   useDocumentTitle();
   const initial = useMemo(() => getUrlParams(), []);
 
@@ -710,21 +713,13 @@ export function HomePage({ onGoToSite }: Props) {
 
   return (
     <>
-      <header
-        style={{
-          borderBottom: `1px solid ${t.border}`,
-          padding: "0 24px",
-          height: 52,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          background: t.headerBg,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <span style={{ fontFamily: FONTS.display, fontSize: 13, fontWeight: 700, color: t.text, letterSpacing: "0.06em" }}>
-            RU-UA WAR STATISTICS
-          </span>
+      {/* Same shell as the site headers — this used to be a hand-copied header
+          and had drifted: no compare link, and none of the responsive rules.
+          Not sticky, which is how the homepage has always behaved. */}
+      <AppHeader sticky={false}>
+        <AppHeaderGroup>
+          {/* No home link: this is home. */}
+          <Brand />
           <select
             value=""
             onChange={onSitePick}
@@ -739,26 +734,18 @@ export function HomePage({ onGoToSite }: Props) {
               <option key={s} value={s}>{SITE_LABELS[s]}</option>
             ))}
           </select>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        </AppHeaderGroup>
+        <AppHeaderGroup>
+          <CompareLink />
           <RefreshIndicator
             lastRefreshed={refreshAggregated.lastRefreshed}
             refreshCount={refreshAggregated.refreshCount}
             onRefresh={refreshAggregated.onRefresh}
             isLoading={refreshAggregated.isLoading}
           />
-          <button
-            onClick={toggle}
-            title={`Switch to ${mode === "light" ? "dark" : "light"} mode`}
-            style={{
-              background: t.bgAlt, border: `1px solid ${t.border}`, borderRadius: 4,
-              padding: "5px 10px", cursor: "pointer", fontSize: 14, lineHeight: 1, color: t.text,
-            }}
-          >
-            {mode === "light" ? "🌙" : "☀️"}
-          </button>
-        </div>
-      </header>
+          <ThemeToggle />
+        </AppHeaderGroup>
+      </AppHeader>
 
       <main style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 20px 64px" }}>
         <div style={{ marginBottom: 24 }}>

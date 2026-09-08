@@ -366,13 +366,8 @@ export function ComparePage({ preset }: Props) {
           Compare units
         </h1>
         <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3, maxWidth: 900, lineHeight: 1.55 }}>
-          Side-by-side monthly claims. Add a column per unit and month — two columns of the same
-          unit compare its months against each other. Every figure is a unit self-report: treat
-          them as claims, not verified counts, and note that the same physical target is often
-          claimed by more than one unit. The units also differ enormously in size (SBS is a whole
-          branch; «Альфа» and «Рубикон» are single formations) and «Рубикон» reports Ukrainian
-          losses where the other two report Russian ones, so a row is a comparison of claims, not
-          of the same objects.
+          Side-by-side monthly reports. Add a column per unit and month, or compare the same unit between months.
+          The units break down the targets differently and also vary in size (SBS is a whole branch; «Альфа» and «Рубикон» are single formations).
         </p>
       </div>
 
