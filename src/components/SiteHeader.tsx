@@ -1,10 +1,10 @@
 import { useTheme } from "@/hooks/useTheme";
 import { useRoute } from "@/hooks/RouteContext";
 import { FONTS } from "@/theme";
-import { SITES, SITE_LABELS, type Page, type Site } from "@/types";
+import type { Page, Site } from "@/types";
 import { RefreshIndicator } from "@/components/RefreshIndicator";
 import {
-  AppHeader, AppHeaderGroup, Brand, CompareLink, ThemeToggle,
+  AppHeader, AppHeaderGroup, Brand, CompareLink, SitePicker, ThemeToggle,
 } from "@/components/AppHeaderParts";
 
 interface SiteHeaderProps {
@@ -39,11 +39,15 @@ const PAGE_LABEL: Record<Page, string> = {
 // a page with neither would make it a dead end.
 export function SpecialViewHeader({ title }: { title: string }) {
   const { theme: t } = useTheme();
-  const { goHome } = useRoute();
+  const { goHome, goSite } = useRoute();
   return (
     <AppHeader>
       <AppHeaderGroup>
         <Brand onHome={goHome} />
+        {/* No current site to show, so the picker is a jump menu — the same
+            mode the homepage uses. Without it this view was a cul-de-sac you
+            could only leave via Home. */}
+        <SitePicker value={null} onChange={(s) => goSite(s)} />
         <span style={{
           fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted,
           letterSpacing: "0.04em", whiteSpace: "nowrap",
@@ -95,27 +99,7 @@ export function SiteHeader({
       {/* Brand + site picker */}
       <AppHeaderGroup>
         <Brand onHome={homeHandler} />
-        <select
-          data-testid="site-picker"
-          value={site}
-          onChange={(e) => onSiteChange(e.target.value as Site)}
-          style={{
-            background: t.bgAlt,
-            color: t.text,
-            border: `1px solid ${t.border}`,
-            borderRadius: 4,
-            padding: "5px 8px",
-            fontFamily: FONTS.mono,
-            fontSize: 11,
-            cursor: "pointer",
-          }}
-        >
-          {SITES.map((s) => (
-            <option key={s} value={s}>
-              {SITE_LABELS[s]}
-            </option>
-          ))}
-        </select>
+        <SitePicker value={site} onChange={onSiteChange} />
       </AppHeaderGroup>
 
       {/* Nav + compare + refresh + theme */}

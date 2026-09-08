@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useRoute } from "@/hooks/RouteContext";
 import { FONTS } from "@/theme";
+import { SITES, SITE_LABELS, type Site } from "@/types";
 
 // The pieces every app header is built from. They live here rather than in
 // SiteHeader because the homepage and the unlisted compare view need the same
@@ -61,6 +62,38 @@ export function Brand({ onHome }: { onHome?: () => void }) {
         <span className="app-header-brand-short">RU-UA WAR</span>
       </span>
     </button>
+  );
+}
+
+// Site switcher. `value` is the site you are on, or null on views that aren't
+// a site — the homepage and the compare view — where it becomes a "browse by
+// site…" jump menu instead of showing an arbitrary site as if it were current.
+export function SitePicker({
+  value, onChange,
+}: { value: Site | null; onChange: (site: Site) => void }) {
+  const { theme: t } = useTheme();
+  return (
+    <select
+      data-testid="site-picker"
+      value={value ?? ""}
+      onChange={(e) => { if (e.target.value) onChange(e.target.value as Site); }}
+      style={{
+        background: t.bgAlt,
+        color: t.text,
+        border: `1px solid ${t.border}`,
+        borderRadius: 4,
+        padding: "5px 8px",
+        fontFamily: FONTS.mono,
+        fontSize: 11,
+        cursor: "pointer",
+        maxWidth: "100%",
+      }}
+    >
+      {value === null && <option value="">browse by site…</option>}
+      {SITES.map((s) => (
+        <option key={s} value={s}>{SITE_LABELS[s]}</option>
+      ))}
+    </select>
   );
 }
 

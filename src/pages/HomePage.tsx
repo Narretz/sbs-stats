@@ -18,7 +18,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MetricPicker } from "@/components/MetricPicker";
 import { RefreshIndicator } from "@/components/RefreshIndicator";
 import {
-  AppHeader, AppHeaderGroup, Brand, CompareLink, ThemeToggle,
+  AppHeader, AppHeaderGroup, Brand, CompareLink, SitePicker, ThemeToggle,
 } from "@/components/AppHeaderParts";
 import { DAY_OPTIONS, type DayOption, parseDaysParam } from "@/utils/dayRange";
 import { MONTH_OPTIONS, type MonthOption } from "@/utils/monthRange";
@@ -26,7 +26,6 @@ import { useStatScope, type StatScope } from "@/hooks/useStatScope";
 import { findMetric, type CombinedMetric, type MetricSource } from "@/utils/combinedMetrics";
 import { fetchCombinedDaily, fetchCombinedMonthly, fetchCombinedGlobalStats, statsForMetric, type GlobalStatsBundle } from "@/utils/combinedQuery";
 import type { DailyDataPoint, Site } from "@/types";
-import { SITES, SITE_LABELS } from "@/types";
 import { FONTS } from "@/theme";
 import defaultChartsConfig from "@/data/defaultCharts.json";
 
@@ -706,34 +705,13 @@ export function HomePage({ onGoToSite }: Props) {
     };
   }, [sourceHandles]);
 
-  const onSitePick = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    const v = e.target.value;
-    if (v) onGoToSite(v as Site);
-  }, [onGoToSite]);
-
   return (
     <>
-      {/* Same shell as the site headers — this used to be a hand-copied header
-          and had drifted: no compare link, and none of the responsive rules.
-          Not sticky, which is how the homepage has always behaved. */}
       <AppHeader sticky={false}>
         <AppHeaderGroup>
           {/* No home link: this is home. */}
           <Brand />
-          <select
-            value=""
-            onChange={onSitePick}
-            style={{
-              background: t.bgAlt, color: t.text, border: `1px solid ${t.border}`,
-              borderRadius: 4, padding: "5px 8px",
-              fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
-            }}
-          >
-            <option value="">browse by site…</option>
-            {SITES.map((s) => (
-              <option key={s} value={s}>{SITE_LABELS[s]}</option>
-            ))}
-          </select>
+          <SitePicker value={null} onChange={onGoToSite} />
         </AppHeaderGroup>
         <AppHeaderGroup>
           <CompareLink />

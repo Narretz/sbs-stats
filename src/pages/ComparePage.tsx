@@ -363,11 +363,14 @@ export function ComparePage({ preset }: Props) {
     <div>
       <div style={{ display: "flex", gap: 8, flexDirection: "column", marginBottom: 16 }}>
         <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-          Compare units
+          Compare monthly unit reports
         </h1>
         <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3, maxWidth: 900, lineHeight: 1.55 }}>
           Side-by-side monthly reports. Add a column per unit and month, or compare the same unit between months.
-          The units break down the targets differently and also vary in size (SBS is a whole branch; «Альфа» and «Рубикон» are single formations).
+          The units break down the targets differently - the categories have been grouped where it makes sense.
+          Categories that do not fit together are listed at the bottom.
+          The units also vary in size (SBS is a whole branch; «Альфа» and «Рубикон» are single formations), so
+          direct number comparison needs to be taken with a grain of salt.
         </p>
       </div>
 
