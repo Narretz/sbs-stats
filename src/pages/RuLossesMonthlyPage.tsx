@@ -84,12 +84,13 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
       title="Monthly Russian Losses - GSUA reports"
       description={<>Monthly sums of daily Russian losses reported by the Ukrainian General Staff · source: <a href="https://github.com/PetroIvaniuk/2022-Ukraine-Russia-War-Dataset" rel="nofollow external" target="_blank">PetroIvaniuk dataset</a></>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-losses" />}
-      controls={<>
-        {!yr.hidden && (
+      // No window picker → no scope toggle either; see StatScopeToggle.
+      controls={yr.hidden ? undefined : (
+        <>
           <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
-        )}
-        <StatScopeToggle />
-      </>}
+          <StatScopeToggle />
+        </>
+      )}
       loadState={loadState}
       error={error}
       hasData={hasData}

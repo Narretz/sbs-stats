@@ -188,12 +188,13 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
           </ol>
         </details>
       ) : undefined}
-      controls={<>
-        {!yr.hidden && (
+      // No window picker → no scope toggle either; see StatScopeToggle.
+      controls={yr.hidden ? undefined : (
+        <>
           <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
-        )}
-        <StatScopeToggle />
-      </>}
+          <StatScopeToggle />
+        </>
+      )}
       loadState={loadState}
       error={error}
       hasData={hasData}

@@ -55,12 +55,13 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
       title="Monthly Ukrainian UAVs Downed - RU MoD"
       description="Monthly sums of Russian MoD air-defense intercept claims (MSK drone-days). Current month shows an end-of-month projection. A dashed outline marks months containing a caveated report — a window that may overlap a neighbor (possible double-count), or one the MoD counted as air targets rather than UAVs — see tooltip."
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-mod" />}
-      controls={<>
-        {!yr.hidden && (
+      // No window picker → no scope toggle either; see StatScopeToggle.
+      controls={yr.hidden ? undefined : (
+        <>
           <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
-        )}
-        <StatScopeToggle />
-      </>}
+          <StatScopeToggle />
+        </>
+      )}
       loadState={loadState}
       error={error}
       hasData={hasData}

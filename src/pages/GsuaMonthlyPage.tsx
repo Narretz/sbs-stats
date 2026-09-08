@@ -89,12 +89,13 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
       title="Monthly Combat Stats - GSUA"
       description="Monthly sums of daily totals from Ukrainian General Staff reports. Current month shows end-of-month projection. Parsed deterministically from Telegram @GeneralStaffZSU. May be incomplete or incorrect."
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />}
-      controls={<>
-        {!yr.hidden && (
+      // No window picker → no scope toggle either; see StatScopeToggle.
+      controls={yr.hidden ? undefined : (
+        <>
           <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
-        )}
-        <StatScopeToggle />
-      </>}
+          <StatScopeToggle />
+        </>
+      )}
       loadState={loadState}
       error={error}
       hasData={hasData}

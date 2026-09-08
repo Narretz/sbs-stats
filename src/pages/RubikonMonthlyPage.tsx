@@ -152,9 +152,7 @@ export function RubikonMonthlyPage({ refreshKey }: Props) {
         <a href={CHANNEL_URL} rel="nofollow external">Telegram channel</a>.
         {" "}
         The unit reports «Поражены» — <em>engaged</em> — with no destroyed / damaged split, so each
-        category is a single self-reported claim. The two charts at the top are <strong>not</strong>{" "}
-        target counts: combat sorties are activity, and the EW figure counts drones{" "}
-        <strong>jammed</strong>, not struck.
+        category is a single self-reported claim.
       </>}
       dataWindow={dataWindow.minPeriod && dataWindow.maxPeriod ? (
         <details style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6 }}>
@@ -184,12 +182,13 @@ export function RubikonMonthlyPage({ refreshKey }: Props) {
           </ol>
         </details>
       ) : undefined}
-      controls={<>
-        {!yr.hidden && (
+      // No window picker → no scope toggle either; see StatScopeToggle.
+      controls={yr.hidden ? undefined : (
+        <>
           <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
-        )}
-        <StatScopeToggle />
-      </>}
+          <StatScopeToggle />
+        </>
+      )}
       loadState={loadState}
       error={error}
       hasData={hasData}

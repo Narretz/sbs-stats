@@ -5,6 +5,13 @@ import { FONTS } from "@/theme";
 // Global MAX/MED scope control. Rendered among the per-page chart controls (day
 // range / weekday / date) because it shapes the same view, even though the
 // preference itself is global (persisted, shared across all views).
+//
+// Callers must NOT render this when the page has no time-window control. On the
+// monthly pages that's `yr.hidden` — the dataset is shorter than the smallest
+// window preset, so the visible window IS the whole dataset. "Window data" and
+// "All data" then compute over the same values and produce identical MAX / MED /
+// TOTAL (maxMedian ignores the trailing nulls the axis is padded with), making
+// the control a no-op that still invites a click.
 export function StatScopeToggle() {
   const { theme: t } = useTheme();
   const { scope, setScope } = useStatScope();

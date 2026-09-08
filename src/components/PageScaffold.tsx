@@ -17,7 +17,9 @@ interface PageScaffoldProps {
   // flex column with an 8px gap. Preserves each page's existing spacing.
   headerVariant?: "block" | "stack";
 
-  // Sticky controls row. Omitted → the row isn't rendered at all (e.g. Mediazona).
+  // Sticky controls row. Omitted → the row isn't rendered at all (e.g.
+  // Mediazona, and the monthly pages when their dataset is too short for a
+  // time window to mean anything). Only rendered once `hasData`.
   controls?: ReactNode;
 
   // Load gating — identical across every dataset page.
@@ -71,7 +73,11 @@ export function PageScaffold({
         {headerExtra}
       </div>
 
-      {controls !== undefined && (
+      {/* Gated on `ready`, not just on being supplied: until rows arrive there
+          is nothing for a day-range / month-range / scope control to act on, so
+          showing them over the loading screen offers choices that do nothing.
+          Also keeps them off the error screen. */}
+      {ready && controls !== undefined && (
         <div className="page-controls-sticky" style={CONTROLS_ROW}>
           {controls}
         </div>
