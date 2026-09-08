@@ -56,6 +56,16 @@ const HIGHLIGHT_BG = "rgba(34, 197, 94, 0.15)";
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 
+// Percentages compare either against the leftmost column (a fixed baseline,
+// good for "how does everyone stack up against X") or against the column
+// immediately left (a chain, which reads as a series when the columns are
+// consecutive months).
+export type PctMode = "first" | "prev";
+
+function readParam(name: string): string | null {
+  return new URLSearchParams(window.location.search).get(name);
+}
+
 function readColumnsFromUrl(): Column[] {
   const raw = new URLSearchParams(window.location.search).get("cols");
   if (!raw) return [];
@@ -72,10 +82,14 @@ function readColumnsFromUrl(): Column[] {
 // Column set lives in the URL so a comparison is linkable. Tweaking columns is
 // not a navigation, so replaceState — same rule the homepage uses for its
 // filter params.
-function writeColumnsToUrl(columns: Column[]) {
+function writeViewToUrl(columns: Column[], pctMode: PctMode, showScope: boolean) {
   const p = new URLSearchParams(window.location.search);
   if (columns.length) p.set("cols", columns.map((c) => `${c.entity}:${c.month}`).join(","));
   else p.delete("cols");
+  // Only non-default settings are written, so a plain comparison keeps a clean
+  // URL and a shared link carries exactly what the sender was looking at.
+  if (pctMode === "prev") p.set("pct", "prev"); else p.delete("pct");
+  if (showScope) p.set("scope", "1"); else p.delete("scope");
   window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
 }
 
@@ -165,8 +179,10 @@ export function ComparePage({ preset }: Props) {
 
   // ─── Columns ──────────────────────────────────────────────────────────────
   const [columns, setColumns] = useState<Column[]>(readColumnsFromUrl);
+  const [pctMode, setPctMode] = useState<PctMode>(() => (readParam("pct") === "prev" ? "prev" : "first"));
+  const [showScope, setShowScope] = useState(() => readParam("scope") === "1");
   const nextId = useRef(1000);
-  useEffect(() => { writeColumnsToUrl(columns); }, [columns]);
+  useEffect(() => { writeViewToUrl(columns, pctMode, showScope); }, [columns, pctMode, showScope]);
 
   // Seed the old page's two columns once the data needed to pick a month is in.
   const presetDone = useRef(false);
@@ -312,14 +328,14 @@ export function ComparePage({ preset }: Props) {
     const nums = values.filter((v): v is CompareValue => v != null).map((v) => v.value);
     const max = nums.length > 1 ? Math.max(...nums) : null;
     const uniqueMax = max != null && nums.filter((n) => n === max).length === 1;
-    const base = values[0];
     return values.map((v, i) => {
+      const base = pctMode === "prev" ? values[i - 1] : values[0];
       const pct = i === 0 ? null : pctChange(base, v);
       return (
         <td key={i} style={cellStyle(uniqueMax && v != null && v.value === max)}>
-          {/* The scope caveat no longer renders as a visible caption; it stays
-              on the hover tooltip so the information isn't lost. */}
-          <div title={[v?.note, scopes?.[i]].filter(Boolean).join(" — ") || undefined}>
+          {/* When the scope caveat isn't shown as a caption it moves onto the
+              tooltip, so hiding it never loses the information outright. */}
+          <div title={[v?.note, showScope ? null : scopes?.[i]].filter(Boolean).join(" — ") || undefined}>
             {v != null ? fmtValue(v) : "—"}
             {pct != null && (
               <span style={{ color: t.textMuted, marginLeft: 6, fontSize: 11 }}>
@@ -330,6 +346,14 @@ export function ComparePage({ preset }: Props) {
               <span style={{ color: t.textFaint, marginLeft: 4 }} title="Derived by this app, not stated by the source">*</span>
             )}
           </div>
+          {showScope && scopes?.[i] && (
+            <div style={{
+              fontSize: 10, color: t.textMuted, marginTop: 2,
+              fontStyle: "italic", fontWeight: 400,
+            }}>
+              {scopes[i]}
+            </div>
+          )}
         </td>
       );
     });
@@ -410,10 +434,33 @@ export function ComparePage({ preset }: Props) {
         </label>
 
         {columns.length > 1 && (
-          <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted }}>
-            % change is against the baseline column
-          </span>
+          <label style={{ fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted }}>
+            % against:{" "}
+            <select
+              data-testid="compare-pct-mode"
+              value={pctMode}
+              onChange={(e) => setPctMode(e.target.value as PctMode)}
+              style={selectStyle}
+            >
+              <option value="first">baseline column</option>
+              <option value="prev">previous column</option>
+            </select>
+          </label>
         )}
+
+        <label style={{
+          fontFamily: FONTS.mono, fontSize: 12, color: t.textMuted,
+          display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
+        }}>
+          <input
+            data-testid="compare-show-scope"
+            type="checkbox"
+            checked={showScope}
+            onChange={(e) => setShowScope(e.target.checked)}
+            style={{ cursor: "pointer" }}
+          />
+          Show scope notes
+        </label>
       </div>
 
       {loading && !sbsRows.length && !sbuRows.length && !rubikonRows.length && (
@@ -444,7 +491,14 @@ export function ComparePage({ preset }: Props) {
             }}>
               <thead>
                 <tr style={{ color: t.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  <th style={{ textAlign: "left", padding: "8px 16px", borderBottom: `1px solid ${t.border}` }}>
+                  {/* width:1% is the shrink-to-content trick — the browser
+                      grows this column only as far as its content needs and
+                      hands the slack to the value columns. */}
+                  <th style={{
+                    textAlign: "left", padding: "8px 16px",
+                    borderBottom: `1px solid ${t.border}`,
+                    width: "1%", whiteSpace: "nowrap",
+                  }}>
                     Category
                   </th>
                   {columns.map((c, i) => (
@@ -483,7 +537,7 @@ export function ComparePage({ preset }: Props) {
                           ))}
                         </select>
                       </div>
-                      {i === 0 && columns.length > 1 && (
+                      {i === 0 && columns.length > 1 && pctMode === "first" && (
                         <div style={{ marginTop: 4, color: t.textFaint, fontSize: 9, textTransform: "none", letterSpacing: 0 }}>
                           baseline
                         </div>
@@ -506,6 +560,7 @@ export function ComparePage({ preset }: Props) {
                             color: r.indent ? t.textMuted : t.text,
                             borderBottom: `1px solid ${t.border}`,
                             verticalAlign: "top",
+                            whiteSpace: "nowrap",
                           }}>
                             {r.label}
                           </td>
@@ -527,6 +582,7 @@ export function ComparePage({ preset }: Props) {
                         <td style={{
                           padding: "6px 16px", color: t.text,
                           borderBottom: `1px solid ${t.border}`, verticalAlign: "top",
+                          whiteSpace: "nowrap",
                         }}>
                           {n.label}
                         </td>
