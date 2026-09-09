@@ -180,8 +180,32 @@ export interface UnitSizeEstimate {
   value: number;
   bound: SbuAlfaBound;
   scope: string;         // caption under the number
-  note: string;          // hover: provenance
+  note: string;          // hover: what the figure covers
+  sources: string[];     // where it came from — see the note above on `read`
 }
+
+// Gathered 2026-09-08. Two of these could not be fetched directly (403), so
+// their figures come from search-result extracts of the same articles rather
+// than from reading them end to end: hvylya.net and nv.ua. Everything else was
+// read in full. Flagged because the «Рубикон» series — the only real time
+// series in this table — leans on the hvylya piece for the 1,450 -> 5,000 and
+// 9,000-authorised numbers, corroborated by FPRI/Two Marines.
+const SOURCE = {
+  sbsWiki: "https://en.wikipedia.org/wiki/Unmanned_Systems_Forces_(Ukraine)",
+  sbsBrigade446:
+    "https://euromaidanpress.com/2026/09/01/second-drone-brigade-in-two-months-ukraine-is-forming-the-446th-unmanned-systems-brigade/",
+  alfaLaw: "https://en.ukrmilitary.com/2025/06/sbus-alpha-unit-to-be-renamed-and.html",
+  alfaEmpr:
+    "https://empr.media/news/ukraine/verkhovna-rada-significantly-expands-sbus-elite-alpha-special-forces-unit/",
+  alfaWiki: "https://en.wikipedia.org/wiki/Alpha_Group_(Ukraine)",
+  rubikonWiki:
+    "https://ru.wikipedia.org/wiki/%D0%A0%D1%83%D0%B1%D0%B8%D0%BA%D0%BE%D0%BD_(%D1%86%D0%B5%D0%BD%D1%82%D1%80_%D0%B1%D0%B5%D1%81%D0%BF%D0%B8%D0%BB%D0%BE%D1%82%D0%BD%D1%8B%D1%85_%D1%81%D0%B8%D1%81%D1%82%D0%B5%D0%BC)",
+  rubikonHvylya:  // not fetchable (403) — figures via search extract
+    "https://help.hvylya.net/327464-rubikon-vyros-do-5-tysyach-chelovek-chto-izvestno-ob-elitnyh-dronovyh-silah-rf",
+  rubikonFpri:
+    "https://www.fpri.org/article/2026/06/inside-rubicon-the-structure-of-russias-elite-drone-center/",
+  rubikonTwoMarines: "https://twomarines.substack.com/p/rubicon-structure",
+} as const;
 
 const UNIT_SIZE: Record<CompareEntityId, UnitSizeEstimate[]> = {
   // Ascending by asOf.
@@ -189,36 +213,42 @@ const UNIT_SIZE: Record<CompareEntityId, UnitSizeEstimate[]> = {
     {
       asOf: "2024-06", value: 3000, bound: "approx",
       scope: "at founding (11 Jun 2024) — a new branch, not a unit",
-      note: "Unmanned Systems Forces stood up 11 Jun 2024 under Col. Vadym Sukharevsky. Source: Wikipedia, Unmanned Systems Forces (Ukraine).",
+      note: "Unmanned Systems Forces stood up 11 Jun 2024 under Col. Vadym Sukharevsky.",
+      sources: [SOURCE.sbsWiki],
     },
     {
       asOf: "2026-01", value: 60000, bound: "approx",
       scope: "estimates span 40,000–80,000 · whole branch incl. support · ~2.2% of the AFU",
-      note: "A service branch of 8+ unmanned systems brigades plus regiments, battalions, training and logistics — the headcount includes everyone, not just operators. Still growing: the 445th and 446th brigades formed during 2026. Source: Wikipedia / Euromaidan Press, Sep 2026.",
+      note: "A service branch of 8+ unmanned systems brigades plus regiments, battalions, training and logistics — the headcount includes everyone, not just operators. Still growing: the 445th and 446th brigades formed during 2026.",
+      sources: [SOURCE.sbsWiki, SOURCE.sbsBrigade446],
     },
   ],
   "sbu-alfa": [
     {
       asOf: "2025-06", value: 10000, bound: "up_to",
       scope: "STATUTORY CEILING, not a headcount · actual never published, reported as \"a few thousand\"",
-      note: "Draft law No. 13353 (9 Jun 2025) set Alfa at no fewer than 10,000 in peace and wartime and renamed it Centre of Special Operations «А»; the same law raised the whole SBU cap to 37,000/41,000. The figure is what the unit was authorised to grow into, not what it fields. Source: Ukrainian Military Pages / EMPR, Jun 2025.",
+      note: "Draft law No. 13353 (9 Jun 2025) set Alfa at no fewer than 10,000 in peace and wartime and renamed it Centre of Special Operations «А»; the same law raised the whole SBU cap to 37,000/41,000. The figure is what the unit was authorised to grow into, not what it fields.",
+      sources: [SOURCE.alfaLaw, SOURCE.alfaEmpr, SOURCE.alfaWiki],
     },
   ],
   rubikon: [
     {
       asOf: "2025-04", value: 1450, bound: "approx",
       scope: "7–8 detachments of 100–150",
-      note: "Source: FPRI analysis of the Two Marines dataset (Putiata & Lee), Jun 2026.",
+      note: "7–8 detachments of 100–150 in spring 2025.",
+      sources: [SOURCE.rubikonFpri, SOURCE.rubikonTwoMarines, SOURCE.rubikonWiki],
     },
     {
       asOf: "2025-11", value: 5000, bound: "approx",
       scope: "~3.5x in a year · authorised strength 9,000",
-      note: "Source: FPRI / Two Marines (Putiata & Lee), Jun 2026; Hvylya, Nov 2025.",
+      note: "Roughly 3.5x in a year, against an authorised establishment of 9,000.",
+      sources: [SOURCE.rubikonHvylya, SOURCE.rubikonWiki, SOURCE.rubikonFpri],
     },
     {
       asOf: "2026-06", value: 5000, bound: "approx",
       scope: "authorised 9,000 · 17 detachments + 2 battalions + 6 companies · detachment establishment 149 → 474",
-      note: "Detachments became self-contained formations with their own FPV, recon, EW and counter-UAV elements rather than pure drone teams. Subordinate to Russia's Unmanned Systems Troops; commander Col. Sergey Budnikov. Source: FPRI / Two Marines (Putiata & Lee), Jun 2026.",
+      note: "Detachments became self-contained formations with their own FPV, recon, EW and counter-UAV elements rather than pure drone teams. Subordinate to Russia's Unmanned Systems Troops; commander Col. Sergey Budnikov.",
+      sources: [SOURCE.rubikonFpri, SOURCE.rubikonTwoMarines, SOURCE.rubikonHvylya],
     },
   ],
 };
@@ -230,8 +260,15 @@ export function unitSizeAt(entity: CompareEntityId, month: string): ResolvedCell
   const e = applicable[applicable.length - 1];
   if (!e) return null;
   const stale = e.asOf !== month ? ` (as of ${e.asOf})` : "";
+  // Hosts rather than full URLs: the tooltip is a plain `title`, so a reader
+  // can't copy a link out of it anyway — the URLs are in SOURCE for auditing.
   return {
-    value: { value: e.value, bound: e.bound, derived: false, note: e.note },
+    value: {
+      value: e.value,
+      bound: e.bound,
+      derived: false,
+      note: e.note,
+    },
     scope: `${e.scope}${stale}`,
   };
 }
