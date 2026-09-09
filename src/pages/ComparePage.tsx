@@ -81,7 +81,9 @@ function readColumnsFromUrl(): Column[] {
 // Column set lives in the URL so a comparison is linkable. Tweaking columns is
 // not a navigation, so replaceState — same rule the homepage uses for its
 // filter params.
-function writeViewToUrl(columns: Column[], pctMode: PctMode, showScope: boolean) {
+function writeViewToUrl(
+  columns: Column[], pctMode: PctMode, showScope: boolean, showChildren: boolean,
+) {
   const p = new URLSearchParams(window.location.search);
   if (columns.length) p.set("cols", columns.map((c) => `${c.entity}:${c.month}`).join(","));
   else p.delete("cols");
@@ -89,6 +91,7 @@ function writeViewToUrl(columns: Column[], pctMode: PctMode, showScope: boolean)
   // URL and a shared link carries exactly what the sender was looking at.
   if (pctMode === "prev") p.set("pct", "prev"); else p.delete("pct");
   if (showScope) p.set("scope", "1"); else p.delete("scope");
+  if (!showChildren) p.set("sub", "0"); else p.delete("sub");
   window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
 }
 
@@ -180,8 +183,12 @@ export function ComparePage({ preset }: Props) {
   const [columns, setColumns] = useState<Column[]>(readColumnsFromUrl);
   const [pctMode, setPctMode] = useState<PctMode>(() => (readParam("pct") === "prev" ? "prev" : "first"));
   const [showScope, setShowScope] = useState(() => readParam("scope") === "1");
+  // Sub-categories are shown by default; only the opt-out is written to the URL.
+  const [showChildren, setShowChildren] = useState(() => readParam("sub") !== "0");
   const nextId = useRef(1000);
-  useEffect(() => { writeViewToUrl(columns, pctMode, showScope); }, [columns, pctMode, showScope]);
+  useEffect(() => {
+    writeViewToUrl(columns, pctMode, showScope, showChildren);
+  }, [columns, pctMode, showScope, showChildren]);
 
   // Seed the old page's two columns once the data needed to pick a month is in.
   const presetDone = useRef(false);
@@ -263,7 +270,10 @@ export function ComparePage({ preset }: Props) {
   }, [columns, snapshots]);
 
   const visibleRows = useMemo(() => {
-    const base = visibleRowsFor(entitiesInUse);
+    // Children are the only indented rows, so dropping them is the whole
+    // filter — a hidden child never takes its parent's figure with it, since
+    // parents resolve their own mapping rather than summing children.
+    const base = visibleRowsFor(entitiesInUse).filter((r) => showChildren || !r.indent);
     if (!soloEntity) return base;
     // Appended to the last group so they simply continue the table — no header
     // separates them, which is the whole point.
@@ -277,7 +287,7 @@ export function ComparePage({ preset }: Props) {
       scope: { [soloEntity]: NATIVE_NOTES[soloEntity]?.[n.key] },
     }));
     return [...base, ...extras];
-  }, [entitiesInUse, soloEntity, nonZeroNatives]);
+  }, [entitiesInUse, soloEntity, nonZeroNatives, showChildren]);
 
   const valueFor = (row: FlatRow, col: Column): CompareValue | null =>
     row.resolve
@@ -461,6 +471,16 @@ export function ComparePage({ preset }: Props) {
             onChange={(e) => setShowScope(e.target.checked)}
           />
           Scope notes
+        </label>
+
+        <label className="ctl ctl-check">
+          <input
+            data-testid="compare-show-children"
+            type="checkbox"
+            checked={showChildren}
+            onChange={(e) => setShowChildren(e.target.checked)}
+          />
+          Sub-categories
         </label>
       </div>
 

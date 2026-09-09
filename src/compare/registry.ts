@@ -408,6 +408,34 @@ export const CANONICAL_ROWS: CompareRow[] = [
       "sbu-alfa": "БпЛА та наземних роботизованих комплексів різного типу (НРК)",
       rubikon: "БпЛА + «Баба-Яга» + самолётного типа + НРК",
     },
+    // Air/ground is the only split all the sources that split at all agree on.
+    // SBS goes further (copters, fixed-wing, Shahed, Gerbera) and «Рубикон»
+    // differently (БпЛА, «Баба-Яга», самолётного типа), so a finer breakdown
+    // would only ever populate one column. «Альфа» publishes the two together
+    // in a single «БпЛА та НРК» line and can't be split at all.
+    children: [
+      {
+        key: "uav", label: "UAVs",
+        map: {
+          sbs: ["copter_uav", "fixed_wing_uav", "shahed", "gerbera"],
+          rubikon: ["uav", "baba_yaga", "fixed_wing_uav"],
+        },
+        scope: {
+          sbs: "Copters + fixed-wing + Shahed + Gerbera",
+          "sbu-alfa": "not split from НРК — see the combined row",
+          rubikon: "БпЛА + «Баба-Яга» + самолётного типа",
+        },
+      },
+      {
+        key: "ugv", label: "UGVs",
+        map: { sbs: ["ugv"], rubikon: ["ugv"] },
+        scope: {
+          sbs: "Ворожі НРК (id 26)",
+          "sbu-alfa": "not split from БпЛА — see the combined row",
+          rubikon: "НРК",
+        },
+      },
+    ],
   },
   {
     group: "struck", key: "vehicles", label: "Vehicles (autos)",
