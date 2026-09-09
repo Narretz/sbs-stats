@@ -89,12 +89,12 @@ export function SiteHeader({
       <AppHeaderGroup>
         <Brand onHome={homeHandler} />
         <SitePicker value={site} onChange={onSiteChange} />
+        <CompareLink />
       </AppHeaderGroup>
 
       {/* Nav + compare + refresh + theme */}
       <AppHeaderGroup>
         {pages.map((p) => navBtn(p, PAGE_LABEL[p]))}
-        <CompareLink />
         {showRefresh && (
           <RefreshIndicator
             lastRefreshed={lastRefreshed}

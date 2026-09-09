@@ -708,9 +708,9 @@ export function HomePage({ onGoToSite }: Props) {
           {/* No home link: this is home. */}
           <Brand />
           <SitePicker value={null} onChange={onGoToSite} />
+          <CompareLink />
         </AppHeaderGroup>
         <AppHeaderGroup>
-          <CompareLink />
           <RefreshIndicator
             lastRefreshed={refreshAggregated.lastRefreshed}
             refreshCount={refreshAggregated.refreshCount}
