@@ -738,11 +738,7 @@ export function HomePage({ onGoToSite }: Props) {
             value={yMode}
             onChange={(e) => updateYMode(e.target.value as YAxisMode)}
             title="Default Y-axis transform (applied to charts left on “default”)"
-            style={{
-              background: t.bgAlt, color: t.text, border: `1px solid ${t.border}`,
-              borderRadius: 4, padding: "5px 8px",
-              fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
-            }}
+            className="ctl"
           >
             <option value="linear">Y default: linear</option>
             <option value="log">Y default: log</option>
@@ -752,11 +748,7 @@ export function HomePage({ onGoToSite }: Props) {
             value={cumulative ? "cumulative" : "per-period"}
             onChange={(e) => updateCumulative(e.target.value === "cumulative")}
             title="Values for each period (day or month) vs running cumulative sum within the chart's window"
-            style={{
-              background: t.bgAlt, color: t.text, border: `1px solid ${t.border}`,
-              borderRadius: 4, padding: "5px 8px",
-              fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
-            }}
+            className="ctl"
           >
             <option value="per-period">Display: per-period</option>
             <option value="cumulative">Display: cumulative</option>
@@ -788,13 +780,13 @@ export function HomePage({ onGoToSite }: Props) {
             />
           ))}
           <div>
+            {/* Dashed like the site-leaving nav button, for the same reason: it
+                isn't one of the page's modes, it's the slot after the last one.
+                Sized up from the control baseline because it spans the column. */}
             <button
               onClick={addChart}
-              style={{
-                background: t.bgAlt, color: t.text, border: `1px dashed ${t.border}`,
-                borderRadius: 6, padding: "10px 16px",
-                fontFamily: FONTS.mono, fontSize: 12, cursor: "pointer", width: "100%",
-              }}
+              className="ctl ctl-dashed"
+              style={{ width: "100%", padding: "10px 16px", fontSize: 12, borderRadius: 6 }}
             >
               + Add chart
             </button>
@@ -903,12 +895,6 @@ function ChartCard({
     });
   }, [metrics, seriesData, globalStats, cumulative, config.granularity]);
 
-  const ctrlStyle = {
-    background: t.bgAlt, color: t.text, border: `1px solid ${t.border}`,
-    borderRadius: 4, padding: "5px 8px",
-    fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
-  } as const;
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -924,18 +910,14 @@ function ChartCard({
             else if (e.key === "Escape") { setDraftName(config.name); e.currentTarget.blur(); }
           }}
           placeholder="Chart name"
-          style={{
-            background: t.bgAlt, color: t.text, border: `1px solid ${t.border}`,
-            borderRadius: 4, padding: "5px 8px",
-            fontFamily: FONTS.mono, fontSize: 12, fontWeight: 400,
-            minWidth: 220,
-          }}
+          className="ctl"
+          style={{ minWidth: 220, cursor: "text" }}
         />
         <select
           value={config.granularity}
           onChange={(e) => onGranularityChange(e.target.value as ChartGranularity)}
           title="Time granularity for this chart"
-          style={ctrlStyle}
+          className="ctl"
         >
           <option value="daily">Daily</option>
           <option value="monthly">Monthly</option>
@@ -960,7 +942,7 @@ function ChartCard({
             onYModeChange(v === "inherit" ? undefined : (v as YAxisMode));
           }}
           title="Y-axis transform for this chart (overrides the global default)"
-          style={ctrlStyle}
+          className="ctl"
         >
           <option value="inherit">Y: default</option>
           <option value="linear">Y: linear</option>
@@ -976,11 +958,7 @@ function ChartCard({
             if (window.confirm(msg)) onRemove();
           }}
           title={isOnlyChart ? "Reset this chart" : "Remove this chart"}
-          style={{
-            background: t.bgAlt, color: t.textMuted, border: `1px solid ${t.border}`,
-            borderRadius: 4, padding: "5px 10px",
-            fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
-          }}
+          className="ctl"
         >
           {isOnlyChart ? "Reset" : "× Remove"}
         </button>

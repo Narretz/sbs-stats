@@ -99,7 +99,9 @@ body {
   border-color: var(--color-primary);
 }
 
-/* Leaves the current site rather than moving within it. */
+/* Dashed: not one of the current view's modes. Either it leaves the site
+   (the compare nav button) or it's the empty slot after the last one (the home
+   page's "+ Add chart"). */
 .ctl-dashed {
   border-style: dashed;
   color: var(--color-text-muted);
