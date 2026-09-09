@@ -94,7 +94,7 @@ export const DARK: Theme = {
   textMuted:    "#64748b",
   textFaint:    "#374151",
   primary:      "#00d4ff",
-  onPrimary:    "#ffffff",
+  onPrimary:    "#080c14",   // page ground as ink: white on this cyan is 1.8:1
   accent:       "#ff6b35",
   muted:        "#4a6fa5",
   headerBg:     "rgba(8,12,20,0.85)",
