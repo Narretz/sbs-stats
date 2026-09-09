@@ -105,6 +105,7 @@ body {
 .ctl-dashed {
   border-style: dashed;
   color: var(--color-text-muted);
+  border-color: var(--color-muted);
   background: transparent;
 }
 .ctl-dashed:hover {
