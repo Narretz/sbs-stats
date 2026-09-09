@@ -12,7 +12,6 @@ import { ComparePage } from "@/pages/ComparePage";
 import { MissilesPage } from "@/pages/MissilesPage";
 import { HomePage } from "@/pages/HomePage";
 import type { Page, Site } from "@/types";
-import { GLOBAL_CSS } from "@/theme";
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
@@ -111,10 +110,6 @@ function AppInner() {
 
   return (
     <RouteProvider value={routeValue}>
-      <style>
-        {GLOBAL_CSS(t)}
-        {`@keyframes spin { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -${2 * Math.PI * 11}px; } }`}
-      </style>
       <div style={{ minHeight: "100vh", background: t.bg }}>
         {route.kind === "home" && (
           <ErrorShell>

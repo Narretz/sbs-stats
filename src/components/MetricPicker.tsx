@@ -134,32 +134,12 @@ export function MetricPicker({ selected, onChange, view }: Props) {
   const popoverProps: PopoverProps = { popover: "auto" };
   const closeProps: PopoverProps = { popovertarget: popoverId, popovertargetaction: "hide" };
 
-  const btnStyle = {
-    background: t.surface,
-    color: t.text,
-    border: `1px solid ${t.border}`,
-    borderRadius: 4,
-    padding: "5px 10px",
-    fontFamily: FONTS.mono,
-    fontSize: 11,
-    cursor: "pointer",
-  } as const;
-
   return (
     <>
       <button
         ref={triggerRef}
         {...triggerProps}
-        style={{
-          background: t.surface,
-          color: t.text,
-          border: `1px solid ${t.border}`,
-          borderRadius: 4,
-          padding: "5px 10px",
-          fontFamily: FONTS.mono,
-          fontSize: 11,
-          cursor: "pointer",
-        }}
+        className="ctl"
       >
         {selected.length === 0 ? "+ add metric" : `${selected.length} metric${selected.length === 1 ? "" : "s"} ▾`}
       </button>
@@ -191,28 +171,20 @@ export function MetricPicker({ selected, onChange, view }: Props) {
           placeholder="Search metrics…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            background: t.bgAlt,
-            color: t.text,
-            border: `1px solid ${t.border}`,
-            borderRadius: 4,
-            padding: "5px 8px",
-            fontFamily: FONTS.mono,
-            fontSize: 11,
-            marginBottom: 8,
-          }}
+          className="ctl"
+          style={{ width: "100%", cursor: "text", marginBottom: 8 }}
         />
         <div style={{ display: "flex", gap: 6, justifyContent: 'space-between', marginBottom: 8 }}>
+          {/* .ctl:disabled already dims to 0.5 — no manual opacity needed. */}
           <button
             onClick={() => onChange([])}
             disabled={selected.length === 0}
-            style={{ ...btnStyle, fontSize: 10, opacity: selected.length === 0 ? 0.45 : 1 }}
+            className="ctl"
+            style={{ fontSize: 10 }}
           >
             Clear all
           </button>
-          <button {...closeProps} style={{...btnStyle, fontSize: 10}}>
+          <button {...closeProps} className="ctl" style={{ fontSize: 10 }}>
             Close
           </button>
         </div>
@@ -258,7 +230,7 @@ export function MetricPicker({ selected, onChange, view }: Props) {
                     type="checkbox"
                     checked={on}
                     onChange={() => toggle(m.id)}
-                    style={{ cursor: "pointer" }}
+                    style={{ cursor: "pointer", accentColor: t.primary }}
                   />
                   <span>{m.metricLabel}</span>
                 </label>

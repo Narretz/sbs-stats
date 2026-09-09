@@ -73,7 +73,7 @@ test.describe("End-of-day projection", () => {
       const el = document.querySelector(".chart-card:hover");
       return el ? getComputedStyle(el).zIndex : null;
     });
-    // theme.ts: `.chart-card:hover { z-index: 2; }` — enough to sit above the
+    // src/styles/theme.css: `.chart-card:hover { z-index: 2; }` — enough to sit above the
     // sibling `.chart-card { z-index: 1; }` whose top edge would otherwise
     // paint over the hover-card's tooltip.
     expect(z).toBe("2");

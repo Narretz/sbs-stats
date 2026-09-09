@@ -4,6 +4,7 @@ import {
 import { useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS, type Theme } from "@/theme";
+import { chartColors } from "@/chartColors";
 import type { MissileSeries, MissilePoint } from "@/data/missiles";
 import { BoundDot } from "./MissileRangeChart";
 import { fmtAsOf, fmtValue } from "./missileFormat";
@@ -88,7 +89,7 @@ interface Props {
 
 export function MissileCombinedChart({ stock, prod, label, swatch, timeDomain, ticks, yDomain }: Props) {
   const { theme: t } = useTheme();
-  const color = swatch ?? t.primary;
+  const color = swatch ?? chartColors(t).line;
   const rows = useMemo(() => merge(stock, prod), [stock, prod]);
   const nStock = stock?.points.length ?? 0;
   const nProd = prod?.points.length ?? 0;

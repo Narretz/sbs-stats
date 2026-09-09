@@ -4,6 +4,7 @@ import {
 import { useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
+import { chartColors } from "@/chartColors";
 import type { MediazonaEstimateRow } from "@/types";
 import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
 
@@ -14,8 +15,6 @@ import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/To
 const PROVISIONAL_WEEKS = 26; // ~6 months
 const PROVISIONAL_MONTHS = 6;
 
-const NAMES = "#3f9b52";    // recorded names count (probate file `real`) — green, per Mediazona
-const ESTIMATE = "#c44e52"; // estimate of actual losses (`rnd`) — the all-in topline
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -52,6 +51,8 @@ function BandTooltip({
   payload?: { payload?: Row }[];
   bucket: "weekly" | "monthly";
 }) {
+  const { theme: t } = useTheme();
+  const c = chartColors(t);
   if (!active || !payload?.length || !payload[0].payload) return null;
   const row = payload[0].payload;
   const mult = row.documented && row.estimate ? row.estimate / row.documented : null;
@@ -60,13 +61,13 @@ function BandTooltip({
     : `Week of ${fmtFullDate(row.week)}`;
   const fmtInt = (n: number) => Math.round(n).toLocaleString();
   const rows: TooltipTableRow[] = [
-    { label: "Estimated losses", color: ESTIMATE, value: row.estimate },
-    { label: "Recorded names",  color: NAMES,    value: row.documented },
+    { label: "Estimated losses", color: c.lineSecondary, value: row.estimate },
+    { label: "Recorded names",  color: c.line,          value: row.documented },
   ];
   if (mult != null) {
     // Pre-formatted string value — the "×N.N" ratio doesn't fit the numeric
     // formatter and stands apart from the counts above.
-    rows.push({ label: "Undercount", color: "#9ca3af", value: `×${mult.toFixed(1)}` });
+    rows.push({ label: "Undercount", color: c.neutral, value: `×${mult.toFixed(1)}` });
   }
   return (
     <TooltipCard header={header} minWidth={220}>
@@ -83,6 +84,7 @@ export function DocumentedVsEstimatedChart({
   bucket?: "weekly" | "monthly";
 }) {
   const { theme: t } = useTheme();
+  const c = chartColors(t);
 
   const { data, totDoc, totEst } = useMemo(() => {
     let totDoc = 0, totEst = 0;
@@ -110,8 +112,8 @@ export function DocumentedVsEstimatedChart({
         Recorded names vs. estimated losses
       </div>
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
-        <span style={{ color: ESTIMATE }}>● Estimated losses <span style={{ opacity: 0.8 }}>· total {fmt(totEst)}</span></span>
-        <span style={{ color: NAMES }}>● Recorded names <span style={{ opacity: 0.8 }}>· total {fmt(totDoc)}</span></span>
+        <span style={{ color: c.lineSecondary }}>● Estimated losses <span style={{ opacity: 0.8 }}>· total {fmt(totEst)}</span></span>
+        <span style={{ color: c.line }}>● Recorded names <span style={{ opacity: 0.8 }}>· total {fmt(totDoc)}</span></span>
       </div>
       <ResponsiveContainer width="100%" height={300}>
         <ComposedChart data={data} margin={{ top: 8, right: 8, left: -6, bottom: 0 }}>
@@ -132,12 +134,12 @@ export function DocumentedVsEstimatedChart({
             <ReferenceArea x1={provisionalFrom} x2={lastWeek} fill={t.textMuted} fillOpacity={0.12} ifOverflow="extendDomain" />
           )}
           {/* Stacked band: names (solid base) + gap (translucent) → top = estimate level */}
-          <Area type="monotone" dataKey="documented" stackId="band" stroke={NAMES} strokeWidth={1.5}
-            fill={NAMES} fillOpacity={0.14} isAnimationActive={false} connectNulls />
+          <Area type="monotone" dataKey="documented" stackId="band" stroke={c.line} strokeWidth={1.5}
+            fill={c.line} fillOpacity={0.14} isAnimationActive={false} connectNulls />
           <Area type="monotone" dataKey="gap" stackId="band" stroke="none"
-            fill={ESTIMATE} fillOpacity={0.16} isAnimationActive={false} connectNulls />
+            fill={c.lineSecondary} fillOpacity={0.16} isAnimationActive={false} connectNulls />
           {/* Estimate line drawn on top so it stays crisp even where it dips below names */}
-          <Line type="monotone" dataKey="estimate" stroke={ESTIMATE} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+          <Line type="monotone" dataKey="estimate" stroke={c.lineSecondary} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
         </ComposedChart>
       </ResponsiveContainer>
     </div>

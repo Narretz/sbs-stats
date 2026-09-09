@@ -1,5 +1,5 @@
-import { useState, useEffect, type ReactNode } from "react";
-import { LIGHT, DARK } from "@/theme";
+import { useState, useLayoutEffect, type ReactNode } from "react";
+import { LIGHT, DARK, applyThemeVars } from "@/theme";
 import { ThemeContext, type ThemeMode } from "@/hooks/useTheme";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -18,11 +18,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       return next;
     });
   };
-  // Keep body background in sync (avoids flash on first paint)
-  useEffect(() => {
-    document.body.style.background = theme.bg;
-    document.body.style.color = theme.text;
-  }, [theme]);
+  // Publish the active theme as CSS variables on <html>, which is what
+  // src/styles/theme.css reads. Layout effect (not useEffect) so the variables
+  // exist before the first paint — otherwise every var() falls back to nothing
+  // and the app flashes unstyled. `data-theme` is for debugging / any future
+  // rule that needs to branch on the mode.
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    applyThemeVars(root, theme);
+    root.dataset.theme = mode;
+  }, [theme, mode]);
   return (
     <ThemeContext.Provider value={{ mode, theme, toggle }}>
       {children}

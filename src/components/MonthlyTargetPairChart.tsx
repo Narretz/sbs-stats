@@ -151,11 +151,8 @@ export function MonthlyTargetPairChart({
   const max2 = win ? secondaryWin.max : (globalMax2 ?? secondaryWin.max);
   const median2 = win ? secondaryWin.median : (globalMedian2 ?? secondaryWin.median);
   const total2 = win ? secondaryWin.total : (globalTotal2 ?? secondaryWin.total);
-  // Historical note: this chart originally used t.accent for "destroyed", while
-  // DailyLineChart uses the static COLOR_DESTROYED. Routing both through
-  // c.damaged / c.destroyed unifies them. The visible change is small in light
-  // mode (#db2c18 → #dc2626) and larger in dark mode (orange → red), but the
-  // pair is more readable. Revert by pointing destroyed_value at c.barCurrent.
+  // Both halves route through c.damaged / c.destroyed, the app-wide
+  // blue-main / red-second pair — see chartColors.ts.
   const hitProjectedFill = c.damagedProjected;
   const destroyedProjectedFill = c.destroyedProjected;
 
@@ -172,8 +169,8 @@ export function MonthlyTargetPairChart({
       <ChartCardTitle title={title} anchor={anchor} marginBottom={4} />
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
         <span style={{ color: c.damaged }}>● {primaryLabel}</span>
-        <span style={{ color: t.accent }}>▲ MAX {max.toLocaleString()}</span>
-        <span style={{ color: t.muted }}>~ MED {median.toLocaleString()}</span>
+        <span style={{ color: c.maxReference }}>▲ MAX {max.toLocaleString()}</span>
+        <span style={{ color: c.medReference }}>~ MED {median.toLocaleString()}</span>
         <span style={{ color: t.textMuted }}>Σ TOTAL {total.toLocaleString()}</span>
         <span style={{ color: c.destroyed, marginLeft: 8 }}>● {secondaryLabel}</span>
         <span style={{ color: c.destroyed }}>▲ MAX {max2.toLocaleString()}</span>
@@ -195,8 +192,8 @@ export function MonthlyTargetPairChart({
             tickFormatter={(v: string) => v.slice(0, 7).replace("-", "/")}
           />
           <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
-          <ReferenceLine y={median} stroke={t.muted} strokeDasharray="4 4" strokeOpacity={0.5}
-            label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: t.muted, fontFamily: FONTS.mono }} />
+          <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
+            label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
           <Tooltip
             content={({ active, payload }) => (
               <MonthlyPairTooltip

@@ -23,6 +23,7 @@ import {
 import { DAY_OPTIONS, type DayOption, parseDaysParam } from "@/utils/dayRange";
 import { MONTH_OPTIONS, type MonthOption } from "@/utils/monthRange";
 import { useStatScope, type StatScope } from "@/hooks/useStatScope";
+import { qualitativeColor } from "@/chartColors";
 import { findMetric, type CombinedMetric, type MetricSource } from "@/utils/combinedMetrics";
 import { fetchCombinedDaily, fetchCombinedMonthly, fetchCombinedGlobalStats, statsForMetric, type GlobalStatsBundle } from "@/utils/combinedQuery";
 import type { DailyDataPoint, Site } from "@/types";
@@ -114,13 +115,8 @@ function defaultWindowFor(g: ChartGranularity): DayOption | MonthOption {
   return g === "monthly" ? DEFAULT_MONTHS : DEFAULT_DAYS;
 }
 
-// Stable color palette; metrics are assigned colors by selection order within
-// a chart. Picked for distinguishability on both light and dark themes.
-const PALETTE = [
-  "#3b82f6", "#ef4444", "#10b981", "#f59e0b",
-  "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16",
-  "#f97316", "#a855f7", "#14b8a6", "#eab308",
-];
+// Metrics are assigned colors by selection order within a chart, from the app's
+// shared qualitative palette (see chartColors.ts).
 
 interface ChartConfig {
   // Stable React key only; not persisted to the URL.
@@ -742,11 +738,7 @@ export function HomePage({ onGoToSite }: Props) {
             value={yMode}
             onChange={(e) => updateYMode(e.target.value as YAxisMode)}
             title="Default Y-axis transform (applied to charts left on “default”)"
-            style={{
-              background: t.bgAlt, color: t.text, border: `1px solid ${t.border}`,
-              borderRadius: 4, padding: "5px 8px",
-              fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
-            }}
+            className="ctl"
           >
             <option value="linear">Y default: linear</option>
             <option value="log">Y default: log</option>
@@ -756,11 +748,7 @@ export function HomePage({ onGoToSite }: Props) {
             value={cumulative ? "cumulative" : "per-period"}
             onChange={(e) => updateCumulative(e.target.value === "cumulative")}
             title="Values for each period (day or month) vs running cumulative sum within the chart's window"
-            style={{
-              background: t.bgAlt, color: t.text, border: `1px solid ${t.border}`,
-              borderRadius: 4, padding: "5px 8px",
-              fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
-            }}
+            className="ctl"
           >
             <option value="per-period">Display: per-period</option>
             <option value="cumulative">Display: cumulative</option>
@@ -792,13 +780,13 @@ export function HomePage({ onGoToSite }: Props) {
             />
           ))}
           <div>
+            {/* Dashed like the site-leaving nav button, for the same reason: it
+                isn't one of the page's modes, it's the slot after the last one.
+                Sized up from the control baseline because it spans the column. */}
             <button
               onClick={addChart}
-              style={{
-                background: t.bgAlt, color: t.text, border: `1px dashed ${t.border}`,
-                borderRadius: 6, padding: "10px 16px",
-                fontFamily: FONTS.mono, fontSize: 12, cursor: "pointer", width: "100%",
-              }}
+              className="ctl ctl-dashed"
+              style={{ width: "100%", padding: "10px 16px", fontSize: 12, borderRadius: 6 }}
             >
               + Add chart
             </button>
@@ -898,7 +886,7 @@ function ChartCard({
       return {
         key: m.id,
         label: m.label,
-        color: PALETTE[i % PALETTE.length],
+        color: qualitativeColor(i),
         data,
         globalMax: stat?.max,
         globalMedian: stat?.median,
@@ -906,12 +894,6 @@ function ChartCard({
       };
     });
   }, [metrics, seriesData, globalStats, cumulative, config.granularity]);
-
-  const ctrlStyle = {
-    background: t.bgAlt, color: t.text, border: `1px solid ${t.border}`,
-    borderRadius: 4, padding: "5px 8px",
-    fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
-  } as const;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -928,18 +910,14 @@ function ChartCard({
             else if (e.key === "Escape") { setDraftName(config.name); e.currentTarget.blur(); }
           }}
           placeholder="Chart name"
-          style={{
-            background: t.bgAlt, color: t.text, border: `1px solid ${t.border}`,
-            borderRadius: 4, padding: "5px 8px",
-            fontFamily: FONTS.mono, fontSize: 12, fontWeight: 400,
-            minWidth: 220,
-          }}
+          className="ctl"
+          style={{ minWidth: 220, cursor: "text" }}
         />
         <select
           value={config.granularity}
           onChange={(e) => onGranularityChange(e.target.value as ChartGranularity)}
           title="Time granularity for this chart"
-          style={ctrlStyle}
+          className="ctl"
         >
           <option value="daily">Daily</option>
           <option value="monthly">Monthly</option>
@@ -964,7 +942,7 @@ function ChartCard({
             onYModeChange(v === "inherit" ? undefined : (v as YAxisMode));
           }}
           title="Y-axis transform for this chart (overrides the global default)"
-          style={ctrlStyle}
+          className="ctl"
         >
           <option value="inherit">Y: default</option>
           <option value="linear">Y: linear</option>
@@ -980,11 +958,7 @@ function ChartCard({
             if (window.confirm(msg)) onRemove();
           }}
           title={isOnlyChart ? "Reset this chart" : "Remove this chart"}
-          style={{
-            background: t.bgAlt, color: t.textMuted, border: `1px solid ${t.border}`,
-            borderRadius: 4, padding: "5px 10px",
-            fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
-          }}
+          className="ctl"
         >
           {isOnlyChart ? "Reset" : "× Remove"}
         </button>

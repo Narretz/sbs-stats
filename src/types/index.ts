@@ -898,6 +898,9 @@ export const MEDIAZONA_ROLE_GROUP_KEYS = [
 export type MediazonaRoleGroupKey = (typeof MEDIAZONA_ROLE_GROUP_KEYS)[number];
 
 // label + stack colour + the raw weekly_roles columns summed into the group.
+// A fixed qualitative set, like the direction and missile-family palettes: the
+// groups are named categories rather than a main/second series pair, so they
+// don't follow the theme's blue/red series tokens.
 // Order of MEDIAZONA_ROLE_GROUP_KEYS is the stack/legend order (bottom → top).
 export const MEDIAZONA_ROLE_GROUPS: Record<
   MediazonaRoleGroupKey,

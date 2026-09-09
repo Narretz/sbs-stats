@@ -5,6 +5,7 @@ import {
 import { useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS, type Theme } from "@/theme";
+import { chartColors } from "@/chartColors";
 import type { MissileSeries, MissilePoint } from "@/data/missiles";
 import { fmtAsOf, fmtValue } from "./missileFormat";
 
@@ -87,7 +88,8 @@ interface Props {
 
 export function MissileRangeChart({ series, unit, timeDomain, ticks, yMax, swatch }: Props) {
   const { theme: t } = useTheme();
-  const color = series.combined ? t.muted : t.primary;
+  const c = chartColors(t);
+  const color = series.combined ? c.trend : c.line;
 
   const ownMax = useMemo(
     () => Math.ceil(Math.max(1, ...series.points.map((p) => p.high)) * 1.15),

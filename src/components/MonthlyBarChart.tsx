@@ -74,7 +74,7 @@ export function MonthlyBarChart({
       </div>
     ) : d.date;
     const rows: TooltipTableRow[] = [
-      { label: "Actual", color: t.primary, value: d.value ?? null, projected: d.projected ?? null },
+      { label: "Actual", color: c.barDefault, value: d.value ?? null, projected: d.projected ?? null },
       ...breakdownToRows(entries, t.textMuted, { totalForShare: d.value ?? undefined }),
     ];
     const footer = d.note ? (
@@ -91,16 +91,16 @@ export function MonthlyBarChart({
 
   const statsHeader = (
     <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
-      <span style={{ color: t.accent }}>▲ MAX {max.toLocaleString()}</span>
-      <span style={{ color: t.muted }}>~ MED {median.toLocaleString()}</span>
+      <span style={{ color: c.maxReference }}>▲ MAX {max.toLocaleString()}</span>
+      <span style={{ color: c.medReference }}>~ MED {median.toLocaleString()}</span>
       <span style={{ color: t.textMuted }}>Σ TOTAL {total.toLocaleString()}</span>
     </div>
   );
 
   return (
     <MonthlyChartCard title={title} data={data} wfull={wfull} tooltip={renderTooltip} subheader={statsHeader}>
-      <ReferenceLine y={median} stroke={t.muted} strokeDasharray="4 4" strokeOpacity={0.5}
-        label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: t.muted, fontFamily: FONTS.mono }} />
+      <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
+        label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
       <Bar dataKey="value" stackId="a" name="Actual" maxBarSize={MAX_BAR_SIZE}>
         {data.map((d, i) => (
           <Cell

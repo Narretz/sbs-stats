@@ -10,7 +10,7 @@ import { maxMedian } from "@/utils/windowStats";
 import { FONTS, type Theme } from "@/theme";
 import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { chartAnchor } from "@/utils/chartAnchor";
-import { AREA_FILL_OPACITY, COLOR_DESTROYED, chartColors } from "@/chartColors";
+import { AREA_FILL_OPACITY, chartColors } from "@/chartColors";
 import { TooltipCard, TooltipTable, breakdownToRows, type TooltipTableRow } from "@/components/TooltipTable";
 
 function linearRegression(data: DailyDataPoint[]): Array<number | null> {
@@ -269,7 +269,7 @@ function PairedTooltip({
       trend: primaryTrend,
     });
     rows.push({
-      label: secondaryLabel, color: COLOR_DESTROYED,
+      label: secondaryLabel, color: chartColors(t).lineSecondary,
       value: v2,
       share: pctOf(typeof v2 === "number" ? v2 : null),
       trend: tr2,
@@ -324,11 +324,11 @@ export function DailyLineChart({
   const total = win ? primaryWin.total : (globalTotal ?? 0);
   const total2 = win ? secondaryWin.total : (globalTotal2 ?? 0);
   const hasPair = !!data2;
-  // Single-line charts use the accent (red). On paired charts the whole "Hit"
-  // series (line + area) is blue so it stays distinguishable from the red
-  // "Destroyed" series.
-  const primaryColor = t.accent;
-  const hitFill = t.primary;
+  const c = chartColors(t);
+  // House rule: the main series is blue, whether the chart is single-line or
+  // the "Hit" half of a pair; the second series ("Destroyed") is red.
+  const primaryColor = c.line;
+  const secondaryColor = c.lineSecondary;
   const resolvedPrimaryLabel = primaryLabel ?? (hasPair ? "Hit" : title);
   const resolvedSecondaryLabel = label2 ?? "Destroyed";
 
@@ -396,16 +396,16 @@ export function DailyLineChart({
     }}>
       <ChartCardTitle title={title} anchor={anchor} marginBottom={4} />
       <div style={{ display: "flex", gap: 12, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
-        {hasPair && <span style={{ color: hitFill }}>● {resolvedPrimaryLabel}</span>}
-        <span style={{ color: t.accent }}>▲ MAX {max.toLocaleString()}</span>
-        <span style={{ color: t.muted }}>~ MED {median.toLocaleString()}</span>
+        {hasPair && <span style={{ color: primaryColor }}>● {resolvedPrimaryLabel}</span>}
+        <span style={{ color: c.maxReference }}>▲ MAX {max.toLocaleString()}</span>
+        <span style={{ color: c.medReference }}>~ MED {median.toLocaleString()}</span>
         <span style={{ color: t.textMuted }}>Σ TOTAL {total.toLocaleString()}</span>
         {hasPair && (
           <>
-            <span style={{ color: COLOR_DESTROYED, marginLeft: 8 }}>● {resolvedSecondaryLabel}</span>
-            <span style={{ color: COLOR_DESTROYED }}>▲ MAX {max2.toLocaleString()}</span>
-            <span style={{ color: COLOR_DESTROYED, opacity: 0.7 }}>~ MED {median2.toLocaleString()}</span>
-            <span style={{ color: COLOR_DESTROYED, opacity: 0.7 }}>Σ TOTAL {total2.toLocaleString()}</span>
+            <span style={{ color: secondaryColor, marginLeft: 8 }}>● {resolvedSecondaryLabel}</span>
+            <span style={{ color: secondaryColor }}>▲ MAX {max2.toLocaleString()}</span>
+            <span style={{ color: secondaryColor, opacity: 0.7 }}>~ MED {median2.toLocaleString()}</span>
+            <span style={{ color: secondaryColor, opacity: 0.7 }}>Σ TOTAL {total2.toLocaleString()}</span>
           </>
         )}
       </div>
@@ -437,7 +437,7 @@ export function DailyLineChart({
                   label={props.label}
                   noteByDate={noteByDate}
                   t={t}
-                  primaryColor={hitFill}
+                  primaryColor={primaryColor}
                   primaryLabel={resolvedPrimaryLabel}
                   secondaryLabel={resolvedSecondaryLabel}
                   pairMode={pairMode}
@@ -447,12 +447,12 @@ export function DailyLineChart({
                 />
               )}
             />
-            <ReferenceLine y={median} stroke={t.muted} strokeDasharray="4 4" strokeOpacity={0.5}
-              label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: t.muted, fontFamily: FONTS.mono }} />
+            <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
+              label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
             <Area type="monotone" dataKey="value2" name={resolvedSecondaryLabel} stackId="1"
-              stroke={COLOR_DESTROYED} strokeWidth={1.5} fill={COLOR_DESTROYED} fillOpacity={AREA_FILL_OPACITY.destroyed} isAnimationActive={false} />
+              stroke={secondaryColor} strokeWidth={1.5} fill={secondaryColor} fillOpacity={AREA_FILL_OPACITY.destroyed} isAnimationActive={false} />
             <Area type="monotone" dataKey="valueDiff" name={resolvedPrimaryLabel} stackId="1"
-              stroke={hitFill} strokeWidth={1.5} fill={hitFill} fillOpacity={AREA_FILL_OPACITY.damaged} isAnimationActive={false} />
+              stroke={primaryColor} strokeWidth={1.5} fill={primaryColor} fillOpacity={AREA_FILL_OPACITY.damaged} isAnimationActive={false} />
           </ComposedChart>
         ) : (
           <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
@@ -488,13 +488,13 @@ export function DailyLineChart({
                 />
               )}
             />
-            <ReferenceLine y={median} stroke={t.muted} strokeDasharray="4 4" strokeOpacity={0.5}
-              label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: t.muted, fontFamily: FONTS.mono }} />
+            <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
+              label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
             <Line type="monotone" dataKey="value" name={resolvedPrimaryLabel} stroke={primaryColor} strokeWidth={2}
               dot={({ key, ...props }) => <CustomDot key={key} {...props} accentColor={t.accent} primaryColor={primaryColor} bgColor={t.surface} noteColor={chartColors(t).noteText} />}
               activeDot={{ r: 5, fill: primaryColor }}
             />
-            <Line type="linear" dataKey="trend1" name="Trend" stroke={t.muted} strokeWidth={1.5}
+            <Line type="linear" dataKey="trend1" name="Trend" stroke={c.trend} strokeWidth={1.5}
               strokeDasharray="6 3" dot={false} activeDot={false}
             />
           </LineChart>

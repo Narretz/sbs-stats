@@ -1,38 +1,21 @@
 // Single source of truth for chart **data-series colors** (bars, lines, areas).
-// Chrome colors (button text, error borders, surface backgrounds) stay in theme.ts.
 //
-// Two kinds of colors live here:
-//   1. FIXED hex constants below — do NOT switch between light/dark.
-//      Edit the constant to change every usage.
-//   2. THEME-DERIVED entries in chartColors(t) — pull from `t.primary` etc. so
-//      they flip with dark mode. Reassign the line to break the theme link.
+// Every color here resolves to a theme token (`src/theme.ts`) — nothing in this
+// file is a literal hex any more. To recolor charts app-wide, edit the token;
+// to recolor one chart's role, repoint its entry below.
 //
-// To recolor a chart: edit one entry here, lint, done. No grep across files.
+// The house rule the tokens encode: the MAIN series of a chart is blue
+// (`t.series1`), a SECOND series drawn against it is red (`t.series2`). Charts
+// with an open-ended number of series (directions, freely-picked metrics) use
+// QUALITATIVE_PALETTE instead; the HUR missile grid keeps its own family-coded
+// palette in `components/missilePalette.ts`.
 
 import type { Theme } from "@/theme";
 
-// ── Fixed colors (theme-independent) ───────────────────────────────────────
-
-const COLOR_BAR_DEFAULT = '#509CCD';
-
-// Deliberately a different red from t.accent (`#db2c18` light / `#ff6b35` dark).
-// Keeping destroyed at a constant red means the destroyed/damaged contrast
-// stays strong in dark mode (where t.accent becomes orange), and avoids
-// collision with the "current/today" accent that may share the same chart.
-export const COLOR_DESTROYED = "#DE6666";
-
-export const COLOR_DESTROYED_CURRENT = "#C62121";
-
-// Lighter red for the destroyed trend line, so it stays distinguishable from
-// the destroyed data line.
-export const COLOR_DESTROYED_TREND = "#fca5a5";
-
-// Neutral gray for past-day historical lines in the hourly chart — only the
-// "today" line gets the accent color.
-export const COLOR_HOURLY_PAST_DAY = "#9ca3af";
+// ── Alpha helpers ──────────────────────────────────────────────────────────
 
 // Hex-alpha suffix applied to a base color for projected/forecast segments
-// (≈ 33% opacity). Change to "33" for ~20%, "88" for ~53%, etc.
+// (≈ 40% opacity). Change to "33" for ~20%, "88" for ~53%, etc.
 export const PROJECTED_ALPHA_SUFFIX = "65";
 
 export const withProjectedAlpha = (hex: string): string => hex + PROJECTED_ALPHA_SUFFIX;
@@ -41,7 +24,7 @@ export const withProjectedAlpha = (hex: string): string => hex + PROJECTED_ALPHA
 // drawn over Damaged). Expressed as 0–1 decimals because SVG `fillOpacity`
 // takes that form; if you'd rather bake the alpha into the color string, use
 // `withFillAlpha(hex, decimal)` below. Distinct from PROJECTED_ALPHA_SUFFIX —
-// projected segments are lighter "hint overlays" (~33%), areas need to be
+// projected segments are lighter "hint overlays" (~40%), areas need to be
 // more solid so the underlying data stays readable.
 export const AREA_FILL_OPACITY = {
   damaged: 0.35,
@@ -54,14 +37,36 @@ export const AREA_FILL_OPACITY = {
 export const withFillAlpha = (hex: string, opacity: number): string =>
   hex + Math.round(Math.max(0, Math.min(1, opacity)) * 255).toString(16).padStart(2, "0");
 
+// ── Qualitative palette (theme-independent) ────────────────────────────────
+//
+// 24-color qualitative palette for charts whose series count is data-driven
+// rather than fixed: GSUA attack directions (26 all-time, 16 max in one day)
+// and the home page's freely-composed metric charts. Colors are interleaved
+// from opposite hue families so adjacent stacks stay visually distinct even
+// when 10+ appear in one bar, and are picked to read on both themes — which is
+// why they don't flip with the theme.
+export const QUALITATIVE_PALETTE = [
+  "#3b82f6", "#ef4444", "#f59e0b", "#10b981", "#8b5cf6", "#ec4899",
+  "#14b8a6", "#f97316", "#06b6d4", "#a855f7", "#84cc16", "#f43f5e",
+  "#0ea5e9", "#eab308", "#7c3aed", "#22c55e", "#e11d48", "#0891b2",
+  "#c026d3", "#65a30d", "#b45309", "#4f46e5", "#059669", "#be123c",
+] as const;
+
+/** Nth series color, wrapping around the palette. */
+export const qualitativeColor = (i: number): string =>
+  QUALITATIVE_PALETTE[i % QUALITATIVE_PALETTE.length];
 
 // ── Theme-derived semantic palette ─────────────────────────────────────────
 //
 // Call with `const c = chartColors(t);` then use `c.damaged`, `c.destroyed`,
-// etc. Multiple semantic keys may point at the same underlying color — that's
+// etc. Multiple semantic keys may point at the same underlying token — that's
 // intentional, so each chart can be retuned without affecting unrelated ones.
 
 export interface ChartColors {
+  // Generic single/paired line charts (SBS daily, GSUA hourly, Mediazona …)
+  line: string;             // the main series — blue
+  lineSecondary: string;    // a second series drawn against it — red
+
   // Damaged/destroyed pair (SBS daily, SBU Alfa targets, etc.)
   damaged: string;
   destroyed: string;
@@ -75,13 +80,16 @@ export interface ChartColors {
   barCurrent: string;       // last/current month highlight
   barCurrentProjected: string;
 
-  // RU MoD day vs overnight split
+  // RU MoD day vs overnight split — overnight is the dominant series
   daytime: string;
   overnight: string;
 
   // Hourly chart
   hourlyToday: string;
   hourlyPastDay: string;
+
+  // De-emphasised / unattributed slices of an otherwise colored chart
+  neutral: string;
 
   // Reference lines + trend overlays
   grid: string;
@@ -96,22 +104,27 @@ export interface ChartColors {
 
 export function chartColors(t: Theme): ChartColors {
   return {
-    damaged: COLOR_BAR_DEFAULT,
-    destroyed: COLOR_DESTROYED,
-    damagedProjected: withProjectedAlpha(t.primary),
-    destroyedProjected: withProjectedAlpha(COLOR_DESTROYED),
-    destroyedTrend: COLOR_DESTROYED_TREND,
-    destroyedCurrent: COLOR_DESTROYED_CURRENT,
+    line: t.series1,
+    lineSecondary: t.series2,
 
-    barDefault: COLOR_BAR_DEFAULT,
-    barCurrent: `${t.primary}EF`,
-    barCurrentProjected: withProjectedAlpha(t.primary),
+    damaged: t.series1,
+    destroyed: t.series2,
+    damagedProjected: withProjectedAlpha(t.series1),
+    destroyedProjected: withProjectedAlpha(t.series2),
+    destroyedTrend: t.series2Trend,
+    destroyedCurrent: t.series2Current,
 
-    daytime: t.primary,
-    overnight: t.accent,
+    barDefault: t.series1,
+    barCurrent: t.series1Current,
+    barCurrentProjected: withProjectedAlpha(t.series1),
 
-    hourlyToday: t.accent,
-    hourlyPastDay: COLOR_HOURLY_PAST_DAY,
+    daytime: t.series2,
+    overnight: t.series1,
+
+    hourlyToday: t.series1,
+    hourlyPastDay: t.seriesNeutral,
+
+    neutral: t.seriesNeutral,
 
     grid: t.chartGrid,
     maxReference: t.accent,
