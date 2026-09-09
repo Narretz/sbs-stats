@@ -15,6 +15,7 @@ import { maxMedian } from "@/utils/windowStats";
 import { TARGET_IDS, TARGET_LABELS } from "@/types";
 import type { MonthlyDataPoint, MonthlyRow, StatKey, Metric } from "@/types";
 import { FONTS } from "@/theme";
+import { chartColors } from "@/chartColors";
 
 interface MonthlyPageProps {
   refreshKey?: number;
@@ -145,8 +146,8 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="sbs" />}
       headerExtra={
         <div style={{ display: "flex", gap: 20, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
-          <span style={{ color: t.primary }}>Hit</span>
-          <span style={{ color: t.accent }}>Destroyed</span>
+          <span style={{ color: chartColors(t).damaged }}>Hit</span>
+          <span style={{ color: chartColors(t).destroyed }}>Destroyed</span>
           <span style={{ color: t.textMuted }}>Lighter segment = current-month projection</span>
         </div>
       }

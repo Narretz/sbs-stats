@@ -273,7 +273,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
           onChange={(e) => updateDirection(e.target.value)}
           style={{
             background: selectedDirection ? t.primary : t.bgAlt,
-            color: selectedDirection ? "#fff" : t.textMuted,
+            color: selectedDirection ? t.onPrimary : t.textMuted,
             border: `1px solid ${selectedDirection ? t.primary : t.border}`,
             borderRadius: 4, padding: "5px 8px",
             fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",

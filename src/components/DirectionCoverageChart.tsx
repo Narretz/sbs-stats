@@ -10,7 +10,7 @@ import { chartAnchor } from "@/utils/chartAnchor";
 // This card's title is fixed, not a prop — kept here so the heading and its
 // deep-link anchor are derived from one string.
 const TITLE = "Combat Engagements — Composition by Direction";
-import { chartColors } from "@/chartColors";
+import { chartColors, qualitativeColor } from "@/chartColors";
 import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
 import { DIRECTION_AXIS_JOINT_LABEL } from "@/types";
 import type { GsuaDirectionCoverageRow } from "@/types";
@@ -33,18 +33,6 @@ interface Props {
 
 const MAX_BAR_SIZE = 32;
 const UNATTRIBUTED_KEY = "__unattributed";
-const COLOR_UNATTRIBUTED = "#9ca3af";
-
-// 24-color qualitative palette — covers every direction present in the DB
-// (26 all-time, 16 max on a single day) without collapsing any into an
-// "Other" bucket. Colors are interleaved from opposite hue families so
-// adjacent stacks stay visually distinct even when 10+ appear in one bar.
-const DIRECTION_PALETTE = [
-  "#3b82f6", "#ef4444", "#f59e0b", "#10b981", "#8b5cf6", "#ec4899",
-  "#14b8a6", "#f97316", "#06b6d4", "#a855f7", "#84cc16", "#f43f5e",
-  "#0ea5e9", "#eab308", "#7c3aed", "#22c55e", "#e11d48", "#0891b2",
-  "#c026d3", "#65a30d", "#b45309", "#4f46e5", "#059669", "#be123c",
-];
 
 interface Stack {
   key: string;      // dataKey used on the flattened chart rows
@@ -63,6 +51,8 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
   const anchor = chartAnchor(TITLE);
   const c = chartColors(t);
   const bucketLabel = granularity === "monthly" ? "months" : "days";
+
+  const neutral = c.neutral;
 
   const { stacks, flat, summary, mergedByBucket, interimByBucket } = useMemo(() => {
     // One stack per direction seen in the window — no "Other" bucket; the
@@ -126,9 +116,9 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
     const stacks: Stack[] = sortedDirs.map((name, i) => ({
       key: name,
       label: axisLabel(name),
-      color: DIRECTION_PALETTE[i % DIRECTION_PALETTE.length],
+      color: qualitativeColor(i),
     }));
-    stacks.push({ key: UNATTRIBUTED_KEY, label: "Unattributed", color: COLOR_UNATTRIBUTED });
+    stacks.push({ key: UNATTRIBUTED_KEY, label: "Unattributed", color: neutral });
 
     // Flatten each date into { date, total, <each stack.key>: N }.
     const flat: FlatRow[] = data.map((row) => {
@@ -155,7 +145,7 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
     };
 
     return { stacks, flat, summary, mergedByBucket, interimByBucket };
-  }, [data]);
+  }, [data, neutral]);
 
 
   return (

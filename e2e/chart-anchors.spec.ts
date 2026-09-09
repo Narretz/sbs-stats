@@ -16,7 +16,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 // How far below the viewport top a scrolled-to card should sit: clear of the
 // 52px sticky header and the sticky controls bar under it (.chart-card
-// scroll-margin-top in theme.ts). Allow slack for the controls bar's height.
+// scroll-margin-top in src/styles/theme.css). Allow slack for the controls bar's height.
 const MIN_CLEARANCE = 40;
 const MAX_CLEARANCE = 200;
 

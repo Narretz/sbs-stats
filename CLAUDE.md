@@ -35,6 +35,19 @@ datasets for future views.
   recharts has sized its containers. The hover "#" affordance is CSS generated
   content, deliberately: as a real element it lands in the title's textContent
   and breaks `getByText(title, { exact: true })`.
+- **Color**: `src/theme.ts` is the single source of truth — chrome tokens plus
+  the chart-series tokens (`series1` blue = the main series of any chart,
+  `series2` red = a second series drawn against it). `ThemeProvider` publishes
+  the active theme onto `<html>` as CSS variables (`--color-bg-alt`, …), which
+  `src/styles/theme.css` — a real stylesheet, imported from `main.tsx` — reads;
+  recharts and inline styles take the same values off the `Theme` object via
+  `useTheme()`. `src/chartColors.ts` maps chart roles (`damaged`, `barCurrent`,
+  `maxReference`, …) onto those tokens, so recoloring a chart is one line there
+  rather than a grep across components. The exceptions are the qualitative
+  palettes, deliberately theme-independent: `QUALITATIVE_PALETTE` (GSUA
+  directions + home-page metric charts), the HUR missile family palette
+  (`components/missilePalette.ts`) and the Mediazona role groups
+  (`types/index.ts`).
 - **Data flow**: ingest script (Python, mostly stdlib) → SQLite → R2 (bucket
   `russia-ukraine-war`, public `pub-de9836bbd1a14affa2ecd7e998df13a2.r2.dev`).
   Production DB URLs are in `.env.production`. Small DBs are fetched whole via

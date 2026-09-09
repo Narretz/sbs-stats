@@ -14,7 +14,7 @@ interface Props {
 // lives: the title is an <a> to the card's own fragment, so clicking it puts a
 // shareable URL in the address bar.
 //
-// The hover "#" is CSS generated content (`.chart-anchor::after` in theme.ts),
+// The hover "#" is CSS generated content (`.chart-anchor::after` in styles/theme.css),
 // NOT a DOM node. As a real element it joined the heading's textContent, so
 // the title read "Mortars #" to anything matching on text — which broke
 // `getByText(title, { exact: true })` in the e2e suite, and would equally have

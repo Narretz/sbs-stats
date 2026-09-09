@@ -11,7 +11,7 @@ import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
 import type { Theme } from "@/theme";
 import { FONTS } from "@/theme";
-import { COLOR_HOURLY_PAST_DAY } from "@/chartColors";
+import { chartColors } from "@/chartColors";
 export type TooltipSortMode = "date" | "value";
 
 interface Props {
@@ -136,7 +136,7 @@ const CustomTooltip = ({
                   justifyContent: "space-between",
                   gap: 8,
                   marginBottom: 2,
-                  color: highlight ? t.accent : t.textMuted,
+                  color: highlight ? chartColors(t).hourlyToday : t.textMuted,
                   fontWeight: highlight ? 700 : 400,
                   lineHeight: "15px",
                 }}>
@@ -153,16 +153,9 @@ const CustomTooltip = ({
     </div>
   );
 };
-// Inject CSS once to elevate hovered chart card above siblings
-const STYLE_ID = "hourly-chart-hover-style";
-if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
-  const s = document.createElement("style");
-  s.id = STYLE_ID;
-  s.textContent = `.hourly-card { position: relative; z-index: 1; } .hourly-card:hover { z-index: 2; }`;
-  document.head.appendChild(s);
-}
 export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTotal, wfull, tooltipSort = "date", highlight = false, selectedDate, eod, pairedData, pairedGlobalMax }: Props) {
   const { theme: t } = useTheme();
+  const c = chartColors(t);
   const { scope } = useStatScope();
   // "window" scopes MAX/MED to the days currently shown. Each day's value is its
   // end-of-day total (max of its cumulative intraday points).
@@ -213,8 +206,8 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
         {title}
       </div>
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ color: t.accent }}>▲ MAX {max.toLocaleString()}</span>
-        <span style={{ color: t.muted }}>~ MED {median.toLocaleString()}</span>
+        <span style={{ color: c.maxReference }}>▲ MAX {max.toLocaleString()}</span>
+        <span style={{ color: c.medReference }}>~ MED {median.toLocaleString()}</span>
         <span style={{ color: t.textMuted }}>Σ TOTAL {windowTotal.toLocaleString()}</span>
       </div>
       <ResponsiveContainer width="100%" height={220}>
@@ -244,21 +237,21 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
             allowEscapeViewBox={{ x: false, y: true }}
             wrapperStyle={{ zIndex: 9999 }}
           />
-          <ReferenceLine y={max} stroke={t.accent} strokeDasharray="4 4" strokeOpacity={0.6}
-            label={{ value: "MAX", position: "insideTopRight", fontSize: 9, fill: t.accent, fontFamily: FONTS.mono }} />
-          <ReferenceLine y={median} stroke={t.muted} strokeDasharray="4 4" strokeOpacity={0.5}
-            label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: t.muted, fontFamily: FONTS.mono }} />
+          <ReferenceLine y={max} stroke={c.maxReference} strokeDasharray="4 4" strokeOpacity={0.6}
+            label={{ value: "MAX", position: "insideTopRight", fontSize: 9, fill: c.maxReference, fontFamily: FONTS.mono }} />
+          <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
+            label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
           {pastSeries.map((s, i) => (
             <Line key={s.date} type="monotone" dataKey={s.date}
-              stroke={COLOR_HOURLY_PAST_DAY} strokeWidth={1} strokeOpacity={getOpacity(i)}
-              dot={false} activeDot={{ r: 3, fill: COLOR_HOURLY_PAST_DAY, opacity: 0.6 }}
+              stroke={c.hourlyPastDay} strokeWidth={1} strokeOpacity={getOpacity(i)}
+              dot={false} activeDot={{ r: 3, fill: c.hourlyPastDay, opacity: 0.6 }}
               connectNulls isAnimationActive={false}
             />
           ))}
           {primarySeries && (
             <Line key={primarySeries.date} type="monotone" dataKey={primarySeries.date}
-              stroke={t.accent} strokeWidth={3.5} strokeOpacity={1}
-              dot={false} activeDot={{ r: 4, fill: t.accent }}
+              stroke={c.hourlyToday} strokeWidth={3.5} strokeOpacity={1}
+              dot={false} activeDot={{ r: 4, fill: c.hourlyToday }}
               connectNulls isAnimationActive={false}
             />
           )}

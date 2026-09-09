@@ -1,0 +1,276 @@
+/* ─── Global app styles ───────────────────────────────────────────────────────
+ * Every color here is a CSS custom property published by `ThemeProvider` from
+ * `src/theme.ts` (the single source of truth — recharts needs real strings, not
+ * `var()`, so the values have to exist in TS). Token `bgAlt` becomes
+ * `--color-bg-alt`; see `cssVarName()` there. Do not hard-code hex values in
+ * this file — add the token to `Theme` instead and it shows up here for free.
+ *
+ * The PT Sans / PT Mono webfont stylesheet is deliberately NOT @import-ed here;
+ * main.tsx attaches it after `load` so the CDN can't stall first paint.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-alt);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* RefreshIndicator's loading arc. The offset is the countdown circle's
+   circumference (2πr, r = (28 − 2.5) / 2) — one full revolution per cycle. */
+@keyframes spin {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: -80.11px; }
+}
+
+/* ── Controls ────────────────────────────────────────────────────────────────
+   One look for every chart/table control: selects, buttons, toggles, on the
+   site pages and the compare view alike. Base styling lives here rather than
+   inline because :hover can't be expressed inline at all, and an inline
+   border/background would beat these rules anyway. */
+.ctl {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.ctl:hover {
+  border-color: var(--color-primary);
+}
+.ctl:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+.ctl:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ctl:disabled:hover {
+  border-color: var(--color-border);
+}
+
+/* Pressed/selected: the same treatment the page nav uses for the current page. */
+.ctl[aria-pressed="true"] {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+  font-weight: 700;
+}
+.ctl[aria-pressed="true"]:hover {
+  border-color: var(--color-primary);
+}
+
+/* Leaves the current site rather than moving within it. */
+.ctl-dashed {
+  border-style: dashed;
+  color: var(--color-text-muted);
+  background: transparent;
+}
+.ctl-dashed:hover {
+  color: var(--color-text);
+  border-color: var(--color-primary);
+}
+
+/* Checkbox in button chrome: the label is the hit area, the tick carries the
+   state. No filled background — this toggles a detail, it isn't a mode. */
+.ctl-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+.ctl-check input {
+  cursor: pointer;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+/* :has(:focus-visible), not :focus-within — the latter also fires on a mouse
+   click and would leave a focus ring behind after every toggle. */
+.ctl-check:has(input:focus-visible) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+.ctl-check:has(input:checked) {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+.ctl-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* ── App header ──────────────────────────────────────────────────────────────
+   Layout lives here rather than inline because inline styles beat media
+   queries — a hard-coded height/padding can't be overridden below. */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 24px;
+  height: 52px;
+}
+.app-header-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-header-brand {
+  min-width: 140px;
+}
+.app-header-brand-short {
+  display: none;
+}
+.refresh-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 64px;
+}
+
+@media (max-width: 860px) {
+  .app-header {
+    height: auto;
+    min-height: 52px;
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    justify-content: flex-start;
+  }
+  .app-header-group {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  /* The brand stops reserving a 140px column and drops to an abbreviation, so
+     the site picker and nav have room to wrap onto one line rather than three. */
+  .app-header-brand {
+    min-width: 0;
+  }
+  .app-header-brand-long {
+    display: none;
+  }
+  .app-header-brand-short {
+    display: inline;
+  }
+  /* The countdown text is the least useful thing in a wrapped header — the
+     dial still shows progress and the whole control stays clickable. */
+  .refresh-text {
+    display: none;
+  }
+}
+
+/* ── Chart cards ─────────────────────────────────────────────────────────────
+   Hover-elevation for any chart card: a tooltip that overflows the card's
+   bottom edge would otherwise be painted over by the next chart-card sibling
+   in the grid. Lifting the hovered card's stacking context keeps its
+   absolutely-positioned tooltip on top. */
+.chart-card {
+  position: relative;
+  z-index: 1;
+  /* Deep-linked charts (#<slug>) must clear the 52px sticky header AND the
+     sticky controls bar under it, or the card lands behind them. The controls
+     bar wraps to a variable height, so this is a generous fixed clearance
+     rather than a measured one. Below 640px the controls bar is static
+     (see .page-controls-sticky) so only the header needs clearing. */
+  scroll-margin-top: 124px;
+}
+.chart-card:hover {
+  z-index: 2;
+}
+/* Same elevation trick for the hourly cards, which don't use .chart-card. */
+.hourly-card {
+  position: relative;
+  z-index: 1;
+}
+.hourly-card:hover {
+  z-index: 2;
+}
+/* Matches the wrapped header heights measured at these widths — an anchored
+   chart has to clear the sticky header, not hide behind it. */
+@media (max-width: 860px) {
+  .chart-card { scroll-margin-top: 104px; }
+}
+@media (max-width: 520px) {
+  .chart-card { scroll-margin-top: 136px; }
+}
+
+/* The "#" deep-link affordance on a chart title: present but silent until the
+   title is hovered or keyboard-focused. Generated content on purpose — as a
+   real span it landed in the heading's textContent, so the title read
+   "Mortars #" to anything matching on text. */
+.chart-anchor::after {
+  content: " #";
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.chart-anchor:hover::after,
+.chart-anchor:focus-visible::after {
+  opacity: 0.55;
+}
+
+/* Per-site pages' controls bar (time window, date nav, etc.) pinned right
+   below the 52px SiteHeader. z-index sits below the header (z:10) so the
+   header still covers it when scrolling, but above chart cards (z:1/2).
+   Solid bg + subtle bottom border keeps content from showing through.
+   On phone-sized screens the bar usually wraps to multiple rows and eats
+   too much vertical real estate; let it scroll with the page there. */
+.page-controls-sticky {
+  position: sticky;
+  top: 52px;
+  z-index: 8;
+  background: var(--color-bg);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+@media (max-width: 640px) {
+  .page-controls-sticky { position: static; }
+}
+
+/* The native <details>/<summary> triangle is too small at the page's 11px
+   mono baseline — scale just the marker so the affordance is visible. */
+summary::marker {
+  font-size: 1.6em;
+}

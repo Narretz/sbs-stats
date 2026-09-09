@@ -184,7 +184,7 @@ export function MissilesPage() {
       onClick={() => set(value)}
       style={{
         background: current === value ? t.primary : "transparent",
-        color: current === value ? "#fff" : t.textMuted,
+        color: current === value ? t.onPrimary : t.textMuted,
         border: `1px solid ${current === value ? t.primary : t.border}`,
         borderRadius: 4, padding: "5px 14px", fontFamily: FONTS.display, fontSize: 12,
         fontWeight: current === value ? 700 : 400, cursor: "pointer", letterSpacing: "0.04em",

@@ -23,6 +23,7 @@ import {
 import { DAY_OPTIONS, type DayOption, parseDaysParam } from "@/utils/dayRange";
 import { MONTH_OPTIONS, type MonthOption } from "@/utils/monthRange";
 import { useStatScope, type StatScope } from "@/hooks/useStatScope";
+import { qualitativeColor } from "@/chartColors";
 import { findMetric, type CombinedMetric, type MetricSource } from "@/utils/combinedMetrics";
 import { fetchCombinedDaily, fetchCombinedMonthly, fetchCombinedGlobalStats, statsForMetric, type GlobalStatsBundle } from "@/utils/combinedQuery";
 import type { DailyDataPoint, Site } from "@/types";
@@ -114,13 +115,8 @@ function defaultWindowFor(g: ChartGranularity): DayOption | MonthOption {
   return g === "monthly" ? DEFAULT_MONTHS : DEFAULT_DAYS;
 }
 
-// Stable color palette; metrics are assigned colors by selection order within
-// a chart. Picked for distinguishability on both light and dark themes.
-const PALETTE = [
-  "#3b82f6", "#ef4444", "#10b981", "#f59e0b",
-  "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16",
-  "#f97316", "#a855f7", "#14b8a6", "#eab308",
-];
+// Metrics are assigned colors by selection order within a chart, from the app's
+// shared qualitative palette (see chartColors.ts).
 
 interface ChartConfig {
   // Stable React key only; not persisted to the URL.
@@ -898,7 +894,7 @@ function ChartCard({
       return {
         key: m.id,
         label: m.label,
-        color: PALETTE[i % PALETTE.length],
+        color: qualitativeColor(i),
         data,
         globalMax: stat?.max,
         globalMedian: stat?.median,
