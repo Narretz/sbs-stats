@@ -362,7 +362,7 @@ export function ComparePage({ preset }: Props) {
               <span style={{ color: t.textFaint, marginLeft: 4 }} title="Derived by this app, not stated by the source">*</span>
             )}
           </div>
-          {showScope && scopes?.[i] && (
+          {showScope && v != null && scopes?.[i] && (
             <div style={{
               fontSize: 10, color: t.textMuted, marginTop: 2,
               fontStyle: "italic", fontWeight: 400,

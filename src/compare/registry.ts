@@ -266,6 +266,9 @@ export interface CompareRowBase {
   // own vocabulary, so `"sbu-alfa": ["uav_crews"]` fails to compile — the key
   // is `drone_crews`.
   map: { [E in CompareEntityId]?: EntityNativeKey[E][] };
+  // Rendered as a caption under the value — and ONLY when there is a value:
+  // an entity with nothing to show gets a bare "—", since a caption explaining
+  // an absence is noise on every row that has one.
   scope?: Partial<Record<CompareEntityId, string>>;
   // Supplies the cell directly instead of summing native keys. `map` is then
   // empty and the row is always shown.
@@ -393,7 +396,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
     ],
   },
   {
-    group: "struck", key: "drones", label: "Drones (UAVs + UGVs)",
+    group: "struck", key: "drones", label: "Unmanned Systems (UAVs + UGVs)",
     map: {
       // `ugv` (id 26, "Ворожі НРК") is summed in so both sides count the
       // same "БпЛА + наземних роботизованих комплексів" bucket SBU's recap uses.
@@ -408,32 +411,46 @@ export const CANONICAL_ROWS: CompareRow[] = [
       "sbu-alfa": "БпЛА та наземних роботизованих комплексів різного типу (НРК)",
       rubikon: "БпЛА + «Баба-Яга» + самолётного типа + НРК",
     },
-    // Air/ground is the only split all the sources that split at all agree on.
-    // SBS goes further (copters, fixed-wing, Shahed, Gerbera) and «Рубикон»
-    // differently (БпЛА, «Баба-Яга», самолётного типа), so a finer breakdown
-    // would only ever populate one column. «Альфа» publishes the two together
-    // in a single «БпЛА та НРК» line and can't be split at all.
+    // Rotary / fixed-wing / ground is as deep as both sources can go together.
+    // SBS splits fixed-wing three ways (fixed-wing, Shahed, Gerbera) and
+    // «Рубикон» has specific rotary («Баба-Яга») and technically has fixed-wing,
+    // but that hasn't been populated since March 2026, so «БпЛА» must include small
+    // rotary drones as well as ISR and long range one-way fixed wing drones.
+    //
+    // «Альфа» publishes «БпЛА та НРК» as a single line and can't be split at all.
+    //
+    // The three children sum back to the parent on both sides.
     children: [
       {
-        key: "uav", label: "UAVs",
-        map: {
-          sbs: ["copter_uav", "fixed_wing_uav", "shahed", "gerbera"],
-          rubikon: ["uav", "baba_yaga", "fixed_wing_uav"],
-        },
+        key: "uav_generic", label: "UAVs generic",
+        map: { rubikon: ["uav"] },
         scope: {
-          sbs: "Copters + fixed-wing + Shahed + Gerbera",
-          "sbu-alfa": "not split from НРК — see the combined row",
-          rubikon: "БпЛА + «Баба-Яга» + самолётного типа",
+          rubikon: "«БпЛА» (includes small copter drones, and fixed-wing since April 2026)",
+        },
+      },
+      {
+        key: "copters", label: "Copters",
+        map: { sbs: ["copter_uav"], rubikon: ["baba_yaga"] },
+        scope: {
+          sbs: "Ворожі коптери",
+          rubikon: "«Баба-Яга» (heavy copter drones)",
+        },
+      },
+      {
+        key: "fixed_wing", label: "Fixed-wing",
+        map: { sbs: ["fixed_wing_uav", "shahed", "gerbera"], rubikon: ["fixed_wing_uav"] },
+        scope: {
+          // Shahed and Gerbera are fixed-wing airframes, and «Рубикон» has no
+          // separate long-range one-way line — so folding them in makes the
+          // two buckets more alike, not less.
+          sbs: "Fixed-wing + Shahed + Gerbera",
+          rubikon: "самолётного типа (not tracked since March 2026)",
         },
       },
       {
         key: "ugv", label: "UGVs",
         map: { sbs: ["ugv"], rubikon: ["ugv"] },
-        scope: {
-          sbs: "Ворожі НРК (id 26)",
-          "sbu-alfa": "not split from БпЛА — see the combined row",
-          rubikon: "НРК",
-        },
+        scope: { sbs: "Ворожі НРК", rubikon: "НРК" },
       },
     ],
   },
