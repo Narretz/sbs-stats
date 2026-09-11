@@ -80,15 +80,27 @@ there (post 10889 → 10890). A summary is stored under its head `post_id` with
 
 `reports.stated_killed` / `stated_injured` come straight off the closing
 "Таким образом" sentence. **That is the series to plot** (view
-`daily_stated`): it is one fixed sentence, it parses on **~96%** of posts, and
-it does not depend on the regional breakdown being complete.
+`daily_stated`). Measured over the full archive — 885 posts, 1,061 covered
+days, 2023-10-18 to 2026-09-10 — it parses on **100% of posts from 2024
+onward**; the only gap is the 64 posts of the 2023 era, which carry no total
+line at all.
 
-The per-region rows in `casualties` are the secondary dimension. They agree
-exactly with the post's own total on **~56%** of posts across the archive
-(~80% in the current format, lower in the 2024 prose era). `reports.reconciled`
-records which, per post, and `check_db.py` reports the rate. Where a post does
-not reconcile the headline is still correct — only the breakdown for that day
-is in doubt.
+The per-region rows in `casualties` are the secondary dimension, and they are
+better than the strict flag suggests:
+
+| Over 817 posts with a total line | |
+|---|---|
+| killed column matches the post's own total exactly | **82%** |
+| injured column within 3 people | **89%** |
+| both exactly (`reports.reconciled`) | **50%** |
+| aggregate drift across the archive | killed **+0.9%**, injured **−1.0%** |
+
+So the breakdown is accurate in aggregate to about a percent, while rarely
+matching to the person on any given day — injured is the soft column, typically
+off by one or two in a figure of a hundred-odd. `reports.reconciled` records
+the strict test per post; `check_db.py` reports all of it. Where a post does not
+reconcile the headline is still correct — only the breakdown for that day is in
+doubt.
 
 Weekend posts reconcile worse than weekday ones, and not because of the
 stitching: both in the sample were single complete posts whose every paragraph
@@ -99,9 +111,13 @@ than in the prose.
 
 That gap is not all parser error. Some posts genuinely disagree with
 themselves: for post 10889 every region line was verified clause by clause and
-sums to 229 injured against a stated 230. Two such posts are pinned in
+sums to 229 injured against a stated 230. Three such posts are pinned in
 `test_parse.py::NON_RECONCILING` so nobody later "fixes" the parser to
 reproduce a source typo.
+
+Watch the trend, not the level. A drop in the killed-exact rate, or aggregate
+drift beyond a couple of percent, means the format moved; a strict percentage
+on its own would hide both.
 
 ## The three row kinds
 
@@ -184,6 +200,26 @@ Note that a revised **injured** figure can differ from anything CIT publishes,
 because of the `died_of_wounds` −1. Killed and injured are separate series and
 must never be summed into one "casualties" number — someone who was injured and
 later died appears in both.
+
+## The site
+
+Site key `cit-civilians`, two pages, wired in `src/sites/registry.tsx`:
+
+| Page | What it shows |
+|---|---|
+| `daily` | killed and injured per day, from `daily_stated`. Two charts, never one: the two series differ by roughly an order of magnitude and sharing an axis would flatten killed to nothing. |
+| `monthly` | the same figures summed per month, plus the regional table and its accuracy caveat. |
+
+The hook (`src/hooks/useDatabaseCitCivilians.ts`) reads the headline view for the
+charts and `casualties_latest` for the region table. It spreads a weekend
+report across its two days there — never in the DB — and tags both points with
+a `note`, which `DailyLineChart` renders as a flagged dot plus the report's real
+48-hour figures in the tooltip.
+
+Production reads a stripped `cit-civilians.app.db` (raw post text and the
+per-clause audit labels blanked, 11 MB → ~2 MB); dev reads the full DB, since
+this is a whole fetch rather than a range fetch and the app copy would only add
+a staleness trap. See the `VITE_CIT_DB_URL` note in CLAUDE.md.
 
 ## Storage model
 

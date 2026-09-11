@@ -39,6 +39,8 @@ data/sbu-alfa.db
 data/rubikon.db
 data/mediazona.db
 data/ua-losses.db
+data/cit-civilians.db
+data/cit-civilians.app.db
 
 sources/
 

@@ -257,6 +257,11 @@ _NOISE_RES = [
     re.compile(r"\b\d{1,2}(?:\s*,\s*\d{1,2})*(?:\s+и\s+\d{1,2})?\s+лет\b"),
     re.compile(r"«[^»]*»"),                              # «Герань-5», «Кременском»
     re.compile(r"\b[А-ЯЁA-Z][А-Яа-яЁёA-Za-z]*-\d+\b"),   # Су-24, С-300
+    # Weapon designations written with a space and a model pair — "Shahed
+    # 131/136" read as 131 + 136 = 267 injured before this, which is the worst
+    # shape a miscount can take: large, plausible, and silent.
+    re.compile(r"\b[А-ЯЁA-Z][А-Яа-яЁёA-Za-z]*\s+\d{1,4}(?:\s*/\s*\d{1,4})+\b"),
+    re.compile(r"\b\d{1,4}\s*/\s*\d{1,4}\b"),
     re.compile(r"\b\d{4}\b"),                            # years
 ]
 
@@ -425,7 +430,7 @@ _UA_REGIONS = {
     "винницкая", "волынская", "днепропетровская", "донецкая", "житомирская",
     "закарпатская", "запорожская", "ивано-франковская", "киевская",
     "кировоградская", "луганская", "львовская", "николаевская", "одесская",
-    "полтавская", "ровенская", "сумская", "тернопольская", "харьковская",
+    "полтавская", "ровненская", "сумская", "тернопольская", "харьковская",
     "херсонская", "хмельницкая", "черкасская", "черниговская", "черновицкая",
     "крым", "севастополь",
 }
@@ -443,7 +448,12 @@ _RU_REGIONS = {
     "хабаровский", "забайкальский", "алтайский", "новосибирская", "омская",
     "томская", "кемеровская", "иркутская", "курганская",
     "башкортостан", "татарстан", "чувашия", "мордовия", "удмуртия", "коми",
-    "адыгея", "дагестан", "калмыкия", "карелия",
+    "адыгея", "дагестан", "калмыкия", "карелия", "ингушетия", "северная",
+    # Adjectival forms, as they appear in "в <X>ой Республике".
+    "удмуртская", "чеченская", "чувашская", "башкирская", "татарская",
+    "мордовская", "карельская", "калмыцкая", "дагестанская", "марийская",
+    "кабардино-балкарская", "карачаево-черкесская", "ингушская", "тувинская",
+    "бурятская", "якутская", "хакасская", "алтайская", "коми",
 }
 
 # Amendment clauses often name only a city ("при атаках на г. Харьков 8 июля").
@@ -482,7 +492,15 @@ _SEVASTOPOL_RE = re.compile(r"в\s+оккупированн\w+\s+(?:г\.\s*)?С�
 # области", post 2991), and dropping the paragraph would lose the whole region.
 _OBLAST_RE = re.compile(r"\b([А-ЯЁ][а-яё-]+(?:ой|ая))\s+области", re.IGNORECASE)
 _KRAI_RE = re.compile(r"\b([А-ЯЁ][а-яё-]+ом)\s+крае", re.IGNORECASE)
-_REPUBLIC_RE = re.compile(r"\bРеспублик[еи]\s+([А-ЯЁ][а-яё-]+)", re.IGNORECASE)
+# Most Russian republics put their name BEFORE the noun and in the adjectival
+# form ("в Удмуртской Республике"); only a few follow it ("Республике Северная
+# Осетия", "Республике Крым"). The adjectival form is tried first.
+#
+# Neither carries re.IGNORECASE, deliberately: with it the `[А-ЯЁ]` guard stops
+# guarding, and "в Удмуртской Республике вследствие атаки" captured
+# "вследствие" as the region name.
+_REPUBLIC_ADJ_RE = re.compile(r"\b([А-ЯЁ][а-яё-]+ой)\s+Республик[еи]")
+_REPUBLIC_RE = re.compile(r"\bРеспублик[еи]\s+([А-ЯЁ][а-яё-]+)")
 _CITY_RE = re.compile(r"\bг\.\s*([А-ЯЁ][а-яё-]+)", re.IGNORECASE)
 
 _TRANSLIT = {
@@ -504,6 +522,12 @@ _SLUGS = {
     "севастополь": "sevastopol", "белгородская": "belgorod",
     "курская": "kursk", "брянская": "bryansk", "ростовская": "rostov",
     "воронежская": "voronezh", "краснодарский": "krasnodar",
+
+    "удмуртская": "udmurtia", "чеченская": "chechnya", "чувашская": "chuvashia",
+    "чувашия": "chuvashia", "башкирская": "bashkortostan",
+    "татарская": "tatarstan", "мордовская": "mordovia",
+    "дагестанская": "dagestan", "северная": "north-ossetia",
+    "ингушетия": "ingushetia", "ингушская": "ingushetia",
 }
 
 
@@ -551,7 +575,7 @@ def region_of(text: str) -> RegionHit | None:
     for rx, occupied, fixed in (
             (_OCCUPIED_RE, 1, None), (_CRIMEA_RE, 1, "крым"),
             (_SEVASTOPOL_RE, 1, "севастополь"), (_OBLAST_RE, 0, None),
-            (_KRAI_RE, 0, None), (_REPUBLIC_RE, 0, None)):
+            (_KRAI_RE, 0, None), (_REPUBLIC_ADJ_RE, 0, None), (_REPUBLIC_RE, 0, None)):
         m = rx.search(text)
         if m:
             name = fixed or _norm_region(m.group(1))
@@ -826,6 +850,21 @@ def parse(text: str, posted_at: datetime) -> ParsedReport:
 
     warnings: list[str] = []
     win = _window(body)
+    if win and win[1] <= win[0]:
+        # The stated window ends at or before it starts — a typo in the source
+        # ("20:00 30.05.2025 – 20:00 01.05.2025", post 7000, which meant
+        # 01.06). Trusting it files a whole day under the wrong month. The
+        # START is sound and the span is known from the gate ("сутки" = 1 day,
+        # "выходные" = 2), so the end is rebuilt from those rather than from
+        # the post timestamp, which can fall on the next MSK day.
+        span = 2 if weekend else 1
+        fixed_end = win[0] + timedelta(days=span)
+        warnings.append(
+            f"stated window ends before it starts ({win[0].date()} -> "
+            f"{win[1].date()}) — a source typo; the end date is rebuilt as "
+            f"{fixed_end.date()} from the window start and the report's own span")
+        win = (win[0], fixed_end)
+
     if win:
         start, end = win
         window_start = start.astimezone(timezone.utc).isoformat(timespec="seconds")
@@ -835,14 +874,19 @@ def parse(text: str, posted_at: datetime) -> ParsedReport:
         report_day = end.date()
         window_days = max((end.date() - start.date()).days, 1)
         basis = BASIS_WINDOW_MULTIDAY if window_days > 1 else BASIS_WINDOW
+        if window_days > 3:
+            warnings.append(
+                f"stated window spans {window_days} days, which no CIT summary "
+                f"format does — check the dates on this post")
     else:
         window_start = window_end = None
         report_day = posted_at.astimezone(MSK).date()
         window_days = 2 if weekend else 1
         basis = BASIS_POST_TIME
-        warnings.append(
-            "post states no 20:00–20:00 window (2023-era format); report_date "
-            "inferred from the post timestamp")
+        if _WINDOW_RE.search(body) is None:
+            warnings.append(
+                "post states no 20:00\u201320:00 window (2023-era format); "
+                "report_date inferred from the post timestamp")
 
     stated_killed, stated_injured = _totals(body)
 

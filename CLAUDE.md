@@ -18,7 +18,7 @@ via sql.js / sql.js-httpvfs.
 | UA SBU ALFA — MONTHLY RECAP | `sbu-alfa` | SBU press releases (Centre of Special Operations «А» monthly TOP-1 recap) | [`scripts/sbu_alfa/`](scripts/sbu_alfa/README.md) → `sbu-alfa.db` |
 | RU RUBIKON — MONTHLY RECAP | `rubikon` | Центр «Рубикон» (RU UAV unit) monthly Telegram recap | [`scripts/rubikon/`](scripts/rubikon/README.md) → `rubikon.db` |
 | RU DEATHS — MEDIAZONA | `mediazona` | Mediazona + Meduza confirmed named deaths + probate-registry estimate (CSV exports) | [`scripts/mediazona/`](scripts/mediazona/README.md) → `mediazona.db` |
-| UA CIVILIAN CASUALTIES — CIT | *(not yet a site)* | Conflict Intelligence Team daily 20:00–20:00 MSK casualty summaries (Telegram) | [`scripts/cit_civilians/`](scripts/cit_civilians/README.md) → `cit-civilians.db` |
+| UA+RU CIVILIAN CASUALTIES — CIT | `cit-civilians` | Conflict Intelligence Team daily 20:00–20:00 MSK casualty summaries (Telegram) | [`scripts/cit_civilians/`](scripts/cit_civilians/README.md) → `cit-civilians.db` |
 
 [`DATASETS.md`](DATASETS.md) tracks source research, recency, and candidate
 datasets for future views.
@@ -111,11 +111,13 @@ GitHub Actions in `.github/workflows/`:
   Telegram's 4096-char limit and is **stitched** from consecutive posts
   (`reports.part_ids`), and every post closes with its own casualty total, so
   each one is **reconciled** against it (`reports.reconciled`). The chart
-  series is `reports.stated_*` — CIT's own headline, which parses on ~96% of
-  posts; the per-region rows are secondary and agree with the headline on
-  ~56% across the archive. Weekend days come as ONE 48-hour post
-  (`window_days = 2`) and must never be plotted as a single day. Not yet a
-  dedicated site.
+  series is `reports.stated_*` — CIT's own headline, which parses on 100% of
+  posts from 2024 on (the 2023 era carries no total line); the per-region rows
+  are secondary, exact on the killed column for 82% of posts and within ~1% of
+  the headline in aggregate, but exact on both columns for only 50%. Weekend
+  days come as ONE 48-hour post (`window_days = 2`) and must never be plotted
+  as a single day. Publishes a stripped `cit-civilians.app.db` alongside the
+  authoritative DB (see below); the site is `cit-civilians`, daily + monthly.
 - `deploy.yml` — builds and publishes to GitHub Pages.
 
 The scrapers that only re-read a recent window expose that window as a
@@ -184,13 +186,19 @@ bash scripts/setup_env.sh                 # npm + pip bootstrap for a fresh cont
   root; in production the frontend reads from R2 via `VITE_*_DB_URL` env
   vars. Small DBs are fetched whole via sql.js; larger ones (GSUA attacks)
   are range-fetched via sql.js-httpvfs.
-- **GSUA and RU MoD publish two objects each**: the authoritative `<name>.db`
-  carrying the raw post text, and a stripped `<name>.app.db` (`posts.text` /
-  `raw_text` blanked, ~3-5x smaller) that the frontend reads — in production
-  *and* in dev, so local range-fetch behaviour matches the deployed site.
+- **GSUA, RU MoD and CIT publish two objects each**: the authoritative
+  `<name>.db` carrying the raw post text, and a stripped `<name>.app.db`
+  (GSUA/RU MoD blank `posts.text` / `raw_text`, ~3-5x smaller; CIT blanks
+  `reports.body_text` plus the per-clause `casualties.raw_label` /
+  `region_raw`, 11 MB → ~2 MB) that the frontend reads in production.
   `fetch_prod_dbs.sh` downloads both; CI always uploads them together, built
-  from the same source, so they can't drift on R2. They drift **locally**:
-  a reparse or ingest rewrites `<name>.db` and leaves the app copy alone, so
-  dev keeps serving the old rows while the file they came from looks correct.
+  from the same source, so they can't drift on R2.
+  **GSUA and RU MoD read the app copy in dev too**, so local range-fetch
+  behaviour matches the deployed site — and there they drift **locally**: a
+  reparse or ingest rewrites `<name>.db` and leaves the app copy alone, so dev
+  keeps serving the old rows while the file they came from looks correct.
   Rebuild it with `scripts/build_app_db.py` — not by re-running the fetch,
-  which would overwrite the reparse with R2's copy.
+  which would overwrite the reparse with R2's copy. **CIT reads the full DB in
+  dev**, deliberately: it is a whole fetch, not a range fetch, so the app copy
+  changes only the download size and using it locally would buy that same
+  staleness trap for nothing.

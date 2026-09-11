@@ -171,7 +171,7 @@ export interface Metric {
 
 // ─── App state ────────────────────────────────────────────────────────────────
 export type Page = "daily" | "hourly" | "monthly" | "weekly";
-export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa" | "rubikon" | "mediazona" | "ru-missiles-hur" | "ua-losses";
+export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa" | "rubikon" | "mediazona" | "ru-missiles-hur" | "ua-losses" | "cit-civilians";
 export const SITE_LABELS: Record<Site, string> = {
   sbs: "UA SBS STATISTICS - SBS",
   "ru-attacks-gsua": "COMBAT STATS - GSUA",
@@ -183,6 +183,7 @@ export const SITE_LABELS: Record<Site, string> = {
   mediazona: "RU DEATHS - MEDIAZONA",
   "ru-missiles-hur": "RU MISSILE STOCKS - HUR",
   "ua-losses": "UA PERSONNEL LOSSES - UALOSSES.ORG",
+  "cit-civilians": "CIVILIAN CASUALTIES - CIT",
 };
 export const SITES: Site[] = Object.keys(SITE_LABELS) as Site[];
 export type LoadState = "idle" | "loading" | "ready" | "error";
@@ -981,4 +982,106 @@ export interface MissileReport {
 export interface MissileDataset {
   missile_types: Record<string, MissileTypeMeta>;
   reports: MissileReport[];
+}
+
+// ─── CIT civilian casualties (Telegram @CIT_shellings → cit-civilians.db) ─────
+// Civilian killed/injured on BOTH sides, compiled daily by the Conflict
+// Intelligence Team over a 20:00–20:00 MSK window. See
+// scripts/cit_civilians/README.md.
+//
+// THE CHARTED SERIES IS THE POST'S OWN HEADLINE (`reports.stated_*`, view
+// `daily_stated`) — one fixed closing sentence that parses on ~96% of posts.
+// The per-region rows are a secondary breakdown that agrees with that headline
+// on ~56% of posts across the archive, so they get their own chart and their
+// own caveat, and never feed the daily series.
+export const CIT_METRIC_KEYS = ["killed", "injured"] as const;
+export type CitMetricKey = (typeof CIT_METRIC_KEYS)[number];
+
+export const CIT_METRIC_LABELS: Record<CitMetricKey, string> = {
+  killed: "Civilians killed",
+  injured: "Civilians injured",
+};
+
+export type CitDailyRow = {
+  date: string;          // YYYY-MM-DD — the day this row is charted on
+  // The report's own end date. Equals `date` on a weekday report; on a weekend
+  // one it is the later of the two days the 48-hour post covers, which is what
+  // lets a chart name the pair it was spread across.
+  report_date: string;
+  is_today: boolean;
+  // 1 for a weekday report, 2 for a weekend one — CIT publishes Sat+Sun as a
+  // single 48-hour post. A 2-day figure spread across its two days is an
+  // average, not a measurement, so the hook marks those points.
+  window_days: number;
+  // Did the post's own region breakdown add up to its headline? Null when the
+  // post predates the closing-total format (2023). Affects only how much the
+  // region charts can be trusted for that day.
+  reconciled: boolean | null;
+} & Record<CitMetricKey, number | null>;
+
+export type CitGlobalStats = Record<CitMetricKey, Stat>;
+
+export type CitMonthlyRow = {
+  date: string;          // "YYYY-MM"
+  is_current_month: boolean;
+  projection_day: number | null;
+  projection_days_in_month: number | null;
+  // Days in the month actually covered by a report, so a partial month is
+  // visible as such rather than reading as a quiet one.
+  covered_days: number;
+} & Record<CitMetricKey, number>;
+
+// One region's share of the casualties in a period, from the breakdown rows.
+// Occupied and government-held parts of the same oblast are separate entries —
+// they are different places with different casualty profiles.
+export interface CitRegionRow {
+  region_key: string;
+  occupied: boolean | null;
+  country: string | null;   // 'UA' | 'RU' | null when the region is unrecognised
+  killed: number;
+  injured: number;
+}
+
+// Display names for the region slugs the CIT ingest emits (parse.py `_SLUGS`).
+// Anything not listed falls back to a title-cased slug, so a region CIT reports
+// for the first time still renders rather than disappearing.
+export const CIT_REGION_LABELS: Record<string, string> = {
+  kyiv: "Kyiv", kharkiv: "Kharkiv", donetsk: "Donetsk", luhansk: "Luhansk",
+  zaporizhzhia: "Zaporizhzhia", kherson: "Kherson", dnipropetrovsk: "Dnipropetrovsk",
+  sumy: "Sumy", chernihiv: "Chernihiv", odesa: "Odesa", mykolaiv: "Mykolaiv",
+  poltava: "Poltava", crimea: "Crimea", sevastopol: "Sevastopol",
+  kirovohrad: "Kirovohrad", zhitomir: "Zhytomyr", cherkas: "Cherkasy",
+  khmelnitsk: "Khmelnytskyi", vinnitsk: "Vinnytsia", volyn: "Volyn",
+  rovnen: "Rivne", ternopol: "Ternopil", lvov: "Lviv",
+  "ivano-frankov": "Ivano-Frankivsk", zakarpat: "Zakarpattia",
+  chernovitsk: "Chernivtsi",
+
+  belgorod: "Belgorod", kursk: "Kursk", bryansk: "Bryansk", rostov: "Rostov",
+  voronezh: "Voronezh", krasnodar: "Krasnodar", moskov: "Moscow",
+  leninhrad: "Leningrad", novhorod: "Novgorod", nizhehorod: "Nizhny Novgorod",
+  volhohrad: "Volgograd", saratov: "Saratov", samar: "Samara",
+  astrakhan: "Astrakhan", riazan: "Ryazan", tul: "Tula", tver: "Tver",
+  kaluzh: "Kaluga", orlov: "Oryol", lipetsk: "Lipetsk", tambov: "Tambov",
+  penzen: "Penza", ulianov: "Ulyanovsk", vladimir: "Vladimir",
+  iaroslav: "Yaroslavl", smolen: "Smolensk", sverdlov: "Sverdlovsk",
+  perm: "Perm", stavropol: "Stavropol", tatarstan: "Tatarstan",
+  bashkortostan: "Bashkortostan", chuvashia: "Chuvashia",
+  chuvashiia: "Chuvashia", udmurtia: "Udmurtia", chechnya: "Chechnya",
+  mordovia: "Mordovia", dagestan: "Dagestan", dahestan: "Dagestan",
+  adyheia: "Adygea", ingushetia: "Ingushetia", inhushetiia: "Ingushetia",
+  "north-ossetia": "North Ossetia",
+
+  unknown: "Unattributed",
+};
+
+// How closely the per-region breakdown tracks each post's own headline. Three
+// numbers rather than one: the strict "both columns exact" test is the harsh
+// one, and quoting it alone understates a breakdown that is accurate to about a
+// percent in aggregate.
+export interface CitReconciliation {
+  reports: number;          // posts carrying a closing total to check against
+  bothExact: number;        // killed AND injured matched exactly
+  killedExact: number;      // the killed column matched exactly
+  killedDriftPct: number;   // (parsed − stated) / stated, across the archive
+  injuredDriftPct: number;
 }

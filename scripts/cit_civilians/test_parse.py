@@ -230,3 +230,84 @@ def test_indivisible_multi_date_correction_keeps_the_list_and_no_single_date() -
     assert kherson.event_dates == "2026-08-26,2026-08-28,2026-08-30"
     # …and it still counts toward the post's own total, which reconciles.
     assert report.reconciled is True
+
+
+# --- counting traps -------------------------------------------------------
+# Each of these produced a real, silent miscount against the live archive.
+
+def test_weapon_designations_are_not_casualty_counts() -> None:
+    """"Shahed 131/136" read as 131 + 136 = 267 injured (post 6723)."""
+    from parse import _counts  # noqa: PLC0415
+    assert _counts(
+        "в Харьковской области ещё два человека пострадали в результате налёта "
+        "БПЛА Shahed 131/136 на г. Харьков 2 мая") == (0, 2, False)
+    assert _counts("вследствие удара ракетой С-300 погиб один человек") == (1, 0, False)
+
+
+def test_subcounts_and_breakdowns_are_not_added_to_the_total() -> None:
+    from parse import _counts  # noqa: PLC0415
+    # "включая …" restates part of a figure already given.
+    assert _counts("погибли 23 человека, включая четырёх детей 2, 14, 17 и 17 лет, "
+                   "ещё 63 мирных жителя получили ранения, в том числе 11 "
+                   "несовершеннолетних") == (23, 63, False)
+    # A colon introduces a breakdown OF the count, not extra victims.
+    # (the True is `count_inferred`: "двое спасателей" continues the previous
+    # verb rather than carrying one of its own)
+    assert _counts("погибли два сотрудника и двое спасателей, и пострадали ещё 37 "
+                   "человек: полицейский, 13 газовиков и 23 спасателей") == (4, 37, True)
+
+
+def test_ages_are_not_counts() -> None:
+    from parse import _counts  # noqa: PLC0415
+    assert _counts("пострадал восьмилетний мальчик") == (0, 1, True)
+    assert _counts("пострадала 14-летняя девочка") == (0, 1, True)
+    assert _counts("ещё 42 пострадали, включая двухлетнюю девочку") == (0, 42, False)
+
+
+def test_a_list_of_settlements_is_not_a_list_of_victims() -> None:
+    """"…Токаревки, Молодежного и Зеленовки" — places, not people."""
+    from parse import _counts  # noqa: PLC0415
+    assert _counts("три человека получили ранения при обстрелах Токаревки, "
+                   "Молодежного и Зеленовки") == (0, 3, False)
+    # …while a trailing person really does continue the verb.
+    assert _counts("пострадали мужчина и начальник пожарной части") == (0, 2, True)
+
+
+def test_russian_republics_resolve_to_the_republic_not_the_next_word() -> None:
+    """"в Удмуртской Республике вследствие атаки" once captured "вследствие".
+
+    Most republics put their name before the noun, in the adjectival form; a
+    few follow it. Both shapes must land on the republic, with a country.
+    """
+    from parse import _country, _slug, region_of  # noqa: PLC0415
+    for text, slug in (
+        ("в Удмуртской Республике вследствие атаки БПЛА погибли три человека", "udmurtia"),
+        ("в Чеченской Республике при атаке БПЛА пострадали шесть мирных жителей", "chechnya"),
+        ("в Республике Северная Осетия — Алания один мирный житель погиб", "north-ossetia"),
+        ("в Республике Чувашия вследствие попадания БПЛА погибли два человека", "chuvashia"),
+    ):
+        hit = region_of(text)
+        assert hit is not None, text
+        assert _slug(hit.name) == slug
+        assert _country(hit.name) == "RU"
+
+
+def test_a_window_that_ends_before_it_starts_is_repaired_not_trusted() -> None:
+    """Post 7000 states "20:00 30.05.2025 - 20:00 01.05.2025" and means 01.06.
+
+    Taken at face value this files two days of casualties a month early. The
+    start is sound and the span is known from the gate, so the end is rebuilt
+    from those — and the repair is reported rather than done silently.
+    """
+    from datetime import datetime, timezone  # noqa: PLC0415
+    text = (
+        "Всего за прошедшие выходные (20:00 30.05.2025 – 20:00 01.05.2025):\n\n"
+        "в Сумской области вследствие атак БПЛА погибли два человека, ещё три пострадали.\n\n"
+        "Таким образом, за прошедшие выходные стало известно как минимум о "
+        "двух погибших и трёх пострадавших мирных жителях."
+    )
+    report = parse(text, datetime(2025, 6, 2, 5, 0, tzinfo=timezone.utc))
+    assert report.report_date == "2025-06-01"
+    assert report.window_days == 2
+    assert any("ends before it starts" in w for w in report.warnings)
+    assert report.reconciled is True

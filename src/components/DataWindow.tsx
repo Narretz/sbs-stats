@@ -3,7 +3,7 @@ import { useTheme } from "@/hooks/useTheme";
 
 // One per dataset — drives the freshness wording + the timezone "today" is read
 // in (RU MoD reconciles to Moscow time; everything else to Kyiv).
-export type DataWindowMode = "sbs" | "gsua" | "ru-losses" | "ru-mod" | "ru-air-attacks" | "mediazona" | "ua-losses";
+export type DataWindowMode = "sbs" | "gsua" | "ru-losses" | "ru-mod" | "ru-air-attacks" | "mediazona" | "ua-losses" | "cit";
 
 const TZ: Record<DataWindowMode, string> = {
   sbs: "Europe/Kyiv",
@@ -13,6 +13,7 @@ const TZ: Record<DataWindowMode, string> = {
   "ru-mod": "Europe/Moscow",
   mediazona: "Europe/Kyiv",
   "ua-losses": "Europe/Kyiv",
+  cit: "Europe/Moscow",
 };
 
 function todayInTz(tz: string): string {
@@ -79,6 +80,14 @@ function freshness(
       // lag but only flag it once it exceeds the normal republish window.
       if (behind <= 0) return { note: "up to date", stale: false };
       return { note: `${behindNote(behind)} — source republishes ~every 2 months`, stale: behind > 75 };
+    case "cit":
+      // One post a day, just after the 20:00 MSK window closes, so the newest
+      // covered day is normally yesterday. Saturday and Sunday are published
+      // together on Sunday evening, so two days behind is routine at a weekend
+      // and is not staleness; three is.
+      if (behind <= 1) return { note: "up to date — each day is reported after 20:00 MSK", stale: false };
+      if (behind === 2) return { note: "2 days behind — Sat & Sun are published together on Sunday evening", stale: false };
+      return { note: behindNote(behind), stale: true };
   }
 }
 
