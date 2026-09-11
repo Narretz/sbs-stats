@@ -49,6 +49,28 @@ date, so **`report_date` is the end date**.
 they are parsed too, as `report_type='weekend_summary'` with `window_days=2`.
 A 48-hour bucket must never be drawn as a single day's toll.
 
+### Charting a weekend post
+
+Split it in the chart layer, never in the DB — storing 15.0 and 15.0 would lose
+the fact that CIT never said that. In a bar chart the honest encoding is one
+bar spanning both days at the **daily-average** height, so the bar's *area*
+equals the true total (a histogram with one unequal bin); hatch it and name
+both dates and the real figures in the tooltip. In a line chart, plot the
+average at both dates with hollow markers. What not to do is attribute the
+whole 48 hours to the end date: every Sunday becomes a spike and every Saturday
+a zero, across a quarter of the series.
+
+Only the raw daily view needs this. Weekly, 7-day rolling and monthly
+aggregates just sum window totals into buckets. Later corrections also name
+exact dates inside the weekend ("за 3 и 4 сентября"), so `daily_revised`
+already places those precisely — only the bulk figure needs spreading.
+
+**Monthly aggregation: bucket by `report_date`** (the window's end date). A
+Friday 20:00 → Sunday 20:00 window can straddle a month boundary a few times a
+year; those weekends count wholly into the month their end date falls in,
+rather than being split proportionally. Decided deliberately — the error is
+small, bounded, and a rule you can state beats one you have to reconstruct.
+
 **Long posts are split.** Over Telegram's 4096-character limit CIT continues in
 the next message, and the corrections and the closing total routinely land
 there (post 10889 → 10890). A summary is stored under its head `post_id` with
@@ -67,6 +89,13 @@ exactly with the post's own total on **~56%** of posts across the archive
 records which, per post, and `check_db.py` reports the rate. Where a post does
 not reconcile the headline is still correct — only the breakdown for that day
 is in doubt.
+
+Weekend posts reconcile worse than weekday ones, and not because of the
+stitching: both in the sample were single complete posts whose every paragraph
+parsed, with crisp modern-format lines (`ещё 31 пострадал`), and the breakdown
+still came to 159 injured against a stated 171. A 48-hour post compresses two
+days into the same terse region list, and more people end up in the headline
+than in the prose.
 
 That gap is not all parser error. Some posts genuinely disagree with
 themselves: for post 10889 every region line was verified clause by clause and
