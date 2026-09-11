@@ -293,6 +293,35 @@ The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:
   ever wanted as an ingestion source, email the admins first; a hand-rolled HTML
   scraper would be substantially more invasive than what we built for MoD or Petro.
 
+### CIT «Сводки по обстрелам» — LIVE — ✅ INTEGRATED (DB + CI; not yet a site)
+- https://t.me/CIT_shellings — Conflict Intelligence Team's shelling monitor.
+- **Civilian** casualties (killed / injured) on BOTH sides, by region, compiled daily from
+  official statements (OVA/police/prosecutors on the UA side, governors and occupation
+  "officials" on the RU side). Occupied and government-held parts of an oblast are reported
+  and stored **separately**. Covers Russian regions too (Belgorod, Kursk, Bryansk, Krasnodar…).
+- **Source shape:** one post per day, window 20:00–20:00 **MSK** — so `report_date` is the window's
+  END date (20 of its 24 hours). **Weekends are one 48-hour post** (`window_days = 2`, ~15% of
+  summaries but ~26% of days). Long posts overrun Telegram's 4096-char limit and continue in the
+  next message, so a report is **stitched** (`reports.part_ids`).
+- **Pipeline:** scripts/cit_civilians/ingest.py → cit-civilians.db, via the public `t.me/s` web
+  preview (no Telegram API account, stdlib only). Format starts **2023-10-16**; the channel itself
+  starts 2023-09-02 with no summaries. `--backfill` walks the lot (~10,800 posts).
+- **Self-validating.** Every post closes with its own total ("…как минимум о 26 погибших и 165
+  пострадавших"), so each parse is checked against the source: `reports.reconciled`. Chart
+  `reports.stated_*` — CIT's own headline, which parses on **~96%** of posts; the per-region rows
+  are the secondary dimension and match the headline on **~56%** across the archive (~80% in the
+  current format, worse in the 2024 prose era, where verbs and counts are free-form).
+- **Corrections are first-class.** Posts amend earlier days ("ещё одном пострадавшем … за 7
+  сентября"), retract ("из подсчёта были исключены…"), and occasionally restate outright
+  ("составляет 87 человек, а не 90"). Stored as signed rows keyed to the date they belong to, so
+  `daily_revised` is a GROUP BY rather than a rewrite — nothing is ever overwritten. Empirically
+  CIT's own daily total counts amendments but NOT retractions, which is why only the former are
+  in the checksum.
+- **Storage:** APPEND-ON-CHANGE / versioned-on-edit, keyed (post_id, scraped_at), `*_latest` views.
+  Raw post text is kept, so the weaker 2023–2024 eras can be improved later with `--reparse`
+  instead of a re-scrape.
+- **Frontend:** none yet — DB and CI only.
+
 ### UALosses — LIVE — ✅ INTEGRATED (combined charts; CI wired, awaiting first R2 upload)
 - https://ualosses.org/ + Kaggle `ol4ubert/confirmed-ukrainian-military-personnel-losses`
 - Named, confirmed Ukrainian personnel losses from obituaries/OSINT, validated vs Mediazona/BBC.

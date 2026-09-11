@@ -1,0 +1,105 @@
+name: Update CIT Civilians Database
+
+on:
+  workflow_dispatch: # allow manual trigger from GitHub UI
+    inputs:
+      pages:
+        description: >-
+          t.me/s preview pages to scan (~20 posts each ≈ 1 day of this
+          channel). Raise it to reach further back after a parser fix dropped a
+          summary — a dropped post is never stored, so only a re-scrape can
+          recover it. For the whole history use `--backfill` locally instead.
+        required: false
+        default: "4"
+  schedule:
+    # CIT posts the summary just after 20:00 MSK (17:00 UTC). Run at 19:00 UTC
+    # so the post is up, and again at 07:00 UTC to catch a late one plus any
+    # edits. The channel posts ~20 times a day, so 4 pages is ~1 day of slack.
+    - cron: "0 19 * * *"
+    - cron: "0 7 * * *"
+
+env:
+  R2_BUCKET: russia-ukraine-war
+  CIT_DB_NAME: cit-civilians.db
+  # Diagnostics sink; scripts/annotate_log.py turns it into annotations and a
+  # job-summary table at the end of the run (CLAUDE.md).
+  #
+  # `github.workspace`, not `runner.temp`: the runner context isn't available
+  # in a job-level env block (only in steps), and the path has to be absolute.
+  INGEST_LOG: ${{ github.workspace }}/ingest-diagnostics.jsonl
+
+jobs:
+  update-cit-civilians-db:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # Pull the current DB so the incremental scrape knows the newest post it
+      # already stored, and so new rows land alongside the existing history.
+      # `continue-on-error` covers the first run before the object exists.
+      #
+      # NOTE: an empty DB means `since_id = 0`, so an incremental run scans only
+      # its `pages` window — it will NOT rebuild the history. The full series
+      # (from 2023-10-16) is seeded by a local `--backfill` run + one manual
+      # upload; see scripts/cit_civilians/README.md.
+      - name: Download current CIT DB from R2
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          mkdir -p data
+          npx --yes wrangler@4 r2 object get \
+            "$R2_BUCKET/$CIT_DB_NAME" \
+            --file "data/$CIT_DB_NAME" \
+            --remote
+
+      # ingest.py reads the public t.me/s web preview — no Telegram API
+      # account, no secrets, stdlib only. The channel's ~20 other posts a day
+      # (per-region detail write-ups, updates, energy-infrastructure notes)
+      # fail the "Всего за прошедшие сутки|выходные" gate and are skipped.
+      #
+      # `id:` + $GITHUB_OUTPUT: ingest.py writes `changed=true|false`, which the
+      # upload step reads to skip no-op runs — we poll twice a day for one post,
+      # so most runs would otherwise re-upload an unchanged DB and bust the CDN
+      # cache for nothing.
+      - name: Scrape new CIT daily summaries
+        id: scrape
+        run: |
+          python3 scripts/cit_civilians/ingest.py \
+            --out "data/$CIT_DB_NAME" \
+            --max-pages "${{ inputs.pages || '4' }}"
+
+      # Whole-table checks the per-post warnings can't do: gaps in day
+      # coverage, days whose revised total went negative, duplicate report
+      # dates, and the reconciliation rate. None of them fails the job — a bad
+      # day must not skip the upload and lose the run's good rows with it.
+      - name: Check CIT DB (recent dates)
+        run: |
+          python3 scripts/cit_civilians/check_db.py \
+            --db "data/$CIT_DB_NAME" \
+            --since "$(date -u -d '30 days ago' +%Y-%m-%d)"
+
+      - name: Upload CIT DB to R2
+        if: steps.scrape.outputs.changed == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/$CIT_DB_NAME" \
+            --file "data/$CIT_DB_NAME" \
+            --content-type application/vnd.sqlite3 \
+            --remote
+
+      # Always, so a scrape that dies still reports what it found on the way.
+      - name: Annotate ingest diagnostics
+        if: always()
+        run: python3 scripts/annotate_log.py
