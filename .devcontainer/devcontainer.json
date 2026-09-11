@@ -13,7 +13,13 @@
     "source=${localEnv:HOME}/.gitconfig,target=/home/node/.gitconfig,type=bind,readonly",
     "source=${localEnv:HOME}/.ssh,target=/home/node/.ssh,type=bind,readonly"
   ],
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y sqlite3 && npm install && pip install --user -r scripts/requirements.txt && sudo npx --yes playwright install-deps chromium && npx --yes playwright install chromium && python -m playwright install chromium",
+  // The host's ~/.claude is bind-mounted onto /home/node/.claude, but Claude
+  // Code's plugin paths are absolute and all descend from one root: the
+  // installLocation in plugins/known_marketplaces.json, which the host
+  // registered as /home/martin/... Nothing in here resolves that, so /plugin
+  // reports "cache-miss" and no plugins load — installing from inside the
+  // container doesn't help, it inherits the same host path. The alias fixes it.
+  "postCreateCommand": "sudo ln -sfn /home/node /home/martin && sudo apt-get update && sudo apt-get install -y sqlite3 && npm install && pip install --user -r scripts/requirements.txt && sudo npx --yes playwright install-deps chromium && npx --yes playwright install chromium && python -m playwright install chromium",
   "appPort": ["6173:5173"],
   "customizations": {
     "vscode": {
