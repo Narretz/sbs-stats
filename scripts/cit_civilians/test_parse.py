@@ -311,3 +311,24 @@ def test_a_window_that_ends_before_it_starts_is_repaired_not_trusted() -> None:
     assert report.window_days == 2
     assert any("ends before it starts" in w for w in report.warnings)
     assert report.reconciled is True
+
+
+def test_window_dates_without_leading_zeros_or_with_two_digit_years() -> None:
+    """Both real variants: "9.07.2025" and the 2023 posts' "12.11.23".
+
+    A stricter pattern does not just miss the window — it falls through to the
+    post timestamp, which lands the report on the wrong day and collides with
+    its neighbour (posts 2278/2286 both claimed 2023-11-14, and 7439 claimed
+    the 11th when it covers the 10th).
+    """
+    from datetime import datetime, timezone  # noqa: PLC0415
+    body = "\n\nв Сумской области вследствие атак БПЛА погиб один человек.\n"
+    posted = datetime(2025, 7, 11, 1, 57, tzinfo=timezone.utc)
+
+    no_pad = parse("Всего за прошедшие сутки (20:00 9.07.2025 – 20:00 10.07.2025):" + body, posted)
+    assert no_pad.report_date == "2025-07-10"
+    assert no_pad.date_basis == "window"
+
+    short_year = parse("Всего за прошедшие сутки (20:00 12.11.23-20:00 13.11.23):" + body, posted)
+    assert short_year.report_date == "2023-11-13"
+    assert short_year.window_start == "2023-11-12T17:00:00+00:00"
