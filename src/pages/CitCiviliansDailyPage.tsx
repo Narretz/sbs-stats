@@ -132,17 +132,38 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
       error={error}
       hasData={hasData}
       loadingMessage="Loading CIT civilian-casualties database…"
-      gridChildren={CIT_METRIC_KEYS.map((k) => (
+      gridChildren={<>
+        {/* Killed + injured as one stacked total. The two are disjoint, so
+            pairMode="sum" — killed sits at the bottom of the stack, anchored to
+            the baseline, which is the only place a band that small stays
+            readable against an injured count roughly six times larger. */}
         <DailyLineChart
-          key={k}
-          title={CIT_METRIC_LABELS[k]}
-          data={makeDataset(k)}
-          globalMax={globalStats[k]?.max ?? 0}
-          globalMedian={globalStats[k]?.median ?? 0}
-          globalTotal={globalStats[k]?.total ?? 0}
+          title="All civilian casualties"
+          data={makeDataset("injured")}
+          data2={makeDataset("killed")}
+          pairMode="sum"
+          primaryLabel={CIT_METRIC_LABELS.injured}
+          label2={CIT_METRIC_LABELS.killed}
+          globalMax={globalStats.injured?.max ?? 0}
+          globalMedian={globalStats.injured?.median ?? 0}
+          globalTotal={globalStats.injured?.total ?? 0}
+          globalMax2={globalStats.killed?.max ?? 0}
+          globalMedian2={globalStats.killed?.median ?? 0}
+          globalTotal2={globalStats.killed?.total ?? 0}
           wfull
         />
-      ))}
+        {CIT_METRIC_KEYS.map((k) => (
+          <DailyLineChart
+            key={k}
+            title={CIT_METRIC_LABELS[k]}
+            data={makeDataset(k)}
+            globalMax={globalStats[k]?.max ?? 0}
+            globalMedian={globalStats[k]?.median ?? 0}
+            globalTotal={globalStats[k]?.total ?? 0}
+            wfull
+          />
+        ))}
+      </>}
     />
   );
 }
