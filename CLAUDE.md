@@ -19,6 +19,7 @@ via sql.js / sql.js-httpvfs.
 | UA SBU ALFA — MONTHLY RECAP | `sbu-alfa` | SBU press releases (Centre of Special Operations «А» monthly TOP-1 recap) | [`scripts/sbu_alfa/`](scripts/sbu_alfa/README.md) → `sbu-alfa.db` |
 | RU RUBIKON — MONTHLY RECAP | `rubikon` | Центр «Рубикон» (RU UAV unit) monthly Telegram recap | [`scripts/rubikon/`](scripts/rubikon/README.md) → `rubikon.db` |
 | RU DEATHS — MEDIAZONA | `mediazona` | Mediazona + Meduza confirmed named deaths + probate-registry estimate (CSV exports) | [`scripts/mediazona/`](scripts/mediazona/README.md) → `mediazona.db` |
+| UA CIVILIAN CASUALTIES — CIT | *(not yet a site)* | Conflict Intelligence Team daily 20:00–20:00 MSK casualty summaries (Telegram) | [`scripts/cit_civilians/`](scripts/cit_civilians/README.md) → `cit-civilians.db` |
 
 [`DATASETS.md`](DATASETS.md) tracks source research, recency, and candidate
 datasets for future views.
@@ -150,6 +151,18 @@ GitHub Actions in `.github/workflows/`:
   `openpyxl` (the source is xlsx), so the job pip-installs it — the only ingest
   workflow that isn't stdlib-only. Not yet a dedicated site; feeds the combined
   charts only.
+- `update-cit-civilians-db.yml` — CIT civilian casualties. Twice daily (19:00
+  UTC, just after the ~20:00 MSK post, and 07:00 UTC for a late one or an
+  edit). Reads the public `t.me/s` preview, no API account. Two things make
+  this one different from the other Telegram ingests: a long summary overruns
+  Telegram's 4096-char limit and is **stitched** from consecutive posts
+  (`reports.part_ids`), and every post closes with its own casualty total, so
+  each one is **reconciled** against it (`reports.reconciled`). The chart
+  series is `reports.stated_*` — CIT's own headline, which parses on ~96% of
+  posts; the per-region rows are secondary and agree with the headline on
+  ~56% across the archive. Weekend days come as ONE 48-hour post
+  (`window_days = 2`) and must never be plotted as a single day. Not yet a
+  dedicated site.
 - `python-tests.yml` — the ingest test suites, when a `.py` under `scripts/`
   changed. On push to any branch AND on `pull_request` (plus
   `workflow_dispatch`): a push matches its paths against that push alone, so a
@@ -183,6 +196,7 @@ post the parser dropped was never stored, so `reparse.py` can't recover it and
 only a re-scrape can. `update-telegram-web-dbs.yml`: `gsua_lookback_days` /
 `rumod_lookback_days` (default 2). `update-sbu-alfa-db.yml`: `pages` (default
 3 listing pages). `update-rubikon-db.yml`: `pages` (default 3 t.me/s preview
+pages). `update-cit-civilians-db.yml`: `pages` (default 4 t.me/s preview
 pages). `update-db.yml`: `all_months` (bypass the SBS 10-day / 6-hour
 refresh thresholds). `update-sbs-units-db.yml`: `all` (re-read every sub-unit
 month and year the API still exposes) — the one that is genuinely urgent when
@@ -205,7 +219,10 @@ Rubikon has the same split without a workflow of its own: it stores each post's
 raw text, so `scripts/rubikon/ingest.py --reparse` (dry-run; `--apply` writes)
 re-reads the stored recaps locally after a parser fix, while `--max-pages` /
 the workflow's `pages` input widens the scrape for a recap that was dropped
-outright.
+outright. `scripts/cit_civilians/ingest.py --reparse` works the same way, and
+matters more there: the 2023–2024 prose eras parse worse than the current
+format, so improving them later is a reparse over stored text, not a
+re-scrape.
 
 SBU Alfa splits the same way GSUA does, into its own manual workflow:
 `reparse-sbu-alfa-db.yml` (input `dry_run`, on by default) pulls the DB from
