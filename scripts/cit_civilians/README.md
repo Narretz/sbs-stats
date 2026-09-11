@@ -208,10 +208,27 @@ Site key `cit-civilians`, two pages, wired in `src/sites/registry.tsx`:
 | Page | What it shows |
 |---|---|
 | `daily` | killed and injured per day, from `daily_stated`. Two charts, never one: the two series differ by roughly an order of magnitude and sharing an axis would flatten killed to nothing. |
-| `monthly` | the same figures summed per month, plus the regional table and its accuracy caveat. |
+| `monthly` | the same figures summed per month, plus two views of the regional breakdown and the caveat they share: casualties by controlling side, and the per-region table. |
+
+The daily page also stacks the two into one "all casualties" chart
+(`pairMode="sum"`), which is a good total and a poor split — killed is ~9% of a
+day, so its band is unreadable at that scale and the blue band's top edge is
+the total rather than injured. It sits above the two single-series charts
+rather than replacing them.
+
+The monthly page's **casualties by controlling side** chart sums killed and
+injured and splits them Ukrainian-controlled vs Russian-controlled, the latter
+being occupied Ukraine plus Russia proper — near-equal halves (13.5% and 12.7%
+of the archive), so the tooltip breaks them out rather than letting one number
+hide the other. Its colours are a categorical pair (`theme.categorical1/2`),
+not the main/second series tokens: on a page where blue already means injured,
+reusing it for a place would make one hue carry two meanings. They are also
+deliberately not flag colours. The pair passes the lightness, chroma, CVD and
+contrast checks against both surfaces, which is why one step serves both
+themes.
 
 The hook (`src/hooks/useDatabaseCitCivilians.ts`) reads the headline view for the
-charts and `casualties_latest` for the region table. It spreads a weekend
+charts and `casualties_latest` for the region views. It spreads a weekend
 report across its two days there — never in the DB — and tags both points with
 a `note`, which `DailyLineChart` renders as a flagged dot plus the report's real
 48-hour figures in the tooltip.

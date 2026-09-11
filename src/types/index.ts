@@ -1085,3 +1085,21 @@ export interface CitReconciliation {
   killedDriftPct: number;   // (parsed − stated) / stated, across the archive
   injuredDriftPct: number;
 }
+
+// Casualties (killed + injured together) for one month, split by which side
+// controls the territory they happened in. Bucketed by the report's window end
+// date, the same key the monthly headline charts use.
+//
+// `ruControlled` is `occupiedUkraine + russia`, and the two are carried
+// separately as well because they are near-equal halves of it — folding them
+// into one number without saying so would hide that.
+export interface CitTerritoryRow {
+  date: string;              // "YYYY-MM"
+  uaControlled: number;
+  ruControlled: number;
+  occupiedUkraine: number;
+  russia: number;
+  // Casualties in a region the parser did not recognise (~1% of the archive).
+  // Excluded from both bands so they can't silently inflate one.
+  unattributed: number;
+}

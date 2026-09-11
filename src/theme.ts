@@ -53,6 +53,21 @@ export interface Theme {
   series2Current: string;
   /** Trend overlay on the second series — lighter, so it reads as derived. */
   series2Trend: string;
+  // A two-way CATEGORICAL pair, for series whose subject is identity rather
+  // than rank: which territory a casualty happened in. Deliberately NOT
+  // series1/series2 — those mean "main series / second series against it", and
+  // on a page where blue already means injured, reusing it for a place would
+  // make one hue carry two meanings. Equally deliberately not flag colours:
+  // blue-and-yellow or red for these two would editorialise.
+  //
+  // Identical in both themes, like QUALITATIVE_PALETTE, because this pair
+  // passes the lightness band, chroma floor, CVD separation and 3:1 contrast
+  // against BOTH surfaces (dataviz validate_palette.js) — so one step per hue
+  // is enough and a second would only be drift.
+  /** Categorical slot 1 — violet. */
+  categorical1: string;
+  /** Categorical slot 2 — amber. */
+  categorical2: string;
   /** De-emphasised series (past days behind today's line, "unattributed"). */
   seriesNeutral: string;
 }
@@ -81,6 +96,8 @@ export const LIGHT: Theme = {
   series2:        "#DE6666",
   series2Current: "#C62121",
   series2Trend:   "#fca5a5",
+  categorical1:   "#7C6BD6",
+  categorical2:   "#B4701F",
   seriesNeutral:  "#9ca3af",
 };
 
@@ -108,6 +125,8 @@ export const DARK: Theme = {
   series2:        "#DE6666",
   series2Current: "#C62121",
   series2Trend:   "#fca5a5",
+  categorical1:   "#7C6BD6",
+  categorical2:   "#B4701F",
   seriesNeutral:  "#9ca3af",
 };
 
