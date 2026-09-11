@@ -272,8 +272,135 @@ body {
   .page-controls-sticky { position: static; }
 }
 
+/* Chart-tooltip caveat text. Capped to a readable measure in the floating
+   card; `.chart-sheet-body` overrides the cap to the sheet's full column. */
+.tooltip-note {
+  max-width: var(--tooltip-note-max, 280px);
+}
+
 /* The native <details>/<summary> triangle is too small at the page's 11px
    mono baseline — scale just the marker so the affordance is visible. */
 summary::marker {
   font-size: 1.6em;
+}
+
+/* ── Pinned chart detail sheet ────────────────────────────────────────────────
+   Anchored to the bottom of the viewport with a height cap, so the chart that
+   opened it stays visible above (see `scrollCardClear` in ChartPinProvider,
+   which lifts the card clear when it doesn't). Width tracks PageShell's
+   1400px column rather than the browser window, so on a wide monitor it reads
+   as part of the page instead of as browser chrome.
+
+   z-index clears the sticky site header (10) and controls bar (8): unlike
+   those, this is a foreground surface the reader has explicitly opened. */
+.chart-sheet {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%) translateY(100%);
+  width: min(100vw, 1400px);
+  max-height: min(50vh, 460px);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+  box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.14);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Content column, centred by growing the side gutters rather than by an
+     inner wrapper. Left to span the full 1400px the table's label column
+     stretches and throws the numbers to the far edge of a wide monitor, with a
+     hand's width of nothing in between. One knob: the 720px. */
+  --sheet-gutter: max(14px, calc((100% - 720px) / 2));
+  visibility: hidden;
+  pointer-events: none;
+  /* `visibility` is stepped, not eased: 0s with a delay equal to the slide, so
+     it flips to visible the instant the sheet opens and only lingers on the way
+     out (keeping the sheet painted while it slides away). Listing it as a
+     normal 0.18s transition instead leaves it computing `hidden` for the whole
+     opening animation — during which `.focus()` on the sheet is silently a
+     no-op, which is enough to kill Escape and the arrow keys. */
+  transition: transform 0.18s ease-out, visibility 0s linear 0.18s;
+}
+.chart-sheet[data-open] {
+  transform: translateX(-50%) translateY(0);
+  visibility: visible;
+  pointer-events: auto;
+  transition: transform 0.18s ease-out, visibility 0s linear 0s;
+}
+.chart-sheet:focus {
+  outline: none;
+}
+/* Reduced motion keeps the sheet — it just arrives rather than slides. */
+@media (prefers-reduced-motion: reduce) {
+  .chart-sheet { transition: none; }
+}
+
+.chart-sheet-inner,
+.chart-sheet-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.chart-sheet-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px var(--sheet-gutter) 7px;
+  flex: none;
+}
+
+/* The stepper and close button. Pinned below the scrolling body so they hold
+   still while the content above them changes height — see ChartSheetContent. */
+.chart-sheet-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px var(--sheet-gutter);
+  flex: none;
+}
+.chart-sheet-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chart-sheet-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chart-sheet-label {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The table renders here at the same 12px as the floating hover card, so the
+   two read identically on desktop. Below 560px the font drops and `--tt-gap`
+   tightens; TooltipTable's column minimums are `em`, so they follow. The
+   overflow-x is an escape hatch for ~320px devices where even the shrunk
+   5-column table doesn't fit — not a layout anyone should hit. */
+.chart-sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+  padding: 8px var(--sheet-gutter) 10px;
+  font-size: 12px;
+  /* A caveat is capped to a readable measure inside a floating tooltip, which
+     is only as wide as its table. The sheet already has a content column of
+     its own, so the note should use it rather than wrap early at a width it
+     inherited from a different container. */
+  --tooltip-note-max: 100%;
+}
+@media (max-width: 560px) {
+  .chart-sheet-body {
+    font-size: 10px;
+    --tt-gap: 8px;
+  }
+  .chart-sheet-label { font-size: 11px; }
 }

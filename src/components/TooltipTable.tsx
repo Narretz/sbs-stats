@@ -52,9 +52,6 @@ export interface TooltipTableRow {
   /** Draw a thin separator above this row (e.g., between Total and its
    *  components on stacked charts). */
   separatorAbove?: boolean;
-  /** Reduce opacity to indicate this row is out-of-focus (used on the
-   *  missile stacked chart where hovering one segment dims the others). */
-  dimmed?: boolean;
 }
 
 interface TableProps {
@@ -75,11 +72,20 @@ interface TableProps {
   subsetLabel?: string;
 }
 
-const VALUE_MIN = 56;
-const PCT_MIN = 44;
-const SUBSET_MIN = 56;
-const TREND_MIN = 44;
-const PROJ_MIN = 44;
+// Column minimums are `em`, not px, so the whole table scales from a single
+// knob — the font-size of whatever wraps it. The floating hover card sets
+// 12px (below), which reproduces the original 56/44px widths exactly; the
+// bottom sheet drops to 10px on narrow viewports (see `.chart-sheet-body` in
+// theme.css) and the columns follow without a second set of constants.
+const VALUE_MIN = "4.667em";   // 56px @ 12
+const PCT_MIN = "3.667em";     // 44px @ 12
+const SUBSET_MIN = "4.667em";
+const TREND_MIN = "3.667em";
+const PROJ_MIN = "3.667em";
+
+// Inter-column gap. A CSS variable rather than a constant so the narrow-sheet
+// media query can tighten it without this module knowing about breakpoints.
+const GAP = "var(--tt-gap, 12px)";
 
 function renderCell(v: number | ReactNode | null | undefined, formatValue: (n: number) => string, empty: string): ReactNode {
   if (v == null) return empty;
@@ -94,6 +100,17 @@ function fmtPct(v: number | null | undefined): string {
 function subsetRate(r: TooltipTableRow): number | null {
   if (typeof r.subset !== "number" || typeof r.value !== "number" || r.value <= 0) return null;
   return (r.subset / r.value) * 100;
+}
+
+// A column header. The smaller type goes on an inner span rather than the cell
+// itself: the column minimums are `em`, so a cell that shrank its own
+// font-size would shrink its minimum by the same factor.
+function HeaderCell({ children }: { children: ReactNode }) {
+  return (
+    <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", paddingBottom: 3 }}>
+      <span style={{ fontSize: "0.833em" }}>{children}</span>
+    </span>
+  );
 }
 
 // The dashed fill for "no data" on the value cell. Subset cell uses an
@@ -118,73 +135,80 @@ export function TooltipTable({
   const hasTrend = rows.some((r) => r.trend != null);
   const hasProjected = rows.some((r) => r.projected != null);
 
-  const numericCell = (min: number): React.CSSProperties => ({
-    minWidth: min,
+  // One grid for the whole table, not a flex row per line. Flex rows size their
+  // columns independently, so a header whose text runs wider than the column
+  // minimum ("Interc %" at 48px against a 44px floor) pushed that row's cells
+  // out of step with the body's — values visibly starting left of their
+  // headers. As a single grid the columns are shared by construction, and
+  // `max-content` lets the widest cell in a column — header or body — set it.
+  const cols = [
+    "minmax(0, 1fr)",
+    `minmax(${VALUE_MIN}, max-content)`,
+    ...(hasShare ? [`minmax(${PCT_MIN}, max-content)`] : []),
+    ...(hasSubset ? [`minmax(${SUBSET_MIN}, max-content)`] : []),
+    ...(hasSubsetRate ? [`minmax(${PCT_MIN}, max-content)`] : []),
+    ...(hasProjected ? [`minmax(${PROJ_MIN}, max-content)`] : []),
+    ...(hasTrend ? [`minmax(${TREND_MIN}, max-content)`] : []),
+  ].join(" ");
+
+  const num: React.CSSProperties = {
     textAlign: "right",
     fontVariantNumeric: "tabular-nums",
-  });
+    padding: "1px 0",
+  };
+  const showHeader = hasShare || hasSubset || hasSubsetRate || hasTrend || hasProjected;
 
   return (
-    <div>
-      {(hasShare || hasSubset || hasSubsetRate || hasTrend || hasProjected) && (
-        <div style={{
-          display: "flex", gap: 12, color: t.textMuted, fontSize: 10,
-          marginBottom: 3, paddingBottom: 3, borderBottom: `1px solid ${t.border}`,
-        }}>
-          <span style={{ flex: 1 }} />
-          <span style={numericCell(VALUE_MIN)}>Value</span>
-          {hasShare && <span style={numericCell(PCT_MIN)}>{shareLabel}</span>}
-          {hasSubset && <span style={numericCell(SUBSET_MIN)}>{subsetLabel}</span>}
-          {hasSubsetRate && <span style={numericCell(PCT_MIN)}>{subsetLabel} %</span>}
-          {hasProjected && <span style={numericCell(PROJ_MIN)}>Projected</span>}
-          {hasTrend && <span style={numericCell(TREND_MIN)}>Trend</span>}
+    <div style={{ display: "grid", gridTemplateColumns: cols, columnGap: GAP, alignItems: "baseline" }}>
+      {showHeader && (
+        <div style={{ display: "contents", color: t.textMuted }}>
+          <span />
+          <HeaderCell>Value</HeaderCell>
+          {hasShare && <HeaderCell>{shareLabel}</HeaderCell>}
+          {hasSubset && <HeaderCell>{subsetLabel}</HeaderCell>}
+          {hasSubsetRate && <HeaderCell>{subsetLabel} %</HeaderCell>}
+          {hasProjected && <HeaderCell>Projected</HeaderCell>}
+          {hasTrend && <HeaderCell>Trend</HeaderCell>}
+          <div style={{ gridColumn: "1 / -1", borderBottom: `1px solid ${t.border}`, marginBottom: 3 }} />
         </div>
       )}
       {rows.map((r, i) => {
         const rate = hasSubsetRate ? subsetRate(r) : null;
         return (
-          <div key={i}>
+          <div key={i} style={{
+            display: "contents",
+            color: r.color,
+            fontWeight: r.emphasis === "bold" ? 700 : 400,
+          }}>
             {r.separatorAbove && (
-              <div style={{ borderTop: `1px solid ${t.border}`, margin: "3px 0" }} />
+              <div style={{ gridColumn: "1 / -1", borderTop: `1px solid ${t.border}`, margin: "3px 0" }} />
             )}
-            <div style={{
-              display: "flex", gap: 12, color: r.color,
-              fontWeight: r.emphasis === "bold" ? 700 : 400,
-              opacity: r.dimmed ? 0.5 : 1,
-              padding: "1px 0",
+            <span style={{
+              minWidth: 0, padding: "1px 0",
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             }}>
-              <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {r.label}
+              {r.label}
+            </span>
+            <span style={{ ...num, color: t.text, fontWeight: 700 }}>
+              {renderCell(r.value, formatValue, VALUE_EMPTY)}
+            </span>
+            {hasShare && <span style={{ ...num, color: t.textMuted }}>{fmtPct(r.share)}</span>}
+            {hasSubset && (
+              <span style={{ ...num, color: t.textMuted }}>
+                {renderCell(r.subset, formatValue, "")}
               </span>
-              <span style={{ ...numericCell(VALUE_MIN), color: t.text, fontWeight: 700 }}>
-                {renderCell(r.value, formatValue, VALUE_EMPTY)}
+            )}
+            {hasSubsetRate && <span style={{ ...num, color: t.textMuted }}>{fmtPct(rate)}</span>}
+            {hasProjected && (
+              <span style={{ ...num, color: t.textMuted }}>
+                {r.projected != null ? formatValue(r.projected) : ""}
               </span>
-              {hasShare && (
-                <span style={{ ...numericCell(PCT_MIN), color: t.textMuted }}>
-                  {fmtPct(r.share)}
-                </span>
-              )}
-              {hasSubset && (
-                <span style={{ ...numericCell(SUBSET_MIN), color: t.textMuted }}>
-                  {renderCell(r.subset, formatValue, "")}
-                </span>
-              )}
-              {hasSubsetRate && (
-                <span style={{ ...numericCell(PCT_MIN), color: t.textMuted }}>
-                  {fmtPct(rate)}
-                </span>
-              )}
-              {hasProjected && (
-                <span style={{ ...numericCell(PROJ_MIN), color: t.textMuted }}>
-                  {r.projected != null ? formatValue(r.projected) : ""}
-                </span>
-              )}
-              {hasTrend && (
-                <span style={{ ...numericCell(TREND_MIN), color: t.muted }}>
-                  {r.trend != null ? trendFmt(r.trend) : ""}
-                </span>
-              )}
-            </div>
+            )}
+            {hasTrend && (
+              <span style={{ ...num, color: t.muted }}>
+                {r.trend != null ? trendFmt(r.trend) : ""}
+              </span>
+            )}
           </div>
         );
       })}
@@ -225,7 +249,7 @@ export function breakdownToRows(
       return {
         label: e.model,
         color,
-        value: <span style={{ fontSize: 11, opacity: 0.75 }}>not disclosed</span>,
+        value: <span style={{ fontSize: "0.917em", opacity: 0.75 }}>not disclosed</span>,
         separatorAbove: i === 0,
       };
     }
@@ -259,5 +283,88 @@ export function TooltipCard({ header, footer, children, minWidth = 220 }: CardPr
       {children}
       {footer}
     </div>
+  );
+}
+
+// ── Descriptors ─────────────────────────────────────────────────────────────
+//
+// A chart describes one x-position's tooltip as data, not JSX, so the same
+// description can be rendered two ways: as the floating hover card, and as
+// the body of the pinned bottom sheet (see ChartSheet). Charts return a
+// descriptor from a `describe(x)` function; the two renderers below are the
+// only places that turn one into elements.
+
+export interface TooltipDescriptor {
+  /** Usually the formatted date. The sheet lifts this into its own header
+   *  (next to the ‹ › stepper) rather than rendering it inline. */
+  header?: ReactNode;
+  rows: TooltipTableRow[];
+  /** Prose below the table — warning notes, caveats. */
+  footer?: ReactNode;
+  subsetLabel?: string;
+  shareLabel?: string;
+  formatValue?: (n: number) => string;
+  formatTrend?: (n: number) => string;
+  /** Hover-card minimum width. Ignored by the sheet, which is viewport-wide. */
+  minWidth?: number;
+  /** Escape hatch for a tooltip that genuinely isn't a row table — the hourly
+   *  overlay's multi-column grid of dates, for instance, which as a single
+   *  column would be thirty rows tall. When set it replaces the table in both
+   *  renderers, and `rows` is ignored. */
+  content?: ReactNode;
+  /** Sheet-only. Rendered in place of the table when `rows` is empty — a
+   *  pinned sheet that says nothing reads as broken, whereas an empty hover
+   *  tooltip is just silence the reader didn't ask for. */
+  emptyState?: ReactNode;
+}
+
+/** Floating hover rendering. Null when there is genuinely nothing to say —
+ *  no rows and no note — which is how gap dates stay silent on hover. */
+export function DescriptorCard({ d }: { d: TooltipDescriptor | null }) {
+  if (!d) return null;
+  if (d.content == null && d.rows.length === 0 && d.footer == null) return null;
+  return (
+    <TooltipCard header={d.header} footer={d.footer} minWidth={d.minWidth}>
+      {d.content ?? (d.rows.length > 0 && (
+        <TooltipTable
+          rows={d.rows}
+          formatValue={d.formatValue}
+          formatTrend={d.formatTrend}
+          shareLabel={d.shareLabel}
+          subsetLabel={d.subsetLabel}
+        />
+      ))}
+    </TooltipCard>
+  );
+}
+
+/** Sheet-body rendering: no card chrome (the sheet supplies it), no inline
+ *  header (the sheet's own header carries the date), and `emptyState` honoured
+ *  so a no-data date explains itself. */
+export function DescriptorBody({ d }: { d: TooltipDescriptor | null }) {
+  const { theme: t } = useTheme();
+  if (!d) return null;
+  if (d.content != null) return <>{d.content}{d.footer}</>;
+  if (d.rows.length === 0) {
+    return (
+      <>
+        {d.emptyState != null && (
+          <div style={{ color: t.textMuted }}>{d.emptyState}</div>
+        )}
+        {d.footer}
+      </>
+    );
+  }
+  return (
+    <>
+      <TooltipTable
+        rows={d.rows}
+        formatValue={d.formatValue}
+        formatTrend={d.formatTrend}
+        shareLabel={d.shareLabel}
+        subsetLabel={d.subsetLabel}
+      />
+      {d.footer}
+    </>
   );
 }

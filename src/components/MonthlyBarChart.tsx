@@ -6,8 +6,8 @@ import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
-import { MonthlyChartCard, type TooltipRenderProps } from "@/components/MonthlyChartCard";
-import { TooltipCard, TooltipTable, breakdownToRows, type TooltipTableRow } from "@/components/TooltipTable";
+import { MonthlyChartCard } from "@/components/MonthlyChartCard";
+import { breakdownToRows, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
 
 interface Props {
   title: string;
@@ -56,9 +56,7 @@ export function MonthlyBarChart({
   const median = win ? windowStats.median : (globalMedian ?? windowStats.median);
   const total = win ? windowStats.total : (globalTotal ?? windowStats.total);
 
-  const renderTooltip = ({ active, payload }: TooltipRenderProps<MonthlyDataPoint>) => {
-    if (!active || !payload?.length) return null;
-    const d = payload[0].payload;
+  const describe = (d: MonthlyDataPoint): TooltipDescriptor => {
     const entries = breakdownByMonth?.get(d.date.slice(0, 7)) ?? [];
     // "Day X of Y" pushed to the right of the header — smaller (fontSize 10)
     // suffix aligned to the tooltip's trailing edge. See the sibling
@@ -78,15 +76,11 @@ export function MonthlyBarChart({
       ...breakdownToRows(entries, t.textMuted, { totalForShare: d.value ?? undefined }),
     ];
     const footer = d.note ? (
-      <div style={{ color: t.textImportant, fontSize: 10, marginTop: 6, maxWidth: 220 }}>
+      <div className="tooltip-note" style={{ color: t.textImportant, fontSize: "0.833em", marginTop: 6 }}>
         ⚠ {d.note}
       </div>
     ) : null;
-    return (
-      <TooltipCard header={header} minWidth={200} footer={footer}>
-        <TooltipTable rows={rows} subsetLabel={subsetLabel} />
-      </TooltipCard>
-    );
+    return { header, rows, footer, subsetLabel, minWidth: 200 };
   };
 
   const statsHeader = (
@@ -98,7 +92,7 @@ export function MonthlyBarChart({
   );
 
   return (
-    <MonthlyChartCard title={title} data={data} wfull={wfull} tooltip={renderTooltip} subheader={statsHeader}>
+    <MonthlyChartCard title={title} data={data} wfull={wfull} describe={describe} subheader={statsHeader}>
       <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
         label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
       <Bar dataKey="value" stackId="a" name="Actual" maxBarSize={MAX_BAR_SIZE}>

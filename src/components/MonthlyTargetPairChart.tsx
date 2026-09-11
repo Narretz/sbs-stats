@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Cell, ReferenceLine, ResponsiveContainer,
+  Cell, ReferenceLine, ResponsiveContainer,
 } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
@@ -10,7 +10,8 @@ import { FONTS } from "@/theme";
 import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { chartAnchor } from "@/utils/chartAnchor";
 import { chartColors } from "@/chartColors";
-import { TooltipCard, TooltipTable, breakdownToRows, type TooltipTableRow } from "@/components/TooltipTable";
+import { breakdownToRows, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
+import { usePinnedChart } from "@/components/usePinnedChart";
 import type { ModelBreakdownEntry } from "@/types";
 
 export interface MonthlyTargetPairDataPoint {
@@ -55,12 +56,11 @@ interface Props {
   globalTotal2?: number;
 }
 
-const MonthlyPairTooltip = ({
-  active, payload, t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth,
+function describeMonth({
+  d, t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth,
   subsetLabel,
 }: {
-  active?: boolean;
-  payload?: Array<{ payload: MonthlyTargetPairDataPoint }>;
+  d: MonthlyTargetPairDataPoint;
   t: ReturnType<typeof useTheme>["theme"];
   c: ReturnType<typeof chartColors>;
   primaryLabel: string;
@@ -68,9 +68,7 @@ const MonthlyPairTooltip = ({
   showRatio: boolean;
   breakdownByMonth?: Map<string, ModelBreakdownEntry[]>;
   subsetLabel?: string;
-}) => {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
+}): TooltipDescriptor {
   const entries = breakdownByMonth?.get(d.date.slice(0, 7)) ?? [];
   // Collapse to one aggregate row when the chart uses the Subset column
   // (hit/destroyed or launched/intercepted semantic). Same rationale as
@@ -113,16 +111,12 @@ const MonthlyPairTooltip = ({
     </>
   ) : d.date;
   const footer = d.note ? (
-    <div style={{ color: t.textImportant, fontSize: 10, marginTop: 6, maxWidth: 240 }}>
+    <div className="tooltip-note" style={{ color: t.textImportant, fontSize: "0.833em", marginTop: 6 }}>
       ⚠ {d.note}
     </div>
   ) : null;
-  return (
-    <TooltipCard header={header} minWidth={240} footer={footer}>
-      <TooltipTable rows={rows} subsetLabel={subsetLabel} />
-    </TooltipCard>
-  );
-};
+  return { header, rows, footer, subsetLabel, minWidth: 240 };
+}
 
 export function MonthlyTargetPairChart({
   title,
@@ -156,8 +150,18 @@ export function MonthlyTargetPairChart({
   const hitProjectedFill = c.damagedProjected;
   const destroyedProjectedFill = c.destroyedProjected;
 
+  const pin = usePinnedChart({
+    chartId: anchor || title,
+    title,
+    data,
+    xOf: (d) => d.date,
+    describe: (d) => describeMonth({
+      d, t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth, subsetLabel,
+    }),
+  });
+
   return (
-    <div className="chart-card" id={anchor || undefined} style={{
+    <div className="chart-card" id={anchor || undefined} {...pin.cardProps} style={{
       background: t.surface,
       border: `1px solid ${t.surfaceBorder}`,
       borderRadius: 8,
@@ -165,6 +169,7 @@ export function MonthlyTargetPairChart({
       gridColumn: wfull ? "1 / -1" : undefined,
       animation: "fadeIn 0.3s ease both",
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+      cursor: "pointer",
     }}>
       <ChartCardTitle title={title} anchor={anchor} marginBottom={4} />
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
@@ -182,6 +187,7 @@ export function MonthlyTargetPairChart({
           data={data}
           margin={{ top: 8, right: 8, left: -10, bottom: 0 }}
           barGap={2}
+          {...pin.chartProps}
         >
           <CartesianGrid strokeDasharray="2 4" stroke={c.grid} />
           <XAxis
@@ -194,23 +200,7 @@ export function MonthlyTargetPairChart({
           <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
           <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
             label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
-          <Tooltip
-            content={({ active, payload }) => (
-              <MonthlyPairTooltip
-                active={active}
-                payload={payload as unknown as Array<{ payload: MonthlyTargetPairDataPoint }>}
-                t={t}
-                c={c}
-                primaryLabel={primaryLabel}
-                secondaryLabel={secondaryLabel}
-                showRatio={showRatio}
-                breakdownByMonth={breakdownByMonth}
-                subsetLabel={subsetLabel}
-              />
-            )}
-            allowEscapeViewBox={{ x: false, y: true }}
-            wrapperStyle={{ zIndex: 9999 }}
-          />
+          {pin.tooltip}
 
           <Bar dataKey="hit_value" stackId="hit" name={primaryLabel}>
             {data.map((d, i) => (
@@ -239,8 +229,12 @@ export function MonthlyTargetPairChart({
               <Cell key={`des-gap-${i}`} fill={i === lastIdx ? destroyedProjectedFill : "transparent"} />
             ))}
           </Bar>
+          {/* Painted last so it reads as a crosshair over the series,
+              not a stub buried under a bar. */}
+          {pin.cursor}
         </BarChart>
       </ResponsiveContainer>
+      {pin.sheet}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import {
-  BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  BarChart, Bar, CartesianGrid, ResponsiveContainer, XAxis, YAxis,
 } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
@@ -11,7 +11,8 @@ import { chartAnchor } from "@/utils/chartAnchor";
 // deep-link anchor are derived from one string.
 const TITLE = "Combat Engagements — Composition by Direction";
 import { chartColors, qualitativeColor } from "@/chartColors";
-import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
+import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
+import { usePinnedChart } from "@/components/usePinnedChart";
 import { DIRECTION_AXIS_JOINT_LABEL } from "@/types";
 import type { GsuaDirectionCoverageRow } from "@/types";
 
@@ -148,8 +149,72 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
   }, [data, neutral]);
 
 
+  // One description per bucket, rendered as the hover card and as the pinned
+  // sheet's body.
+  const describe = (d: FlatRow): TooltipDescriptor => {
+    const totalN = typeof d.total === "number" ? d.total : 0;
+    // Total (bold) on top, then the breakdown sorted by this bar's own value
+    // (highest first), zero-valued entries hidden. Every row surfaces a
+    // share-of-total, so each direction's contribution (and the Unattributed
+    // gap) is readable at a glance.
+    const rows: TooltipTableRow[] = [
+      { label: "Total", color: t.text, value: d.total, emphasis: "bold" },
+      ...stacks
+        .filter((st) => {
+          const v = d[st.key];
+          return typeof v === "number" && v > 0;
+        })
+        .sort((a, b) => (d[b.key] as number) - (d[a.key] as number))
+        .map((st, i) => {
+          const v = d[st.key] as number;
+          const joint = DIRECTION_AXIS_JOINT_LABEL[st.key];
+          return {
+            // This bucket's own name, not the window's.
+            label: joint && mergedByBucket.get(d.date)?.has(st.key)
+              ? joint
+              : (joint ? st.key : st.label),
+            color: st.color,
+            value: v,
+            share: totalN > 0 ? (v / totalN) * 100 : null,
+            separatorAbove: i === 0,
+          };
+        }),
+    ];
+    // Directions actually named in this bucket. Counted off the stacks rather
+    // than the rendered rows so it keys on the stack's identity, not on its
+    // label or colour.
+    const directionCount = stacks.filter((st) => {
+      if (st.key === UNATTRIBUTED_KEY) return false;
+      const v = d[st.key];
+      return typeof v === "number" && v > 0;
+    }).length;
+    const interim = interimByBucket.get(d.date);
+    const header = (
+      <>
+        {d.date}
+        {interim && (
+          // `accent` is the theme's today/in-progress highlight, which is
+          // exactly what an interim reading is.
+          <span style={{ color: t.accent }}>
+            {" · "}interim {interim} report
+          </span>
+        )}
+        {" · "}{directionCount} direction{directionCount === 1 ? "" : "s"}
+      </>
+    );
+    return { header, rows, minWidth: 240 };
+  };
+
+  const pin = usePinnedChart({
+    chartId: anchor || TITLE,
+    title: TITLE,
+    data: flat,
+    xOf: (r) => r.date,
+    describe,
+  });
+
   return (
-    <div className="chart-card" style={{
+    <div className="chart-card" id={anchor || undefined} {...pin.cardProps} style={{
       background: t.surface,
       border: `1px solid ${t.surfaceBorder}`,
       borderRadius: 8,
@@ -157,6 +222,7 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
       gridColumn: wfull ? "1 / -1" : undefined,
       animation: "fadeIn 0.3s ease both",
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+      cursor: "pointer",
     }}>
       <ChartCardTitle title={TITLE} anchor={anchor} marginBottom={6} />
       <div style={{
@@ -183,7 +249,7 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
         </span>
       </div>
       <ResponsiveContainer width="100%" height={400}>
-        <BarChart data={flat} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+        <BarChart data={flat} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
           <CartesianGrid strokeDasharray="2 4" stroke={c.grid} />
           <XAxis
             dataKey="date"
@@ -200,71 +266,7 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
             tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
             tickLine={false} axisLine={false}
           />
-          <Tooltip
-            allowEscapeViewBox={{ x: false, y: true }}
-            wrapperStyle={{ zIndex: 9999 }}
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null;
-              const d = payload[0].payload as FlatRow;
-              const totalN = typeof d.total === "number" ? d.total : 0;
-              // Total (bold) on top, then the breakdown sorted by this bar's own
-              // value (highest first), zero-valued entries hidden. Every row
-              // surfaces a share-of-total, so each direction's contribution
-              // (and the Unattributed gap) is readable at a glance.
-              const rows: TooltipTableRow[] = [
-                { label: "Total", color: t.text, value: d.total, emphasis: "bold" },
-                ...stacks
-                  .filter((s) => {
-                    const v = d[s.key];
-                    return typeof v === "number" && v > 0;
-                  })
-                  .sort((a, b) => (d[b.key] as number) - (d[a.key] as number))
-                  .map((s, i) => {
-                    const v = d[s.key] as number;
-                    const joint = DIRECTION_AXIS_JOINT_LABEL[s.key];
-                    return {
-                      // This bucket's own name, not the window's.
-                      label: joint && mergedByBucket.get(d.date)?.has(s.key)
-                        ? joint
-                        : (joint ? s.key : s.label),
-                      color: s.color,
-                      value: v,
-                      share: totalN > 0 ? (v / totalN) * 100 : null,
-                      separatorAbove: i === 0,
-                    };
-                  }),
-              ];
-              // Directions actually named in this bucket. Counted off the
-              // stacks rather than the rendered rows so it keys on the stack's
-              // identity, not on its label or colour.
-              const directionCount = stacks.filter((s) => {
-                if (s.key === UNATTRIBUTED_KEY) return false;
-                const v = d[s.key];
-                return typeof v === "number" && v > 0;
-              }).length;
-              const interim = interimByBucket.get(d.date);
-              return (
-                <TooltipCard
-                  header={
-                    <>
-                      {d.date}
-                      {interim && (
-                        // `accent` is the theme's today/in-progress highlight,
-                        // which is exactly what an interim reading is.
-                        <span style={{ color: t.accent }}>
-                          {" · "}interim {interim} report
-                        </span>
-                      )}
-                      {" · "}{directionCount} direction{directionCount === 1 ? "" : "s"}
-                    </>
-                  }
-                  minWidth={240}
-                >
-                  <TooltipTable rows={rows} />
-                </TooltipCard>
-              );
-            }}
-          />
+          {pin.tooltip}
           {stacks.map((s, i) => (
             <Bar
               key={s.key}
@@ -277,8 +279,12 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
               radius={i === stacks.length - 1 ? [3, 3, 0, 0] : undefined}
             />
           ))}
+          {/* Painted last so it reads as a crosshair over the series,
+              not a stub buried under a bar. */}
+          {pin.cursor}
         </BarChart>
       </ResponsiveContainer>
+      {pin.sheet}
     </div>
   );
 }

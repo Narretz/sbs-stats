@@ -5,6 +5,8 @@ import { SbsDatabaseProvider, SbuAlfaDatabaseProvider, RubikonDatabaseProvider }
 import { SITE_REGISTRY, type SiteConfig } from "@/sites/registry";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { RouteProvider } from "@/hooks/RouteContext";
+import { ChartPinProvider } from "@/hooks/ChartPinProvider";
+import { ChartSheet } from "@/components/ChartSheet";
 import { SiteHeader, SpecialViewHeader } from "@/components/SiteHeader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorScreen } from "@/components/Layout";
@@ -110,6 +112,7 @@ function AppInner() {
 
   return (
     <RouteProvider value={routeValue}>
+      <ChartPinProvider>
       <div style={{ minHeight: "100vh", background: t.bg }}>
         {route.kind === "home" && (
           <ErrorShell>
@@ -143,7 +146,9 @@ function AppInner() {
             </SbsDatabaseProvider>
           </ErrorShell>
         )}
+        <ChartSheet />
       </div>
+      </ChartPinProvider>
     </RouteProvider>
   );
 }

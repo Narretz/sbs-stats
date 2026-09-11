@@ -1,5 +1,5 @@
 import {
-  ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  ComposedChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
 } from "recharts";
 import { useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
@@ -8,6 +8,8 @@ import { chartColors } from "@/chartColors";
 import type { MissileSeries, MissilePoint } from "@/data/missiles";
 import { BoundDot } from "./MissileRangeChart";
 import { fmtAsOf, fmtValue } from "./missileFormat";
+import { usePinnedChart } from "@/components/usePinnedChart";
+import type { TooltipDescriptor } from "@/components/TooltipTable";
 
 const MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -41,37 +43,34 @@ function merge(stock?: MissileSeries, prod?: MissileSeries): Row[] {
   return [...byT.values()].sort((a, b) => a.t - b.t);
 }
 
-function CombinedTooltip({ active, payload, t }: {
-  active?: boolean;
-  payload?: Array<{ payload?: Row }>;
-  t: Theme;
-}) {
-  const row = active && payload?.length ? payload[0].payload : undefined;
-  if (!row) return null;
+// Like MissileRangeChart, these are disclosures rather than series values, so
+// the descriptor's `content` hatch carries the two glyph-prefixed figures and
+// the attribution instead of a row table.
+function describeCombined(row: Row, t: Theme): TooltipDescriptor | null {
   const ref = row.stock_p ?? row.prod_p;
   if (!ref) return null;
-  return (
-    <div style={{
-      background: t.surface, border: `1px solid ${t.border}`, borderRadius: 6,
-      padding: "8px 10px", fontFamily: FONTS.mono, fontSize: 12,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.12)", minWidth: 200,
-    }}>
-      <div style={{ color: t.textMuted, marginBottom: 4 }}>{fmtAsOf(ref)}</div>
-      {row.stock_p && (
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, color: t.text }}>
-          <span>▬ {fmtValue(row.stock_p)}</span><span style={{ color: t.textMuted }}>in stockpile</span>
+  return {
+    header: fmtAsOf(ref),
+    rows: [],
+    minWidth: 200,
+    content: (
+      <>
+        {row.stock_p && (
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, color: t.text }}>
+            <span>▬ {fmtValue(row.stock_p)}</span><span style={{ color: t.textMuted }}>in stockpile</span>
+          </div>
+        )}
+        {row.prod_p && (
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, color: t.text }}>
+            <span>┄ {fmtValue(row.prod_p)}</span><span style={{ color: t.textMuted }}>units / month</span>
+          </div>
+        )}
+        <div style={{ color: t.textFaint, marginTop: 4, fontSize: "0.833em" }}>
+          {ref.org} · disclosed {ref.reported_at}
         </div>
-      )}
-      {row.prod_p && (
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, color: t.text }}>
-          <span>┄ {fmtValue(row.prod_p)}</span><span style={{ color: t.textMuted }}>units / month</span>
-        </div>
-      )}
-      <div style={{ color: t.textFaint, marginTop: 4, fontSize: 10 }}>
-        {ref.org} · disclosed {ref.reported_at}
-      </div>
-    </div>
-  );
+      </>
+    ),
+  };
 }
 
 interface Props {
@@ -106,11 +105,24 @@ export function MissileCombinedChart({ stock, prod, label, swatch, timeDomain, t
     [rows, floor],
   );
 
+  const pin = usePinnedChart({
+    chartId: `missile-combined-${label}`,
+    title: label,
+    data: plotRows,
+    xOf: (r) => r.t,
+    describe: (r) => describeCombined(r, t),
+    formatLabel: (r) => {
+      const ref = r.stock_p ?? r.prod_p;
+      return ref ? fmtAsOf(ref) : String(r.t);
+    },
+    cursor: { stroke: t.textMuted, strokeWidth: 1 },
+  });
+
   return (
-    <div className="daily-card" style={{
+    <div className="daily-card" {...pin.cardProps} style={{
       background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8,
       padding: "18px 16px 12px", animation: "fadeIn 0.3s ease both",
-      boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+      boxShadow: "0 1px 4px rgba(0,0,0,0.06)", cursor: "pointer",
     }}>
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
@@ -129,7 +141,7 @@ export function MissileCombinedChart({ stock, prod, label, swatch, timeDomain, t
         log · ▬ stockpile ({nStock}) · ┄ production/mo ({nProd})
       </div>
       <ResponsiveContainer width="100%" height={200}>
-        <ComposedChart data={plotRows} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+        <ComposedChart data={plotRows} margin={{ top: 8, right: 12, left: -8, bottom: 0 }} {...pin.chartProps}>
           <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
           <XAxis
             type="number" dataKey="t" scale="time" domain={timeDomain} ticks={ticks}
@@ -145,18 +157,7 @@ export function MissileCombinedChart({ stock, prod, label, swatch, timeDomain, t
             tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
             tickLine={false} axisLine={false}
           />
-          <Tooltip
-            allowEscapeViewBox={{ x: false, y: true }}
-            wrapperStyle={{ zIndex: 9999 }}
-            cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
-            content={(props) => (
-              <CombinedTooltip
-                active={props.active}
-                payload={props.payload as Array<{ payload?: Row }> | undefined}
-                t={t}
-              />
-            )}
-          />
+          {pin.tooltip}
           {/* Stockpile: solid. connectNulls bridges reports that gave only production. */}
           <Line
             type="linear" dataKey="stock_mid" stroke={color} strokeWidth={1.8} connectNulls
@@ -171,8 +172,12 @@ export function MissileCombinedChart({ stock, prod, label, swatch, timeDomain, t
             dot={({ key, ...p }) => <BoundDot key={key} {...p} payload={(p.payload as Row)?.prod_p} color={color} />}
             activeDot={{ r: 5, fill: color }}
           />
+          {/* Painted last so it reads as a crosshair over the series,
+              not a stub buried under a bar. */}
+          {pin.cursor}
         </ComposedChart>
       </ResponsiveContainer>
+      {pin.sheet}
     </div>
   );
 }

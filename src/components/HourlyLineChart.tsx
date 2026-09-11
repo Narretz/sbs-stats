@@ -1,8 +1,7 @@
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ReferenceLine, ResponsiveContainer,
+  ReferenceLine, ResponsiveContainer,
 } from "recharts";
-import type { TooltipProps } from "recharts";
 import { Temporal } from "temporal-polyfill";
 import { useMemo } from "react";
 import type { DailyDaySeries, EodEstimate } from "@/types";
@@ -12,6 +11,9 @@ import { maxMedian } from "@/utils/windowStats";
 import type { Theme } from "@/theme";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
+import { chartAnchor } from "@/utils/chartAnchor";
+import { usePinnedChart } from "@/components/usePinnedChart";
+import type { TooltipDescriptor } from "@/components/TooltipTable";
 export type TooltipSortMode = "date" | "value";
 
 interface Props {
@@ -52,23 +54,37 @@ function pivotData(series: DailyDaySeries[]): Record<string, number | null>[] {
   return rows;
 }
 type TooltipEntry = { dataKey: string; value: number };
+type HourRow = { hour: number } & Record<string, number | null>;
 
-const CustomTooltip = ({
-  active, payload, label, currentDate, t, sortMode, eod,
-}: TooltipProps<number, string> & {
+function formatHour(hour: number | null | undefined): string {
+  if (hour == null) return "";
+  if (hour === 0) return "00:00";
+  const h = String(hour - 1).padStart(2, "0");
+  return `${h}:00–${h}:59`;
+}
+
+// This tooltip is a grid of dates, not a table of series, so it goes through
+// the descriptor's `content` escape hatch: as a single column it would be one
+// row per day in the window — thirty rows tall on a 30-day view.
+//
+// Entries come from the pivoted row rather than recharts' tooltip payload,
+// which is what lets the pinned sheet render the identical grid.
+function describeHour({
+  row, dates, currentDate, t, sortMode, eod,
+}: {
+  row: HourRow;
+  dates: string[];
   currentDate: string | undefined;
   t: Theme;
   sortMode: TooltipSortMode;
   eod: EodEstimate | null;
-}) => {
-  if (!active || !payload?.length) return null;
-
+}): TooltipDescriptor {
+  const label = row.hour;
   const today = Temporal.Now.plainDateISO().toString();
 
-  // Normalise Recharts payload to our simple shape, filtering out bad entries
-  const entries: TooltipEntry[] = payload
-    .filter((p) => typeof p.dataKey === "string" && typeof p.value === "number")
-    .map((p) => ({ dataKey: p.dataKey as string, value: p.value as number }));
+  const entries: TooltipEntry[] = dates
+    .map((date) => ({ dataKey: date, value: row[date] }))
+    .filter((e): e is TooltipEntry => typeof e.value === "number");
 
   // Sort by value (highest first) or by date (today first, then newest→oldest)
   const sorted = [...entries].sort((a, b) => {
@@ -90,32 +106,15 @@ const CustomTooltip = ({
   for (let i = 0; i < sorted.length; i += ROWS_PER_COL) {
     columns.push(sorted.slice(i, i + ROWS_PER_COL));
   }
-  return (
-    <div style={{
-      background: t.surface,
-      border: `1px solid ${t.border}`,
-      borderRadius: 6,
-      padding: "8px 10px",
-      fontFamily: FONTS.mono,
-      fontSize: 11,
-      boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
-      pointerEvents: "none",
-      position: "relative",
-      zIndex: 9999,
-    }}>
-      {/* Hour header */}
-      <div style={{ color: t.textMuted, marginBottom: 5, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
-        {label == null ? "" : label === 0 ? "00:00" : `${String(label - 1).padStart(2,"0")}:00–${String(label - 1).padStart(2,"0")}:59`}
-        {` · med ${hourMedian.toLocaleString()}`}
-        {` · cur ${currentDeltaPct == null ? "n/a" : `${currentDeltaPct >= 0 ? "+" : ""}${currentDeltaPct.toFixed(1)}%`} vs med`}
-      </div>
+  const content = (
+    <>
       {eod && (
         <div style={{ color: t.accent, marginBottom: 5, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
           {`TODAY EoD est ~${eod.projected.toLocaleString()} (${Math.round(eod.fraction * 100)}% in by ${eod.asOf})`}
         </div>
       )}
       {/* Columns */}
-      <div style={{ display: "flex", gap: 12 }}>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {columns.map((col, ci) => (
           <div key={ci}>
             {col.map((p) => {
@@ -150,9 +149,17 @@ const CustomTooltip = ({
           </div>
         ))}
       </div>
-    </div>
+    </>
   );
-};
+  const header = (
+    <>
+      {formatHour(label)}
+      {` · med ${hourMedian.toLocaleString()}`}
+      {` · cur ${currentDeltaPct == null ? "n/a" : `${currentDeltaPct >= 0 ? "+" : ""}${currentDeltaPct.toFixed(1)}%`} vs med`}
+    </>
+  );
+  return { header, rows: [], content, minWidth: 200 };
+}
 export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTotal, wfull, tooltipSort = "date", highlight = false, selectedDate, eod, pairedData, pairedGlobalMax }: Props) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
@@ -178,7 +185,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
   const yScaleMax = win
     ? Math.max(max, pairedWinMax)
     : Math.max(max, pairedGlobalMax ?? 0);
-  const chartData = pivotData(data);
+  const chartData = pivotData(data) as HourRow[];
   // When a date is selected, highlight only the series for that exact date.
   // No fallback to the most-recent day: selecting a date with no data (e.g. a
   // day whose report hasn't landed) must not emphasise a different day.
@@ -192,8 +199,21 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
 
   const isToday = !selectedDate || selectedDate === Temporal.Now.plainDateISO().toString();
 
+  const dates = data.map((s) => s.date);
+  const pin = usePinnedChart({
+    chartId: chartAnchor(title) || title,
+    title,
+    data: chartData,
+    xOf: (r) => r.hour,
+    describe: (row) => describeHour({
+      row, dates, currentDate: primarySeries?.date, t,
+      sortMode: tooltipSort, eod: isToday ? (eod ?? null) : null,
+    }),
+    formatLabel: (r) => formatHour(r.hour),
+  });
+
   return (
-    <div className="hourly-card" style={{
+    <div className="hourly-card" {...pin.cardProps} style={{
       background: t.surface,
       border: `1px solid ${t.surfaceBorder}`,
       borderRadius: 8,
@@ -201,6 +221,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
       gridColumn: wfull ? "1 / -1" : undefined,
       animation: "fadeIn 0.3s ease both",
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+      cursor: "pointer",
     }}>
       <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 12, color: t.textMuted, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 4 }}>
         {title}
@@ -211,7 +232,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
         <span style={{ color: t.textMuted }}>Σ TOTAL {windowTotal.toLocaleString()}</span>
       </div>
       <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+        <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
           <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
           <XAxis dataKey="hour"
             tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
@@ -222,21 +243,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
             domain={[0, 24]}
           />
           <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, yScaleMax)]} />
-          <Tooltip
-            content={({ active, payload, label }) => (
-              <CustomTooltip
-                active={active}
-                payload={payload as TooltipProps<number, string>["payload"]}
-                label={label}
-                currentDate={primarySeries?.date}
-                t={t}
-                sortMode={tooltipSort}
-                eod={isToday ? (eod ?? null) : null}
-              />
-            )}
-            allowEscapeViewBox={{ x: false, y: true }}
-            wrapperStyle={{ zIndex: 9999 }}
-          />
+          {pin.tooltip}
           <ReferenceLine y={max} stroke={c.maxReference} strokeDasharray="4 4" strokeOpacity={0.6}
             label={{ value: "MAX", position: "insideTopRight", fontSize: 9, fill: c.maxReference, fontFamily: FONTS.mono }} />
           <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
@@ -255,8 +262,12 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
               connectNulls isAnimationActive={false}
             />
           )}
+          {/* Painted last so it reads as a crosshair over the series,
+              not a stub buried under a bar. */}
+          {pin.cursor}
         </LineChart>
       </ResponsiveContainer>
+      {pin.sheet}
     </div>
   );
 }

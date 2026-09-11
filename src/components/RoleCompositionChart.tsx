@@ -1,5 +1,5 @@
 import {
-  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
 } from "recharts";
 import { useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
@@ -8,7 +8,8 @@ import {
   MEDIAZONA_ROLE_GROUP_KEYS, MEDIAZONA_ROLE_GROUPS,
   type MediazonaRolesRow, type MediazonaRoleGroupKey,
 } from "@/types";
-import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
+import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
+import { usePinnedChart } from "@/components/usePinnedChart";
 
 // No forecast region here (forecast belongs to the estimate, not the named list).
 // Recent weeks ARE still sparse — names not yet identified — but that's already
@@ -33,15 +34,10 @@ function fmtMonthYear(v: string): string {
   return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
 }
 
-function CompositionTooltip({
-  active, payload, bucket,
-}: {
-  active?: boolean;
-  payload?: { payload?: MediazonaRolesRow }[];
-  bucket: "weekly" | "monthly";
-}) {
-  if (!active || !payload?.length || !payload[0].payload) return null;
-  const row = payload[0].payload;
+function describeComposition(
+  row: MediazonaRolesRow,
+  bucket: "weekly" | "monthly",
+): TooltipDescriptor {
   const total = row.total || 1;
   const header = bucket === "monthly"
     ? `Month of ${fmtMonthYear(row.week)} · ${row.total.toLocaleString()} named`
@@ -51,11 +47,7 @@ function CompositionTooltip({
     const g = MEDIAZONA_ROLE_GROUPS[k];
     return { label: g.label, color: g.color, value: v, share: (v / total) * 100 };
   });
-  return (
-    <TooltipCard header={header} minWidth={240}>
-      <TooltipTable rows={rows} />
-    </TooltipCard>
-  );
+  return { header, rows, minWidth: 240 };
 }
 
 export function RoleCompositionChart({
@@ -70,11 +62,24 @@ export function RoleCompositionChart({
   const totalSum = useMemo(() => rows.reduce((s, r) => s + (r.total ?? 0), 0), [rows]);
   const totalLabel = bucket === "monthly" ? "Monthly total" : "Weekly total";
 
+  const pin = usePinnedChart({
+    chartId: "mediazona-role-composition",
+    title: "Composition of confirmed deaths — share by force type",
+    data: rows,
+    xOf: (r) => r.week,
+    describe: (r) => describeComposition(r, bucket),
+    formatLabel: (r) => bucket === "monthly" ? fmtMonthYear(r.week) : fmtFullDate(r.week),
+    cursor: { stroke: t.textMuted, strokeWidth: 1 },
+    // Two Y axes on this chart, so the pinned line has to name one.
+    cursorProps: { yAxisId: "left" },
+  });
+
   return (
-    <div className="daily-card" style={{
+    <div className="daily-card" {...pin.cardProps} style={{
       background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8,
       padding: "18px 16px 12px", gridColumn: "1 / -1",
       animation: "fadeIn 0.3s ease both", boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+      cursor: "pointer",
     }}>
       <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 12, color: t.textMuted, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 4 }}>
         Composition of confirmed deaths — share by force type
@@ -86,7 +91,7 @@ export function RoleCompositionChart({
         ))}
       </div>
       <ResponsiveContainer width="100%" height={300}>
-        <ComposedChart data={rows} stackOffset="expand" margin={{ top: 8, right: 12, left: -6, bottom: 0 }}>
+        <ComposedChart data={rows} stackOffset="expand" margin={{ top: 8, right: 12, left: -6, bottom: 0 }} {...pin.chartProps}>
           <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
           <XAxis dataKey="week"
             tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
@@ -97,12 +102,7 @@ export function RoleCompositionChart({
             domain={[0, 1]} tickFormatter={(v: number) => `${Math.round(v * 100)}%`} />
           <YAxis yAxisId="right" orientation="right" allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
             tickFormatter={(v: number) => v.toLocaleString()} />
-          <Tooltip
-            cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
-            content={(props) => (
-              <CompositionTooltip active={props.active} payload={props.payload as { payload?: MediazonaRolesRow }[] | undefined} bucket={bucket} />
-            )}
-          />
+          {pin.tooltip}
           {MEDIAZONA_ROLE_GROUP_KEYS.map((k: MediazonaRoleGroupKey) => (
             <Area key={k} yAxisId="left" type="monotone" dataKey={k} name={MEDIAZONA_ROLE_GROUPS[k].label}
               stackId="1" stroke={MEDIAZONA_ROLE_GROUPS[k].color} fill={MEDIAZONA_ROLE_GROUPS[k].color}
@@ -111,8 +111,12 @@ export function RoleCompositionChart({
           {/* Absolute weekly total on the right axis — restores the scale info lost
               by 0–100% normalisation and visually shows the tail collapsing. */}
           <Line yAxisId="right" type="monotone" dataKey="total" stroke={t.text} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+          {/* Painted last so it reads as a crosshair over the series,
+              not a stub buried under a bar. */}
+          {pin.cursor}
         </ComposedChart>
       </ResponsiveContainer>
+      {pin.sheet}
     </div>
   );
 }

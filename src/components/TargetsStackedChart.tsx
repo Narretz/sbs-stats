@@ -1,8 +1,8 @@
 import { Bar, Cell } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
-import { MonthlyChartCard, type TooltipRenderProps } from "@/components/MonthlyChartCard";
-import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
+import { MonthlyChartCard } from "@/components/MonthlyChartCard";
+import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 
 // `total` is included so the tooltip can show it explicitly, even though
 // (destroyed + damaged) equals it by construction (SBU's own phrasing).
@@ -27,9 +27,7 @@ export function TargetsStackedChart({ title, data, wfull }: Props) {
   const c = chartColors(t);
   const lastIdx = data.length - 1;
 
-  const renderTooltip = ({ active, payload }: TooltipRenderProps<TargetsStackPoint>) => {
-    if (!active || !payload?.length) return null;
-    const d = payload[0].payload;
+  const describe = (d: TargetsStackPoint): TooltipDescriptor => {
     const totalN = d.total ?? 0;
     const pctOf = (v: number | null): number | null =>
       v != null && totalN > 0 ? (v / totalN) * 100 : null;
@@ -41,11 +39,7 @@ export function TargetsStackedChart({ title, data, wfull }: Props) {
       { label: "Destroyed", color: c.destroyed, value: d.destroyed, share: pctOf(d.destroyed), separatorAbove: true },
       { label: "Damaged", color: c.damaged, value: d.damaged, share: pctOf(d.damaged) },
     ];
-    return (
-      <TooltipCard header={d.date} minWidth={220}>
-        <TooltipTable rows={rows} />
-      </TooltipCard>
-    );
+    return { header: d.date, rows, minWidth: 220 };
   };
 
   // `destroyed` on the bottom (the "permanent" half), `damaged` on top —
@@ -55,7 +49,7 @@ export function TargetsStackedChart({ title, data, wfull }: Props) {
       title={title}
       data={data}
       wfull={wfull}
-      tooltip={renderTooltip}
+      describe={describe}
       legend={[
         { label: "Destroyed", color: c.destroyed },
         { label: "Damaged", color: c.damaged },

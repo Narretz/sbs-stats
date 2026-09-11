@@ -1,17 +1,18 @@
 import {
   LineChart, Line, ComposedChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ReferenceLine, ResponsiveContainer, type DotProps,
+  ReferenceLine, ResponsiveContainer, type DotProps,
 } from "recharts";
-import { useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import type { DailyDataPoint, EodEstimate, ModelBreakdownEntry, PairMode } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
+import { usePinnedChart } from "@/components/usePinnedChart";
 import { maxMedian } from "@/utils/windowStats";
 import { FONTS, type Theme } from "@/theme";
 import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { chartAnchor } from "@/utils/chartAnchor";
 import { AREA_FILL_OPACITY, chartColors } from "@/chartColors";
-import { TooltipCard, TooltipTable, breakdownToRows, type TooltipTableRow } from "@/components/TooltipTable";
+import { breakdownToRows, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
 
 function linearRegression(data: DailyDataPoint[]): Array<number | null> {
   const points = data
@@ -72,9 +73,18 @@ interface Props {
   subsetLabel?: string;
 }
 
-function CustomDot(props: DotProps & { payload?: PairedRow; accentColor: string; primaryColor: string; bgColor: string; noteColor: string }) {
-  const { cx, cy, payload, accentColor, primaryColor, bgColor, noteColor } = props;
+function CustomDot(props: DotProps & {
+  payload?: PairedRow;
+  accentColor: string; primaryColor: string; bgColor: string; noteColor: string;
+  pinnedDate?: string | null;
+}) {
+  const { cx, cy, payload, accentColor, primaryColor, bgColor, noteColor, pinnedDate } = props;
   if (cx == null || cy == null) return null;
+  // The pinned point outranks every other dot state: it's the one the sheet is
+  // currently describing, and it has to stay legible with the pointer nowhere
+  // near the chart.
+  if (pinnedDate && payload?.date === pinnedDate)
+    return <circle cx={cx} cy={cy} r={6} fill={accentColor} stroke={bgColor} strokeWidth={2.5} />;
   if (payload?.is_today)
     return <circle cx={cx} cy={cy} r={5} fill={accentColor} stroke={bgColor} strokeWidth={2} />;
   if (payload?.note)
@@ -100,10 +110,6 @@ type PairedRow = {
   note?: string;
 };
 
-interface TooltipPayloadEntry {
-  payload?: PairedRow;
-}
-
 function fmt(n: number | null | undefined): string {
   return typeof n === "number" ? n.toLocaleString() : "—";
 }
@@ -121,7 +127,7 @@ function formatDate(v: string): string {
 function fmtEod(e: EodEstimate): ReactNode {
   return (
     <>
-      <span style={{ fontSize: 11}}>~{fmt(e.projected)}</span><span style={{ fontSize: 10, opacity: 0.9 }}> ({Math.round(e.fraction * 100)}%)</span>
+      <span style={{ fontSize: "0.917em" }}>~{fmt(e.projected)}</span><span style={{ fontSize: "0.833em", opacity: 0.9 }}> ({Math.round(e.fraction * 100)}%)</span>
     </>
   );
 }
@@ -129,74 +135,17 @@ function fmtEod(e: EodEstimate): ReactNode {
 // Prose-only footer: the warning note lives below the TooltipTable, not
 // inside its row grid. EoD estimates used to live here too but moved into
 // the table so their projected + fraction align with the actual columns.
-function NoteFooter({ note, t }: { note?: string; t: Theme }) {
+function noteFooter(note: string | undefined, t: Theme): ReactNode {
   if (!note) return null;
   return (
-    <div style={{ color: chartColors(t).noteText, fontSize: 10, marginTop: 6, maxWidth: 280, whiteSpace: "pre-line" }}>
+    <div className="tooltip-note" style={{ color: chartColors(t).noteText, fontSize: "0.833em", marginTop: 6, whiteSpace: "pre-line" }}>
       ⚠ {note}
     </div>
   );
 }
 
-// Recharts drops null points from the tooltip payload, so a date where every
-// series is null — no data at all, or counts upstream withheld — would render
-// an empty tooltip and leave the gap in the line unexplained. When such a date
-// carries a note, show the note on its own; that gap is exactly where the
-// reader most needs to know it isn't a zero.
-function GapTooltip({ label, noteByDate, t }: {
-  label?: string | number;
-  noteByDate?: Map<string, string>;
-  t: Theme;
-}) {
-  const note = typeof label === "string" ? noteByDate?.get(label) : undefined;
-  if (!note) return null;
-  return (
-    <TooltipCard header={formatDate(label as string)} minWidth={180}>
-      <NoteFooter note={note} t={t} />
-    </TooltipCard>
-  );
-}
-
-function SingleTooltip({
-  active, payload, label, noteByDate, t, primaryColor, primaryLabel, breakdownByDate, subsetLabel,
-}: {
-  active?: boolean;
-  payload?: TooltipPayloadEntry[];
-  label?: string | number;
-  noteByDate?: Map<string, string>;
-  t: Theme;
-  primaryColor: string;
-  primaryLabel: string;
-  breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
-  subsetLabel?: string;
-}) {
-  if (!active) return null;
-  if (!payload?.length || !payload[0].payload)
-    return <GapTooltip label={label} noteByDate={noteByDate} t={t} />;
-  const d = payload[0].payload;
-  const entries = breakdownByDate?.get(d.date) ?? [];
-  const rows: TooltipTableRow[] = [
-    { label: primaryLabel, color: primaryColor, value: d.value, trend: d.trend1 },
-  ];
-  if (d.is_today && d.eod) {
-    rows.push({ label: "EoD est", color: t.textMuted, value: fmtEod(d.eod) });
-  }
-  rows.push(...breakdownToRows(entries, t.textMuted, { totalForShare: typeof d.value === "number" ? d.value : undefined }));
-  return (
-    <TooltipCard header={formatDate(d.date)} minWidth={180} footer={<NoteFooter note={d.note} t={t} />}>
-      <TooltipTable rows={rows} subsetLabel={subsetLabel} />
-    </TooltipCard>
-  );
-}
-
-function PairedTooltip({
-  active, payload, label, noteByDate, t, primaryColor, primaryLabel, secondaryLabel, pairMode,
-  primaryIsDiff, breakdownByDate, subsetLabel,
-}: {
-  active?: boolean;
-  payload?: TooltipPayloadEntry[];
-  label?: string | number;
-  noteByDate?: Map<string, string>;
+// Everything the two describe* functions need that isn't the row itself.
+interface DescribeCtx {
   t: Theme;
   primaryColor: string;
   primaryLabel: string;
@@ -205,11 +154,51 @@ function PairedTooltip({
   primaryIsDiff: boolean;
   breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
   subsetLabel?: string;
-}) {
-  if (!active) return null;
-  if (!payload?.length || !payload[0].payload)
-    return <GapTooltip label={label} noteByDate={noteByDate} t={t} />;
-  const d = payload[0].payload;
+  noteByDate: Map<string, string>;
+}
+
+// A date where every series is null — no data at all, or counts upstream
+// withheld. Recharts drops null points from the tooltip payload, so this used
+// to render as an empty tooltip and leave the gap in the line unexplained.
+//
+// The two renderers diverge here on purpose: `footer` (the note) shows on
+// hover, but `emptyState` is sheet-only. A reader who pinned this date asked
+// for it and needs to be told the gap isn't a zero; a hover tooltip that pops
+// up "No data reported" over every gap is noise nobody asked for.
+function describeGap(ctx: DescribeCtx, date: string): TooltipDescriptor {
+  return {
+    header: formatDate(date),
+    rows: [],
+    footer: noteFooter(ctx.noteByDate.get(date), ctx.t),
+    minWidth: 180,
+    emptyState: "No data reported for this date.",
+  };
+}
+
+function describeSingle(ctx: DescribeCtx, d: PairedRow): TooltipDescriptor {
+  const { t, primaryColor, primaryLabel, breakdownByDate, subsetLabel } = ctx;
+  const entries = breakdownByDate?.get(d.date) ?? [];
+  const rows: TooltipTableRow[] = [
+    { label: primaryLabel, color: primaryColor, value: d.value, trend: d.trend1 },
+  ];
+  if (d.is_today && d.eod) {
+    rows.push({ label: "EoD est", color: t.textMuted, value: fmtEod(d.eod) });
+  }
+  rows.push(...breakdownToRows(entries, t.textMuted, { totalForShare: typeof d.value === "number" ? d.value : undefined }));
+  return {
+    header: formatDate(d.date),
+    rows,
+    footer: noteFooter(d.note, t),
+    subsetLabel,
+    minWidth: 180,
+  };
+}
+
+function describePaired(ctx: DescribeCtx, d: PairedRow): TooltipDescriptor {
+  const {
+    t, primaryColor, primaryLabel, secondaryLabel, pairMode, primaryIsDiff,
+    breakdownByDate, subsetLabel,
+  } = ctx;
   const v = d.value;
   const v2 = d.value2;
   const tr1 = d.trend1;
@@ -295,11 +284,13 @@ function PairedTooltip({
   // is the natural denominator for each model's part-of-total share.
   rows.push(...breakdownToRows(entries, t.textMuted, { totalForShare: typeof v === "number" ? v : undefined }));
 
-  return (
-    <TooltipCard header={formatDate(d.date)} minWidth={240} footer={<NoteFooter note={d.note} t={t} />}>
-      <TooltipTable rows={rows} subsetLabel={subsetLabel} />
-    </TooltipCard>
-  );
+  return {
+    header: formatDate(d.date),
+    rows,
+    footer: noteFooter(d.note, t),
+    subsetLabel,
+    minWidth: 240,
+  };
 }
 
 // Elevate the hovered card so a tooltip overflowing its bottom edge isn't
@@ -380,20 +371,59 @@ export function DailyLineChart({
     });
   }, [data, data2, pairMode, eod, eod2]);
 
+  // One description per x-position, rendered two ways: as the floating hover
+  // card and as the pinned sheet's body. A date with no payload at all still
+  // resolves here (via `describeGap`) — the hover path used to receive only
+  // the axis label and had to look the note up separately.
+  const describeRow = useCallback((row: PairedRow): TooltipDescriptor | null => {
+    const ctx: DescribeCtx = {
+      t, primaryColor,
+      primaryLabel: resolvedPrimaryLabel,
+      secondaryLabel: resolvedSecondaryLabel,
+      pairMode, primaryIsDiff, breakdownByDate, subsetLabel, noteByDate,
+    };
+    const allNull = row.value == null && (!hasPair || row.value2 == null);
+    if (allNull) return describeGap(ctx, row.date);
+    return hasPair ? describePaired(ctx, row) : describeSingle(ctx, row);
+  }, [
+    t, primaryColor, resolvedPrimaryLabel, resolvedSecondaryLabel, pairMode,
+    primaryIsDiff, breakdownByDate, subsetLabel, noteByDate, hasPair,
+  ]);
+
+  const pin = usePinnedChart({
+    chartId: anchor || title,
+    title,
+    data: chartData,
+    xOf: (r) => r.date,
+    describe: describeRow,
+    formatLabel: (r) => formatDate(r.date),
+    cursor: { stroke: t.textMuted, strokeWidth: 1 },
+    // These charts carry gap notes, which recharts would otherwise hide along
+    // with the empty-payload wrapper.
+    showEmptyWrapper: true,
+  });
+  const pinnedDate = pin.pinnedX as string | null;
+
   const yMax = hasPair && pairMode === "sum"
     ? Math.max(max + max2, 0)
     : max;
 
   return (
-    <div className="chart-card" id={anchor || undefined} style={{
-      background: t.surface,
-      border: `1px solid ${t.surfaceBorder}`,
-      borderRadius: 8,
-      padding: "18px 16px 12px",
-      gridColumn: wfull ? "1 / -1" : undefined,
-      animation: "fadeIn 0.3s ease both",
-      boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-    }}>
+    <div
+      className="chart-card"
+      id={anchor || undefined}
+      {...pin.cardProps}
+      style={{
+        background: t.surface,
+        border: `1px solid ${t.surfaceBorder}`,
+        borderRadius: 8,
+        padding: "18px 16px 12px",
+        gridColumn: wfull ? "1 / -1" : undefined,
+        animation: "fadeIn 0.3s ease both",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+        cursor: "pointer",
+      }}
+    >
       <ChartCardTitle title={title} anchor={anchor} marginBottom={4} />
       <div style={{ display: "flex", gap: 12, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
         {hasPair && <span style={{ color: primaryColor }}>● {resolvedPrimaryLabel}</span>}
@@ -411,7 +441,7 @@ export function DailyLineChart({
       </div>
       <ResponsiveContainer width="100%" height={220}>
         {hasPair ? (
-          <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+          <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
             <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
             <XAxis dataKey="date"
               tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
@@ -420,42 +450,19 @@ export function DailyLineChart({
             />
             <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
               domain={[0, (dataMax: number) => Math.max(dataMax, yMax)]} />
-            <Tooltip
-              allowEscapeViewBox={{ x: false, y: true }}
-              // Recharts hides the wrapper whenever the payload is empty —
-              // precisely the all-null date GapTooltip exists to explain. The
-              // content function below already returns null when there is
-              // nothing to show (leaving an empty, zero-size wrapper), so
-              // owning visibility here reveals the gap note without ever
-              // painting a stray tooltip.
-              wrapperStyle={{ zIndex: 9999, visibility: "visible" }}
-              cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
-              content={(props) => (
-                <PairedTooltip
-                  active={props.active}
-                  payload={props.payload as TooltipPayloadEntry[] | undefined}
-                  label={props.label}
-                  noteByDate={noteByDate}
-                  t={t}
-                  primaryColor={primaryColor}
-                  primaryLabel={resolvedPrimaryLabel}
-                  secondaryLabel={resolvedSecondaryLabel}
-                  pairMode={pairMode}
-                  primaryIsDiff={primaryIsDiff}
-                  breakdownByDate={breakdownByDate}
-                  subsetLabel={subsetLabel}
-                />
-              )}
-            />
+            {pin.tooltip}
             <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
               label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
-            <Area type="monotone" dataKey="value2" name={resolvedSecondaryLabel} stackId="1"
+              <Area type="monotone" dataKey="value2" name={resolvedSecondaryLabel} stackId="1"
               stroke={secondaryColor} strokeWidth={1.5} fill={secondaryColor} fillOpacity={AREA_FILL_OPACITY.destroyed} isAnimationActive={false} />
             <Area type="monotone" dataKey="valueDiff" name={resolvedPrimaryLabel} stackId="1"
               stroke={primaryColor} strokeWidth={1.5} fill={primaryColor} fillOpacity={AREA_FILL_OPACITY.damaged} isAnimationActive={false} />
-          </ComposedChart>
+            {/* Painted last so it reads as a crosshair over the series,
+              not a stub buried under a bar. */}
+          {pin.cursor}
+        </ComposedChart>
         ) : (
-          <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+          <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
             <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
             <XAxis dataKey="date"
               tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
@@ -464,42 +471,30 @@ export function DailyLineChart({
             />
             <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
               domain={[0, (dataMax: number) => Math.max(dataMax, max)]} />
-            <Tooltip
-              allowEscapeViewBox={{ x: false, y: true }}
-              // Recharts hides the wrapper whenever the payload is empty —
-              // precisely the all-null date GapTooltip exists to explain. The
-              // content function below already returns null when there is
-              // nothing to show (leaving an empty, zero-size wrapper), so
-              // owning visibility here reveals the gap note without ever
-              // painting a stray tooltip.
-              wrapperStyle={{ zIndex: 9999, visibility: "visible" }}
-              cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
-              content={(props) => (
-                <SingleTooltip
-                  active={props.active}
-                  payload={props.payload as TooltipPayloadEntry[] | undefined}
-                  label={props.label}
-                  noteByDate={noteByDate}
-                  t={t}
-                  primaryColor={primaryColor}
-                  primaryLabel={resolvedPrimaryLabel}
-                  breakdownByDate={breakdownByDate}
-                  subsetLabel={subsetLabel}
-                />
-              )}
-            />
+            {pin.tooltip}
             <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
               label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
-            <Line type="monotone" dataKey="value" name={resolvedPrimaryLabel} stroke={primaryColor} strokeWidth={2}
-              dot={({ key, ...props }) => <CustomDot key={key} {...props} accentColor={t.accent} primaryColor={primaryColor} bgColor={t.surface} noteColor={chartColors(t).noteText} />}
-              activeDot={{ r: 5, fill: primaryColor }}
+              {/* No draw-in animation, matching the two <Area>s above. recharts
+                re-runs it whenever the series' props change, so with it on, the
+                whole line redrew itself every time the sheet opened, closed, or
+                stepped a day — a full re-animation per press of ›. */}
+            <Line type="monotone" dataKey="value" name={resolvedPrimaryLabel} stroke={primaryColor} strokeWidth={2} isAnimationActive={false}
+              dot={({ key, ...props }) => <CustomDot key={key} {...props} accentColor={t.accent} primaryColor={primaryColor} bgColor={t.surface} noteColor={chartColors(t).noteText} pinnedDate={pinnedDate} />}
+              // The hover activeDot is the last piece of hover feedback recharts
+              // draws from its own state rather than from `active`, so it has to
+              // be switched off by hand while pinned.
+              activeDot={pin.isPinned ? false : { r: 5, fill: primaryColor }}
             />
             <Line type="linear" dataKey="trend1" name="Trend" stroke={c.trend} strokeWidth={1.5}
-              strokeDasharray="6 3" dot={false} activeDot={false}
+              strokeDasharray="6 3" dot={false} activeDot={false} isAnimationActive={false}
             />
-          </LineChart>
+            {/* Painted last so it reads as a crosshair over the series,
+              not a stub buried under a bar. */}
+          {pin.cursor}
+        </LineChart>
         )}
       </ResponsiveContainer>
+      {pin.sheet}
     </div>
   );
 }

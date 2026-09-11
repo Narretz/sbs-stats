@@ -1,5 +1,5 @@
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, type DotProps,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, type DotProps,
 } from "recharts";
 import { useMemo } from "react";
 import type { DailyDataPoint } from "@/types";
@@ -8,6 +8,8 @@ import { useStatScope } from "@/hooks/useStatScope";
 import { FONTS, type Theme } from "@/theme";
 import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { chartAnchor } from "@/utils/chartAnchor";
+import { usePinnedChart } from "@/components/usePinnedChart";
+import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 import { chartColors } from "@/chartColors";
 
 export interface LineSeries {
@@ -47,9 +49,6 @@ interface Props {
 
 type Row = { date: string; is_today: boolean } & Record<string, number | null | string | boolean>;
 
-function fmt(n: number | null | undefined): string {
-  return typeof n === "number" ? n.toLocaleString() : "—";
-}
 function formatDate(v: string): string {
   const [y, m, d] = v.split("-");
   return `${d}.${m}.${y}`;
@@ -78,59 +77,54 @@ function Dot(props: DotProps & { payload?: Row; color: string; bg: string; noteK
   return <circle cx={cx} cy={cy} r={2} fill={color} opacity={0.5} />;
 }
 
-function MultiTooltip({
-  active, payload, t, series, granularity,
+// Hand-rolled card before; now a descriptor, so the homepage's combined charts
+// render the same table (and gain the pinned sheet) as every other view.
+function describeMulti({
+  row, t, series, granularity,
 }: {
-  active?: boolean;
-  payload?: { payload?: Row }[];
+  row: Row;
   t: Theme;
   series: LineSeries[];
   granularity: ChartGranularity;
-}) {
-  if (!active || !payload?.length || !payload[0].payload) return null;
-  const row = payload[0].payload;
+}): TooltipDescriptor {
   const noteColor = chartColors(t).noteText;
   const notes = series
     .map((s) => row[`${s.key}__note`])
     .filter((n): n is string => typeof n === "string" && n.length > 0);
-  return (
-    <div style={{
-      background: t.surface, border: `1px solid ${t.border}`, borderRadius: 6,
-      padding: "8px 10px", fontFamily: FONTS.mono, fontSize: 12,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.12)", minWidth: 170,
-    }}>
-      <div style={{ color: t.textMuted, marginBottom: 4 }}>
-        {granularity === "monthly" ? formatMonth(row.date) : formatDate(row.date)}
-      </div>
-      {series
-        // Sort tooltip rows by THIS data point's raw value, highest first.
-        // Nulls fall to the bottom; original-order tiebreak keeps the order
-        // stable across mostly-flat windows. Sorting per-point is fine — most
-        // days the ranking matches the legend, and when it doesn't, the
-        // top-to-bottom read matches what's actually peaking that day.
-        .map((s, i) => ({
-          s, i,
-          raw: row[`${s.key}__raw`] as number | null | undefined,
-        }))
-        .sort((a, b) => {
-          const av = typeof a.raw === "number" ? a.raw : -Infinity;
-          const bv = typeof b.raw === "number" ? b.raw : -Infinity;
-          return bv - av || a.i - b.i;
-        })
-        .map(({ s, raw }) => (
-          // Always show raw absolute values in the tooltip — even in normalized
-          // mode, the user wants to know "what is the actual number today?"
-          <div key={s.key} style={{ display: "flex", justifyContent: "space-between", gap: 12, color: s.color }}>
-            <span>{s.label}</span><span>{fmt(raw as number | null)}</span>
-          </div>
-        ))}
+  const rows: TooltipTableRow[] = series
+    // Sort tooltip rows by THIS data point's raw value, highest first. Nulls
+    // fall to the bottom; original-order tiebreak keeps the order stable
+    // across mostly-flat windows. Sorting per-point is fine — most days the
+    // ranking matches the legend, and when it doesn't, the top-to-bottom read
+    // matches what's actually peaking that day.
+    .map((s, i) => ({ s, i, raw: row[`${s.key}__raw`] as number | null | undefined }))
+    .sort((a, b) => {
+      const av = typeof a.raw === "number" ? a.raw : -Infinity;
+      const bv = typeof b.raw === "number" ? b.raw : -Infinity;
+      return bv - av || a.i - b.i;
+    })
+    // Always show raw absolute values — even in normalized mode, the reader
+    // wants to know "what is the actual number today?"
+    .map(({ s, raw }) => ({
+      label: s.label,
+      color: s.color,
+      value: typeof raw === "number" ? raw : null,
+    }));
+  const footer = notes.length ? (
+    <>
       {notes.map((n, i) => (
-        <div key={`n-${i}`} style={{ color: noteColor, fontSize: 10, marginTop: 6, maxWidth: 280, whiteSpace: "pre-line" }}>
+        <div key={`n-${i}`} className="tooltip-note" style={{ color: noteColor, fontSize: "0.833em", marginTop: 6, whiteSpace: "pre-line" }}>
           ⚠ {n}
         </div>
       ))}
-    </div>
-  );
+    </>
+  ) : null;
+  return {
+    header: granularity === "monthly" ? formatMonth(row.date) : formatDate(row.date),
+    rows,
+    footer,
+    minWidth: 170,
+  };
 }
 
 export function DailyMultiLineChart({ title, series, wfull = false, yMode = "linear", cumulative = false, granularity = "daily" }: Props) {
@@ -201,11 +195,22 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
     ? Math.max(max, ...series.map((s) => s.globalMax ?? 0))
     : max;
 
+  const pin = usePinnedChart({
+    chartId: anchor || title,
+    title,
+    data: rows,
+    xOf: (r) => r.date,
+    describe: (row) => describeMulti({ row, t, series, granularity }),
+    formatLabel: (r) => granularity === "monthly" ? formatMonth(r.date) : formatDate(r.date),
+    cursor: { stroke: t.textMuted, strokeWidth: 1 },
+  });
+
   return (
-    <div className="chart-card" id={anchor || undefined} style={{
+    <div className="chart-card" id={anchor || undefined} {...pin.cardProps} style={{
       background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8,
       padding: "18px 16px 12px", gridColumn: wfull ? "1 / -1" : undefined,
       animation: "fadeIn 0.3s ease both", boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+      cursor: "pointer",
     }}>
       <ChartCardTitle title={title} anchor={anchor} marginBottom={4} />
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
@@ -224,7 +229,7 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
         })}
       </div>
       <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={rows} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+        <LineChart data={rows} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
           <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
           <XAxis dataKey="date"
             tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
@@ -257,22 +262,19 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
               domain={[0, (dataMax: number) => Math.max(dataMax, ceiling)]}
             />
           )}
-          <Tooltip
-            allowEscapeViewBox={{ x: false, y: true }}
-            wrapperStyle={{ zIndex: 9999 }}
-            cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
-            content={(props) => (
-              <MultiTooltip active={props.active} payload={props.payload as { payload?: Row }[] | undefined} t={t} series={series} granularity={granularity} />
-            )}
-          />
+          {pin.tooltip}
           {series.map((s) => (
             <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2}
               dot={({ key, ...props }) => <Dot key={key} {...props} color={s.color} bg={t.surface} noteKey={`${s.key}__note`} noteColor={chartColors(t).noteText} />}
               activeDot={{ r: 5, fill: s.color }} connectNulls={yMode === "log"} isAnimationActive={false}
             />
           ))}
+          {/* Painted last so it reads as a crosshair over the series,
+              not a stub buried under a bar. */}
+          {pin.cursor}
         </LineChart>
       </ResponsiveContainer>
+      {pin.sheet}
     </div>
   );
 }

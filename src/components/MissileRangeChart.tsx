@@ -1,10 +1,12 @@
 import {
-  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid,
   ResponsiveContainer, type DotProps,
 } from "recharts";
 import { useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS, type Theme } from "@/theme";
+import { usePinnedChart } from "@/components/usePinnedChart";
+import type { TooltipDescriptor } from "@/components/TooltipTable";
 import { chartColors } from "@/chartColors";
 import type { MissileSeries, MissilePoint } from "@/data/missiles";
 import { fmtAsOf, fmtValue } from "./missileFormat";
@@ -47,30 +49,26 @@ export function BoundDot(props: DotProps & { payload?: MissilePoint; color: stri
   }
 }
 
-function MissileTooltip({ active, payload, t, unit }: {
-  active?: boolean;
-  payload?: Array<{ payload?: MissilePoint }>;
-  t: Theme;
-  unit: string;
-}) {
-  if (!active || !payload?.length || !payload[0].payload) return null;
-  const p = payload[0].payload;
-  return (
-    <div style={{
-      background: t.surface, border: `1px solid ${t.border}`, borderRadius: 6,
-      padding: "8px 10px", fontFamily: FONTS.mono, fontSize: 12,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.12)", minWidth: 180,
-    }}>
-      <div style={{ color: t.textMuted, marginBottom: 4 }}>{fmtAsOf(p)}</div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, color: t.text }}>
-        <span>{fmtValue(p)}</span><span style={{ color: t.textMuted }}>{unit}</span>
-      </div>
-      <div style={{ color: t.textMuted, marginTop: 4, fontSize: 11 }}>“{p.raw_label}”</div>
-      <div style={{ color: t.textFaint, marginTop: 2, fontSize: 10 }}>
-        {p.org} · disclosed {p.reported_at}
-      </div>
-    </div>
-  );
+// A disclosure is prose plus one figure, not a table of series, so this goes
+// through the descriptor's `content` hatch — the quoted wording and its source
+// are the substance here, and the number alone would lose them.
+function describeDisclosure(p: MissilePoint, t: Theme, unit: string): TooltipDescriptor {
+  return {
+    header: fmtAsOf(p),
+    rows: [],
+    minWidth: 180,
+    content: (
+      <>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, color: t.text }}>
+          <span>{fmtValue(p)}</span><span style={{ color: t.textMuted }}>{unit}</span>
+        </div>
+        <div style={{ color: t.textMuted, marginTop: 4, fontSize: "0.917em" }}>“{p.raw_label}”</div>
+        <div style={{ color: t.textFaint, marginTop: 2, fontSize: "0.833em" }}>
+          {p.org} · disclosed {p.reported_at}
+        </div>
+      </>
+    ),
+  };
 }
 
 interface Props {
@@ -98,11 +96,23 @@ export function MissileRangeChart({ series, unit, timeDomain, ticks, yMax, swatc
   const domainMax = yMax ?? ownMax;
   const single = series.points.length < 2;
 
+  const pin = usePinnedChart({
+    chartId: `missile-range-${series.label}`,
+    title: series.label,
+    data: series.points,
+    // Numeric epoch x-axis rather than a category — the pin keys on the raw
+    // timestamp, which is what the axis dataKey yields.
+    xOf: (p) => p.t,
+    describe: (p) => describeDisclosure(p, t, unit),
+    formatLabel: (p) => fmtAsOf(p),
+    cursor: { stroke: t.textMuted, strokeWidth: 1 },
+  });
+
   return (
-    <div className="daily-card" style={{
+    <div className="daily-card" {...pin.cardProps} style={{
       background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8,
       padding: "18px 16px 12px", animation: "fadeIn 0.3s ease both",
-      boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+      boxShadow: "0 1px 4px rgba(0,0,0,0.06)", cursor: "pointer",
     }}>
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
@@ -121,7 +131,7 @@ export function MissileRangeChart({ series, unit, timeDomain, ticks, yMax, swatc
         {series.combined ? "reported combined · " : ""}{series.points.length} report{series.points.length === 1 ? "" : "s"}
       </div>
       <ResponsiveContainer width="100%" height={200}>
-        <ComposedChart data={series.points} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+        <ComposedChart data={series.points} margin={{ top: 8, right: 12, left: -8, bottom: 0 }} {...pin.chartProps}>
           <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
           <XAxis
             type="number" dataKey="t" scale="time" domain={timeDomain} ticks={ticks}
@@ -137,18 +147,7 @@ export function MissileRangeChart({ series, unit, timeDomain, ticks, yMax, swatc
             tickLine={false} axisLine={false}
             domain={[0, domainMax]} allowDecimals={false}
           />
-          <Tooltip
-            allowEscapeViewBox={{ x: false, y: true }}
-            wrapperStyle={{ zIndex: 9999 }}
-            cursor={{ stroke: t.textMuted, strokeWidth: 1 }}
-            content={(props) => (
-              <MissileTooltip
-                active={props.active}
-                payload={props.payload as Array<{ payload?: MissilePoint }> | undefined}
-                t={t} unit={unit}
-              />
-            )}
-          />
+          {pin.tooltip}
           {/* Range band — only visibly tall where a report gave a low–high range. */}
           <Area type="linear" dataKey="range" stroke="none" fill={color} fillOpacity={0.18} isAnimationActive={false} />
           {/* Central line through the points; gaps between reports are real time
@@ -159,8 +158,12 @@ export function MissileRangeChart({ series, unit, timeDomain, ticks, yMax, swatc
             dot={({ key, ...p }) => <BoundDot key={key} {...p} color={color} />}
             activeDot={{ r: 5, fill: color }}
           />
+          {/* Painted last so it reads as a crosshair over the series,
+              not a stub buried under a bar. */}
+          {pin.cursor}
         </ComposedChart>
       </ResponsiveContainer>
+      {pin.sheet}
     </div>
   );
 }
