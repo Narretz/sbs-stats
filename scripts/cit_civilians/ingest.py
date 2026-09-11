@@ -347,21 +347,31 @@ def iter_summaries(channel: str, since_id: int, max_pages: int, sleep: float,
 # ── storage ─────────────────────────────────────────────────────────────────
 
 def _signature(report: ParsedReport) -> tuple:
-    """Hashable shape used to decide whether a re-parse changed anything."""
-    return (report.report_date, report.stated_killed, report.stated_injured,
+    """Hashable shape used to decide whether a re-parse changed anything.
+
+    The window fields are part of it, not just `report_date`: a fix that makes
+    a previously unreadable window parse can leave the date identical while
+    changing `date_basis` from an inferred one to a real window. Judging that
+    "unchanged" silently keeps the stale basis in the DB, which is how a
+    corrected post kept reporting itself as timestamp-derived.
+    """
+    return (report.report_date, report.window_start, report.window_end,
+            report.date_basis, report.window_days,
+            report.stated_killed, report.stated_injured,
             tuple((r.kind, r.event_date, r.region_key, r.occupied, r.killed,
                    r.injured, r.reason) for r in report.rows))
 
 
 def _stored_signature(conn: sqlite3.Connection, post_id: int, scraped_at: str) -> tuple:
     head = conn.execute(
-        "SELECT report_date, stated_killed, stated_injured FROM reports "
+        "SELECT report_date, window_start, window_end, date_basis, window_days, "
+        "stated_killed, stated_injured FROM reports "
         "WHERE post_id = ? AND scraped_at = ?", (post_id, scraped_at)).fetchone()
     rows = conn.execute(
         "SELECT kind, event_date, region_key, occupied, killed, injured, reason "
         "FROM casualties WHERE post_id = ? AND scraped_at = ? ORDER BY seq",
         (post_id, scraped_at)).fetchall()
-    return (head[0], head[1], head[2], tuple(tuple(r) for r in rows)) if head else ()
+    return (*head, tuple(tuple(r) for r in rows)) if head else ()
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:

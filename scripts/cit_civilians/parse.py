@@ -794,9 +794,19 @@ def _amendment_rows(paragraph: str, report_day: date) -> tuple[list[Row], list[s
 
 # --- header, totals, entry point -------------------------------------------
 
+# Day and month may lack a leading zero ("20:00 9.07.2025"), and the 2023 posts
+# write the year with two digits ("20:00 12.11.23-20:00 13.11.23"). A stricter
+# pattern does not merely miss the window — it falls through to the post
+# timestamp, which lands the report on the wrong day and collides with its
+# neighbour.
 _WINDOW_RE = re.compile(
-    r"\(\s*(\d{1,2}):(\d{2})\s+(\d{2})\.(\d{2})\.(\d{4})\s*[-–—]\s*"
-    r"(\d{1,2}):(\d{2})\s+(\d{2})\.(\d{2})\.(\d{4})\s*\)")
+    r"\(\s*(\d{1,2}):(\d{2})\s+(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s*[-–—]\s*"
+    r"(\d{1,2}):(\d{2})\s+(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s*\)")
+
+
+def _year(raw: int) -> int:
+    """Expand a two-digit year. The channel starts in 2023, so 23 is 2023."""
+    return raw + 2000 if raw < 100 else raw
 
 _TOTAL_RE = re.compile(r"Таким образом[^\n]*", re.IGNORECASE)
 
@@ -814,8 +824,8 @@ def _window(text: str) -> tuple[datetime, datetime] | None:
         return None
     sh, sm, sd, smo, sy, eh, em, ed, emo, ey = (int(x) for x in m.groups())
     try:
-        return (datetime(sy, smo, sd, sh, sm, tzinfo=MSK),
-                datetime(ey, emo, ed, eh, em, tzinfo=MSK))
+        return (datetime(_year(sy), smo, sd, sh, sm, tzinfo=MSK),
+                datetime(_year(ey), emo, ed, eh, em, tzinfo=MSK))
     except ValueError:
         return None
 
@@ -850,6 +860,19 @@ def parse(text: str, posted_at: datetime) -> ParsedReport:
 
     warnings: list[str] = []
     win = _window(body)
+    # "20:00 20.11.23-21:00 20.11.23" (post 2331) states a one-hour window and
+    # means the next day. A "сутки" report covers ~24 hours and a weekend one
+    # ~48, so anything under 20 is as corrupt as a backwards window — and left
+    # alone it collides with the report that really does cover that day.
+    if win and timedelta(0) < (win[1] - win[0]) < timedelta(hours=20):
+        span = 2 if weekend else 1
+        fixed_end = win[0] + timedelta(days=span)
+        warnings.append(
+            f"stated window spans only {(win[1] - win[0])} — too short for a "
+            f"report of this kind; the end date is rebuilt as {fixed_end.date()} "
+            f"from the window start and the report's own span")
+        win = (win[0], fixed_end)
+
     if win and win[1] <= win[0]:
         # The stated window ends at or before it starts — a typo in the source
         # ("20:00 30.05.2025 – 20:00 01.05.2025", post 7000, which meant
