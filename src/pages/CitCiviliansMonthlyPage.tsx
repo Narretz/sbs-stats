@@ -4,6 +4,7 @@ import { useMonthlyMetricGrid } from "@/hooks/useMonthlyMetricGrid";
 import { useTheme } from "@/hooks/useTheme";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { CitRegionTable } from "@/components/CitRegionTable";
+import { CitTerritoryChart } from "@/components/CitTerritoryChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthRangeSelect } from "@/components/MonthRangeSelect";
@@ -18,6 +19,7 @@ import {
   type CitMonthlyRow,
   type CitReconciliation,
   type CitRegionRow,
+  type CitTerritoryRow,
   type MonthlyDataPoint,
 } from "@/types";
 
@@ -32,23 +34,25 @@ function daysInMonth(month: string): number {
 
 export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryMonthly, queryRegions, queryReconciliation, queryDataWindow } =
-    useCitCiviliansDatabaseContext();
+  const { loadState, error, queryMonthly, queryRegions, queryTerritory,
+          queryReconciliation, queryDataWindow } = useCitCiviliansDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const { rows, hasData, yr, allStats } = useMonthlyMetricGrid<CitMonthlyRow, CitMetricKey>({
     loadState, queryMonthly, refreshKey, keys: CIT_METRIC_KEYS,
   });
 
   const [regions, setRegions] = useState<CitRegionRow[]>([]);
+  const [territory, setTerritory] = useState<CitTerritoryRow[]>([]);
   const [recon, setRecon] = useState<CitReconciliation>({
     reports: 0, bothExact: 0, killedExact: 0, killedDriftPct: 0, injuredDriftPct: 0,
   });
   useEffect(() => {
     if (loadState === "ready") {
       setRegions(queryRegions());
+      setTerritory(queryTerritory());
       setRecon(queryReconciliation());
     }
-  }, [loadState, queryRegions, queryReconciliation, refreshKey]);
+  }, [loadState, queryRegions, queryTerritory, queryReconciliation, refreshKey]);
 
   const endMonth = resolvedEndMonth("Europe/Moscow");
 
@@ -125,11 +129,14 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
         )}{" "}
         So the split is good to about a percent in aggregate but rarely exact on
         any one day — older posts describe casualties in free prose, and some
-        posts simply disagree with themselves. Read it as a shape, not a count,
-        and note that occupied and government-held parts of the same oblast are
-        listed separately, because they are different places.
+        posts simply disagree with themselves. Read it as a shape, not a count.
+        Both views below sum killed and injured together, since the question
+        they answer is <i>where</i> rather than <i>how</i>, and both keep
+        occupied and government-held parts of the same oblast apart, because
+        they are different places.
       </p>
       <ChartGrid>
+        <CitTerritoryChart data={yr.slice(territory)} wfull />
         <CitRegionTable rows={regions} />
       </ChartGrid>
     </PageScaffold>

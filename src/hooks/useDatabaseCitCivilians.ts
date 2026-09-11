@@ -7,6 +7,7 @@ import type {
   CitMetricKey,
   CitMonthlyRow,
   CitRegionRow,
+  CitTerritoryRow,
 } from "@/types";
 import { CIT_METRIC_KEYS } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
@@ -210,6 +211,50 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
     [db]
   );
 
+  // ── Territory: casualties by which side controls the ground ──────────────
+  //
+  // Killed and injured summed, because the question here is where people are
+  // being hurt, not how. Like the region table this reads the breakdown rows
+  // rather than the headline, so it inherits their accuracy — see
+  // queryReconciliation.
+  //
+  // Bucketed by the REPORT's month (its window end date), the same key the
+  // monthly headline charts use, so the two line up. `event_date` would be the
+  // alternative but it is NULL on corrections naming several dates at once.
+  const queryTerritory = useCallback((): CitTerritoryRow[] => {
+    if (!db) return [];
+    return queryRows<Record<string, number | string>>(
+      db,
+      `SELECT substr(r.report_date, 1, 7) AS month,
+              SUM(CASE WHEN c.country = 'UA' AND c.occupied = 0
+                       THEN c.killed + c.injured ELSE 0 END) AS uaControlled,
+              SUM(CASE WHEN c.country = 'UA' AND c.occupied = 1
+                       THEN c.killed + c.injured ELSE 0 END) AS occupiedUkraine,
+              SUM(CASE WHEN c.country = 'RU'
+                       THEN c.killed + c.injured ELSE 0 END) AS russia,
+              SUM(CASE WHEN c.country IS NULL
+                       THEN c.killed + c.injured ELSE 0 END) AS unattributed
+       FROM casualties_latest c
+       JOIN reports_latest r
+         ON r.post_id = c.post_id AND r.scraped_at = c.scraped_at
+       WHERE c.kind IN ('daily', 'amendment')
+       GROUP BY month
+       ORDER BY month ASC`
+    ).map((row) => {
+      const num = (k: string) => (typeof row[k] === "number" ? (row[k] as number) : 0);
+      const occupiedUkraine = num("occupiedUkraine");
+      const russia = num("russia");
+      return {
+        date: String(row.month),
+        uaControlled: num("uaControlled"),
+        ruControlled: occupiedUkraine + russia,
+        occupiedUkraine,
+        russia,
+        unattributed: num("unattributed"),
+      };
+    });
+  }, [db]);
+
   // How far the region breakdown can be trusted. Surfaced on the page rather
   // than buried, because it is what says how much weight the region table
   // carries — and because one number would misrepresent it. The strict test
@@ -261,7 +306,8 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
 
   return {
     loadState, error,
-    queryDaily, queryGlobalStats, queryMonthly, queryRegions, queryReconciliation,
+    queryDaily, queryGlobalStats, queryMonthly, queryRegions, queryTerritory,
+    queryReconciliation,
     queryDataWindow,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs,

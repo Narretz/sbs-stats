@@ -88,6 +88,12 @@ export interface ChartColors {
   hourlyToday: string;
   hourlyPastDay: string;
 
+  // Territory a casualty happened in (CIT). A categorical pair — the subject
+  // is which place, not which is bigger — so it takes the categorical tokens
+  // rather than the main/second series ones.
+  territoryUaControlled: string;
+  territoryRuControlled: string;
+
   // Civilian casualties (CIT). Their own roles rather than borrowed equipment
   // ones: killed/injured is a different pairing from damaged/destroyed, and
   // retuning one should not silently retune the other.
@@ -136,6 +142,9 @@ export function chartColors(t: Theme): ChartColors {
     // shared axis), so the pairing is about meaning, not adjacency.
     civiliansKilled: t.series2,
     civiliansInjured: t.series1,
+
+    territoryUaControlled: t.categorical1,
+    territoryRuControlled: t.categorical2,
 
     neutral: t.seriesNeutral,
 
