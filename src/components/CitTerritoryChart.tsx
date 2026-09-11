@@ -1,8 +1,8 @@
 import { Bar, Cell } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
-import { MonthlyChartCard, type TooltipRenderProps } from "@/components/MonthlyChartCard";
-import { TooltipCard, TooltipTable, type TooltipTableRow } from "@/components/TooltipTable";
+import { MonthlyChartCard } from "@/components/MonthlyChartCard";
+import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 import type { CitTerritoryRow } from "@/types";
 
 // Where civilians are being hurt, month by month: killed and injured summed
@@ -26,9 +26,7 @@ export function CitTerritoryChart({ data, wfull }: { data: CitTerritoryRow[]; wf
   const { theme: t } = useTheme();
   const c = chartColors(t);
 
-  const renderTooltip = ({ active, payload }: TooltipRenderProps<CitTerritoryRow>) => {
-    if (!active || !payload?.length) return null;
-    const d = payload[0].payload;
+  const describe = (d: CitTerritoryRow): TooltipDescriptor => {
     const total = d.uaControlled + d.ruControlled;
     const share = (v: number) => (total > 0 ? (v / total) * 100 : null);
     const rows: TooltipTableRow[] = [
@@ -51,11 +49,7 @@ export function CitTerritoryChart({ data, wfull }: { data: CitTerritoryRow[]; wf
         separatorAbove: true,
       });
     }
-    return (
-      <TooltipCard header={formatMonth(d.date)} minWidth={260}>
-        <TooltipTable rows={rows} />
-      </TooltipCard>
-    );
+    return { header: formatMonth(d.date), rows, minWidth: 260 };
   };
 
   // Ukrainian-controlled on the bottom: it is ~73% of the total, so putting it
@@ -66,7 +60,11 @@ export function CitTerritoryChart({ data, wfull }: { data: CitTerritoryRow[]; wf
       title="Casualties by controlling side"
       data={data}
       wfull={wfull}
-      tooltip={renderTooltip}
+      describe={describe}
+      // The hover card formats the month, so the sheet's stepper must too —
+      // one description rendered two ways is the point of the descriptor, and
+      // "Mar 2026" above a stepper reading "2026-03" would undo it.
+      formatLabel={(d) => formatMonth(d.date)}
       legend={[
         { label: "Ukrainian-controlled", color: c.territoryUaControlled },
         { label: "Russian-controlled (occupied Ukraine + Russia)", color: c.territoryRuControlled },
