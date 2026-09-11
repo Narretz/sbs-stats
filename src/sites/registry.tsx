@@ -10,6 +10,7 @@ import {
   RubikonDatabaseProvider, useRubikonDatabaseContext,
   UaLossesDatabaseProvider, useUaLossesDatabaseContext,
   MediazonaDatabaseProvider, useMediazonaDatabaseContext,
+  CitCiviliansDatabaseProvider, useCitCiviliansDatabaseContext,
 } from "@/context/databases";
 import { SbsProviders } from "@/sites/SbsProviders";
 import { SbsDailyPage } from "@/pages/SbsDailyPage";
@@ -29,6 +30,8 @@ import { RubikonMonthlyPage } from "@/pages/RubikonMonthlyPage";
 import { UaLossesMonthlyPage } from "@/pages/UaLossesMonthlyPage";
 import { MediazonaWeeklyPage } from "@/pages/MediazonaWeeklyPage";
 import { MediazonaMonthlyPage } from "@/pages/MediazonaMonthlyPage";
+import { CitCiviliansDailyPage } from "@/pages/CitCiviliansDailyPage";
+import { CitCiviliansMonthlyPage } from "@/pages/CitCiviliansMonthlyPage";
 
 // Every dataset page takes the same prop.
 type PageComponent = ComponentType<{ refreshKey: number }>;
@@ -108,5 +111,10 @@ export const SITE_REGISTRY: Partial<Record<Site, SiteConfig>> = {
     provider: MediazonaDatabaseProvider,
     useDbContext: useMediazonaDatabaseContext,
     pages: { weekly: MediazonaWeeklyPage, monthly: MediazonaMonthlyPage },
+  },
+  "cit-civilians": {
+    provider: CitCiviliansDatabaseProvider,
+    useDbContext: useCitCiviliansDatabaseContext,
+    pages: { daily: CitCiviliansDailyPage, monthly: CitCiviliansMonthlyPage },
   },
 };

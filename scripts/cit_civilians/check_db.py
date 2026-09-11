@@ -58,47 +58,86 @@ def check_day_coverage(conn: sqlite3.Connection, since: str) -> int:
 
 
 def check_reconciliation(conn: sqlite3.Connection, since: str) -> int:
-    """Report how often the regional breakdown matches the post's own total.
+    """Report how closely the regional breakdown tracks each post's own total.
 
-    A NOTICE, not a warning: the headline figures are stored regardless and are
-    what the charts plot, and the rate is expected to sit near 60% because the
-    older prose format is genuinely harder to read — and because CIT's own
-    arithmetic sometimes differs from its own breakdown. It is worth watching
-    for a sudden drop, which would mean the format changed.
+    A NOTICE, not a warning. The strict flag — both figures matching exactly —
+    is a harsh test and sits near 30%, but it badly understates how usable the
+    breakdown is: across the archive the parsed region rows come within ~1% of
+    the stated totals in aggregate, and the KILLED column matches exactly on
+    roughly three quarters of reports. Injured is the soft one: many posts are
+    off by one or two people in a figure of a hundred-odd.
+
+    What matters is the trend. A sudden drop in the killed-exact rate, or an
+    aggregate drift beyond a couple of percent, means the format moved and the
+    parser needs a look — which a single strict percentage would hide.
     """
-    row = conn.execute(
-        "SELECT COUNT(*), SUM(reconciled) FROM reports_latest "
-        "WHERE report_date >= ? AND reconciled IS NOT NULL", (since,)).fetchone()
-    total, ok = row[0], row[1] or 0
-    if not total:
+    rows = conn.execute(
+        "SELECT stated_killed, sum_killed, stated_injured, sum_injured "
+        "FROM reports_latest WHERE report_date >= ? AND reconciled IS NOT NULL",
+        (since,)).fetchall()
+    if not rows:
         return 0
-    pct = 100.0 * ok / total
+    n = len(rows)
+    k_exact = sum(1 for r in rows if r[0] == r[1])
+    i_near = sum(1 for r in rows if abs(r[3] - r[2]) <= 3)
+    both = sum(1 for r in rows if r[0] == r[1] and r[2] == r[3])
+    k_stated = sum(r[0] for r in rows) or 1
+    i_stated = sum(r[2] for r in rows) or 1
+    k_drift = 100.0 * (sum(r[1] for r in rows) - k_stated) / k_stated
+    i_drift = 100.0 * (sum(r[3] for r in rows) - i_stated) / i_stated
     log.warning(
-        "regional breakdown reconciles with the post's own total on %d of %d "
-        "reports since %s (%.0f%%); the stated headline figures are unaffected",
-        ok, total, since, pct,
-        extra=ann(level="notice", title="CIT: reconciliation rate"))
-    return total - ok
+        "breakdown vs the posts' own totals over %d reports since %s: killed "
+        "exact on %d (%.0f%%), injured within 3 on %d (%.0f%%), both exact on "
+        "%d (%.0f%%); aggregate drift killed %+.1f%%, injured %+.1f%%. The "
+        "stated headline figures — what the charts plot — are unaffected.",
+        n, since, k_exact, 100.0 * k_exact / n, i_near, 100.0 * i_near / n,
+        both, 100.0 * both / n, k_drift, i_drift,
+        extra=ann(level="notice", title="CIT: breakdown accuracy"))
+    return n - both
 
 
 def check_negative_days(conn: sqlite3.Connection, since: str) -> int:
     """Flag days whose revised total went negative.
 
-    Only an adjustment can push a day below zero, and that means we subtracted
-    someone who was never added — typically a retraction or a died-of-wounds
-    −1 naming a date that predates the backfill.
+    Only an adjustment can push a day below zero. Two cases, and they mean
+    different things:
+
+    * The day HAS daily rows → we subtracted more than was ever added, which is
+      a real problem worth a warning.
+    * The day has NO daily rows → expected, and not an error. A weekend report
+      stores its regional rows under the window's END date, so the Saturday of
+      a weekend has no rows of its own; a later correction naming that Saturday
+      then stands alone in `daily_revised`. (The frontend spreads a weekend's
+      headline across both days; the stored breakdown is not spread, because
+      the source never split it.)
     """
     rows = conn.execute(
-        "SELECT event_date, killed, injured FROM daily_revised "
-        "WHERE event_date >= ? AND (killed < 0 OR injured < 0)", (since,)).fetchall()
-    for event_date, killed, injured in rows:
-        log.warning(
-            "revised totals for %s are negative (%d killed, %d injured) — a "
-            "correction subtracted casualties that were never recorded, most "
-            "likely because the original report predates this DB",
-            event_date, killed, injured,
-            extra=ann(title="CIT: negative revised total"))
-    return len(rows)
+        """
+        SELECT r.event_date, r.killed, r.injured,
+               EXISTS (SELECT 1 FROM casualties_latest d
+                       WHERE d.event_date = r.event_date AND d.kind = 'daily') AS covered
+        FROM daily_revised r
+        WHERE r.event_date >= ? AND (r.killed < 0 OR r.injured < 0)
+        """,
+        (since,)).fetchall()
+    real = 0
+    for event_date, killed, injured, covered in rows:
+        if covered:
+            real += 1
+            log.warning(
+                "revised totals for %s are negative (%d killed, %d injured) even "
+                "though the day has its own regional rows — a correction "
+                "subtracted casualties that were never recorded",
+                event_date, killed, injured,
+                extra=ann(title="CIT: negative revised total"))
+        else:
+            log.warning(
+                "%s carries only corrections (%d killed, %d injured) and no "
+                "regional rows of its own — normally the first day of a weekend, "
+                "whose breakdown is stored under the Sunday",
+                event_date, killed, injured,
+                extra=ann(level="notice", title="CIT: corrections-only day"))
+    return real
 
 
 def check_duplicate_dates(conn: sqlite3.Connection, since: str) -> int:

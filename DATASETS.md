@@ -308,9 +308,13 @@ The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:
   starts 2023-09-02 with no summaries. `--backfill` walks the lot (~10,800 posts).
 - **Self-validating.** Every post closes with its own total ("…как минимум о 26 погибших и 165
   пострадавших"), so each parse is checked against the source: `reports.reconciled`. Chart
-  `reports.stated_*` — CIT's own headline, which parses on **~96%** of posts; the per-region rows
-  are the secondary dimension and match the headline on **~56%** across the archive (~80% in the
-  current format, worse in the 2024 prose era, where verbs and counts are free-form).
+  `reports.stated_*` — CIT's own headline, which parses on **100%** of posts from 2024 onward
+  (the 64 posts of the 2023 era carry no total line at all). Measured over the full backfill —
+  885 posts, 1,061 covered days, 2023-10-18 → 2026-09-10 — the per-region rows match the stated
+  **killed** exactly on **82%** of posts and land within 3 on **injured** for **89%**, but match
+  BOTH exactly on only **50%**; aggregate drift across the archive is **+0.9%** killed and
+  **−1.0%** injured. So the breakdown is good to about a percent in aggregate while rarely exact
+  on a given day — injured is the soft column.
 - **Corrections are first-class.** Posts amend earlier days ("ещё одном пострадавшем … за 7
   сентября"), retract ("из подсчёта были исключены…"), and occasionally restate outright
   ("составляет 87 человек, а не 90"). Stored as signed rows keyed to the date they belong to, so

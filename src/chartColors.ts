@@ -88,6 +88,12 @@ export interface ChartColors {
   hourlyToday: string;
   hourlyPastDay: string;
 
+  // Civilian casualties (CIT). Their own roles rather than borrowed equipment
+  // ones: killed/injured is a different pairing from damaged/destroyed, and
+  // retuning one should not silently retune the other.
+  civiliansKilled: string;
+  civiliansInjured: string;
+
   // De-emphasised / unattributed slices of an otherwise colored chart
   neutral: string;
 
@@ -123,6 +129,13 @@ export function chartColors(t: Theme): ChartColors {
 
     hourlyToday: t.series1,
     hourlyPastDay: t.seriesNeutral,
+
+    // Killed is the graver of the pair, so it takes the red the house rule
+    // reserves for a second series drawn against the main one; injured takes
+    // the blue. They are charted separately (different magnitudes, never one
+    // shared axis), so the pairing is about meaning, not adjacency.
+    civiliansKilled: t.series2,
+    civiliansInjured: t.series1,
 
     neutral: t.seriesNeutral,
 

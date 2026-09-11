@@ -14,6 +14,7 @@ import { useDatabaseSbuAlfa } from "@/hooks/useDatabaseSbuAlfa";
 import { useDatabaseRubikon } from "@/hooks/useDatabaseRubikon";
 import { useDatabaseUaLosses } from "@/hooks/useDatabaseUaLosses";
 import { useDatabaseMediazona } from "@/hooks/useDatabaseMediazona";
+import { useDatabaseCitCivilians } from "@/hooks/useDatabaseCitCivilians";
 
 export const { Provider: SbsDatabaseProvider, useDbContext: useSbsDatabaseContext } =
   makeDatabaseContext(useDatabaseSbs, "SBS");
@@ -47,3 +48,6 @@ export const { Provider: UaLossesDatabaseProvider, useDbContext: useUaLossesData
 
 export const { Provider: MediazonaDatabaseProvider, useDbContext: useMediazonaDatabaseContext } =
   makeDatabaseContext(useDatabaseMediazona, "Mediazona");
+
+export const { Provider: CitCiviliansDatabaseProvider, useDbContext: useCitCiviliansDatabaseContext } =
+  makeDatabaseContext(useDatabaseCitCivilians, "CIT civilians");

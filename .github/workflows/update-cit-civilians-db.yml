@@ -87,6 +87,21 @@ jobs:
             --db "data/$CIT_DB_NAME" \
             --since "$(date -u -d '30 days ago' +%Y-%m-%d)"
 
+      # Strip the raw post text and the per-clause audit labels into a
+      # frontend-only copy (11 MB → ~2 MB). The authoritative DB keeps them so
+      # `ingest.py --reparse` can re-read stored posts after a parser fix; the
+      # frontend never queries either column. Both objects are uploaded from
+      # the same run so they can't drift on R2.
+      - name: Build app CIT DB (strip raw text)
+        if: steps.scrape.outputs.changed == 'true'
+        run: |
+          python3 scripts/build_app_db.py \
+            --in "data/$CIT_DB_NAME" \
+            --out "data/cit-civilians.app.db" \
+            --blank reports.body_text \
+            --blank casualties.raw_label \
+            --blank casualties.region_raw
+
       - name: Upload CIT DB to R2
         if: steps.scrape.outputs.changed == 'true'
         env:
@@ -96,6 +111,11 @@ jobs:
           npx --yes wrangler@4 r2 object put \
             "$R2_BUCKET/$CIT_DB_NAME" \
             --file "data/$CIT_DB_NAME" \
+            --content-type application/vnd.sqlite3 \
+            --remote
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/cit-civilians.app.db" \
+            --file "data/cit-civilians.app.db" \
             --content-type application/vnd.sqlite3 \
             --remote
 
