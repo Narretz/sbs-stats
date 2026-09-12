@@ -42,6 +42,16 @@ reject daily SBU news). Any candidate is parsed and gated on
 false-positive slug can't land garbage — it surfaces as a skip warning in the
 workflow log for manual review.
 
+**Drift detection.** `parse.py` also collects counter-like lines ("NUM
+<Ukrainian noun>", inside the region the matched counters span) that no
+category claimed, and `ingest.warn_unmatched()` — used by both the manual
+ingest and `discover.py` — logs them through `scripts/ingest_log.py`. In CI
+that becomes a **GitHub annotation** (`scripts/annotate_log.py` runs as the
+job's last step) titled *sbu-alfa: unrecognised counter line*, anchored on
+`parse.py`. The recognised counters are still stored; only the unclaimed line
+is missing, so the failure mode is a quietly absent category — which is
+exactly what the annotation is there to prevent.
+
 ## Schema
 
 **`reports`** — one row per (url, scraped_at). `body_text` stores the cleaned
@@ -68,15 +78,17 @@ note so the reader knows the count is a lower bound, not a precise figure.
 
 ## Tests
 
-Golden-value pytest cases keyed on three offline fixture HTMLs cover all
-categories that have appeared so far:
+Golden-value pytest cases keyed on offline fixture HTMLs cover all categories
+that have appeared so far:
 
 ```sh
 python3 -m pytest scripts/sbu_alfa/test_parse.py -q
 ```
 
 Add a new fixture under `scripts/sbu_alfa/fixtures/` and a stanza to
-`test_parse.py` when a new month publishes with previously-unseen wording.
+`test_parse.py` when a new month publishes with previously-unseen wording. The
+fixtures directory is gitignored, so a new fixture needs `git add -f`; a month
+whose HTML isn't in the checkout skips (visibly) instead of erroring.
 
 ## Schema caveats / drift
 
@@ -86,6 +98,13 @@ Add a new fixture under `scripts/sbu_alfa/fixtures/` and a stanza to
   renders whichever bucket(s) are present for each month.
 - **Tank/IFV split** is sometimes omitted (March 2026 gives only the armored
   total). `armored_total` is always recorded; `tanks` / `ifvs` may be null.
+- **Ukrainian case endings shift with the preceding numeral** — the noun after
+  a count is genitive plural after 5+/0, nominative plural after 2/3/4, and
+  nominative/accusative singular after a numeral ending in 1. Every category
+  regex has to tolerate all three (August 2026 dropped two counters this way:
+  "2791 антен**у** та вуз**ол** зв'язку" and "33 бойов**і** броньован**і**
+  машин**и**"), which is why the patterns match stems + `\w+` rather than a
+  single observed ending.
 - **Sparse categories** (AD, radar, aircraft, watercraft, depots) appear only
   when the unit hits one that month. Absence is not zero — the chart renders
   an empty bar for that month.

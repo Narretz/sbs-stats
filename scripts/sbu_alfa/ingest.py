@@ -35,8 +35,16 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+# Shared diagnostics sink: stderr as before, plus a JSONL record per WARNING
+# when $INGEST_LOG is set, which scripts/annotate_log.py turns into GitHub
+# annotations. `scripts/` isn't a package, so the parent goes on sys.path too.
+if str(SCRIPT_DIR.parent) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR.parent))
 
+from ingest_log import ann, get_logger  # noqa: E402
 from parse import Counter, ParsedReport, extract_text, parse  # noqa: E402
+
+log = get_logger("sbu-alfa")
 
 DEFAULT_DB = Path("data/sbu-alfa.db")
 
@@ -228,6 +236,32 @@ def store(
         conn.close()
 
 
+# ── drift reporting ────────────────────────────────────────────────────────
+
+def warn_unmatched(url: str, report: ParsedReport) -> None:
+    """Surface counter lines the parser recognised as counters but no category
+    claimed — a new category, or a case ending we haven't seen (the recap's
+    endings shift with the preceding numeral, which is how Aug 2026's "вузол"
+    and "бойові броньовані машини" lines went missing).
+
+    Routed through ingest_log so the finding becomes a GitHub annotation in CI
+    instead of a stderr line nobody opens the log to read, and is raised in one
+    place for both callers (this module's CLI and discover.py). The recognised
+    counters are still stored — a miss costs one category, not the report.
+    """
+    if not report.unmatched:
+        return
+    log.warning(
+        f"{len(report.unmatched)} counter line(s) matched no category "
+        f"(new or renamed?) — add a pattern in CATEGORIES: "
+        f"{'; '.join(report.unmatched)} — {url}",
+        extra=ann(
+            title="sbu-alfa: unrecognised counter line",
+            file="scripts/sbu_alfa/parse.py",
+        ),
+    )
+
+
 # ── CLI ────────────────────────────────────────────────────────────────────
 
 def main(argv: list[str] | None = None) -> int:
@@ -259,12 +293,7 @@ def main(argv: list[str] | None = None) -> int:
     for c in report.counters:
         bracket = f" [{c.bound}]" if c.bound != "exact" else ""
         print(f"  {c.category:22s} {c.value:>8d}{bracket}")
-    if report.unmatched:
-        print(
-            f"WARNING: {len(report.unmatched)} counter line(s) matched no category "
-            f"(new or renamed?) — add a pattern in parse.py: {report.unmatched}",
-            file=sys.stderr,
-        )
+    warn_unmatched(url, report)
 
     if args.dry_run:
         print("(dry-run; not writing)")

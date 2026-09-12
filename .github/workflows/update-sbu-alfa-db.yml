@@ -27,6 +27,18 @@ jobs:
   update-sbu-alfa-db:
     runs-on: ubuntu-latest
 
+    env:
+      # Findings from this job land here as JSONL; the last step turns them
+      # into annotations. See scripts/ingest_log.py. The one finding this
+      # ingest raises is "a counter line matched no category" — SBU's case
+      # endings shift with the preceding numeral, so a recap can quietly lose
+      # a category, and a stderr line in a once-a-month green run is not a
+      # place anyone looks.
+      #
+      # `github.workspace`, not `runner.temp`: the runner context isn't
+      # available in a job-level env block (only in steps).
+      INGEST_LOG: ${{ github.workspace }}/ingest-diagnostics.jsonl
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
@@ -82,3 +94,8 @@ jobs:
             --file "data/$SBU_ALFA_DB_NAME" \
             --content-type application/vnd.sqlite3 \
             --remote
+
+      # Always, so a scan that dies still reports what it found on the way.
+      - name: Annotate ingest diagnostics
+        if: always()
+        run: python3 scripts/annotate_log.py
