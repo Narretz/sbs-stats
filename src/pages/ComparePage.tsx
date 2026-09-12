@@ -406,9 +406,9 @@ export function ComparePage({ preset }: Props) {
           Side-by-side monthly reports. Add a column per unit and month, or compare the same unit between months.
           The units break down the targets differently - the categories have been grouped where it makes sense.
           Categories that do not fit together are listed at the bottom.
-          The one total row covers every category a unit reported that month, personnel included (SBS counts
-          those as a target class of their own). SBS publishes that total; for «Альфа» and «Рубикон» it is
-          this app's sum of the categories their recaps list (marked *), and «Альфа»'s is a floor.
+          The one total row covers every category a unit reported that month, personnel included.
+          SBS publishes that total; for «Альфа» and «Рубикон» it is this app's sum of the categories
+          their recaps list (marked *), and «Альфа»'s is a floor.
           The units also vary in size (SBS is a whole branch; «Альфа» and «Рубикон» are single formations), so
           direct number comparison needs to be taken with a grain of salt.
         </p>
