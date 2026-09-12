@@ -289,14 +289,10 @@ export function ComparePage({ preset }: Props) {
     return [...base, ...extras];
   }, [entitiesInUse, soloEntity, nonZeroNatives, showChildren]);
 
-  const valueFor = (row: FlatRow, col: Column): CompareValue | null => {
-    const v = row.resolve
+  const valueFor = (row: FlatRow, col: Column): CompareValue | null =>
+    row.resolve
       ? (row.resolve(col.entity, col.month)?.value ?? null)
       : sumNatives(snapshots[col.entity], col.month, row.map[col.entity]);
-    // A row-level flag, so a cell whose parts are all published still carries
-    // the "*" when the row's figure itself is ours — see `derivedSum`.
-    return v && row.derivedSum && !v.derived ? { ...v, derived: true } : v;
-  };
 
   // A scope caveat describes the entity's bucket, not the month, so repeating
   // it under every column of the same entity is noise
@@ -410,8 +406,9 @@ export function ComparePage({ preset }: Props) {
           Side-by-side monthly reports. Add a column per unit and month, or compare the same unit between months.
           The units break down the targets differently - the categories have been grouped where it makes sense.
           Categories that do not fit together are listed at the bottom.
-          The one total row sums every category a unit reported that month, personnel included: none of the
-          three publishes such a figure, so it is this app's arithmetic (marked *) and, for «Альфа», a floor.
+          The one total row covers every category a unit reported that month, personnel included (SBS counts
+          those as a target class of their own). SBS publishes that total; for «Альфа» and «Рубикон» it is
+          this app's sum of the categories their recaps list (marked *), and «Альфа»'s is a floor.
           The units also vary in size (SBS is a whole branch; «Альфа» and «Рубикон» are single formations), so
           direct number comparison needs to be taken with a grain of salt.
         </p>
