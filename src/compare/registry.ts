@@ -441,7 +441,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
     // including the counters that never reach a shared row and land in "only
     // in <entity>". The unit-size row above is the denominator that makes the
     // three comparable at all — «Рубикон»'s 17,485 comes off ~5,000 people.
-    group: "totals", key: "targets_all", label: "All targets engaged — sum of categories",
+    group: "totals", key: "targets_all", label: "All targets engaged",
     map: {
       sbs: ["total_targets_hit"],
       "sbu-alfa": ["targets_enumerated"],
@@ -743,7 +743,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
     // dugouts and read as temporary cover rather than built works, which is
     // what pushed the combined SBS figure to ~10x «Альфа»'s. They remain in
     // the SBS "only in" section.
-    group: "struck", key: "fortifications", label: "Fortifications / engineering / strongpoints",
+    group: "struck", key: "fortifications", label: "Engineering / strongpoints",
     map: {
       sbs: ["dugouts"],
       "sbu-alfa": ["fortifications"],

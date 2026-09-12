@@ -21,7 +21,7 @@
 //   --no-sub         hide sub-category rows (shown by default)
 //   --pct <mode>     first | prev — what the % change compares against
 //   --full           capture the whole page, not just the table
-//   --width <px>     viewport width in CSS px, default 900. The table is fluid,
+//   --width <px>     viewport width in CSS px, default 800. The table is fluid,
 //                    so a wide viewport spreads the numbers away from their
 //                    labels; ~650px is its nowrap floor, below which the
 //                    viewport stops mattering.
@@ -69,7 +69,7 @@ function normalizeMonth(raw, spec) {
 function parseArgs(argv) {
   const opts = {
     cols: [], zoom: 100, dsf: null, theme: "dark", scope: false, sub: true,
-    pct: "first", full: false, width: 900, out: null, port: 5173,
+    pct: "first", full: false, width: 800, out: null, port: 5173,
   };
   const want = (i, name) => {
     if (i + 1 >= argv.length) die(`${name} needs a value`);
