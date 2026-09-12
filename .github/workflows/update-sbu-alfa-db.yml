@@ -1,12 +1,10 @@
 name: Update SBU Alfa Database
 
-# Which mode to run after a parser change (the same split as
-# reparse-gsua-db.yml, but folded into this workflow — SBU Alfa is one article
-# a month, so a second workflow would be more ceremony than the job is worth):
-#   - the parser DROPPED a recap (it was never stored)  → raise `pages`;
-#     only a re-scan can recover a report that was never written
-#   - the parser MISREAD a recap it stored              → tick `reparse`;
-#     discover.py skips URLs already in the DB, so a re-scan changes nothing
+# Scheduled ingest of NEW recaps. After a parser change, this is the half to
+# run when the parser DROPPED a recap (it was never stored, so only a re-scan
+# with a widened `pages` can recover it). When the parser MISREAD a recap it
+# already stored, run reparse-sbu-alfa-db.yml instead — discover.py skips URLs
+# already in the DB, so a re-scan here would re-read nothing.
 on:
   workflow_dispatch: # allow manual trigger from GitHub UI
     inputs:
@@ -18,23 +16,6 @@ on:
           recover it).
         required: false
         default: "3"
-      reparse:
-        description: >-
-          Re-read the article text already stored in the DB with the current
-          parser, before scanning. Run this after a parser fix: a recap already
-          in the DB is skipped on URL by the scan, so a re-run would otherwise
-          change nothing. Appends a new version of each report whose counters
-          changed; never overwrites.
-        type: boolean
-        required: false
-        default: false
-      dry_run:
-        description: >-
-          Reparse only. Preview the per-counter diff and write nothing, leaving
-          R2 untouched. Default on — read the diff once before committing to it.
-        type: boolean
-        required: false
-        default: true
   schedule:
     # SBU publishes each monthly recap between the 6th and the 17th of the
     # following month (three known data points; wider than that in practice).
@@ -89,22 +70,6 @@ jobs:
             --file "data/$SBU_ALFA_DB_NAME" \
             --remote
 
-      # Parser-fix path: re-read the stored `reports.body_text` with the
-      # current parser (no fetch — SBU's CDN 403s a large share of automated
-      # requests, and the text is stored precisely so this never needs one).
-      # Dry run unless `dry_run` is unchecked; writes `changed=` like the scan
-      # step below, so the upload is skipped when the re-parse is a no-op.
-      - name: Re-parse stored SBU Alfa reports
-        id: reparse
-        if: ${{ inputs.reparse }}
-        env:
-          DRY_RUN: ${{ inputs.dry_run }}
-        run: |
-          apply=""
-          [ "$DRY_RUN" = "true" ] || apply="--apply"
-          python3 scripts/sbu_alfa/ingest.py --reparse \
-            --out "data/$SBU_ALFA_DB_NAME" $apply
-
       # discover.py: scan the SBU news listing for candidate Alfa monthly-
       # recap URLs, filter out ones already stored, ingest each new one.
       # Slug-filter false positives are gated (parser must recognise
@@ -123,10 +88,8 @@ jobs:
             --out "data/$SBU_ALFA_DB_NAME" \
             --pages "${{ inputs.pages || '3' }}"
 
-      # Either path can have changed the DB — the reparse step only reports
-      # `changed=true` when it actually wrote (never on a dry run).
       - name: Upload SBU Alfa DB to R2
-        if: steps.discover.outputs.changed == 'true' || steps.reparse.outputs.changed == 'true'
+        if: steps.discover.outputs.changed == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

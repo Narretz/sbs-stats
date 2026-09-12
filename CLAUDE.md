@@ -82,7 +82,8 @@ GitHub Actions in `.github/workflows/`:
   5–20 of each month (~16 runs). `scripts/sbu_alfa/discover.py` scans the SBU
   news listing, slug-filters candidate URLs, and ingests any not already in
   the DB. Slug-drift-safe: matches only insert if the parser recognises
-  `report_type='monthly_top1'` with a valid `period`.
+  `report_type='monthly_top1'` with a valid `period`. Its parser-fix
+  counterpart is the manual `reparse-sbu-alfa-db.yml` (see below).
 - `update-rubikon-db.yml` — Rubikon monthly recap. Daily 08:00 UTC on days
   2–8 of each month (7 runs) — the channel posts on the 3rd–4th, so this is a
   much tighter window than SBU Alfa's, which is why it's its own workflow
@@ -131,13 +132,14 @@ re-reads the stored recaps locally after a parser fix, while `--max-pages` /
 the workflow's `pages` input widens the scrape for a recap that was dropped
 outright.
 
-SBU Alfa has both halves inside its one workflow — one article a month didn't
-justify a second workflow. `scripts/sbu_alfa/ingest.py --reparse` (dry-run;
-`--apply` writes) re-reads the stored `reports.body_text`, and
-`update-sbu-alfa-db.yml` exposes it as the `reparse` + `dry_run` inputs
-alongside `pages`. Reparse is the half that matters there: `discover.py`
-filters candidates by URL against the DB *before* parsing, so a recap already
-stored is never re-read by a re-scan however wide `pages` is.
+SBU Alfa splits the same way GSUA does, into its own manual workflow:
+`reparse-sbu-alfa-db.yml` (input `dry_run`, on by default) pulls the DB from
+R2, runs `scripts/sbu_alfa/ingest.py --reparse` over the stored
+`reports.body_text`, tees the per-counter diff into the job summary, and
+re-uploads only when a row actually changed. Reparse is the half that matters
+for this dataset: `discover.py` filters candidates by URL against the DB
+*before* parsing, so a recap already stored is never re-read by a re-scan,
+however wide `pages` is.
 
 ## Common commands
 

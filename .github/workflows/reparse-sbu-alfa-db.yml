@@ -1,0 +1,117 @@
+name: Reparse SBU Alfa Database
+
+# Manual-only. Re-reads the article text ALREADY stored in sbu-alfa.db
+# (`reports.body_text`) with the current parser — no source fetch, which also
+# sidesteps the Akamai 403s that make an SBU re-fetch a coin flip.
+#
+# This is the other half of the parser-fix loop, and it is deliberately NOT part
+# of update-sbu-alfa-db.yml: that workflow's job is to ingest new recaps on a
+# schedule, this one re-reads history on demand. They differ in trigger, blast
+# radius, and failure mode, so they stay separate.
+#
+# Which one to run after a parser change:
+#   - the parser DROPPED a recap (it was never stored)   → re-scrape:
+#     update-sbu-alfa-db.yml with a widened `pages`
+#   - the parser MISREAD a recap it stored               → this workflow;
+#     discover.py skips URLs already in the DB, so a re-scrape re-reads nothing
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: >-
+          Dry run — print the per-counter diff for every stored recap and write
+          nothing: no DB row, no R2 upload, the live site untouched. Leave it ON
+          for the first run; that diff is the only preview of what the fixed
+          parser actually changes. Uncheck to apply, which appends a new version
+          of each recap whose counters changed and re-uploads the DB to R2.
+        type: boolean
+        required: false
+        default: true
+
+env:
+  R2_BUCKET: russia-ukraine-war
+  SBU_ALFA_DB_NAME: sbu-alfa.db
+
+jobs:
+  reparse:
+    runs-on: ubuntu-latest
+
+    env:
+      # Findings from this job land here as JSONL; the last step turns them into
+      # annotations. See scripts/ingest_log.py. A reparse raises two kinds: a
+      # counter line no category claimed (the fix didn't go far enough) and a
+      # stored report the parser no longer recognises (it went too far).
+      #
+      # `github.workspace`, not `runner.temp`: the runner context isn't
+      # available in a job-level env block (only in steps).
+      INGEST_LOG: ${{ github.workspace }}/ingest-diagnostics.jsonl
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # NOTE: no continue-on-error, unlike the scheduled workflow — the history
+      # lives only in R2 and a reparse has nothing to do without it. A failed
+      # download must abort here rather than fall through to a run that finds no
+      # DB (or, worse, builds an empty one) and uploads it over the good object.
+      - name: Download current SBU Alfa DB from R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          mkdir -p data
+          npx --yes wrangler@4 r2 object get \
+            "$R2_BUCKET/$SBU_ALFA_DB_NAME" \
+            --file "data/$SBU_ALFA_DB_NAME" \
+            --remote
+
+      # Storage is append-on-change: a recap whose counters moved is written as
+      # a new (url, scraped_at) version, never overwritten, so an applied
+      # reparse is reversible by reading an earlier version. `changed=` is
+      # written by the script — false on every dry run, and false on an apply
+      # that found nothing to write, which is what gates the upload below.
+      - name: Re-parse stored SBU Alfa recaps
+        id: reparse
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -o pipefail
+          apply=""
+          [ "$DRY_RUN" = "true" ] || apply="--apply"
+          # Tee'd so the diff lands on the run page too: on a dry run the diff
+          # IS the deliverable, and nobody should have to open a step log for
+          # it. $RUNNER_TEMP keeps the log out of the checkout (the fallback is
+          # for running these same lines locally).
+          log="${RUNNER_TEMP:-.}/reparse.log"
+          python3 scripts/sbu_alfa/ingest.py --reparse \
+            --out "data/$SBU_ALFA_DB_NAME" $apply 2>&1 | tee "$log"
+          {
+            echo "### SBU Alfa reparse ($([ -n "$apply" ] && echo applied || echo 'dry run'))"
+            echo ""
+            echo '```'
+            cat "$log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload SBU Alfa DB to R2
+        if: steps.reparse.outputs.changed == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/$SBU_ALFA_DB_NAME" \
+            --file "data/$SBU_ALFA_DB_NAME" \
+            --content-type application/vnd.sqlite3 \
+            --remote
+
+      # Always, so a run that dies still reports what it found on the way.
+      - name: Annotate ingest diagnostics
+        if: always()
+        run: python3 scripts/annotate_log.py

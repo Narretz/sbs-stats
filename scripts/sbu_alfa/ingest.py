@@ -15,7 +15,8 @@ and upserts into a (reports, counters) pair of tables.
 After a parser FIX, re-read the text already stored instead of re-scraping —
 discover.py skips URLs already in the DB, so a re-run would change nothing:
 
-    # Dry run by default — add --apply to write, same as reparse-gsua-db.yml.
+    # Dry run by default — add --apply to write. In CI this is its own manual
+    # workflow, .github/workflows/reparse-sbu-alfa-db.yml.
     python3 scripts/sbu_alfa/ingest.py --reparse --out data/sbu-alfa.db
 
 Storage is append-on-edit, mirroring scripts/ru_mod:
