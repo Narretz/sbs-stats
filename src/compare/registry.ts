@@ -84,20 +84,29 @@ export type _UnnamedTargetIds = _AssertNever<
   Exclude<TargetId, (typeof SBS_TARGETS)[keyof typeof SBS_TARGETS]>
 >;
 
-// SBS is those slugs plus its three personnel counters. `destroyed_*` and the
-// `total_targets_*` roll-ups are excluded by construction (see SBS_NATIVES).
+// SBS is those slugs plus its three personnel counters and its own targets
+// total. `destroyed_*` and `total_targets_destroyed` are excluded by
+// construction (see SBS_NATIVES).
 // `total_personnel_casualties` is the one aggregate that IS included: it is
 // exactly killed + wounded in every month on record, and it is the only SBS
 // figure commensurable with what the other two units publish.
+// `total_targets_hit` is SBS's published «Targets Hit» figure — exactly the sum
+// of every `hit_*` column in every month on record, so it must stay out of the
+// native list (SBS_NATIVES) and out of any row a `hit_*` key also feeds, or it
+// double-counts. The roll-up row is the one place it is read.
 type SbsPersonnelKey = "personnel_killed" | "personnel_wounded" | "total_personnel_casualties";
 type SbsFlightKey = "flights_strike" | "flights_recon";
-export type SbsNativeKey = SbsPersonnelKey | SbsFlightKey | keyof typeof SBS_TARGETS;
+type SbsTotalKey = "total_targets_hit";
+export type SbsNativeKey = SbsPersonnelKey | SbsFlightKey | SbsTotalKey | keyof typeof SBS_TARGETS;
 
 // Slug → the column the SBS monthly row actually carries.
-export const SBS_COLUMNS: Record<SbsNativeKey, SbsPersonnelKey | SbsFlightKey | HitKey> = {
+export const SBS_COLUMNS: Record<
+  SbsNativeKey, SbsPersonnelKey | SbsFlightKey | SbsTotalKey | HitKey
+> = {
   personnel_killed: "personnel_killed",
   personnel_wounded: "personnel_wounded",
   total_personnel_casualties: "total_personnel_casualties",
+  total_targets_hit: "total_targets_hit",
   flights_strike: "flights_strike",
   flights_recon: "flights_recon",
   ...(Object.fromEntries(
@@ -284,7 +293,7 @@ export function unitSizeAt(entity: CompareEntityId, month: string): ResolvedCell
 // «відмінусували» (neutralised) and «Рубикон» files personnel under «Поражены»
 // (engaged) using the same verb it uses for tanks. Each column's verb is in its
 // scope caption, because the header can't be true of all three at once.
-export type CompareGroup = "context" | "activity" | "personnel" | "struck";
+export type CompareGroup = "context" | "activity" | "totals" | "personnel" | "struck";
 
 // What every row has, parent or child. Children reuse this shape, which is
 // also what makes a child structurally unable to have children of its own.
@@ -310,6 +319,12 @@ export interface CompareRowBase {
   // Supplies the cell directly instead of summing native keys. `map` is then
   // empty and the row is always shown.
   resolve?: (entity: CompareEntityId, month: string) => ResolvedCell | null;
+  // Flags every cell of this row as this app's arithmetic, even where the parts
+  // are published figures. Only the roll-up row sets it: it is the row a reader
+  // is likeliest to quote as "the unit's monthly figure", and two of its three
+  // columns already arrive flagged from their hooks — SBS's sum sitting bare
+  // beside them would read as SBS having published that number.
+  derivedSum?: boolean;
 }
 
 export interface CompareRow extends CompareRowBase {
@@ -366,6 +381,12 @@ export const GROUP_LABELS: Record<CompareGroup, string> = {
   // from everything below, and the denominator for it. Ordered first because
   // «Рубикон»'s own recap opens with the sortie count before «Поражены:».
   activity: "Activity — sorties flown",
+  // The headline figure, and the one group whose numbers are arithmetic rather
+  // than a quoted counter: no unit publishes a total of everything it reports
+  // (SBS publishes one for targets, but with personnel outside it). It is NOT
+  // the sum of the rows below — those are only the categories that map across
+  // units, and each unit reports counters that never reach one.
+  totals: "All reported categories — summed by this app, not published as a total",
   personnel: "Personnel",
   struck: "Hit / struck (уражено / поражены)",
 };
@@ -402,6 +423,34 @@ export const CANONICAL_ROWS: CompareRow[] = [
         map: { sbs: ["flights_recon"] },
       },
     ],
+  },
+  {
+    // The one figure a reader looks for first, and the one none of the three
+    // publishes: «Альфа» and «Рубикон» state no total at all (their hooks sum
+    // the recap's own lines into `targets_enumerated` / `targets_engaged_all`,
+    // flagged derived), and SBS's published «Targets Hit» total counts target
+    // classes only — personnel sit outside it. So personnel are added back on
+    // the SBS side, because the other two totals have them baked in: «Рубикон»
+    // files «Живая сила» under «Поражены» and «Альфа»'s sum includes its KIA
+    // line. Leaving them out of SBS alone understated it by ~20% (2026-08:
+    // 57,482 against a comparable 68,492).
+    //
+    // Not a sum of the rows below it: it is each unit's whole reported output,
+    // including the counters that never reach a shared row and land in "only
+    // in <entity>". The unit-size row above is the denominator that makes the
+    // three comparable at all — «Рубикон»'s 17,485 comes off ~5,000 people.
+    group: "totals", key: "targets_all", label: "All targets engaged — sum of categories",
+    derivedSum: true,
+    map: {
+      sbs: ["total_targets_hit", "total_personnel_casualties"],
+      "sbu-alfa": ["targets_enumerated"],
+      rubikon: ["targets_engaged_all"],
+    },
+    scope: {
+      sbs: "«Targets Hit» (all target classes, SBS's own total) + personnel casualties, added here",
+      "sbu-alfa": "every category the recap lists, personnel included — a floor: the list is «серед» («among») what was hit, and the KIA line is itself qualified",
+      rubikon: "every «Поражены» line, «Живая сила» included; EW-suppressed drones excluded (jammed, not struck)",
+    },
   },
   {
     // Matched on the BROADEST reading, which is the only one all three support.
@@ -730,8 +779,10 @@ export interface NativeKey {
 // Aggregates and parents are held out of the native lists: they restate other
 // rows in the same column, so as standalone "unmapped" rows they'd read as
 // extra targets. `targets_enumerated` / `targets_engaged_all` are this app's
-// own roll-ups; `targets_*` are SBU's aggregate of the very bullets it lists;
-// the three vehicle children are already inside the mapped parent.
+// own roll-ups, consumed by the `targets_all` row above (which makes these two
+// entries belt-and-braces — a mapped key never reaches the "only in" section
+// anyway); `targets_*` are SBU's aggregate of the very bullets it lists; the
+// three vehicle children are already inside the mapped parent.
 const SBU_NOT_NATIVE = new Set<SbuAlfaCategoryKey>([
   "targets_enumerated", "targets_total", "targets_destroyed", "targets_damaged",
   "vehicles_light", "vehicles_moto", "vehicles_trucks",
@@ -745,8 +796,10 @@ const RUBIKON_NOT_NATIVE = new Set<RubikonCategoryKey>(["targets_engaged_all"]);
 const SBS_NOT_NATIVE = new Set<SbsNativeKey>([]);
 
 // SBS: the `hit_*` columns only. `destroyed_*` is a subset of `hit_*` (the
-// source reports both), and `total_*` sums the lot — either would double-count
-// against the hit-based canonical rows.
+// source reports both), and `total_targets_hit` sums the lot — either would
+// double-count against the hit-based canonical rows. (`total_targets_hit` is
+// still a native KEY, so the `targets_all` roll-up can read it; it just isn't
+// a native COUNTER anything else may pick up.)
 const SBS_NATIVES: NativeKey[] = [
   { key: "personnel_killed", label: "Personnel Killed" },
   { key: "personnel_wounded", label: "Personnel Wounded" },
