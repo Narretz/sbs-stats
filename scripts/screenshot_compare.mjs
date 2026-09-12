@@ -2,7 +2,7 @@
 // Screenshot the compare page for a given set of (unit, month) columns.
 //
 //   node scripts/screenshot_compare.mjs sbu-alfa:2026-07 sbu-alfa:2026-08
-//   node scripts/screenshot_compare.mjs alfa:07/26 alfa:08/26 --zoom 10
+//   node scripts/screenshot_compare.mjs alfa:07/26 alfa:08/26 --zoom 120
 //   node scripts/screenshot_compare.mjs sbs:2026-08 rubikon:2026-08 --theme light --scope
 //
 // Reads the PRODUCTION DBs out of ./data via the vite dev middleware — the same
@@ -21,7 +21,10 @@
 //   --no-sub         hide sub-category rows (shown by default)
 //   --pct <mode>     first | prev — what the % change compares against
 //   --full           capture the whole page, not just the table
-//   --width <px>     viewport width in CSS px, default 1600
+//   --width <px>     viewport width in CSS px, default 900. The table is fluid,
+//                    so a wide viewport spreads the numbers away from their
+//                    labels; ~650px is its nowrap floor, below which the
+//                    viewport stops mattering.
 //   --out <path>     PNG path. Default tmp/compare-<cols>-<timestamp>.png
 //   --port <n>       dev server port, default 5173. An already-running server
 //                    on that port is reused; otherwise one is started and shut
@@ -66,7 +69,7 @@ function normalizeMonth(raw, spec) {
 function parseArgs(argv) {
   const opts = {
     cols: [], zoom: 100, dsf: null, theme: "dark", scope: false, sub: true,
-    pct: "first", full: false, width: 1600, out: null, port: 5173,
+    pct: "first", full: false, width: 900, out: null, port: 5173,
   };
   const want = (i, name) => {
     if (i + 1 >= argv.length) die(`${name} needs a value`);

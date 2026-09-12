@@ -149,7 +149,7 @@ npm run test:e2e     # Playwright e2e (uses .env.e2e fixture DBs)
 
 # Screenshot the compare page on the PRODUCTION DBs in data/ (starts its own
 # dev server; --zoom/--theme/--scope/--full, see the file's header comment):
-node scripts/screenshot_compare.mjs sbu-alfa:2026-07 sbu-alfa:2026-08 --zoom 10
+node scripts/screenshot_compare.mjs sbu-alfa:2026-07 sbu-alfa:2026-08
 
 # Python ingest scripts: see each scripts/<x>/README.md
 pip install -r scripts/requirements.txt   # the devcontainer does this on create
