@@ -30,7 +30,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import sqlite3
 import sys
@@ -118,12 +117,11 @@ def ingest_url(url: str, out: Path, dry_run: bool) -> str:
     published_at = ingest._extract_published_at(body)
 
     tag = f"period={report.period} type={report.report_type} counters={len(report.counters)}"
-    if report.unmatched:
-        # Counter line(s) the parser didn't recognise — a new/renamed category
-        # or wording drift. We still store what we DID parse (the recognised
-        # counters are correct), but surface this so the gap gets a pattern.
-        print(f"[drift] {url}\n        {len(report.unmatched)} unmatched counter "
-              f"line(s) — add a pattern in parse.py: {report.unmatched}", file=sys.stderr)
+    # Counter line(s) the parser didn't recognise — a new/renamed category or
+    # wording drift. We still store what we DID parse (the recognised counters
+    # are correct); the warning goes through ingest_log, so in CI it surfaces
+    # as a GitHub annotation rather than a buried stderr line.
+    ingest.warn_unmatched(url, report)
     if report.report_type != "monthly_top1" or not report.period:
         # Slug matched but content isn't a monthly recap — either a themed
         # article the slug filter mispicked, or the format has drifted. Do
@@ -168,18 +166,10 @@ def main(argv: list[str] | None = None) -> int:
     if new_urls:
         print(f"\n[done] {counters}")
 
-    # Signal to a GitHub Actions caller whether the DB actually changed, so
-    # the workflow can skip the R2 upload on no-op runs. SBU Alfa publishes
-    # ~once/month while the workflow runs ~16×/month, so ≥94% of runs are
-    # no-ops — worth guarding here even though we don't guard the other
-    # workflows (their DBs change every run). Always emit the marker (even
-    # when no new URLs were found) so the workflow step's outputs are
-    # deterministic regardless of scan result.
-    changed = counters["inserted"] + counters["updated"] > 0
-    gh_out = os.environ.get("GITHUB_OUTPUT")
-    if gh_out:
-        with open(gh_out, "a", encoding="utf-8") as f:
-            f.write(f"changed={'true' if changed else 'false'}\n")
+    # Signal to the workflow whether the DB actually changed, so it can skip
+    # the R2 upload on a no-op run. Shared with the reparse path, which has the
+    # same need — see ingest._emit_changed for why it's worth guarding here.
+    ingest._emit_changed(counters["inserted"] + counters["updated"] > 0)
     return 0
 
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-test_parse.py — golden-value tests against the three known SBU Alpha articles.
+test_parse.py — golden-value tests against the known SBU Alpha articles.
 
 Each fixture HTML in scripts/sbu_alfa/fixtures/ is parsed and compared against
 the expected counter map. The expected values come from the source articles
@@ -20,8 +20,14 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 def _parsed(name: str):
-    html_str = (FIXTURES / f"{name}.html").read_text()
-    return parse(extract_text(html_str))
+    path = FIXTURES / f"{name}.html"
+    if not path.exists():
+        # fixtures/ is gitignored; only the fixtures explicitly force-added to
+        # the repo are present in a fresh checkout. Skip (visibly) rather than
+        # erroring, so a real parser regression isn't buried under missing-file
+        # failures for months whose HTML was never committed.
+        pytest.skip(f"fixture {path.name} is not in the repo")
+    return parse(extract_text(path.read_text()))
 
 
 def _by_cat(report) -> dict[str, tuple[int, str]]:
@@ -125,6 +131,30 @@ JULY_EXPECTED = {
     "watercraft":           (26,    "exact"),
 }
 
+# August 2026 ("шостий місяць поспіль") drifts in two more case endings, both
+# after a numeral ending in 1 / in 2–4: "2791 антену та вузол зв’язку"
+# (nom./acc. SINGULAR "вузол", where every other form is "вузл-") and "33
+# бойові броньовані машини" (nom. pl., where earlier months had the genitive
+# "бойових броньованих машин"). Both lines were dropped before the widening.
+AUGUST_EXPECTED = {
+    "enemy_kia":            (6_000, "approx"),
+    "drones":               (9_142, "exact"),
+    "drone_crews":          (756,   "exact"),
+    "vehicles_auto_total":  (2_977, "exact"),
+    "comms":                (2_791, "exact"),
+    "fortifications":       (1_183, "exact"),
+    "depots":               (222,   "exact"),
+    "artillery":            (48,    "exact"),
+    "armored_total":        (46,    "exact"),
+    "tanks":                (13,    "exact"),
+    "ifvs":                 (33,    "exact"),
+    "air_defense":          (17,    "exact"),
+    "radar":                (26,    "exact"),
+    "mlrs":                 (23,    "exact"),
+    "aircraft":             (4,     "exact"),
+    "watercraft":           (20,    "exact"),
+}
+
 
 _ALL = [
     ("march", MARCH_EXPECTED, "2026-03"),
@@ -132,6 +162,7 @@ _ALL = [
     ("may",   MAY_EXPECTED,   "2026-05"),
     ("june",  JUNE_EXPECTED,  "2026-06"),
     ("july",  JULY_EXPECTED,  "2026-07"),
+    ("august", AUGUST_EXPECTED, "2026-08"),
 ]
 
 
@@ -146,12 +177,16 @@ def test_parse_counters(name, expected, period):
         assert got[cat] == (val, bound), f"{name}: {cat} = {got[cat]} != {(val, bound)}"
 
 
-def test_no_unexpected_categories():
-    """If we silently start matching extra categories, surface that."""
-    for name, expected, _ in _ALL:
-        got = _by_cat(_parsed(name))
-        extra = set(got) - set(expected)
-        assert not extra, f"{name}: unexpected categories {extra}"
+@pytest.mark.parametrize("name, expected, _period", _ALL)
+def test_no_unexpected_categories(name, expected, _period):
+    """If we silently start matching extra categories, surface that.
+
+    Parametrized rather than looped so a fixture missing from the checkout
+    skips only its own month instead of the whole check.
+    """
+    got = _by_cat(_parsed(name))
+    extra = set(got) - set(expected)
+    assert not extra, f"{name}: unexpected categories {extra}"
 
 
 @pytest.mark.parametrize("name, expected, _period", _ALL)

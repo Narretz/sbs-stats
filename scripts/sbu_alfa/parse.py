@@ -226,9 +226,12 @@ CATEGORIES: list[tuple[str, list[re.Pattern[str]]]] = [
     # Comms / surveillance. Two distinct phrasings — "антен(и) та вузл(ів|и)
     # зв'язку" (May/Jun) and "засобів спостереження (та|і) зв'язку" (Mar/Apr).
     # Case endings vary with the preceding numeral (gen. after 5–20/0; nom.
-    # after 2/3/4), so both regexes are permissive on the suffixes.
+    # after 2/3/4), so both regexes are permissive on the suffixes. "вузол" is
+    # the odd one out: the nominative/accusative SINGULAR (after a numeral
+    # ending in 1 — "2791 антену та вузол зв'язку", Aug 2026) keeps the -о-
+    # that every other form drops, so `вузл\w+` alone misses it.
     ("comms", [
-        re.compile(rf"{_NUM}\s+антен\w*\s+та\s+вузл\w+\s+зв", re.I),
+        re.compile(rf"{_NUM}\s+антен\w*\s+та\s+вуз(?:ол|л\w+)\s+зв", re.I),
         re.compile(rf"{_NUM}\s+засобів\s+спостереження", re.I),
     ]),
 
@@ -268,8 +271,12 @@ CATEGORIES: list[tuple[str, list[re.Pattern[str]]]] = [
     ("tanks", [
         re.compile(rf"{_NUM}\s+танк", re.I),
     ]),
+    # IFVs — "бойових броньованих машин" (gen. pl. after 5+/0) / "бойові
+    # броньовані машини" (nom. pl. after 2/3/4, e.g. "33 бойові броньовані
+    # машини", Aug 2026). Stems + \w+ cover both, and the optional soft sign
+    # in "бронь?ован" matches the armored_total spelling drift too.
     ("ifvs", [
-        re.compile(rf"{_NUM}\s+бойових\s+броньованих\s+машин", re.I),
+        re.compile(rf"{_NUM}\s+бойов\w+\s+бронь?ован\w+\s+машин\w*", re.I),
     ]),
 
     ("air_defense", [

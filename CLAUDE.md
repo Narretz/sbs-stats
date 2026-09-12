@@ -131,6 +131,14 @@ re-reads the stored recaps locally after a parser fix, while `--max-pages` /
 the workflow's `pages` input widens the scrape for a recap that was dropped
 outright.
 
+SBU Alfa has both halves inside its one workflow — one article a month didn't
+justify a second workflow. `scripts/sbu_alfa/ingest.py --reparse` (dry-run;
+`--apply` writes) re-reads the stored `reports.body_text`, and
+`update-sbu-alfa-db.yml` exposes it as the `reparse` + `dry_run` inputs
+alongside `pages`. Reparse is the half that matters there: `discover.py`
+filters candidates by URL against the DB *before* parsing, so a recap already
+stored is never re-read by a re-scan however wide `pages` is.
+
 ## Common commands
 
 ```sh
