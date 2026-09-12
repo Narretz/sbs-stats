@@ -116,6 +116,13 @@ Add a new fixture under `scripts/sbu_alfa/fixtures/` and a stanza to
 fixtures directory is gitignored, so a new fixture needs `git add -f`; a month
 whose HTML isn't in the checkout skips (visibly) instead of erroring.
 
+A lost fixture is recoverable from the DB: `reports_latest` carries every
+ingested article's canonical URL alongside its `body_text`, so re-fetching the
+URL reproduces the HTML (that's how March–May were restored after they were
+never force-added). Check the re-fetch against the stanza's golden values
+before committing it — a press release edited since ingest would otherwise
+move the goalposts silently.
+
 ## Schema caveats / drift
 
 - **Vehicle bucketing** changed between April and May 2026: March/April split
