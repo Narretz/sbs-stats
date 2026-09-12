@@ -448,7 +448,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
       rubikon: ["targets_engaged_all"],
     },
     scope: {
-      sbs: "«Targets Hit» — SBS's own total across every target class, personnel included as class 15 («ОС РОВ»)",
+      sbs: "«Targets Hit» — SBS's own total across every target class",
       "sbu-alfa": "every category summed — a floor: the list is «серед» («among») what was hit, and the KIA line is itself qualified",
       rubikon: "every «Поражены» line summed; EW-suppressed drones excluded (jammed, not struck)",
     },
