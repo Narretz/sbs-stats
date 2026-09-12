@@ -17,6 +17,7 @@ import {
   UNMAPPED_NATIVES,
   fmtPct,
   fmtValue,
+  mapsIn,
   pctChange,
   sumNatives,
   visibleRowsFor,
@@ -273,7 +274,7 @@ export function ComparePage({ preset }: Props) {
     // Children are the only indented rows, so dropping them is the whole
     // filter — a hidden child never takes its parent's figure with it, since
     // parents resolve their own mapping rather than summing children.
-    const base = visibleRowsFor(entitiesInUse).filter((r) => showChildren || !r.indent);
+    const base = visibleRowsFor(columns).filter((r) => showChildren || !r.indent);
     if (!soloEntity) return base;
     // Appended to the last group so they simply continue the table — no header
     // separates them, which is the whole point.
@@ -287,12 +288,15 @@ export function ComparePage({ preset }: Props) {
       scope: { [soloEntity]: NATIVE_NOTES[soloEntity]?.[n.key] },
     }));
     return [...base, ...extras];
-  }, [entitiesInUse, soloEntity, nonZeroNatives, showChildren]);
+  }, [columns, soloEntity, nonZeroNatives, showChildren]);
 
-  const valueFor = (row: FlatRow, col: Column): CompareValue | null =>
-    row.resolve
-      ? (row.resolve(col.entity, col.month)?.value ?? null)
-      : sumNatives(snapshots[col.entity], col.month, row.map[col.entity]);
+  const valueFor = (row: FlatRow, col: Column): CompareValue | null => {
+    if (row.resolve) return row.resolve(col.entity, col.month)?.value ?? null;
+    // A mapping the row's month window excludes is not this row's counter for
+    // that month, so the cell is empty rather than wrong — see `mapWindow`.
+    if (!mapsIn(row, col.entity, col.month)) return null;
+    return sumNatives(snapshots[col.entity], col.month, row.map[col.entity]);
+  };
 
   // A scope caveat describes the entity's bucket, not the month, so repeating
   // it under every column of the same entity is noise

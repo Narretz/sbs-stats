@@ -322,6 +322,14 @@ export interface CompareRowBase {
   // an entity with nothing to show gets a bare "—", since a caption explaining
   // an absence is noise on every row that has one.
   scope?: Partial<Record<CompareEntityId, string>>;
+  // Narrows an entity's mapping to a range of months, inclusive, "YYYY-MM".
+  // For the counter whose MEANING changed while its category key did not:
+  // «Альфа» published bare «21 РЛС» / «23 РЛС» through 2026-05 and «РЛС та
+  // РЕБ» / «РЛС/РЕБ» from 2026-06 under the same `radar` key, so a row that
+  // means "radars, not EW" is filled by that counter only up to May. Outside
+  // the window the cell reads "—", and a row left with no column inside its
+  // window is dropped entirely rather than rendered as a line of dashes.
+  mapWindow?: Partial<Record<CompareEntityId, { from?: string; to?: string }>>;
   // Supplies the cell directly instead of summing native keys. `map` is then
   // empty and the row is always shown.
   resolve?: (entity: CompareEntityId, month: string) => ResolvedCell | null;
@@ -352,14 +360,30 @@ export interface FlatRow extends CompareRowBase {
   id: string;
 }
 
-// The rows worth rendering for the entities currently in columns, already
-// flattened in display order.
+// Does this row draw on `entity` for `month`? False when the row has no
+// mapping for the entity at all, or when it has one that `mapWindow` puts
+// outside this month.
+export function mapsIn(row: CompareRowBase, entity: CompareEntityId, month: string): boolean {
+  if (!row.map[entity]?.length) return false;
+  const w = row.mapWindow?.[entity];
+  if (!w) return true;
+  // "YYYY-MM" sorts lexicographically, which is the whole reason months are
+  // stored as strings in this app.
+  return (!w.from || month >= w.from) && (!w.to || month <= w.to);
+}
+
+// The rows worth rendering for the columns currently on screen, already
+// flattened in display order. Takes the columns rather than just their
+// entities because a windowed mapping (see `mapWindow`) can apply to one month
+// of an entity and not another.
 //
 // A subtree survives if the parent OR any child has a mapping — dropping a
 // parent whose children still have data would hide those rows entirely, so the
 // parent stays even when it can only render dashes.
-export function visibleRowsFor(entities: CompareEntityId[]): FlatRow[] {
-  const mapped = (r: CompareRowBase) => entities.some((e) => r.map[e]?.length);
+export function visibleRowsFor(
+  columns: readonly { entity: CompareEntityId; month: string }[],
+): FlatRow[] {
+  const mapped = (r: CompareRowBase) => columns.some((c) => mapsIn(r, c.entity, c.month));
   const out: FlatRow[] = [];
   for (const row of CANONICAL_ROWS) {
     const children = (row.children ?? []).filter(mapped);
@@ -638,8 +662,17 @@ export const CANONICAL_ROWS: CompareRow[] = [
     },
     children: [
       {
-        key: "radars", label: "Radars", map: {sbs: ["radar_vehicles", "radar_trench"], "sbu-alfa": ['radar']},
-        scope: {sbs: 'Vehicles and trench'}
+        // «Альфа»'s counter belongs here only while it was bare РЛС (through
+        // 2026-05). From 2026-06 the same `radar` key carries «РЛС та РЕБ», so
+        // it is already the parent's bucket and repeating it here restated the
+        // parent verbatim — 26 under 26 in 2026-08.
+        key: "radars", label: "Radars",
+        map: { sbs: ["radar_vehicles", "radar_trench"], "sbu-alfa": ["radar"] },
+        mapWindow: { "sbu-alfa": { to: "2026-05" } },
+        scope: {
+          sbs: "Vehicles and trench",
+          "sbu-alfa": "bare РЛС — from 2026-06 the counter bundles РЕБ and only the row above holds it",
+        },
       },
       {
         key: "ew", label: "EW",
