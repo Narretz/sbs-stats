@@ -147,6 +147,10 @@ npm run build        # production build → dist/
 npm run lint         # eslint, zero-warnings
 npm run test:e2e     # Playwright e2e (uses .env.e2e fixture DBs)
 
+# Screenshot the compare page on the PRODUCTION DBs in data/ (starts its own
+# dev server; --zoom/--theme/--scope/--full, see the file's header comment):
+node scripts/screenshot_compare.mjs sbu-alfa:2026-07 sbu-alfa:2026-08 --zoom 10
+
 # Python ingest scripts: see each scripts/<x>/README.md
 pip install -r scripts/requirements.txt   # the devcontainer does this on create
 bash scripts/setup_env.sh                 # npm + pip bootstrap for a fresh container
