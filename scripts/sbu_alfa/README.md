@@ -5,7 +5,7 @@ MONTHLY RECAP** view of the app. Source: monthly "ТОП-1 серед підро
 оборони" recaps the SBU's Centre of Special Operations «А» (Alfa) publishes at
 [ssu.gov.ua/novyny](https://ssu.gov.ua/novyny), starting March 2026.
 
-**Two paths, both stdlib-only:**
+**Three paths, all stdlib-only:**
 
 - **Automated discovery** (`discover.py` + `update-sbu-alfa-db.yml`) polls the
   SBU news listing daily during the plausible publication window (5th–20th of
@@ -21,6 +21,32 @@ MONTHLY RECAP** view of the app. Source: monthly "ТОП-1 серед підро
   ```sh
   python3 scripts/sbu_alfa/ingest.py <article-url> --out data/sbu-alfa.db
   ```
+
+- **Reparse** after a parser fix — re-reads the article text already stored in
+  `reports.body_text` with the current parser, no fetch. Dry-run by default;
+  `--apply` appends a new version of each report whose counters changed:
+
+  ```sh
+  python3 scripts/sbu_alfa/ingest.py --reparse --out data/sbu-alfa.db
+  python3 scripts/sbu_alfa/ingest.py --reparse --apply --out data/sbu-alfa.db
+  ```
+
+  **This is the one that fixes a misread recap**, and the distinction matters
+  (CLAUDE.md draws the same line for GSUA and Rubikon):
+
+  | after a parser change… | the recap was | run |
+  |---|---|---|
+  | it was **dropped** — the slug filter or the `monthly_top1` gate rejected it, so it was never stored | absent from the DB | a re-scan, `--pages` / the workflow's `pages` input widened |
+  | it was **misread** — stored, but a counter line matched no category | in the DB already | `--reparse`; `discover.py` skips URLs already stored, so a re-scan re-reads nothing |
+
+  The workflow exposes both: `pages` for the first, the `reparse` checkbox
+  (plus `dry_run`, on by default) for the second. The reparse step writes
+  `changed=` like the scan does, so a dry run — or an apply that changed
+  nothing — skips the R2 upload instead of busting the CDN cache.
+
+  A row whose stored `report_type` the parser can no longer reproduce (a
+  manual `--report-type` / `--period` override) is left untouched and reported,
+  so a reparse can't quietly undo a human's curation.
 
 The DB lives on R2 (bucket `russia-ukraine-war`, key `sbu-alfa.db`), pulled at
 runtime by the frontend and by the workflow. Not committed to the repo.

@@ -30,7 +30,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import sqlite3
 import sys
@@ -167,18 +166,10 @@ def main(argv: list[str] | None = None) -> int:
     if new_urls:
         print(f"\n[done] {counters}")
 
-    # Signal to a GitHub Actions caller whether the DB actually changed, so
-    # the workflow can skip the R2 upload on no-op runs. SBU Alfa publishes
-    # ~once/month while the workflow runs ~16×/month, so ≥94% of runs are
-    # no-ops — worth guarding here even though we don't guard the other
-    # workflows (their DBs change every run). Always emit the marker (even
-    # when no new URLs were found) so the workflow step's outputs are
-    # deterministic regardless of scan result.
-    changed = counters["inserted"] + counters["updated"] > 0
-    gh_out = os.environ.get("GITHUB_OUTPUT")
-    if gh_out:
-        with open(gh_out, "a", encoding="utf-8") as f:
-            f.write(f"changed={'true' if changed else 'false'}\n")
+    # Signal to the workflow whether the DB actually changed, so it can skip
+    # the R2 upload on a no-op run. Shared with the reparse path, which has the
+    # same need — see ingest._emit_changed for why it's worth guarding here.
+    ingest._emit_changed(counters["inserted"] + counters["updated"] > 0)
     return 0
 
 
