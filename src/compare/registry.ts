@@ -385,7 +385,7 @@ export const GROUP_LABELS: Record<CompareGroup, string> = {
   // theirs are summed from the categories their recaps list (marked "*"). It is
   // NOT the sum of the rows below — those are only the categories that map
   // across units, and each unit reports counters that never reach one.
-  totals: "All reported categories, personnel included — SBS's own total; summed by this app (*) for the other two",
+  totals: "All reported target categories",
   personnel: "Personnel",
   struck: "Hit / struck (уражено / поражены)",
 };
@@ -449,8 +449,8 @@ export const CANONICAL_ROWS: CompareRow[] = [
     },
     scope: {
       sbs: "«Targets Hit» — SBS's own total across every target class, personnel included as class 15 («ОС РОВ»)",
-      "sbu-alfa": "every category the recap lists, personnel included — a floor: the list is «серед» («among») what was hit, and the KIA line is itself qualified",
-      rubikon: "every «Поражены» line, «Живая сила» included; EW-suppressed drones excluded (jammed, not struck)",
+      "sbu-alfa": "every category summed — a floor: the list is «серед» («among») what was hit, and the KIA line is itself qualified",
+      rubikon: "every «Поражены» line summed; EW-suppressed drones excluded (jammed, not struck)",
     },
   },
   {
