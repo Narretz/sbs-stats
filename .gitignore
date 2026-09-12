@@ -66,8 +66,13 @@ scripts/mediazona/output/
 scripts/ua_losses/output/
 .pytest_cache/
 
-# SBU Alfa: article HTMLs are mirror copies, re-fetchable via ingest.py — too
-# large + re-downloadable, so kept out of git. Tests use them locally.
-scripts/sbu_alfa/fixtures/
+# SBU Alfa: the article HTMLs here ARE the parser's test fixtures — every
+# golden value in test_parse.py is keyed on one — so they're tracked despite
+# being ~50 KB each and nominally re-fetchable. "Re-fetchable" only holds while
+# SBU keeps the URL up and unedited, and a fixture missing from a checkout
+# silently skips its month's coverage. Anything else that lands in this
+# directory (scratch downloads, a local DB) stays out.
+scripts/sbu_alfa/fixtures/*
+!scripts/sbu_alfa/fixtures/*.html
 
 .claude/worktrees

@@ -113,14 +113,15 @@ python3 -m pytest scripts/sbu_alfa/test_parse.py -q
 
 Add a new fixture under `scripts/sbu_alfa/fixtures/` and a stanza to
 `test_parse.py` when a new month publishes with previously-unseen wording. The
-fixtures directory is gitignored, so a new fixture needs `git add -f`; a month
-whose HTML isn't in the checkout skips (visibly) instead of erroring.
+HTML fixtures are tracked — `.gitignore` keeps only non-HTML out of that
+directory — so a new one stages with a plain `git add`; a month whose HTML
+isn't in the checkout skips (visibly) instead of erroring.
 
 A lost fixture is recoverable from the DB: `reports_latest` carries every
 ingested article's canonical URL alongside its `body_text`, so re-fetching the
-URL reproduces the HTML (that's how March–May were restored after they were
-never force-added). Check the re-fetch against the stanza's golden values
-before committing it — a press release edited since ingest would otherwise
+URL reproduces the HTML (that's how March–May were restored, after an earlier
+blanket ignore rule kept them out of the repo). Check the re-fetch against the
+stanza's golden values before committing it — a press release edited since ingest would otherwise
 move the goalposts silently.
 
 ## Schema caveats / drift
