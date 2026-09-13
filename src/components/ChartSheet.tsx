@@ -38,6 +38,46 @@ export function ChartSheet() {
     };
   }, [open, sheetRef]);
 
+  // Follow the *visual* viewport, not the layout one.
+  //
+  // A mobile browser retracts its URL bar as you scroll, and on iOS Safari the
+  // layout viewport doesn't grow with it: `position: fixed; bottom: 0` stays
+  // pinned to where the bar used to start, so the sheet floats with a strip of
+  // page showing between it and the browser chrome. The visual viewport is the
+  // one that describes what is actually on screen, so measure the difference
+  // and push the sheet down by it.
+  //
+  // Measured rather than assumed, in both directions and on every browser: the
+  // formula reads 0 wherever the browser already anchors fixed elements to the
+  // visible bottom itself (every desktop browser, and mobile ones while the
+  // chrome is at rest), so it corrects a real discrepancy and invents none.
+  // Written to `bottom` rather than folded into the transform, which carries
+  // the open/close slide — the correction has to land instantly, and a 0.18s
+  // ease would leave the sheet trailing the browser chrome by a visible beat.
+  useEffect(() => {
+    const el = sheetRef.current;
+    const vv = window.visualViewport;
+    if (!open || !el || !vv) return;
+    const apply = () => {
+      // Pinch-zoom makes `height`/`offsetTop` describe the zoomed window, which
+      // this arithmetic would read as a huge offset. Nothing to correct there.
+      const shift = vv.scale > 1.01
+        ? 0
+        : vv.offsetTop + vv.height - document.documentElement.clientHeight;
+      el.style.setProperty("--sheet-viewport-shift", `${Math.round(shift * 10) / 10}px`);
+    };
+    apply();
+    // `resize` alone — it covers the URL bar retracting, a rotation and a
+    // window resize. Deliberately not `scroll`: that one also fires through
+    // iOS's rubber-band overscroll, where the browser is already moving fixed
+    // elements with the bounce and a correction on top of it reads as jitter.
+    vv.addEventListener("resize", apply);
+    return () => {
+      vv.removeEventListener("resize", apply);
+      el.style.removeProperty("--sheet-viewport-shift");
+    };
+  }, [open, sheetRef]);
+
   // Outside-click dismissal. Clicks anywhere inside a chart card are exempt:
   // on the pinned chart that's a re-selection, on another chart it's a new
   // pin, and neither should be raced by a close.
