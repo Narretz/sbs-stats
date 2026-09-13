@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { ReferenceLine, Tooltip } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { useChartPin } from "@/hooks/ChartPinProvider";
@@ -45,7 +45,14 @@ export interface PinnedChart {
    *  in their own dot renderer. */
   pinnedX: string | number | null;
   /** Spread on the chart card's root element. */
-  cardProps: { ref: React.RefObject<HTMLDivElement>; "data-chart-pinnable": "" };
+  cardProps: {
+    ref: React.RefObject<HTMLDivElement>;
+    "data-chart-pinnable": "";
+    onPointerEnter: (e: ReactPointerEvent) => void;
+    onPointerMove: (e: ReactPointerEvent) => void;
+    onPointerLeave: () => void;
+    onPointerCancel: () => void;
+  };
   /** Spread on the recharts chart element (`<LineChart {...chartProps}>`). */
   chartProps: { onClick: (state: { activeTooltipIndex?: number | null } | null) => void };
   /** Render as a child of the recharts chart, in place of your own <Tooltip>. */
@@ -73,13 +80,44 @@ export function usePinnedChart<T>({
   };
   const pinnedRow = pin.isPinned ? data[pin.index] : null;
 
+  // The floating hover card is a *hover* affordance, but recharts drives it
+  // from touch as well — onTouchMove runs the same handler as onMouseMove —
+  // and nothing in its touch handling ever turns it off again: there is no
+  // touch counterpart to onMouseLeave. So dragging a finger across a chart
+  // while scrolling the page left a tooltip standing open over a chart the
+  // reader had already scrolled past, with no way to dismiss it. Touch has the
+  // sheet instead, so the hover card is gated on a pointer that can genuinely
+  // hover — a mouse or a pen inside this card — and a touch never opens it.
+  //
+  // Tracked here rather than as a device-wide "is this a touch screen": a
+  // laptop with a touchscreen has both, and which one is in the reader's hand
+  // is only knowable per interaction.
+  const [hovering, setHovering] = useState(false);
+  const hoveringRef = useRef(false);
+  // Setting through a ref keeps the per-move state call to the frames that
+  // actually change the answer; pointermove fires at pointer rate.
+  const setHover = useCallback((next: boolean) => {
+    if (hoveringRef.current === next) return;
+    hoveringRef.current = next;
+    setHovering(next);
+  }, []);
+  // onPointerMove as well as onPointerEnter: a chart that mounts under an
+  // already-stationary cursor (the DB finishes loading, a day range changes)
+  // gets no enter event of its own.
+  const onHoverPointer = useCallback(
+    (e: ReactPointerEvent) => setHover(e.pointerType !== "touch"),
+    [setHover],
+  );
+  const onLeave = useCallback(() => setHover(false), [setHover]);
+
   const tooltip = (
     <Tooltip
       // Honoured ahead of recharts' internal hover state for both the tooltip
       // and its cursor (generateCategoricalChart resolves
       // `element.props.active ?? isTooltipActive`), so one prop silences both.
       // Without it a cursor would track the pointer with nothing attached.
-      active={pin.isPinned ? false : undefined}
+      // The same prop is what keeps touch out of the hover card (see above).
+      active={pin.isPinned || !hovering ? false : undefined}
       allowEscapeViewBox={{ x: false, y: true }}
       wrapperStyle={showEmptyWrapper
         ? { zIndex: 9999, visibility: "visible" }
@@ -103,7 +141,13 @@ export function usePinnedChart<T>({
   return {
     isPinned: pin.isPinned,
     pinnedX: pinnedRow != null ? xs[pin.index] : null,
-    cardProps: pin.cardProps,
+    cardProps: {
+      ...pin.cardProps,
+      onPointerEnter: onHoverPointer,
+      onPointerMove: onHoverPointer,
+      onPointerLeave: onLeave,
+      onPointerCancel: onLeave,
+    },
     chartProps: {
       onClick: (state) => {
         // recharts recomputes the active index for the click itself, so the
