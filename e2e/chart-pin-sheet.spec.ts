@@ -214,48 +214,6 @@ test.describe("Chart pin sheet", () => {
     expect((await oc.locator(".recharts-tooltip-wrapper").innerText()).trim()).not.toBe("");
   });
 
-  test("the sheet follows the visual viewport when the URL bar retracts", async ({ page }) => {
-    // A phone's URL bar retracting grows the visual viewport without growing
-    // the layout one, and `bottom: 0` would leave the sheet hanging above the
-    // browser chrome. No desktop browser does that and Playwright can't ask one
-    // to, so the viewport itself is the fake here — the app reads
-    // `window.visualViewport`, so that is what gets swapped, before the app
-    // loads. What's under test is our arithmetic and that it reaches the
-    // element: everything from `--sheet-viewport-shift` outwards is real.
-    await page.addInitScript(() => {
-      const vv = new EventTarget() as EventTarget & {
-        height: number; width: number; offsetTop: number; scale: number;
-      };
-      vv.height = window.innerHeight;
-      vv.width = window.innerWidth;
-      vv.offsetTop = 0;
-      vv.scale = 1;
-      Object.defineProperty(window, "visualViewport", { value: vv, configurable: true });
-      (window as unknown as { retractUrlBar: (by: number) => void }).retractUrlBar = (by) => {
-        vv.height = document.documentElement.clientHeight + by;
-        vv.dispatchEvent(new Event("resize"));
-      };
-    });
-    await page.goto(AIR);
-    await page.waitForSelector(".chart-card");
-    await pinAt(page, ALL, 0.9);
-
-    // Measure only once the 0.18s open slide has settled — mid-transition the
-    // sheet is still travelling under its own transform.
-    await page.waitForTimeout(300);
-    const before = (await sheet(page).boundingBox())!;
-    await page.evaluate(() => (window as unknown as { retractUrlBar: (by: number) => void }).retractUrlBar(60));
-    const after = (await sheet(page).boundingBox())!;
-    // Down by exactly the strip the browser handed back, and no taller or
-    // shorter for it.
-    expect(after.y - before.y).toBeCloseTo(60, 0);
-    expect(after.height).toBeCloseTo(before.height, 0);
-
-    // Back at rest — an unchanged viewport is no correction at all.
-    await page.evaluate(() => (window as unknown as { retractUrlBar: (by: number) => void }).retractUrlBar(0));
-    expect((await sheet(page).boundingBox())!.y).toBeCloseTo(before.y, 0);
-  });
-
   test("a pin survives a widened window and is dropped by one that excludes it", async ({ page }) => {
     await page.goto(AIR);
     await page.waitForSelector(".chart-card");

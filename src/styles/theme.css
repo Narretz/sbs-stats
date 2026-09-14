@@ -296,11 +296,7 @@ summary::marker {
 .chart-sheet {
   position: fixed;
   left: 50%;
-  /* Not plain `bottom: 0`: on a phone the layout viewport's bottom edge and the
-     screen's part company as the browser retracts its URL bar, and the sheet
-     would hang above the chrome with a strip of page showing through. ChartSheet
-     measures that difference off the visual viewport and publishes it here. */
-  bottom: calc(0px - var(--sheet-viewport-shift, 0px));
+  bottom: 0;
   transform: translateX(-50%) translateY(100%);
   width: min(100vw, 1400px);
   max-height: min(50vh, 460px);
