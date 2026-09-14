@@ -29,6 +29,9 @@ function dayISO(offset) {
 // computeEodProjection needs ≥5 complete prior days sharing today's checkpoint
 // (MIN_SAMPLES), so 7 history days gives margin while staying tiny.
 const HISTORY_DAYS = 7;
+// Which day carries the RU air-attacks sub-type itemization; the spec derives
+// the same date from FIXED_TODAY.
+export const SUBTYPE_DAY_OFFSET = 4;
 
 // ── SBS: hourly cumulative `daily_stats` ──────────────────────────────────────
 // Each day is a cumulative intraday curve (checkpoint hour → share of the day's
@@ -140,13 +143,20 @@ function buildGsua(SQL) {
 //   day -1: ballistic withheld upstream      → unknown, plots as a gap
 // piterfm writes a placeholder 0 for the withheld row too, so a fixture that
 // only had one of these cases couldn't catch the two being confused.
+//
+// Day -4 additionally carries a `destroyed_types` cell on its UAV row — the
+// sub-type itemization (Banderol / jet-powered airframes counted *inside* that
+// row). Both of its shapes are seeded: one sub-type with intercepts itemized
+// and one without, since "launched 9, intercepts not broken out" must not
+// render as 9 launched / 0 intercepted.
 function buildRuAirAttacks(SQL) {
   const db = new SQL.Database();
   db.run(`
     CREATE TABLE missile_attacks (
       time_start TEXT, time_end TEXT, model TEXT, launch_place TEXT, target TEXT,
       launched INTEGER, destroyed INTEGER, source TEXT,
-      attack_date TEXT, category TEXT, scraped_at TEXT, status_data TEXT DEFAULT ''
+      attack_date TEXT, category TEXT, scraped_at TEXT, status_data TEXT DEFAULT '',
+      destroyed_types TEXT DEFAULT ''
     );
     CREATE VIEW missile_attacks_latest AS
       SELECT t.* FROM missile_attacks t JOIN (
@@ -158,15 +168,22 @@ function buildRuAirAttacks(SQL) {
          AND t.scraped_at = l.ms;
   `);
   const cols = ["time_start", "time_end", "model", "launch_place", "target",
-    "launched", "destroyed", "source", "attack_date", "category", "scraped_at", "status_data"];
+    "launched", "destroyed", "source", "attack_date", "category", "scraped_at", "status_data",
+    "destroyed_types"];
   const ins = db.prepare(`INSERT INTO missile_attacks (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`);
-  const row = (date, model, category, launched, destroyed, status = "") =>
+  const row = (date, model, category, launched, destroyed, status = "", types = "") =>
     ins.run([`${date} 18:00`, `${date} 09:00`, model, "Kursk oblast", "Kyiv oblast",
-      launched, destroyed, `synthetic-${date}-${model}`, date, category, `${date}T12:00:00+00:00`, status]);
+      launched, destroyed, `synthetic-${date}-${model}`, date, category, `${date}T12:00:00+00:00`, status,
+      types]);
 
   for (let d = HISTORY_DAYS; d >= 1; d--) {
     const date = dayISO(-d);
-    row(date, "Shahed-136/131", "drone", 100 + d, 90 + d);
+    // A Python dict repr, exactly as piterfm publishes it — single quotes, and
+    // a sub-type that names no `destroyed` key at all.
+    const types = d === SUBTYPE_DAY_OFFSET
+      ? "{'Banderol': {'launched': 4, 'destroyed': 4}, 'Turbojet': {'launched': 9}}"
+      : "";
+    row(date, "Shahed-136/131", "drone", 100 + d, 90 + d, "", types);
     row(date, "X-101", "cruise", 10, 5);
     if (d === 1) {
       // Withheld: reported, but no figures — the 0s here are placeholders.

@@ -88,6 +88,46 @@ first build that ran this code. The frontend keeps installing its own views over
 its in-memory copy regardless, so the site stays correct against a DB of any
 vintage rather than depending on when the workflow last ran.
 
+## `destroyed_types` — what was *inside* a weapon row
+
+The second column piterfm added in Aug 2026 (first populated row reached our DB
+on 2026-08-23). The Air Force reports an overnight raid as a single
+`Shahed-136/131` line and then names the few odd weapons among those airframes,
+which lands here as a **Python dict repr** (not JSON — single quotes):
+
+```
+{'Banderol': {'launched': 3, 'destroyed': 3}, 'Turbojet': {'launched': 82}}
+```
+
+Two keys appear so far: `Banderol` (the S8000 jet-powered cruise missile) and
+`Turbojet` (jet-powered Geran airframes). Both are a **subset** of the parent
+row's `launched` / `destroyed`, never an addition — 82 turbojets inside a
+164-launched UAV row means 82 *of those* 164.
+
+The ingest stores the cell verbatim (the header-growth migration above did that
+much on its own). Reading it is a **read-side job**, same as `status_data`:
+`src/hooks/useDatabaseRuAirAttacks.ts` parses it once at load into an
+`attack_subtypes` table over its in-memory copy and aggregates it as
+`daily_by_subtype`, so the site reads a DB of any vintage correctly instead of
+waiting for the next workflow run to reach R2. The parsed rows surface **only as
+tooltip rows on the drones charts**, indented under the model row they came from
+and labelled "of which" — as a series of their own they would mislead:
+
+- **Coverage is partial and started mid-Aug 2026.** Before 2026-08-18 there are
+  four scattered rows in the whole dataset, and even since, ~7 of 26 UAV days
+  carry no itemization at all. A day without a sub-type means it wasn't broken
+  out, *not* that none flew — so the silent days would chart as zeros.
+- **`destroyed` is often absent** (`{'Turbojet': {'launched': 82}}`): the launch
+  count was itemized, the intercepts weren't. That's rendered "—", and a group
+  containing one reads unknown rather than a partial sum that would look
+  complete.
+
+Banderol is also reported as a weapon model in its own right (`model='Banderol'`,
+categorised `cruise`) when a regional command reports it as a separate attack.
+Those rows and these are **different reports, not duplicates** — on 2026-08-18
+both exist, from different sources and time windows — so a Banderol total has to
+union them. `e2e/subtype-breakdown.spec.ts` guards the tooltip rendering.
+
 ## Derived columns
 
 Added by the build (not in the CSV):

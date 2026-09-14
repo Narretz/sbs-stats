@@ -254,11 +254,20 @@ export function breakdownToRows(
       };
     }
     return {
-      label: e.model,
+      // A nested sub-type is indented under the entry it was itemized from.
+      label: e.nested ? `\u21b3 ${e.model}` : e.model,
       color,
       value: e.launched,
-      subset: e.intercepted,
-      share: hasShare ? (e.launched / total) * 100 : undefined,
+      // Upstream named the launch count but not the intercepts: an em dash, and
+      // — being a node rather than a number — it skips the derived rate cell,
+      // which over an unpublished count would be fiction.
+      subset: e.intercepted == null
+        ? <span style={{ opacity: 0.75 }}>—</span>
+        : e.intercepted,
+      // Share is part-of-total, and a nested row is part of the row above it.
+      // A share cell here would sit in the same column as its siblings' and
+      // read as if it added to their 100%.
+      share: hasShare && !e.nested ? (e.launched / total) * 100 : undefined,
       separatorAbove: i === 0,
     };
   });

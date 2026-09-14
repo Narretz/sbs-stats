@@ -10,7 +10,7 @@ import type {
   AttackDbCategory,
   ModelBreakdownEntry,
 } from "@/types";
-import { ATTACK_CATEGORY_KEYS, ATTACK_CATEGORY_LABELS, ATTACK_DB_CATEGORIES } from "@/types";
+import { ATTACK_CATEGORY_KEYS, ATTACK_CATEGORY_LABELS, ATTACK_DB_CATEGORIES, attackSubtypeLabel } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
@@ -76,6 +76,122 @@ function installDisclosureAwareViews(db: Database): void {
       FROM missile_attacks_latest
       GROUP BY attack_date, category, model;
   `);
+
+  const hasSubtypes =
+    nameIdx >= 0 && (cols[0]?.values ?? []).some((r) => r[nameIdx] === "destroyed_types");
+  installSubtypeTable(db, hasSubtypes, isHidden);
+}
+
+// piterfm's `destroyed_types` (added Aug 2026; the first populated row reached
+// our DB on 2026-08-23) itemizes what was *inside* a weapon row. The Air Force
+// reports an overnight raid as a single "Shahed-136/131" line and then names
+// the handful of Banderol cruise missiles or jet-powered airframes among them,
+// so an itemized count is a SUBSET of its parent row's launched/destroyed,
+// never an addition to it.
+//
+// The cell is a Python dict repr, not JSON —
+// `{'Banderol': {'launched': 2, 'destroyed': 2}, 'Turbojet': {'launched': 82}}`
+// — so JSON.parse is out. The regexes below tolerate either quote style, skip
+// non-numeric values (`NaN` shows up in piterfm's other dict-valued columns)
+// and treat a missing `destroyed` as unknown rather than zero: the raid was
+// itemized, its intercepts weren't.
+const SUBTYPE_ENTRY_RE = /(['"])([^'"]+)\1\s*:\s*\{([^}]*)\}/g;
+const SUBTYPE_FIELD_RE = /(['"])(launched|destroyed)\1\s*:\s*(-?\d+)/g;
+
+function parseDestroyedTypes(raw: string): Array<{ subtype: string; launched: number; destroyed: number | null }> {
+  const out: Array<{ subtype: string; launched: number; destroyed: number | null }> = [];
+  for (const entry of raw.matchAll(SUBTYPE_ENTRY_RE)) {
+    const fields = new Map<string, number>();
+    for (const f of entry[3].matchAll(SUBTYPE_FIELD_RE)) fields.set(f[2], Number(f[3]));
+    const launched = fields.get("launched");
+    // No launch count is nothing to report — the whole point of these rows.
+    if (launched == null) continue;
+    out.push({ subtype: entry[2], launched, destroyed: fields.get("destroyed") ?? null });
+  }
+  return out;
+}
+
+// Parse the column once at load into a real table, then aggregate it like any
+// other view. Done here rather than in the ingest for the same reason the
+// disclosure views are: the site then reads a DB of any vintage correctly,
+// instead of waiting for the next workflow run to reach R2. A DB built before
+// the column existed (the e2e fixtures included) gets the empty table, so every
+// downstream query has the same surface either way.
+function installSubtypeTable(db: Database, hasSubtypes: boolean, isHidden: string): void {
+  db.run(`
+    DROP TABLE IF EXISTS attack_subtypes;
+    CREATE TABLE attack_subtypes (
+      date TEXT, category TEXT, parent_model TEXT, subtype TEXT,
+      launched INTEGER, destroyed INTEGER
+    );
+  `);
+
+  if (hasSubtypes) {
+    const rows = queryRows<{ date: string; category: string; model: string; destroyed_types: string }>(
+      db,
+      // A withheld parent carries placeholder 0s, so nothing itemized inside it
+      // can be reconciled against a count nobody published — skipped here, the
+      // same way the views above refuse to sum one.
+      `SELECT attack_date AS date, category, model, destroyed_types
+       FROM missile_attacks_latest
+       WHERE TRIM(COALESCE(destroyed_types, '')) <> ''
+         AND COALESCE(${isHidden}, 0) = 0`
+    );
+    const insert = `INSERT INTO attack_subtypes
+      (date, category, parent_model, subtype, launched, destroyed)
+      VALUES (?, ?, ?, ?, ?, ?)`;
+    for (const r of rows) {
+      for (const s of parseDestroyedTypes(String(r.destroyed_types))) {
+        // Bound, not interpolated: `subtype` is upstream text, and it reaches
+        // the tooltip as a label either way.
+        db.run(insert, [String(r.date), String(r.category), String(r.model), s.subtype, s.launched, s.destroyed]);
+      }
+    }
+  }
+
+  db.run(`
+    DROP VIEW IF EXISTS daily_by_subtype;
+    CREATE VIEW daily_by_subtype AS
+      SELECT date, category, parent_model, subtype,
+             SUM(launched) AS launched,
+             -- One un-itemized entry leaves the whole group unknown: a partial
+             -- sum would read as a complete intercept count.
+             CASE WHEN SUM(destroyed IS NULL) > 0 THEN NULL ELSE SUM(destroyed) END AS destroyed
+      FROM attack_subtypes
+      GROUP BY date, category, parent_model, subtype;
+  `);
+}
+
+type SubtypeRow = {
+  bucket: string; parent: string; subtype: string;
+  launched: number | null; destroyed: number | null;
+};
+
+// Splice each bucket's sub-type rows in directly under the model row they were
+// itemized from. Position is what marks them as a subset of that row rather
+// than another sibling adding to the category total, so an entry whose parent
+// isn't in the list goes to the end instead of floating mid-list.
+function mergeSubtypeEntries(out: Map<string, ModelBreakdownEntry[]>, rows: SubtypeRow[]): void {
+  for (const r of rows) {
+    const list = out.get(String(r.bucket));
+    if (!list) continue;
+    const entry: ModelBreakdownEntry = {
+      model: attackSubtypeLabel(String(r.subtype)),
+      launched: num(r.launched),
+      intercepted: typeof r.destroyed === "number" ? r.destroyed : null,
+      nested: true,
+    };
+    const at = list.findIndex((e) => e.model === String(r.parent));
+    if (at < 0) {
+      list.push(entry);
+      continue;
+    }
+    // Append after the parent's existing nested run, so several sub-types keep
+    // the launched-DESC order the query returned them in.
+    let i = at + 1;
+    while (i < list.length && list[i].nested) i++;
+    list.splice(i, 0, entry);
+  }
 }
 
 const dbCache = makeResourceCache<Database>();
@@ -387,6 +503,22 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
         list.push(breakdownEntry(String(r.model), r));
         out.set(date, list);
       }
+      // Sub-types itemized inside one of those model rows (Banderol and
+      // jet-powered airframes inside the nightly UAV line). Only the tooltip
+      // carries them: they're reported on some days and not others, so as a
+      // series of their own the silent days would chart as zeros.
+      mergeSubtypeEntries(
+        out,
+        queryRows<SubtypeRow>(
+          db,
+          `SELECT date AS bucket, parent_model AS parent, subtype, launched, destroyed
+           FROM daily_by_subtype
+           WHERE category = '${safe}'
+             AND date >= ${windowStartSql(endDateSql, days)}
+             AND date <= date('${endDateSql}')
+           ORDER BY date ASC, launched DESC`
+        )
+      );
       return out;
     },
     [db]
@@ -476,6 +608,22 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
         list.push(breakdownEntry(String(r.model), r));
         out.set(month, list);
       }
+      // Same sub-type rows as the daily tooltip, rolled up per month. A month
+      // with one un-itemized intercept count reads unknown rather than partial,
+      // which is what the CASE in `daily_by_subtype` does per day.
+      mergeSubtypeEntries(
+        out,
+        queryRows<SubtypeRow>(
+          db,
+          `SELECT substr(date, 1, 7) AS bucket, parent_model AS parent, subtype,
+                  SUM(launched) AS launched,
+                  CASE WHEN SUM(destroyed IS NULL) > 0 THEN NULL ELSE SUM(destroyed) END AS destroyed
+           FROM daily_by_subtype
+           WHERE category = '${safe}'
+           GROUP BY bucket, parent, subtype
+           ORDER BY bucket ASC, launched DESC`
+        )
+      );
       return out;
     },
     [db]
