@@ -122,11 +122,32 @@ and labelled "of which" — as a series of their own they would mislead:
   containing one reads unknown rather than a partial sum that would look
   complete.
 
-Banderol is also reported as a weapon model in its own right (`model='Banderol'`,
-categorised `cruise`) when a regional command reports it as a separate attack.
-Those rows and these are **different reports, not duplicates** — on 2026-08-18
-both exist, from different sources and time windows — so a Banderol total has to
-union them. `e2e/subtype-breakdown.spec.ts` guards the tooltip rendering.
+### Inside the row, or alongside it?
+
+Both, depending on the report — this is checkable against the Air Force's own
+figures, and it has changed over time:
+
+- **2026-09-11** — the report reads *"129 Shahed-type attack UAVs (half of them
+  jet-powered), S8000 Banderol missiles and Parodiya-type decoy drones"*. The DB
+  has one `Shahed-136/131` row of 129, **no** Banderol row, and `destroyed_types`
+  naming `Turbojet` 64 (= 64/129, the reported half) and `Banderol` 1. The 129
+  contains both → "of which".
+- **2025-09-27** — the report reads *"595 drones and 48 missiles"*. The DB has
+  `Shahed-136/131` 593 **plus a separate `Banderol` row of 2** (593 + 2 = 595;
+  the missiles are Kinzhal 2 + Kalibr 8 + Kh-101 38 = 48), and the Shahed row
+  *also* names `Banderol` 2 in `destroyed_types`. There the itemization repeats
+  the sibling row and the 593 does **not** contain it.
+
+A sibling row **from the same `source` post** is what tells the two apart, so
+the hook drops an itemization that has one: that weapon is already charted under
+its own model (Banderol is `cruise`), and repeating it under the UAV row would
+double-show it and misstate the parent's count. Note this is per *report*, not
+per day — on 2026-08-18 a `Banderol` row and a nested Banderol coexist from
+different commands and different time windows, i.e. two separate attacks, and
+both are kept.
+
+`e2e/subtype-breakdown.spec.ts` guards all of it: the nesting, the un-itemized
+intercepts, a day with no itemization, and the rowed-separately case.
 
 ## Derived columns
 

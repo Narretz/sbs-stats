@@ -32,6 +32,8 @@ const HISTORY_DAYS = 7;
 // Which day carries the RU air-attacks sub-type itemization; the spec derives
 // the same date from FIXED_TODAY.
 export const SUBTYPE_DAY_OFFSET = 4;
+// The day whose sub-type was also given a row of its own by the same report.
+export const ROWED_SEPARATELY_DAY_OFFSET = 5;
 
 // ── SBS: hourly cumulative `daily_stats` ──────────────────────────────────────
 // Each day is a cumulative intraday curve (checkpoint hour → share of the day's
@@ -149,6 +151,12 @@ function buildGsua(SQL) {
 // row). Both of its shapes are seeded: one sub-type with intercepts itemized
 // and one without, since "launched 9, intercepts not broken out" must not
 // render as 9 launched / 0 intercepted.
+//
+// Day -5 seeds the older shape, where the same report *also* gave the weapon a
+// row of its own (as on 2025-09-27: Shahed 593 + a Banderol row of 2, against a
+// reported 595). There the itemization repeats that row rather than sitting
+// inside the UAV count, so it must not render — hence the shared `source`,
+// which is what tells the two shapes apart.
 function buildRuAirAttacks(SQL) {
   const db = new SQL.Database();
   db.run(`
@@ -171,9 +179,9 @@ function buildRuAirAttacks(SQL) {
     "launched", "destroyed", "source", "attack_date", "category", "scraped_at", "status_data",
     "destroyed_types"];
   const ins = db.prepare(`INSERT INTO missile_attacks (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`);
-  const row = (date, model, category, launched, destroyed, status = "", types = "") =>
+  const row = (date, model, category, launched, destroyed, status = "", types = "", source = null) =>
     ins.run([`${date} 18:00`, `${date} 09:00`, model, "Kursk oblast", "Kyiv oblast",
-      launched, destroyed, `synthetic-${date}-${model}`, date, category, `${date}T12:00:00+00:00`, status,
+      launched, destroyed, source ?? `synthetic-${date}-${model}`, date, category, `${date}T12:00:00+00:00`, status,
       types]);
 
   for (let d = HISTORY_DAYS; d >= 1; d--) {
@@ -182,8 +190,15 @@ function buildRuAirAttacks(SQL) {
     // a sub-type that names no `destroyed` key at all.
     const types = d === SUBTYPE_DAY_OFFSET
       ? "{'Banderol': {'launched': 4, 'destroyed': 4}, 'Turbojet': {'launched': 9}}"
-      : "";
-    row(date, "Shahed-136/131", "drone", 100 + d, 90 + d, "", types);
+      : d === ROWED_SEPARATELY_DAY_OFFSET
+        ? "{'Banderol': {'launched': 2, 'destroyed': 2}}"
+        : "";
+    const sharedPost = d === ROWED_SEPARATELY_DAY_OFFSET ? `synthetic-${date}-post` : null;
+    row(date, "Shahed-136/131", "drone", 100 + d, 90 + d, "", types, sharedPost);
+    if (d === ROWED_SEPARATELY_DAY_OFFSET) {
+      // Same report, its own row — the itemization above is a repeat of this.
+      row(date, "Banderol", "cruise", 2, 2, "", "", sharedPost);
+    }
     row(date, "X-101", "cruise", 10, 5);
     if (d === 1) {
       // Withheld: reported, but no figures — the 0s here are placeholders.

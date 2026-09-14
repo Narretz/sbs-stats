@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { FIXED_TODAY, SUBTYPE_DAY_OFFSET } from "./build-fixtures.mjs";
+import { FIXED_TODAY, ROWED_SEPARATELY_DAY_OFFSET, SUBTYPE_DAY_OFFSET } from "./build-fixtures.mjs";
 
 // Regression guard for the weapon sub-type breakdown in the drones tooltip.
 //
@@ -20,6 +20,9 @@ const dayISO = (offset: number) => {
 };
 const SUBTYPE_DAY = dayISO(-SUBTYPE_DAY_OFFSET);
 const PLAIN_DAY = dayISO(-3); // no itemization → no sub-type rows at all
+// Itemized *and* given a row of its own by the same report → already charted
+// under its own model, so it must not repeat inside the UAV row.
+const ROWED_SEPARATELY_DAY = dayISO(-ROWED_SEPARATELY_DAY_OFFSET);
 
 const fmt = (iso: string) => {
   const [y, m, d] = iso.split("-");
@@ -91,6 +94,17 @@ test.describe("RU air attacks — weapon sub-type breakdown", () => {
     // nothing after it, since a rate over a number nobody published would be
     // fiction and a 0 would invent an outcome.
     expect(cellsAfter(tip, "↳ of which jet-powered")).toEqual(["9", "—"]);
+  });
+
+  // Whether an itemization sits inside its parent row or alongside it depends on
+  // whether the same report also gave that weapon a row of its own, and piterfm
+  // has done it both ways (see installSubtypeTable). When it did, the weapon is
+  // already charted as its own model — repeating it under the UAV row would
+  // double-show it and misstate the parent's count.
+  test("a sub-type the same report also rowed separately is not repeated", async ({ page }) => {
+    const tip = await tooltipAt(page, "Drones", ROWED_SEPARATELY_DAY);
+    expect(tip).toContain("Shahed-136/131");
+    expect(tip).not.toContain("of which");
   });
 
   test("a day with no itemization carries no sub-type rows", async ({ page }) => {

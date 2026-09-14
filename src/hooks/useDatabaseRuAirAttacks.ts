@@ -127,21 +127,43 @@ function installSubtypeTable(db: Database, hasSubtypes: boolean, isHidden: strin
   `);
 
   if (hasSubtypes) {
-    const rows = queryRows<{ date: string; category: string; model: string; destroyed_types: string }>(
+    const rows = queryRows<{ date: string; category: string; model: string; source: string; destroyed_types: string }>(
       db,
       // A withheld parent carries placeholder 0s, so nothing itemized inside it
       // can be reconciled against a count nobody published — skipped here, the
       // same way the views above refuse to sum one.
-      `SELECT attack_date AS date, category, model, destroyed_types
+      `SELECT attack_date AS date, category, model, source, destroyed_types
        FROM missile_attacks_latest
        WHERE TRIM(COALESCE(destroyed_types, '')) <> ''
          AND COALESCE(${isHidden}, 0) = 0`
+    );
+    // Whether an itemized count is *inside* its parent row or *alongside* it
+    // depends on whether piterfm also gave that weapon a row of its own for the
+    // same report, and that has changed over time:
+    //
+    //   2025-09-27 — Air Force reported "595 drones and 48 missiles". The DB has
+    //     Shahed 593 plus a separate Banderol row of 2 (593 + 2 = 595), and the
+    //     Shahed row *also* names Banderol 2 in `destroyed_types`. So there the
+    //     itemization repeats the sibling row; the 593 does not contain it.
+    //   2026-09-11 — "129 Shahed-type UAVs (half of them jet-powered), S8000
+    //     Banderol and Parodiya decoys". The DB has one Shahed row of 129, no
+    //     Banderol row, and `destroyed_types` naming Banderol 1 and Turbojet 64
+    //     (64/129 = the reported half). There the 129 contains both.
+    //
+    // A sibling row from the same source post is what separates the two, so an
+    // itemization that has one is dropped: the weapon is already charted under
+    // its own model (Banderol is `cruise`), and repeating it under the UAV row
+    // would both double-show it and misstate the parent's count.
+    const rowedSeparately = new Set(
+      queryRows<{ source: string; model: string }>(db, "SELECT source, model FROM missile_attacks_latest")
+        .map((r) => `${r.source}\u0000${r.model}`)
     );
     const insert = `INSERT INTO attack_subtypes
       (date, category, parent_model, subtype, launched, destroyed)
       VALUES (?, ?, ?, ?, ?, ?)`;
     for (const r of rows) {
       for (const s of parseDestroyedTypes(String(r.destroyed_types))) {
+        if (rowedSeparately.has(`${r.source}\u0000${s.subtype}`)) continue;
         // Bound, not interpolated: `subtype` is upstream text, and it reaches
         // the tooltip as a label either way.
         db.run(insert, [String(r.date), String(r.category), String(r.model), s.subtype, s.launched, s.destroyed]);
