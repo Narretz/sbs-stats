@@ -53,21 +53,23 @@ export interface Theme {
   series2Current: string;
   /** Trend overlay on the second series — lighter, so it reads as derived. */
   series2Trend: string;
-  // A two-way CATEGORICAL pair, for series whose subject is identity rather
-  // than rank: which territory a casualty happened in. Deliberately NOT
-  // series1/series2 — those mean "main series / second series against it", and
-  // on a page where blue already means injured, reusing it for a place would
-  // make one hue carry two meanings. Equally deliberately not flag colours:
-  // blue-and-yellow or red for these two would editorialise.
+  // Which side controls the territory a casualty happened in. Side-coded on
+  // purpose — gold for Ukraine, red for Russia — so these are NOT a generic
+  // categorical pair to reach for on an unrelated two-way split, and not
+  // series1/series2 either: on a page where blue already means injured,
+  // reusing it for a place would make one hue carry two meanings.
   //
-  // Identical in both themes, like QUALITATIVE_PALETTE, because this pair
-  // passes the lightness band, chroma floor, CVD separation and 3:1 contrast
-  // against BOTH surfaces (dataviz validate_palette.js) — so one step per hue
-  // is enough and a second would only be drift.
-  /** Categorical slot 1 — violet. */
-  categorical1: string;
-  /** Categorical slot 2 — amber. */
-  categorical2: string;
+  // Unlike QUALITATIVE_PALETTE these DO differ per theme, because one step
+  // cannot clear both surfaces. A yellow bright enough to read as yellow falls
+  // under 3:1 on white, so light mode takes a deep gold; a red dark enough to
+  // read as dark red falls below the dark band's lightness floor on near-black,
+  // so dark mode lifts it. Both pairs pass the lightness band, chroma floor,
+  // CVD separation and contrast checks for their own surface — see
+  // scripts/validate_palette.js in the dataviz skill.
+  /** Ukrainian-controlled territory — gold. */
+  territoryUa: string;
+  /** Russian-controlled territory — dark red. */
+  territoryRu: string;
   /** De-emphasised series (past days behind today's line, "unattributed"). */
   seriesNeutral: string;
 }
@@ -96,8 +98,10 @@ export const LIGHT: Theme = {
   series2:        "#DE6666",
   series2Current: "#C62121",
   series2Trend:   "#fca5a5",
-  categorical1:   "#7C6BD6",
-  categorical2:   "#B4701F",
+  // Deep gold, not a bright yellow: anything brighter drops under 3:1 on the
+  // white surface.
+  territoryUa:    "#B8860B",
+  territoryRu:    "#9B1C1C",
   seriesNeutral:  "#9ca3af",
 };
 
@@ -125,8 +129,10 @@ export const DARK: Theme = {
   series2:        "#DE6666",
   series2Current: "#C62121",
   series2Trend:   "#fca5a5",
-  categorical1:   "#7C6BD6",
-  categorical2:   "#B4701F",
+  // Both lifted off the light steps: the gold to clear the dark band's upper
+  // lightness bound, the red to clear its floor against near-black.
+  territoryUa:    "#B98C1E",
+  territoryRu:    "#B93636",
   seriesNeutral:  "#9ca3af",
 };
 
