@@ -208,13 +208,19 @@ Site key `cit-civilians`, two pages, wired in `src/sites/registry.tsx`:
 | Page | What it shows |
 |---|---|
 | `daily` | killed and injured per day, from `daily_stated`. Two charts, never one: the two series differ by roughly an order of magnitude and sharing an axis would flatten killed to nothing. |
-| `monthly` | the same figures summed per month, plus two views of the regional breakdown and the caveat they share: casualties by controlling side, and the per-region table. |
+| `monthly` | the same figures summed per month, plus casualties by controlling side and the caveat that governs it. |
 
 The daily page also stacks the two into one "all casualties" chart
 (`pairMode="sum"`), which is a good total and a poor split — killed is ~9% of a
 day, so its band is unreadable at that scale and the blue band's top edge is
 the total rather than injured. It sits above the two single-series charts
 rather than replacing them.
+
+`CitRegionTable` — a ranked per-region table, every oblast with its killed and
+injured — is built and working but **not mounted**: it was on the monthly page
+and taken off again. Dropping `<CitRegionTable rows={queryRegions()} />` into
+that page's `ChartGrid` brings it back; `queryRegions` is still on the hook and
+`CIT_REGION_LABELS` still carries the display names.
 
 The monthly page's **casualties by controlling side** chart sums killed and
 injured and splits them Ukrainian-controlled vs Russian-controlled, the latter
@@ -228,7 +234,7 @@ contrast checks against both surfaces, which is why one step serves both
 themes.
 
 The hook (`src/hooks/useDatabaseCitCivilians.ts`) reads the headline view for the
-charts and `casualties_latest` for the region views. It spreads a weekend
+charts and `casualties_latest` for the territory chart. It spreads a weekend
 report across its two days there — never in the DB — and tags both points with
 a `note`, which `DailyLineChart` renders as a flagged dot plus the report's real
 48-hour figures in the tooltip.
