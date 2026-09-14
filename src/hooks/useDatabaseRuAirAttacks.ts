@@ -10,7 +10,10 @@ import type {
   AttackDbCategory,
   ModelBreakdownEntry,
 } from "@/types";
-import { ATTACK_CATEGORY_KEYS, ATTACK_CATEGORY_LABELS, ATTACK_DB_CATEGORIES, attackSubtypeLabel } from "@/types";
+import {
+  ATTACK_CATEGORY_KEYS, ATTACK_CATEGORY_LABELS, ATTACK_DB_CATEGORIES,
+  ATTACK_SUBTYPE_CATEGORY, attackSubtypeLabel,
+} from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
@@ -41,45 +44,84 @@ async function loadDatabase(): Promise<Database> {
 function installDisclosureAwareViews(db: Database): void {
   const cols = db.exec("PRAGMA table_info(missile_attacks)");
   const nameIdx = cols[0]?.columns.indexOf("name") ?? -1;
-  const hasStatus =
-    nameIdx >= 0 && (cols[0]?.values ?? []).some((r) => r[nameIdx] === "status_data");
+  const has = (col: string) =>
+    nameIdx >= 0 && (cols[0]?.values ?? []).some((r) => r[nameIdx] === col);
 
-  const isHidden = hasStatus ? "status_data = 'hidden'" : "0";
+  const isHidden = has("status_data") ? "status_data = 'hidden'" : "0";
   const known = (c: string) => `SUM(CASE WHEN ${isHidden} THEN NULL ELSE ${c} END)`;
   const hiddenCount = `SUM(CASE WHEN ${isHidden} THEN 1 ELSE 0 END)`;
+
+  // Parse the itemizations first — the aggregates below read them.
+  installSubtypeTables(db, has("destroyed_types"), isHidden);
+
+  // One relation every aggregate groups: the stored rows, with any sub-type
+  // that belongs to another category carved out of its parent's group and
+  // re-attributed to its own weapon (see ATTACK_SUBTYPE_CATEGORY). Carving at
+  // the group level rather than per row is equivalent here — every aggregate
+  // groups by at least (date, category, model) — and keeps this one join.
+  db.run(`
+    DROP VIEW IF EXISTS attack_contributions;
+    CREATE VIEW attack_contributions AS
+      SELECT b.date, b.category, b.model,
+             b.launched  - COALESCE(mv.launched, 0)  AS launched,
+             -- A sub-type upstream didn't itemize intercepts for leaves
+             -- mv.destroyed NULL; subtracting nothing keeps those intercepts
+             -- with the parent rather than inventing a split.
+             b.destroyed - COALESCE(mv.destroyed, 0) AS destroyed,
+             b.hidden
+      FROM (
+        SELECT attack_date AS date, category, model,
+               ${known("launched")}  AS launched,
+               ${known("destroyed")} AS destroyed,
+               ${hiddenCount}        AS hidden
+        FROM missile_attacks_latest
+        GROUP BY attack_date, category, model
+      ) b
+      LEFT JOIN (
+        SELECT date, from_category, parent_model,
+               SUM(launched) AS launched, SUM(destroyed) AS destroyed
+        FROM subtype_moves
+        GROUP BY date, from_category, parent_model
+      ) mv
+        ON mv.date = b.date AND mv.from_category = b.category AND mv.parent_model = b.model
+      UNION ALL
+      -- The carved-out counts, under the weapon's own name, so a day that also
+      -- has a stored row for that weapon (a regional command reporting the same
+      -- missile as its own attack) folds into one model row rather than two.
+      SELECT date, to_category AS category, subtype AS model,
+             SUM(launched) AS launched, SUM(destroyed) AS destroyed, 0 AS hidden
+      FROM subtype_moves
+      GROUP BY date, to_category, subtype;
+  `);
 
   db.run(`
     DROP VIEW IF EXISTS daily_by_category;
     CREATE VIEW daily_by_category AS
-      SELECT attack_date AS date, category,
-             ${known("launched")}  AS launched,
-             ${known("destroyed")} AS destroyed,
-             ${hiddenCount}        AS hidden
-      FROM missile_attacks_latest
-      GROUP BY attack_date, category;
+      SELECT date, category,
+             SUM(launched)  AS launched,
+             SUM(destroyed) AS destroyed,
+             SUM(hidden)    AS hidden
+      FROM attack_contributions
+      GROUP BY date, category;
 
     DROP VIEW IF EXISTS daily_by_model;
     CREATE VIEW daily_by_model AS
-      SELECT attack_date AS date, model,
-             ${known("launched")}  AS launched,
-             ${known("destroyed")} AS destroyed,
-             ${hiddenCount}        AS hidden
-      FROM missile_attacks_latest
-      GROUP BY attack_date, model;
+      SELECT date, model,
+             SUM(launched)  AS launched,
+             SUM(destroyed) AS destroyed,
+             SUM(hidden)    AS hidden
+      FROM attack_contributions
+      GROUP BY date, model;
 
     DROP VIEW IF EXISTS daily_by_model_category;
     CREATE VIEW daily_by_model_category AS
-      SELECT attack_date AS date, category, model,
-             ${known("launched")}  AS launched,
-             ${known("destroyed")} AS destroyed,
-             ${hiddenCount}        AS hidden
-      FROM missile_attacks_latest
-      GROUP BY attack_date, category, model;
+      SELECT date, category, model,
+             SUM(launched)  AS launched,
+             SUM(destroyed) AS destroyed,
+             SUM(hidden)    AS hidden
+      FROM attack_contributions
+      GROUP BY date, category, model;
   `);
-
-  const hasSubtypes =
-    nameIdx >= 0 && (cols[0]?.values ?? []).some((r) => r[nameIdx] === "destroyed_types");
-  installSubtypeTable(db, hasSubtypes, isHidden);
 }
 
 // piterfm's `destroyed_types` (added Aug 2026; the first populated row reached
@@ -117,11 +159,20 @@ function parseDestroyedTypes(raw: string): Array<{ subtype: string; launched: nu
 // instead of waiting for the next workflow run to reach R2. A DB built before
 // the column existed (the e2e fixtures included) gets the empty table, so every
 // downstream query has the same surface either way.
-function installSubtypeTable(db: Database, hasSubtypes: boolean, isHidden: string): void {
+function installSubtypeTables(db: Database, hasSubtypes: boolean, isHidden: string): void {
   db.run(`
+    -- Sub-types that belong to their parent's category: shown as "of which"
+    -- rows under it, counted where they already are.
     DROP TABLE IF EXISTS attack_subtypes;
     CREATE TABLE attack_subtypes (
       date TEXT, category TEXT, parent_model TEXT, subtype TEXT,
+      launched INTEGER, destroyed INTEGER
+    );
+    -- Sub-types that don't: carved out of the parent group and counted under
+    -- their own weapon instead (see attack_contributions).
+    DROP TABLE IF EXISTS subtype_moves;
+    CREATE TABLE subtype_moves (
+      date TEXT, from_category TEXT, to_category TEXT, parent_model TEXT, subtype TEXT,
       launched INTEGER, destroyed INTEGER
     );
   `);
@@ -158,15 +209,30 @@ function installSubtypeTable(db: Database, hasSubtypes: boolean, isHidden: strin
       queryRows<{ source: string; model: string }>(db, "SELECT source, model FROM missile_attacks_latest")
         .map((r) => `${r.source}\u0000${r.model}`)
     );
-    const insert = `INSERT INTO attack_subtypes
+    const insertStay = `INSERT INTO attack_subtypes
       (date, category, parent_model, subtype, launched, destroyed)
       VALUES (?, ?, ?, ?, ?, ?)`;
+    const insertMove = `INSERT INTO subtype_moves
+      (date, from_category, to_category, parent_model, subtype, launched, destroyed)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`;
     for (const r of rows) {
       for (const s of parseDestroyedTypes(String(r.destroyed_types))) {
         if (rowedSeparately.has(`${r.source}\u0000${s.subtype}`)) continue;
+        // An itemization inherits its parent row's category, which is wrong for
+        // a weapon that isn't of the parent's kind: the Air Force counts
+        // Banderol inside the night's UAV headline, but it's a cruise missile
+        // and every standalone `model='Banderol'` row is already charted as
+        // one. Where our own classification disagrees with the row it arrived
+        // in, the counts move; otherwise they stay nested.
         // Bound, not interpolated: `subtype` is upstream text, and it reaches
         // the tooltip as a label either way.
-        db.run(insert, [String(r.date), String(r.category), String(r.model), s.subtype, s.launched, s.destroyed]);
+        const from = String(r.category);
+        const to = ATTACK_SUBTYPE_CATEGORY[s.subtype] ?? from;
+        if (to === from) {
+          db.run(insertStay, [String(r.date), from, String(r.model), s.subtype, s.launched, s.destroyed]);
+        } else {
+          db.run(insertMove, [String(r.date), from, to, String(r.model), s.subtype, s.launched, s.destroyed]);
+        }
       }
     }
   }

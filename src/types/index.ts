@@ -486,6 +486,23 @@ export const ATTACK_SUBTYPE_LABELS: Record<string, string> = {
   Turbojet: "of which jet-powered",
 };
 
+// Which category an itemized sub-type really belongs to. A sub-type that
+// matches its parent's category stays inside it as an "of which" row; one that
+// doesn't is carved out of the parent and counted under its own weapon, because
+// the parent row's category is wrong for it.
+//
+// `Banderol` is the S8000 — a jet-powered cruise missile, not an airframe — and
+// the ingest already classifies the standalone `model='Banderol'` rows as
+// `cruise` (scripts/missile_attacks/ingest.py, CRUISE_MODELS). The Air Force
+// counts it inside the night's UAV headline, so an itemization inherits `drone`
+// from the row it was reported in; moving it applies the classification we had
+// already made everywhere else. `Turbojet` is a jet-powered Geran airframe and
+// stays a drone.
+export const ATTACK_SUBTYPE_CATEGORY: Record<string, AttackDbCategory> = {
+  Banderol: "cruise",
+  Turbojet: "drone",
+};
+
 export function attackSubtypeLabel(subtype: string): string {
   return ATTACK_SUBTYPE_LABELS[subtype] ?? `of which ${subtype}`;
 }

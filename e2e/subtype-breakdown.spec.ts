@@ -5,10 +5,12 @@ import { FIXED_TODAY, ROWED_SEPARATELY_DAY_OFFSET, SUBTYPE_DAY_OFFSET } from "./
 //
 // piterfm's `destroyed_types` itemizes what was *inside* a weapon row: the Air
 // Force reports an overnight raid as one "Shahed-136/131" line and then names
-// the few Banderol cruise missiles or jet-powered airframes among them. Those
-// counts are a subset of that row, not another model alongside it, and the only
-// thing saying so in the tooltip is where they sit and how they read — hence
-// the ordering assertion below, not just a "contains" one.
+// the few Banderol cruise missiles or jet-powered airframes among them. What
+// happens next depends on the weapon: a jet-powered Geran is still a UAV and
+// stays nested under that row, where only its position and "of which" label say
+// it isn't a sibling adding to the total — hence the ordering assertions below,
+// not just "contains" ones. Banderol is a cruise missile, so its counts are
+// carved out of the UAV row and charted under cruise instead.
 //
 // The second thing that has to hold is that an un-itemized intercept count
 // stays un-itemized: build-fixtures seeds one sub-type with `destroyed` and one
@@ -77,22 +79,31 @@ test.describe("RU air attacks — weapon sub-type breakdown", () => {
     return next < 0 ? rest : rest.slice(0, next);
   };
 
-  test("itemized sub-types read as a subset of the row above them", async ({ page }) => {
-    const tip = await tooltipAt(page, "Drones", SUBTYPE_DAY);
-    expect(tip).toContain("Shahed-136/131");
-    // Under its parent, not floating among the sibling model rows.
-    expect(tip.indexOf("Shahed-136/131")).toBeLessThan(tip.indexOf("of which Banderol"));
-    // Launched, intercepted, intercept rate — and no share cell between the
-    // first two, because a nested row's share of the day would sit in the same
-    // column as its siblings' and read as if it added to their 100%.
-    expect(cellsAfter(tip, "↳ of which Banderol")).toEqual(["4", "4", "100.0%"]);
+  // Banderol is a cruise missile the Air Force counts inside the night's UAV
+  // headline, so its itemization arrives on a row categorised `drone`. It is
+  // carved out of that row and counted under its own weapon instead — the
+  // fixture's UAV row is seeded at 104/94 with 4/4 of it Banderol.
+  test("an itemization of another category is moved out of the UAV row", async ({ page }) => {
+    const drones = await tooltipAt(page, "Drones", SUBTYPE_DAY);
+    expect(drones).not.toContain("Banderol");
+    expect(cellsAfter(drones, "Shahed-136/131")).toEqual(["100", "100.0%", "90", "90.0%"]);
   });
 
-  test("a sub-type whose intercepts weren't itemized shows no intercept count", async ({ page }) => {
+  test("the moved counts are charted as their own weapon under cruise", async ({ page }) => {
+    const cruise = await tooltipAt(page, "Cruise Missiles", SUBTYPE_DAY);
+    // A share cell — i.e. a real sibling of the other cruise rows, adding to
+    // the category total (X-101 10 + Banderol 4 = 14), not an "of which".
+    expect(cellsAfter(cruise, "Banderol")).toEqual(["4", "28.6%", "4", "100.0%"]);
+    expect(cruise).not.toContain("of which");
+  });
+
+  test("a sub-type of the parent's own kind stays nested, intercepts and all", async ({ page }) => {
     const tip = await tooltipAt(page, "Drones", SUBTYPE_DAY);
-    // Launched, then an em dash standing in for the intercept cell — and
-    // nothing after it, since a rate over a number nobody published would be
-    // fiction and a 0 would invent an outcome.
+    // A jet-powered Geran is still a UAV, so it stays inside the row it was
+    // itemized from. Launched, then an em dash standing in for the intercept
+    // cell — and nothing after it, since a rate over a number nobody published
+    // would be fiction and a 0 would invent an outcome.
+    expect(tip.indexOf("Shahed-136/131")).toBeLessThan(tip.indexOf("of which jet-powered"));
     expect(cellsAfter(tip, "↳ of which jet-powered")).toEqual(["9", "—"]);
   });
 

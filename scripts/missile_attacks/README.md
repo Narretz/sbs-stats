@@ -106,12 +106,35 @@ row's `launched` / `destroyed`, never an addition — 82 turbojets inside a
 
 The ingest stores the cell verbatim (the header-growth migration above did that
 much on its own). Reading it is a **read-side job**, same as `status_data`:
-`src/hooks/useDatabaseRuAirAttacks.ts` parses it once at load into an
-`attack_subtypes` table over its in-memory copy and aggregates it as
-`daily_by_subtype`, so the site reads a DB of any vintage correctly instead of
-waiting for the next workflow run to reach R2. The parsed rows surface **only as
-tooltip rows on the drones charts**, indented under the model row they came from
-and labelled "of which" — as a series of their own they would mislead:
+`src/hooks/useDatabaseRuAirAttacks.ts` parses it once at load over its in-memory
+copy, so the site reads a DB of any vintage correctly instead of waiting for the
+next workflow run to reach R2. What happens to a parsed entry depends on whether
+it's the same kind of weapon as the row it arrived in
+(`ATTACK_SUBTYPE_CATEGORY`):
+
+- **`Turbojet` — a jet-powered Geran airframe, so still a drone.** It stays in
+  its parent's counts and surfaces as a tooltip row indented under that model
+  and labelled "of which" (table `attack_subtypes` → view `daily_by_subtype`).
+- **`Banderol` — a cruise missile.** The Air Force counts it inside the night's
+  UAV headline, so the itemization arrives on a row categorised `drone`, but
+  the ingest already classifies every standalone `model='Banderol'` row as
+  `cruise` (`CRUISE_MODELS`). Its counts are therefore **carved out of the
+  parent group and re-attributed to `Banderol` under `cruise`** (table
+  `subtype_moves` → view `attack_contributions`, which all three `daily_*`
+  aggregates now group). It lands under its own weapon name, so a day that also
+  has a stored `Banderol` row folds into one model row: 2026-08-18 charts
+  `Banderol 5/2` — the South command's own row (3/0) plus the 2/2 itemized
+  inside that night's UAV raid.
+
+The move is a pure re-attribution between categories: grand totals over
+`daily_by_category` are identical to a raw `SUM` of the table (verified over the
+full DB), and the `all` series is unchanged. But **per-category totals
+deliberately differ from a plain `GROUP BY category`** against the file — direct
+SQL against `ru-air-attacks-gsua.db` will read those ~51 Banderols (as of
+2026-09) as drones, because that's how the source grouped them.
+
+A sub-type that stays nested is a tooltip detail only, never a series of its
+own:
 
 - **Coverage is partial and started mid-Aug 2026.** Before 2026-08-18 there are
   four scattered rows in the whole dataset, and even since, ~7 of 26 UAV days
