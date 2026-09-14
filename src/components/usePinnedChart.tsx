@@ -48,10 +48,8 @@ export interface PinnedChart {
   cardProps: {
     ref: React.RefObject<HTMLDivElement>;
     "data-chart-pinnable": "";
-    onPointerEnter: (e: ReactPointerEvent) => void;
     onPointerMove: (e: ReactPointerEvent) => void;
     onPointerLeave: () => void;
-    onPointerCancel: () => void;
   };
   /** Spread on the recharts chart element (`<LineChart {...chartProps}>`). */
   chartProps: { onClick: (state: { activeTooltipIndex?: number | null } | null) => void };
@@ -101,14 +99,15 @@ export function usePinnedChart<T>({
     hoveringRef.current = next;
     setHovering(next);
   }, []);
-  // onPointerMove as well as onPointerEnter: a chart that mounts under an
-  // already-stationary cursor (the DB finishes loading, a day range changes)
-  // gets no enter event of its own.
-  const onHoverPointer = useCallback(
+  // pointermove rather than pointerenter: a mouse has to move within the card
+  // for recharts to raise a tooltip at all, so the move always precedes it —
+  // and unlike enter it also covers a chart that mounts under an already
+  // stationary cursor (the DB finishes loading, the day range changes).
+  const onPointerMove = useCallback(
     (e: ReactPointerEvent) => setHover(e.pointerType !== "touch"),
     [setHover],
   );
-  const onLeave = useCallback(() => setHover(false), [setHover]);
+  const onPointerLeave = useCallback(() => setHover(false), [setHover]);
 
   const tooltip = (
     <Tooltip
@@ -143,10 +142,8 @@ export function usePinnedChart<T>({
     pinnedX: pinnedRow != null ? xs[pin.index] : null,
     cardProps: {
       ...pin.cardProps,
-      onPointerEnter: onHoverPointer,
-      onPointerMove: onHoverPointer,
-      onPointerLeave: onLeave,
-      onPointerCancel: onLeave,
+      onPointerMove,
+      onPointerLeave,
     },
     chartProps: {
       onClick: (state) => {
