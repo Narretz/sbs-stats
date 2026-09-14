@@ -39,10 +39,13 @@ MONTHLY RECAP** view of the app. Source: monthly "ТОП-1 серед підро
   | it was **dropped** — the slug filter or the `monthly_top1` gate rejected it, so it was never stored | absent from the DB | a re-scan, `--pages` / the workflow's `pages` input widened |
   | it was **misread** — stored, but a counter line matched no category | in the DB already | `--reparse`; `discover.py` skips URLs already stored, so a re-scan re-reads nothing |
 
-  The workflow exposes both: `pages` for the first, the `reparse` checkbox
-  (plus `dry_run`, on by default) for the second. The reparse step writes
-  `changed=` like the scan does, so a dry run — or an apply that changed
-  nothing — skips the R2 upload instead of busting the CDN cache.
+  Each half has its own workflow, split the way GSUA's are: `pages` on
+  **`update-sbu-alfa-db.yml`** (scheduled, ingests new recaps) for the first,
+  **`reparse-sbu-alfa-db.yml`** (manual only, `dry_run` on by default) for the
+  second. The reparse job pulls the DB from R2, prints the per-counter diff
+  into the job summary so a dry run is readable without opening the step log,
+  and uploads only when `changed=true` — so a dry run, or an apply that changed
+  nothing, leaves R2 and the CDN cache alone.
 
   A row whose stored `report_type` the parser can no longer reproduce (a
   manual `--report-type` / `--period` override) is left untouched and reported,
