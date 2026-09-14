@@ -376,20 +376,27 @@ export type MapEntry<K> = K | MonthScoped<K>;
 
 // The keys a row draws on for one (entity, month): every unscoped key, plus
 // the scoped ones whose range covers the month.
+//
+// A Set, so overlapping ranges mean UNION. Ranges are hand-written and can
+// overlap — a window left open at one end, or a key listed both plain and
+// scoped — and concatenating would sum that counter twice and silently double
+// the cell (21 РЛС reading 42). Union is the only reading that can't be wrong:
+// summing one counter twice is never intended, while distinct keys from two
+// overlapping ranges do both apply that month, which is what you'd want.
 export function keysFor(
   row: CompareRowBase, entity: CompareEntityId, month: string,
 ): AnyNativeKey[] {
   const entries = row.map[entity];
   if (!entries?.length) return [];
-  const out: AnyNativeKey[] = [];
+  const out = new Set<AnyNativeKey>();
   for (const entry of entries) {
-    if (typeof entry === "string") { out.push(entry); continue; }
+    if (typeof entry === "string") { out.add(entry); continue; }
     // "YYYY-MM" sorts lexicographically, which is the whole reason months are
     // stored as strings in this app.
     const inRange = (!entry.from || month >= entry.from) && (!entry.to || month <= entry.to);
-    if (inRange) out.push(...entry.values);
+    if (inRange) for (const k of entry.values) out.add(k);
   }
-  return out;
+  return [...out];
 }
 
 // Does this row draw on `entity` for `month`? False when the row has no
