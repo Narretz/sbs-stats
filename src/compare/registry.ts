@@ -316,20 +316,13 @@ export interface CompareRowBase {
   label: string;
   // Per-entity native keys, summed into one cell. Typed against that entity's
   // own vocabulary, so `"sbu-alfa": ["uav_crews"]` fails to compile — the key
-  // is `drone_crews`.
-  map: { [E in CompareEntityId]?: EntityNativeKey[E][] };
+  // is `drone_crews`. An entry may instead be month-scoped (see MonthScoped),
+  // and the two forms mix in one list.
+  map: { [E in CompareEntityId]?: MapEntry<EntityNativeKey[E]>[] };
   // Rendered as a caption under the value — and ONLY when there is a value:
   // an entity with nothing to show gets a bare "—", since a caption explaining
   // an absence is noise on every row that has one.
   scope?: Partial<Record<CompareEntityId, string>>;
-  // Narrows an entity's mapping to a range of months, inclusive, "YYYY-MM".
-  // For the counter whose MEANING changed while its category key did not:
-  // «Альфа» published bare «21 РЛС» / «23 РЛС» through 2026-05 and «РЛС та
-  // РЕБ» / «РЛС/РЕБ» from 2026-06 under the same `radar` key, so a row that
-  // means "radars, not EW" is filled by that counter only up to May. Outside
-  // the window the cell reads "—", and a row left with no column inside its
-  // window is dropped entirely rather than rendered as a line of dashes.
-  mapWindow?: Partial<Record<CompareEntityId, { from?: string; to?: string }>>;
   // Supplies the cell directly instead of summing native keys. `map` is then
   // empty and the row is always shown.
   resolve?: (entity: CompareEntityId, month: string) => ResolvedCell | null;
@@ -360,21 +353,55 @@ export interface FlatRow extends CompareRowBase {
   id: string;
 }
 
+// Keys that only belong to the row for part of the record — for the counter
+// whose MEANING changed while its category key did not. «Альфа» published bare
+// «21 РЛС» / «23 РЛС» through 2026-05 and «РЛС та РЕБ» / «РЛС/РЕБ» from
+// 2026-06 under the same `radar` key, so a row meaning "radars, not EW" is
+// filled by that counter only up to May. `from` / `to` are inclusive "YYYY-MM"
+// and either may be omitted for an open end.
+//
+// Stacking them is how a counter that changed buckets rather than stopping is
+// written — `[{ to: "2026-05", values: ["radar"] }, { from: "2026-06", values:
+// ["radar_narrow"] }]` — which is why the month lives on the entry beside the
+// keys it scopes rather than in a separate per-row field.
+export interface MonthScoped<K> {
+  from?: string;
+  to?: string;
+  values: K[];
+}
+
+// One entry in an entity's mapping: a key that always applies, or a set of
+// keys that apply for a range of months.
+export type MapEntry<K> = K | MonthScoped<K>;
+
+// The keys a row draws on for one (entity, month): every unscoped key, plus
+// the scoped ones whose range covers the month.
+export function keysFor(
+  row: CompareRowBase, entity: CompareEntityId, month: string,
+): AnyNativeKey[] {
+  const entries = row.map[entity];
+  if (!entries?.length) return [];
+  const out: AnyNativeKey[] = [];
+  for (const entry of entries) {
+    if (typeof entry === "string") { out.push(entry); continue; }
+    // "YYYY-MM" sorts lexicographically, which is the whole reason months are
+    // stored as strings in this app.
+    const inRange = (!entry.from || month >= entry.from) && (!entry.to || month <= entry.to);
+    if (inRange) out.push(...entry.values);
+  }
+  return out;
+}
+
 // Does this row draw on `entity` for `month`? False when the row has no
-// mapping for the entity at all, or when it has one that `mapWindow` puts
-// outside this month.
+// mapping for the entity at all, and when every mapping it has is scoped to
+// other months.
 export function mapsIn(row: CompareRowBase, entity: CompareEntityId, month: string): boolean {
-  if (!row.map[entity]?.length) return false;
-  const w = row.mapWindow?.[entity];
-  if (!w) return true;
-  // "YYYY-MM" sorts lexicographically, which is the whole reason months are
-  // stored as strings in this app.
-  return (!w.from || month >= w.from) && (!w.to || month <= w.to);
+  return keysFor(row, entity, month).length > 0;
 }
 
 // The rows worth rendering for the columns currently on screen, already
 // flattened in display order. Takes the columns rather than just their
-// entities because a windowed mapping (see `mapWindow`) can apply to one month
+// entities because a scoped mapping (see `MonthScoped`) can apply to one month
 // of an entity and not another.
 //
 // A subtree survives if the parent OR any child has a mapping — dropping a
@@ -667,8 +694,10 @@ export const CANONICAL_ROWS: CompareRow[] = [
         // it is already the parent's bucket and repeating it here restated the
         // parent verbatim — 26 under 26 in 2026-08.
         key: "radars", label: "Radars",
-        map: { sbs: ["radar_vehicles", "radar_trench"], "sbu-alfa": ["radar"] },
-        mapWindow: { "sbu-alfa": { to: "2026-05" } },
+        map: {
+          sbs: ["radar_vehicles", "radar_trench"],
+          "sbu-alfa": [{ to: "2026-05", values: ["radar"] }],
+        },
         scope: {
           sbs: "Vehicles and trench",
           "sbu-alfa": "bare РЛС — from 2026-06 the counter bundles РЕБ and only the row above holds it",
@@ -862,8 +891,14 @@ const MAPPED_NATIVES: Record<CompareEntityId, Set<string>> = {
 };
 for (const row of CANONICAL_ROWS) {
   for (const r of [row, ...(row.children ?? [])]) {
-    for (const [entity, keys] of Object.entries(r.map)) {
-      for (const k of keys ?? []) MAPPED_NATIVES[entity as CompareEntityId].add(k);
+    for (const [entity, entries] of Object.entries(r.map)) {
+      // Month-scoped or not, a key a row consumes is accounted for — an
+      // "only in <entity>" section listing it for the months outside the
+      // scope would read as a second, separate counter.
+      for (const entry of entries ?? []) {
+        if (typeof entry === "string") MAPPED_NATIVES[entity as CompareEntityId].add(entry);
+        else for (const k of entry.values) MAPPED_NATIVES[entity as CompareEntityId].add(k);
+      }
     }
   }
 }

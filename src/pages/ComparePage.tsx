@@ -17,7 +17,7 @@ import {
   UNMAPPED_NATIVES,
   fmtPct,
   fmtValue,
-  mapsIn,
+  keysFor,
   pctChange,
   sumNatives,
   visibleRowsFor,
@@ -292,10 +292,9 @@ export function ComparePage({ preset }: Props) {
 
   const valueFor = (row: FlatRow, col: Column): CompareValue | null => {
     if (row.resolve) return row.resolve(col.entity, col.month)?.value ?? null;
-    // A mapping the row's month window excludes is not this row's counter for
-    // that month, so the cell is empty rather than wrong — see `mapWindow`.
-    if (!mapsIn(row, col.entity, col.month)) return null;
-    return sumNatives(snapshots[col.entity], col.month, row.map[col.entity]);
+    // A mapping scoped to other months contributes no keys here, so the cell
+    // comes out empty rather than wrong — see `MonthScoped`.
+    return sumNatives(snapshots[col.entity], col.month, keysFor(row, col.entity, col.month));
   };
 
   // A scope caveat describes the entity's bucket, not the month, so repeating
