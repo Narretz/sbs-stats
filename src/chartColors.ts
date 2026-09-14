@@ -88,9 +88,9 @@ export interface ChartColors {
   hourlyToday: string;
   hourlyPastDay: string;
 
-  // Territory a casualty happened in (CIT). A categorical pair — the subject
-  // is which place, not which is bigger — so it takes the categorical tokens
-  // rather than the main/second series ones.
+  // Territory a casualty happened in (CIT). Side-coded, gold and dark red, on
+  // its own tokens rather than the main/second series ones — the subject here
+  // is which place, not which series is bigger.
   territoryUaControlled: string;
   territoryRuControlled: string;
 
@@ -143,8 +143,8 @@ export function chartColors(t: Theme): ChartColors {
     civiliansKilled: t.series2,
     civiliansInjured: t.series1,
 
-    territoryUaControlled: t.categorical1,
-    territoryRuControlled: t.categorical2,
+    territoryUaControlled: t.territoryUa,
+    territoryRuControlled: t.territoryRu,
 
     neutral: t.seriesNeutral,
 
