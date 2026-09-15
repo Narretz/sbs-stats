@@ -215,7 +215,13 @@ export const GSUA_METRIC_LABELS: Record<GsuaMetricKey, string> = {
   missile_strikes: "RU Missile Strikes",
   missiles_used: "RU Missiles Used",
   kamikaze_drones: "RU Kamikaze Drone Attacks",
-  shellings: "RU Artillery Shellings",
+  // The GS reports a bare "обстріл" count — every shelling of a position or
+  // settlement, tube artillery + mortars + MLRS together. It says
+  // "зі ствольної артилерії" when it means tube artillery specifically, which
+  // this number is not, so don't label it "Artillery". `mlrs_shellings` is
+  // the MLRS PART of this same total ("155 обстрілів, шість із яких – із
+  // реактивних систем").
+  shellings: "RU Shellings (all types)",
   mlrs_shellings: "RU MLRS Shellings",
   // UA forces' combined (aviation + missile troops + artillery) targets hit,
   // from the GS "Сили оборони уразили …" line. Targets destroyed, not sorties.

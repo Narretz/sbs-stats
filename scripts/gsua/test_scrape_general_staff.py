@@ -780,6 +780,20 @@ class TestMetrics:
         s = self._parse("Завдав авіаудару, скинувши 7 КАБ.")
         assert s.kabs_dropped == 7
 
+    def test_kabs_word_forms(self):
+        # All four holes the single-token `(\w+)` capture had: an apostrophe
+        # inside the number word, a compound, a hedge in front of it, filler
+        # between the verb and the count, and the plural verb.
+        for body, expected in [
+            ("Ворог скинувши дев’ять керованих авіаційних бомб.", 9),
+            ("Ворог скинувши сорок дев’ять керованих авіаційних бомб.", 49),
+            ("Ворог скинув понад сто керованих авіабомб.", 100),
+            ("Ворог застосувавши при цьому одну керовану авіабомбу.", 1),
+            ("Загарбники скинули десять керованих авіаційних бомб.", 10),
+            ("Ворог задіяв двадцять дві керовані бомби.", 22),
+        ]:
+            assert self._parse(body).kabs_dropped == expected, body
+
     def test_mlrs_en_dash_and_iz(self):
         # msg 38052
         s = self._parse(
@@ -799,6 +813,45 @@ class TestMetrics:
         )
         assert s.mlrs_shellings == 45
 
+    def test_mlrs_word_subcount_beats_the_shellings_total(self):
+        # msg 25783 — the sub-count is a WORD, so the nearest DIGIT is the
+        # shellings total. Reading it stored "every shelling was an MLRS
+        # shelling" on 176 rows.
+        s = self._parse(
+            "Здійснив 155 обстрілів, шість із яких – із реактивних систем "
+            "залпового вогню."
+        )
+        assert s.shellings == 155
+        assert s.mlrs_shellings == 6
+
+    def test_mlrs_word_subcount_after_connector(self):
+        for body, expected in [
+            ("Здійснив 119 обстрілів, зокрема чотири - із реактивних систем.", 4),
+            ("Здійснив 112 обстрілів, з яких вісім з реактивних систем.", 8),
+            ("Здійснив 92 обстріли, три з яких – із застосуванням РСЗВ.", 3),
+        ]:
+            assert self._parse(body).mlrs_shellings == expected, body
+
+    def test_mlrs_narrow_nbsp_total_is_not_the_subcount(self):
+        # msg 30315 — same shape, but the total carries a U+202F separator.
+        # Before `_digits` learned that separator the wrong value was
+        # discarded by accident; now it has to be rejected on purpose.
+        s = self._parse(
+            "Здійснив 4 979 обстрілів, з них понад сто — із реактивних систем "
+            "залпового вогню."
+        )
+        assert s.mlrs_shellings == 100
+
+    def test_mlrs_ignores_equipment_loss_list(self):
+        # msg 20203 — "одну РСЗВ" here is one MLRS DESTROYED, in the losses
+        # list. Without the required "з/із" the anchor read the neighbouring
+        # "39 артилерійських систем" as the day's MLRS shelling count.
+        s = self._parse(
+            "Ворог втратив три танки, 11 бойових броньованих машин, "
+            "39 артилерійських систем, одну РСЗВ."
+        )
+        assert s.mlrs_shellings is None
+
     def test_air_strikes_genitive_singular(self):
         # msg 38719
         s = self._parse("Противник завдав 51 авіаційного удару.")
@@ -807,6 +860,44 @@ class TestMetrics:
     def test_air_strikes_plural(self):
         s = self._parse("Противник завдав 89 авіаційних ударів.")
         assert s.air_strikes == 89
+
+    def test_air_strikes_contraction(self):
+        # "авіаудар" — the channel's default wording through 2024, and still a
+        # fallback. Missing it cost 216 of 410 checked 2024 reports.
+        for body, expected in [
+            ("Противник завдав по території України 56 авіаударів.", 56),
+            ("Ворог завдав 42 авіаудари, скинувши 61 КАБ.", 42),
+            ("Ворог завдав 61 авіаудар.", 61),
+        ]:
+            assert self._parse(body).air_strikes == expected, body
+
+    def test_air_strikes_typo_in_the_stem(self):
+        # msg 34389 — "41 авіаційниого удару", a typo in the source.
+        s = self._parse("Вчора загарбники завдали 41 авіаційниого удару.")
+        assert s.air_strikes == 41
+
+    def test_air_strikes_contraction_not_taken_from_a_direction_paragraph(self):
+        # The contraction is also how per-direction paragraphs phrase it, so
+        # it is read only from an aggregate paragraph. Here the only
+        # "авіаудари" in the post is a Toretsk-sector one — 2 is that sector's
+        # count, not the day's.
+        text = (
+            "Оперативна інформація станом на 22:00 01.05.2026 щодо російського вторгнення\n"
+            "Загалом від початку цієї доби відбулося 100 бойових зіткнень.\n"
+            "На Торецькому напрямку противник завдав два авіаудари.\n"
+            "На Покровському напрямку відбито атаки."
+        )
+        assert gs.parse_summary(text, _msg(text)).air_strikes is None
+
+    def test_air_strikes_long_form_still_read_anywhere(self):
+        # The long form keeps its original unanchored behaviour — narrowing it
+        # too would drop 187 reports that resolve today.
+        text = (
+            "Оперативна інформація станом на 22:00 01.05.2026 щодо російського вторгнення\n"
+            "На Покровському напрямку триває одне боєзіткнення.\n"
+            "Противник завдав 89 авіаційних ударів."
+        )
+        assert gs.parse_summary(text, _msg(text)).air_strikes == 89
 
     def test_missile_strikes_word_form(self):
         # msg 38098
@@ -955,6 +1046,45 @@ class TestMetrics:
         )
         assert s.targets_destroyed == 17
 
+    def test_targets_destroyed_ignores_an_enemy_strike_clause(self):
+        # msg 14874 / 16013 — "уразили" is also how the report describes
+        # RUSSIA hitting a Ukrainian town. Counting it here doesn't just
+        # inflate the number, it credits the wrong side.
+        for body in [
+            "Ще одним КАБом російські терористи уразили Старицю.",
+            "Зі сторони Бєлгорода (рф) терористи уразили Вовчанські Хутори "
+            "керованою авіабомбою.",
+        ]:
+            assert self._parse(body).targets_destroyed is None, body
+
+    def test_targets_destroyed_ignores_a_kab_strike_with_no_subject(self):
+        # msg 15810 — no subject noun to catch it by; the guided bomb as the
+        # instrument is the tell. Ukraine's tally never lists a KAB.
+        s = self._parse(
+            "Вовчанські Хутори уразили двома керованими авіаційними бомбами."
+        )
+        assert s.targets_destroyed is None
+
+    def test_targets_destroyed_skips_air_defence_and_takes_the_real_clause(self):
+        # msg 15958 — air defence counts drones shot down, a different series.
+        # The clause after it is the one that belongs here.
+        s = self._parse(
+            "Цієї ночі захисники неба уразили 24 «шахеди» у Київській області. "
+            "За минулу добу Сили оборони уразили п’ять районів зосередження."
+        )
+        assert s.targets_destroyed == 5
+
+    def test_targets_destroyed_keeps_enemy_noun_as_a_previous_object(self):
+        # msg 18146 — "…ОВТ противника І уразили два мости" is ours, with
+        # "противника" belonging to the clause before. The subject test allows
+        # no word between the enemy noun and the verb for exactly this reason.
+        s = self._parse(
+            "Вчора авіація, ракетні війська та артилерія Сил оборони завдали "
+            "дев’ять ударів по районах зосередження особового складу та ОВТ "
+            "противника і уразили два мости."
+        )
+        assert s.targets_destroyed == 2
+
     def test_targets_destroyed_implicit_one(self):
         # 2026-08-12: "склад боєприпасів" has no number — counts as one target.
         s = self._parse(
@@ -1004,6 +1134,110 @@ class TestMetrics:
         s = self._parse("Загарбники застосували 10221 дрон-камікадзе.")
         assert s.kamikaze_drones == 10221
 
+    def test_kamikaze_drones_narrow_nbsp_thousands(self):
+        # msg 31176 — the thousands separator is U+202F, not a plain space.
+        # The regex always matched this; `int()` was what threw, and the
+        # ValueError was swallowed as "no count found" (113 posts).
+        s = self._parse(
+            "Та залучив для ураження 6 184 дрони-камікадзе."
+        )
+        assert s.kamikaze_drones == 6184
+
+    def test_kamikaze_drones_nbsp_and_plain_space_thousands(self):
+        assert self._parse(
+            "Залучив для ураження 4 082 дрони-камікадзе."
+        ).kamikaze_drones == 4082
+        assert self._parse(
+            "Залучив для ураження 10 816 дронів-камікадзе."
+        ).kamikaze_drones == 10816
+
+    def test_kamikaze_drones_russian_spelling(self):
+        # msg 42123 (2026-09-04) — the GS post itself misspells it with the
+        # Russian «и». Matching only «камікадзе» dropped that day's count.
+        s = self._parse(
+            "Загарбники застосували 10 816 дронів-камикадзе."
+        )
+        assert s.kamikaze_drones == 10816
+
+    def test_kamikaze_drones_instrumental_singular_drone(self):
+        # msg 27666 — "удар дроном-камікадзе": singular on both nouns.
+        s = self._parse("Здійснив 1 691 удар дроном-камікадзе.")
+        assert s.kamikaze_drones == 1691
+
+    def test_kamikaze_drones_spaced_dash(self):
+        # msg 14986 — "дронами – камікадзе", spaces around the dash.
+        s = self._parse("Завдав 1050 ударів дронами – камікадзе.")
+        assert s.kamikaze_drones == 1050
+
+    def test_kamikaze_drones_count_separated_by_words(self):
+        # The count and the noun are separated by a different word in almost
+        # every phrasing; enumerating them is what kept missing new ones.
+        for body, expected in [
+            ("Ще 51 раз окупанти атакували дронами-камікадзе.", 51),
+            ("Зафіксовано 912 ворожих ударів дронами-камікадзе.", 912),
+            ("Здійснив більше 1300 атак дронами-камікадзе.", 1300),
+            ("Здійснив 1269 уражень дронами-камікадзе.", 1269),
+        ]:
+            assert self._parse(body).kamikaze_drones == expected, body
+
+    def test_kamikaze_drones_round_figures(self):
+        # Through 2024 / early 2025 the drone count was routinely given as a
+        # round figure and nothing else. Every one of these is a FLOOR.
+        for body, expected in [
+            ("Залучив для ураження понад тисячу дронів-камікадзе.", 1000),
+            ("Залучили для ураження близько тисячі дронів-камікадзе.", 1000),
+            ("Залучили для ураження більше тисячі дронів-камікадзе.", 1000),
+            ("Залучив для ураження близько трьох тисяч дронів-камікадзе.", 3000),
+            ("Залучив для ураження більш як три тисячі дронів-камікадзе.", 3000),
+            ("Залучив для ураження близько півтори тисячі дронів-камікадзе.", 1500),
+            ("Задіяли для ураження майже 1,5 тисячі дронів-камікадзе.", 1500),
+            ("Задіяли для ударів понад сім сотень дронів-камікадзе.", 700),
+            ("Завдав більш як сім сотень ударів дронами-камікадзе.", 700),
+            ("Залучили для ураження понад тисячу сто дронів-камікадзе.", 1100),
+        ]:
+            assert self._parse(body).kamikaze_drones == expected, body
+
+    def test_kamikaze_drones_decimal_is_not_read_as_its_last_digit(self):
+        # "1,5 тисячі" — with the multiplier allowed as gap filler the digit
+        # branch matches the 5 and stores 1500 as 5. A scale word is excluded
+        # from the gap so the phrase reaches the round-figure reader instead.
+        assert self._parse(
+            "Задіяли для ураження майже 1,5 тисячі дронів-камікадзе."
+        ).kamikaze_drones == 1500
+
+    def test_kamikaze_drones_exact_count_wins_over_a_round_one(self):
+        # The round-figure reader is a last resort: when the post states an
+        # exact number, that is the one stored.
+        assert self._parse(
+            "Застосував 10 816 дронів-камікадзе, це понад десять тисяч "
+            "дронів-камікадзе."
+        ).kamikaze_drones == 10816
+
+    def test_kamikaze_drones_gap_does_not_cross_a_sentence(self):
+        # The count must be near the noun. Four+ words away — or in the
+        # previous sentence — is someone else's number.
+        s = self._parse(
+            "Ворог застосував 17 ракет. Про застосування ним дронів-камікадзе "
+            "не повідомляється."
+        )
+        assert s.kamikaze_drones is None
+
+    def test_kamikaze_drones_ignores_same_day_block_of_a_wrapup(self):
+        # msg 14971 — a "минулої доби" wrap-up that appends a "Від початку
+        # цієї доби" block for the day it was POSTED on. The report day's
+        # figure is the rounded "понад тисячу"; the same-day block has an
+        # exact 51. The exact number is the tempting one and the wrong one.
+        text = (
+            "Оперативна інформація станом на 08:00 02.05.2026 щодо російського вторгнення\n"
+            "Протягом минулої доби зафіксовано 100 бойових зіткнень. "
+            "Також противник застосував понад тисячу дронів-камікадзе.\n\n"
+            "Від початку цієї доби відбулося 29 бойових зіткнень. "
+            "Ще 51 раз окупанти атакували дронами-камікадзе.\n"
+            "На Покровському напрямку відбито атаки."
+        )
+        s = gs.parse_summary(text, _msg(text))
+        assert s.kamikaze_drones == 1000
+
     def test_shellings(self):
         s = self._parse(
             "Загарбники застосували 6000 дронів-камікадзе та здійснили "
@@ -1018,6 +1252,62 @@ class TestMetrics:
             "здійснив 1541 обстріл населених пунктів і позицій."
         )
         assert s.shellings == 1541
+
+    def test_shellings_adjective_between_count_and_noun(self):
+        # msg 24444 etc. — "5062 артилерійських обстрілів", 494 posts.
+        for body, expected in [
+            ("Також ворог здійснив 5062 артилерійських обстрілів.", 5062),
+            ("Ворог здійснив 393 артилерійські обстріли.", 393),
+            ("Ворог здійснив 5771 артилерійський обстріл.", 5771),
+        ]:
+            assert self._parse(body).shellings == expected, body
+
+    def test_shellings_given_only_in_thousands(self):
+        # 2024 / early 2025 gave the daily total in thousands and nothing
+        # else. N × 1000 is a floor, and a floor beats a 100-day hole.
+        for body, expected in [
+            ("Ворог здійснив понад чотири тисячі обстрілів.", 4000),
+            ("Ворог здійснив близько шести тисяч обстрілів.", 6000),
+            ("Ворог здійснив понад 3 тисячі обстрілів.", 3000),
+            ("Ворог здійснив майже п’ять тисяч обстрілів.", 5000),
+        ]:
+            assert self._parse(body).shellings == expected, body
+
+    def test_shellings_thousands_with_a_decimal_comma(self):
+        # "2,5 тисячі" is 2500. A bare `\d+` matches the "5" and yields 5000.
+        assert self._parse(
+            "Ворог здійснив понад 2,5 тисячі обстрілів."
+        ).shellings == 2500
+        assert self._parse(
+            "Ворог здійснив близько 4,8 тисяч обстрілів."
+        ).shellings == 4800
+
+    def test_shellings_thousands_aggregate_beats_a_later_plain_count(self):
+        # msg 19778 — the aggregate is in thousands and an exact per-sector
+        # count follows it. Trying plain-then-thousands reads the sector
+        # figure; the two forms compete by position instead.
+        text = (
+            "Оперативна інформація станом на 22:00 01.05.2026 щодо російського вторгнення\n"
+            "Від початку цієї доби відбулося 138 бойових зіткнень.\n"
+            "Росіяни залучили 847 дронів-камікадзе та здійснили близько "
+            "чотирьох тисяч обстрілів.\n"
+            "На Покровському напрямку ворог завдав три авіаційні удари, "
+            "а також здійснив 313 артилерійських обстрілів."
+        )
+        assert gs.parse_summary(text, _msg(text)).shellings == 4000
+
+    def test_shellings_not_taken_from_the_kursk_section(self):
+        # The sub-section heads "В Курській області" in some reports and
+        # "На Курщині" in others; anchoring on only the second spelling let
+        # 21 Kursk-sector counts through as daily totals.
+        text = (
+            "Оперативна інформація станом на 16:00 01.05.2026 щодо російського вторгнення\n"
+            "Загалом від початку доби відбулося 53 бойових зіткнення.\n"
+            "В Курській області українські оборонці відбили п’ять атак. "
+            "Також противник здійснив 89 артилерійських обстрілів.\n"
+            "На Покровському напрямку відбито атаки."
+        )
+        assert gs.parse_summary(text, _msg(text)).shellings is None
 
     def test_shellings_does_not_match_verb_stem(self):
         # "обстрілювали" / "обстрілювати" share the stem; the negative
@@ -2443,6 +2733,78 @@ class TestSanityCheck:
         assert not any(
             "< max direction attacks" in r.message for r in caplog.records
         )
+
+
+class TestMetricCoverageCheck:
+    """A metric the report states but the parser doesn't read stores NULL, and
+    NULL is indistinguishable from "not reported" once it's in the DB. These
+    lock in which report is expected to carry what."""
+
+    _FULL_BODY = (
+        "Противник завдав 87 авіаційних ударів, скинувши 317 керованих "
+        "авіабомб, застосував 10 816 дронів-камікадзе та здійснив "
+        "2723 обстріли населених пунктів. "
+        "За минулу добу Сили оборони уразили 11 районів зосередження."
+    )
+
+    def _check(self, caplog, hour: str, body: str):
+        text = (
+            f"Оперативна інформація станом на {hour} 02.05.2026 щодо російського вторгнення\n"
+            "Протягом минулої доби зафіксовано 236 бойових зіткнень.\n"
+            f"{body}\n"
+            "На Покровському напрямку відбито 12 атак."
+        )
+        msg = _msg(text)
+        summary = gs.parse_summary(text, msg)
+        dirs = gs.parse_directions(text, msg, summary.date)
+        with caplog.at_level(logging.WARNING, logger=gs.log.name):
+            gs._sanity_check(summary, dirs, text)
+        return [r.message for r in caplog.records if "is missing" in r.message]
+
+    def test_complete_morning_report_is_silent(self, caplog):
+        assert self._check(caplog, "08:00", self._FULL_BODY) == []
+
+    def test_missing_kamikaze_is_reported(self, caplog):
+        body = self._FULL_BODY.replace(
+            "застосував 10 816 дронів-камікадзе та ", ""
+        )
+        msgs = self._check(caplog, "08:00", body)
+        assert len(msgs) == 1 and "kamikaze_drones" in msgs[0]
+
+    def test_several_missing_metrics_are_reported_together(self, caplog):
+        msgs = self._check(caplog, "08:00", "Ворог продовжував наступальні дії.")
+        assert len(msgs) == 1
+        for field in (
+            "air_strikes", "kabs_dropped", "kamikaze_drones",
+            "shellings", "targets_destroyed",
+        ):
+            assert field in msgs[0]
+
+    def test_evening_report_is_not_expected_to_hit_targets(self, caplog):
+        # The "Сили оборони уразили" line is a morning-report thing — absent
+        # from 86% of evening reports, so warning on it there is pure noise.
+        body = self._FULL_BODY.replace(
+            "За минулу добу Сили оборони уразили 11 районів зосередження.", ""
+        )
+        assert self._check(caplog, "22:00", body) == []
+        assert "targets_destroyed" in self._check(caplog, "08:00", body)[0]
+
+    def test_midday_interim_report_is_exempt(self, caplog):
+        # The 16:00 report carries the engagement count and little else;
+        # ~570 archived ones are correct with every other field NULL.
+        assert self._check(caplog, "16:00", "Ворог продовжував наступальні дії.") == []
+
+    def test_unfamiliar_hour_says_so_instead_of_staying_quiet(self, caplog):
+        text = (
+            "Оперативна інформація станом на 11:00 02.05.2026 щодо російського вторгнення\n"
+            "Протягом минулої доби зафіксовано 236 бойових зіткнень.\n"
+            "На Покровському напрямку відбито 12 атак."
+        )
+        msg = _msg(text)
+        summary = gs.parse_summary(text, msg)
+        with caplog.at_level(logging.WARNING, logger=gs.log.name):
+            gs._sanity_check(summary, [], text)
+        assert any("unfamiliar snapshot hour" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------

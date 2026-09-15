@@ -155,7 +155,20 @@ parser miss), and **"possible direction-count gap"** — a paragraph that report
 an assault and contains a number no branch could read. That last one is the
 coverage check: every other warning here fires on a value that looks wrong,
 which is why the word-form direction counts stayed broken from 2024 to 2026
-(a quiet sector storing NULL looked like nothing at all). For each new variant: add a regex branch / stop-word /
+(a quiet sector storing NULL looked like nothing at all).
+
+The aggregate metrics get the same treatment from **"aggregate metric not
+parsed"**, which fires when a report is missing one of the numbers its report
+type normally carries. The expectation is per report type, in
+`_EXPECTED_METRICS` — the 08:00 wrap-up carries air strikes, KABs, kamikaze
+drones, shellings and UA targets hit; the 22:00 one carries all of those but
+targets hit; the (discontinued) 16:00 interim report carries only the
+engagement count, so it's exempt rather than warning ~570 times about archived
+reports that are correct. A snapshot hour that isn't in the table emits a
+*notice* instead of silently skipping the check, so a schedule change can't
+switch it off unnoticed. At ~2% of reports it's a panel worth reading; if a
+wording change pushes that up, fix the regex rather than widening the exempt
+list. For each new variant: add a regex branch / stop-word /
 `DIRECTION_NAMES` entry, add a **regression test** keyed to the msg_id, commit,
 then re-parse in place (no re-scrape):
 
@@ -186,6 +199,71 @@ subagent — the per-msg work is read-only (compare bold headers against the
 - Don't loosen the gate to "≥2 of 4 patterns" — press statements / commander
   quotes match patterns 2+3 in narrative prose. Pattern 1
   (`Оперативна інформація`) must be required.
+- Don't strip only `" "` and `" "` out of a captured number. The GS also
+  uses U+202F (narrow no-break space) as a thousands separator, so `int()`
+  raised and 113 posts' counts were swallowed as "not found" — including every
+  kamikaze-drone figure for weeks at a time. Use `_digits()`, which strips
+  `\s` wholesale.
+- Don't read a sub-count with a digit-first pattern. `mlrs_shellings` sits
+  after the shellings total in the same sentence ("155 обстрілів, шість із
+  яких – із реактивних систем"), so nearest-to-the-anchor wins, not
+  leftmost-digit; `_parse_mlrs` walks backwards from the anchor for that
+  reason. Requiring the "з/із" preposition is what keeps it out of the
+  equipment-loss list, where "одну РСЗВ" means one MLRS *destroyed*.
+- Don't read an aggregate out of a wrap-up's appended "Від початку цієї доби"
+  block — that block is about the day the post was published, not the day the
+  report covers. `_prev_day_scope` trims it off.
+- Don't widen a pattern to a wording the per-direction paragraphs also use
+  without putting `_AGG_LEAD` in front of it. The air-strike contraction
+  ("42 авіаудари") is the aggregate's wording *and* every sector paragraph's;
+  unanchored it pulled 80 sector counts in as daily totals. The long form
+  ("42 авіаційні удари") keeps its unanchored patterns as a fallback, so
+  nothing that resolved before resolves differently.
+- Don't assume `_AGG_LEAD` sees the whole paragraph. It starts at any `\n`,
+  not at a blank line, so a soft-wrapped direction paragraph can begin a match
+  past its own "напрямк". Tightening it to a real paragraph break costs 156
+  values (plenty of 2024 posts separate paragraphs with a single newline), so
+  the leak is accepted: 6 posts archive-wide.
+- Don't order two forms of the same count as primary-and-fallback when both
+  can appear in one post. The thousands form ("близько чотирьох тисяч
+  обстрілів") is the aggregate; the plain form further down is a sector
+  figure. Plain-first read the sector figure on 15 posts. They compete by
+  POSITION instead — leftmost wins, because the aggregate comes first.
+- Don't take the first "уразили" in a post as the UA targets tally. The same
+  verb describes RUSSIA hitting a Ukrainian town ("Ще одним КАБом російські
+  терористи уразили Старицю") and air defence downing drones ("захисники неба
+  уразили 24 «шахеди»" — a different series). Counting the first kind doesn't
+  just inflate the figure, it credits the wrong side. `_not_our_strike` rejects
+  those three shapes; note that its enemy-subject test allows NO word between
+  the noun and the verb, because "…ОВТ противника **і** уразили два мости" is
+  ours with "противника" as the previous clause's object.
+- Don't let a multiplier word into a count-to-noun gap. `_COUNT_GAP` excludes
+  `тисяч`/`сотень`/`сотні` because "майже 1,5 тисячі дронів-камікадзе"
+  otherwise matches with the gap holding "тисячі" and the count reading as
+  the 5 after the decimal comma — 1500 stored as 5. Blocking it lets the
+  phrase fall through to `_scaled_counts`.
+
+## Metric notes
+
+- **`shellings` is not artillery-only.** The GS reports a bare "обстріл"
+  count — tube artillery, mortars and MLRS together — and writes "зі
+  ствольної артилерії" when it means tube artillery specifically. Only 5
+  posts in the archive say "артилерійських обстрілів" as the *daily* total
+  wording; 1303 have no weapon qualifier at all.
+- **`mlrs_shellings` is a SUBSET of `shellings`, not a sibling.** One
+  sentence carries both: "155 обстрілів, шість із яких – із реактивних
+  систем". Never sum them. The frontend labels them "RU Shellings (all
+  types)" / "RU MLRS Shellings (subset)" for this reason.
+- **Round figures are floors.** `_scaled_counts` reads "понад чотири тисячі
+  обстрілів" as 4000, "близько півтори тисячі дронів-камікадзе" as 1500,
+  "сім сотень" as 700 and a bare "понад тисячу" as 1000 — each understated by
+  up to the size of the hedge. The alternative was a ~100-day hole in an
+  otherwise daily series for `shellings` and ~150 posts for
+  `kamikaze_drones`; the hedge word itself is not recorded, because the GS
+  gives no better figure and every value in these series is its own claim.
+  An exact count always wins: the scaled reader runs only when no digit form
+  matched (`kamikaze_drones`) or when it appears earlier in the post
+  (`shellings` — see `_parse_shellings`).
 
 ## Charting / consuming the data
 

@@ -309,24 +309,190 @@ def _parse_snapshot(
 # Parsing helpers
 # ---------------------------------------------------------------------------
 
-def _first_int(pattern: str, text: str) -> int | None:
-    """Extract the first integer matched by `pattern` from `text`."""
-    m = re.search(pattern, text)
-    if m:
-        # Find the group that contains a number
-        for g in m.groups():
-            if g and g.replace(" ", "").isdigit():
-                return int(g.replace(" ", ""))
-    return None
+def _digits(raw: str) -> str:
+    """Strip every kind of whitespace out of a captured number string.
+
+    The General Staff writes thousands separated by a space, but *which* space
+    varies with whatever editor produced the post: a plain U+0020, a NBSP
+    (U+00A0), and since July 2025 a NARROW NO-BREAK SPACE (U+202F, "4 082").
+    Stripping only the first two \u2014 which is what this did until 2026-09 \u2014
+    left `int()` to raise on the third, and both callers below swallow the
+    ValueError as "no number found". The regexes matched fine; the value was
+    dropped in the conversion, silently, on 113 posts.
+
+    `\\s` covers the whole family, so a fourth separator (thin space, figure
+    space, \u2026) can't reopen the same hole.
+    """
+    return re.sub(r"\s", "", raw)
+
+
+# Up to three whole words between a count and the noun it counts, on one line
+# and containing no digit — so a pattern anchored on the noun can tolerate
+# "N ворожих ударів <noun>" or "N раз окупанти атакували <noun>" without the
+# count being allowed to come from a neighbouring sentence. Lazy, so the
+# NEAREST number to the noun wins when several fit.
+#
+# A scale word is excluded from the gap: "майже 1,5 тисячі дронів-камікадзе"
+# would otherwise match with the gap holding "тисячі" and the count reading as
+# the 5 after the decimal comma — 1500 stored as 5. Blocking it lets the
+# phrase fall through to `_scaled_counts`, which knows what to do with it.
+_COUNT_GAP = r"(?:(?!тисяч|сотень|сотні)[^\W\d]\w*,?[^\S\n]+){0,3}?"
+
+
+# Lead-in for a count that must come from the report's AGGREGATE paragraph:
+# start of a line, then up to 500 characters that contain none of the markers
+# of a per-direction block ("напрямк"), the Kursk sub-section or a named
+# operation ("операц"). Deliberately not anchored on a "На " opener —
+# legitimate aggregates lead with "На даний час за поточну добу…" (msg 16781).
+#
+# The Kursk stem is `Кур(?:щ|ськ)`, not just `Курщ`: the sub-section heads
+# with "Курщина" in some reports and "В Курській області" in others, and the
+# latter spelling let 21 Kursk-sector shelling counts through as daily totals.
+# Widening it costs nothing — a "Курському напрямку" paragraph is already
+# rejected by `напрямк`.
+_AGG_LEAD = r"(?:^|\n)\s*(?:(?!напрямк|Кур(?:щ|ськ)|операц)[^\n]){0,500}?"
+
+
+# The shellings noun, with the one adjective the GS puts between the count and
+# it ("5062 артилерійських обстрілів", 494 posts). ONLY that stem is allowed
+# through: a generic `\w+` would swallow "N разів обстрілював" and the
+# "N тисяч обстрілів" multiplier, reading the multiplier as the count. Even
+# the one other real adjective — "365 ворожих обстрілів", 2 posts — costs more
+# than it wins: in msg 37190 it sits in a ceasefire-violation list ahead of the
+# day's actual total and would replace 2947 with 365.
+#
+# The trailing lookaheads are the MLRS guard: a count immediately followed by
+# "з/із реактивних…" is the MLRS sub-count wearing the total's clothes
+# (msg 14633, "здійснив 51 обстріл з реактивних систем").
+# A round figure given as "<N> тисяч/сотень <noun>" — "понад чотири тисячі
+# обстрілів", "близько півтори тисячі дронів-камікадзе", "сім сотень ударів
+# дронами-камікадзе", or a bare "понад тисячу дронів-камікадзе" with no
+# multiplier at all. `N` may be a digit, a decimal with the Ukrainian comma,
+# or a number word.
+_SCALE_WORD = r"(?:тисяч\w*|сотень|сотні)"
+_NUM_TOKEN = r"[\w'ʼ’]+|\d+(?:[.,]\d+)?"
+# Everything between the multiplier and whatever precedes it: at most three
+# whitespace-separated word tokens, lazily, so the multiplier's own count is
+# the last of them. A comma ends the run, which is what keeps this from
+# reaching back into the previous clause ("скинув 45 КАБ, понад сім сотень…").
+_SCALE_LEAD = rf"((?:(?:{_NUM_TOKEN})[^\S\n]+){{0,3}}?)"
+# "півтори" (one and a half) is not in UA_NUM: it is a fraction, and the dict
+# maps whole numbers used as plain counts.
+_HALVES = {"півтори": 1.5, "півтора": 1.5}
+
+
+def _scale_multiplier(lead: str) -> float | None:
+    """The count in front of a "тисяч"/"сотень" multiplier.
+
+    Reads the RIGHTMOST run of number tokens, so a hedge or an unrelated noun
+    earlier in `lead` can't contribute ("більш як три тисячі" → 3). An empty
+    run means the multiplier stands alone — "понад тисячу" is one thousand,
+    not zero.
+    """
+    tokens = lead.split()
+    run: list[str] = []
+    while tokens:
+        tok = tokens[-1].lower().replace("ʼ", "'").replace("’", "'")
+        if re.fullmatch(r"\d+(?:[.,]\d+)?", tok):
+            return float(tok.replace(",", "."))
+        if tok in _HALVES:
+            return _HALVES[tok]
+        if UA_NUM.get(tok) is None:
+            break
+        run.insert(0, tok)
+        tokens.pop()
+    if not run:
+        return 1.0
+    n = _ua_word_to_num(" ".join(run))
+    return None if n is None else float(n)
+
+
+def _scaled_counts(text: str, noun: str, lead: str = ""):
+    """Yield `(position, value)` for each "<N> тисяч/сотень <noun>" in `text`.
+
+    A number word may follow the multiplier and adds to it — "понад тисячу
+    сто дронів-камікадзе" is 1100. Anything else there (the report usually
+    puts a noun: "сім сотень УДАРІВ дронами-камікадзе") contributes nothing.
+
+    Every value is a FLOOR: "понад чотири тисячі" is more than 4000, and the
+    hedge word is not recorded because the GS gives no better figure. That is
+    the same trade the direction counts already make, and it beats a NULL that
+    leaves a ~100-day hole in an otherwise daily series.
+    """
+    pattern = (
+        rf"{lead}{_SCALE_LEAD}({_SCALE_WORD})"
+        rf"(?:[^\S\n]+([\w'ʼ’]+))?[^\S\n]+{noun}"
+    )
+    for m in re.finditer(pattern, text, re.IGNORECASE):
+        mult = _scale_multiplier(m.group(1))
+        if mult is None:
+            continue
+        scale = 1000 if m.group(2).lower().startswith("тисяч") else 100
+        addend = _ua_word_to_num(m.group(3)) if m.group(3) else None
+        yield m.start(1), round(mult * scale) + (addend or 0)
+
+
+_KAMI_NOUN = r"дрон(?:ів|ами|ом|и)?[^\S\n]*[\-–—][^\S\n]*кам[іи]кадзе"
+_SHELL_NOUN = (
+    r"(?:артилерійськ\w+\s+)?обстріл(?:ів|и|ами)?"
+    r"(?![\w'ʼ’])"
+    r"(?!\s+(?:з|із)\s+(?:реактивних|РСЗВ))"
+)
+# Plain count: "2723 обстріли".
+_SHELL_PLAIN = rf"{_AGG_LEAD}(\d[\d\s]*\d|\d)\s+{_SHELL_NOUN}"
+
+
+def _parse_shellings(text: str) -> int | None:
+    """Daily shelling total — whichever form states it FIRST.
+
+    For most of 2024 and early 2025 the aggregate was given only in thousands
+    ("здійснили близько чотирьох тисяч обстрілів"), and those posts still
+    carry exact per-sector counts further down ("здійснив 313 артилерійських
+    обстрілів"). Trying the plain form over the whole post first and falling
+    back to the scaled one therefore reads a sector figure as the day's total.
+    The aggregate paragraph is the one that comes first, so the two forms
+    compete by POSITION instead — the same leftmost-wins rule the rest of the
+    parser relies on.
+    """
+    best: tuple[int, int] | None = None
+    for pos, value in _scaled_counts(text, _SHELL_NOUN, lead=_AGG_LEAD):
+        best = (pos, value)
+        break
+    for m in re.finditer(_SHELL_PLAIN, text, re.IGNORECASE):
+        tok = _digits(m.group(1))
+        if not tok.isdigit():
+            continue
+        if best is None or m.start(1) < best[0]:
+            best = (m.start(1), int(tok))
+        break
+    return best[1] if best else None
+
+
+def _prev_day_scope(text: str) -> str:
+    """Trim a previous-day wrap-up to the part that is actually about that day.
+
+    Some posts state yesterday's totals and then append a "Від початку цієї
+    доби …" block covering the day they were posted on. Both blocks use the
+    same wording for the same metrics, so an unanchored search can read the
+    running same-day figure as the daily total. When the post carries a
+    previous-day marker BEFORE a same-day one, everything from the same-day
+    marker on belongs to a different day; drop it. Posts that are wholly
+    same-day (the interim reports) are returned unchanged — there the
+    same-day block IS the report.
+    """
+    prev = PREV_DAY_MARKERS.search(text)
+    if prev is None:
+        return text
+    same = SAME_DAY_MARKERS.search(text, prev.end())
+    return text[: same.start()] if same else text
 
 
 def _extract_int(pattern: str, text: str) -> int | None:
     """Simpler: search pattern, return first capture group as int."""
     m = re.search(pattern, text, re.IGNORECASE)
     if m:
-        raw = m.group(1).replace(" ", "").replace("\u00a0", "")
         try:
-            return int(raw)
+            return int(_digits(m.group(1)))
         except ValueError:
             return None
     return None
@@ -738,86 +904,245 @@ def parse_summary(text: str, msg: Message) -> DailySummary | None:
         )
 
     # --- Air strikes ---
-    # "86 авіаційних ударів" / "51 авіаційного удару" (genitive sg)
+    # "86 авіаційних ударів" / "51 авіаційного удару" (genitive sg) and the
+    # CONTRACTION "56 авіаударів" / "42 авіаудари" / "61 авіаудар", which the
+    # channel used for most of 2024 and still falls back to. Missing the
+    # contraction cost 216 of 410 checked 2024 reports their air-strike count
+    # — by far the largest single gap in the archive.
+    #
+    # `авіаційниого` (msg 34389) is a typo in the source, not a form: the
+    # `\w*` after the stem absorbs it rather than adding a case to the list.
+    #
+    # The contraction is read ONLY out of an aggregate paragraph, because
+    # unlike the long form it is also how per-direction paragraphs and plain
+    # narrative say it ("На Торецькому напрямку противник завдав два
+    # авіаудари", "Також ворог завдав три авіаудари" after a settlement list).
+    # Unanchored it pulled 80 per-direction counts in as daily totals. The
+    # long form keeps its original unanchored patterns as the fallback, so no
+    # report that resolved before resolves differently now.
+    _AIR_LONG = r"авіаційн\w*\s*удар"
+    _AIR = rf"(?:{_AIR_LONG}|авіаудар)"
     s.air_strikes = _extract_count(
         text,
-        r"(\d[\d\s]*\d|\d)\s*авіаційн(?:их|і|ий|ого|ому)\s*удар",
-        r"завдав\s+(\w+)\s+авіаційн(?:их|і|ий|ого|ому)\s*удар",
+        rf"{_AGG_LEAD}(\d[\d\s]*\d|\d)\s*{_AIR}",
+        rf"{_AGG_LEAD}завдав\s+(\w+)\s+{_AIR}",
+    ) or _extract_count(
+        text,
+        rf"(\d[\d\s]*\d|\d)\s*{_AIR_LONG}",
+        rf"завдав\s+(\w+)\s+{_AIR_LONG}",
     )
 
     # --- KABs (guided aerial bombs) ---
     # "скинувши 312 КАБ" / "270 керованих авіабомб" / "151 керовану авіабомбу"
     # / "сім керованих бомб". The "авіа(ційн)?" prefix is now optional and
     # accepts the contracted form "авіабомб".
+    #
+    # The word branch had three holes, all in the capture rather than the
+    # anchor. `\w+` stops at the apostrophe in "дев'ять"; a single token can't
+    # hold a compound ("сорок дев'ять") or reach a count behind a hedge or a
+    # filler ("понад сто", "застосувавши при цьому одну"); and `скинув(?:ши)?`
+    # misses the plural "скинули" — the verb stem is `скину`, not `скинув`.
+    # Capturing up to three tokens and letting
+    # `_ua_word_to_num` shrink from the left — which it already does, for
+    # exactly this reason — covers all three without a new branch.
+    _BOMB = (
+        r"керован(?:их|і|у|ої)\s*(?:авіа(?:ційн(?:их|і|у|ої))?\s*)?бомб"
+    )
     s.kabs_dropped = _extract_count(
         text,
-        r"(\d[\d\s]*\d|\d)\s*(?:КАБ|керован(?:их|і|у|ої)\s*"
-        r"(?:авіа(?:ційн(?:их|і|у|ої))?\s*)?бомб)",
-        r"(?:скинув(?:ши)?|застосував(?:ши)?)\s+(\w+)\s+керован(?:их|і|у|ої)\s*"
-        r"(?:авіа(?:ційн(?:их|і|у|ої))?\s*)?бомб",
+        rf"(\d[\d\s]*\d|\d)\s*(?:КАБ|{_BOMB})",
+        rf"(?:скину\w*|застосува\w*|задія\w*)\s+"
+        rf"((?:[\w'ʼ’]+\s+){{0,2}}[\w'ʼ’]+)\s+{_BOMB}",
     )
 
     # --- Kamikaze drones ---
     # "4130 ударів дронами-камікадзе"
     # "дронів-камікадзе — 4130"
     # "10221 дрон-камікадзе" (msg 39486, singular nominative — no суфікс)
-    # Accept both ASCII '-' and U+2013 '–' between "дрон" and "камікадзе"; the
-    # suffix is optional because the post sometimes uses bare "дрон".
+    # "1 691 удар дроном-камікадзе"        (msg 27666, instrumental singular)
+    # "6 184 дрони-камікадзе"              (nominative plural)
+    # "51 раз окупанти атакували дронами-камікадзе"
+    # "912 ворожих ударів дронами-камікадзе"
+    # Accept both ASCII '-' and U+2013 '–' between "дрон" and "камікадзе",
+    # spaced or not ("1050 ударів дронами – камікадзе", msg 14986); the
+    # suffix is optional because the post sometimes uses bare "дрон". The
+    # spelling alternation `кам[іи]кадзе` is not pedantry — msg 42123
+    # (2026-09-04) shipped the Russian «камикадзе», and matching only the
+    # Ukrainian «камікадзе» dropped that day's 10 816 on the floor.
+    #
+    # `_COUNT_GAP` replaces the old fixed "(?:ударів\s*)?": the count and the
+    # drone noun are separated by a handful of different words depending on
+    # phrasing ("удар", "удари", "ударів", "уражень", "атак", "раз", "рази",
+    # "ворожих ударів", "раз окупанти атакували"), and enumerating them was
+    # what kept missing new wordings. The gap is bounded to three word tokens
+    # on ONE line and may not contain a digit, so it can't reach across a
+    # sentence into a different number. Safe without an aggregate-paragraph
+    # anchor (unlike `shellings`): of 1600 paragraphs that mention камікадзе,
+    # only 26 are in a paragraph that also names a напрямок, and all of those
+    # are aggregate paragraphs that happen to list directions — the GS never
+    # reports drone counts per direction.
+    #
+    # `_prev_day_scope` is the one guard the looser gap does need. A wrap-up
+    # post sometimes appends a "Від початку цієї доби …" block for the day it
+    # was posted on, with its own smaller drone figure; msg 14971 reports
+    # "понад тисячу дронів-камікадзе" for the report day and "Ще 51 раз
+    # окупанти атакували дронами-камікадзе" for today, and without the scope
+    # the loose gap happily returns 51 as the daily total.
+    #
+    # The scaled branch is last, not position-ranked against the digit ones
+    # the way `_parse_shellings` does it: a drone count has no per-direction
+    # form to be confused with, so the first digit in front of the noun is
+    # already the aggregate's, and a post that has both forms (msg 14971) is
+    # one `_prev_day_scope` has already cut down to a single day.
+    kami_text = _prev_day_scope(text)
     s.kamikaze_drones = (
         _extract_int(
-            r"(\d[\d\s]*\d|\d)\s*(?:ударів\s*)?дрон(?:ів|ами|и)?[\-–—]камікадзе",
-            text,
+            rf"(\d[\d\s]*\d|\d)[^\S\n]*{_COUNT_GAP}{_KAMI_NOUN}",
+            kami_text,
         )
         or _extract_int(
-            r"дрон(?:ів|ами|и)?[\-–—]камікадзе\s*[\-–—:]\s*(\d[\d\s]*\d|\d)",
-            text,
+            rf"{_KAMI_NOUN}\s*[\-–—:]\s*(\d[\d\s]*\d|\d)",
+            kami_text,
         )
+        or next((v for _, v in _scaled_counts(kami_text, _KAMI_NOUN)), None)
     )
 
-    # --- Shellings (artillery, mortar) ---
-    # Anchored on the daily-aggregate paragraph: same line as a КАБ or
-    # камікадзе mention, paragraph not led by "На X напрямк…" (per-direction
-    # sections mention KABs and per-direction shellings too — msg 38560 etc.).
+    # --- Shellings (all types: tube artillery, mortars, MLRS) ---
+    # NOT artillery-only: the GS reports a bare "обстріл"
+    # count and says "зі ствольної артилерії" when it means tube artillery
+    # specifically. `mlrs_shellings` below is a PART of this number.
+    #
     # Forms covered:
-    #   "2315 обстрілів" (genitive plural, ≥5)
-    #   "3 обстріли"     (nominative plural, 2-4)
-    #   "1541 обстріл"   (msg 38468 — nominative singular, ends in 1, not 11)
+    #   "2315 обстрілів"                 (genitive plural, ≥5)
+    #   "3 обстріли"                     (nominative plural, 2-4)
+    #   "1541 обстріл"                   (msg 38468 — nominative singular)
+    #   "5062 артилерійських обстрілів"  (adjective between count and noun)
+    #   "понад чотири тисячі обстрілів"  (count given only in thousands)
     # The negative lookahead keeps verbal forms like "обстрілювали" from
-    # matching the bare stem.
-    # Anchor on a paragraph that isn't a per-direction or sub-section block.
-    # Per-direction paragraphs contain "напрямк" before the count; the Kursk
-    # operation sub-section says "Курщ"/"операц"; inverted per-direction
-    # phrasings (msg 25890 etc.) still mention "напрямк" before the shellings
-    # count. Excluding any of those substrings in the gap rejects all three.
-    # Note: don't anchor on "На " at paragraph start — legit aggregates also
-    # use "На даний час за поточну добу…" leads (msg 16781 etc.).
-    # Also exclude the MLRS-subset phrasing — when a count is immediately
-    # followed by "з/із реактивних…" / "з РСЗВ", it's the MLRS sub-count
-    # masquerading as the total (msg 14633: "здійснив 51 обстріл з
-    # реактивних систем").
-    s.shellings = _extract_int(
-        r"(?:^|\n)\s*"
-        r"(?:(?!напрямк|Курщ|операц)[^\n]){0,500}?"
-        r"(\d[\d\s]*\d|\d)\s+обстріл(?:ів|и|ами)?"
-        r"(?![\w'ʼ’])"
-        r"(?!\s+(?:з|із)\s+(?:реактивних|РСЗВ))",
-        text,
-    )
+    # matching the bare stem. See `_parse_shellings` for why the last two
+    # forms compete by position rather than in sequence.
+    s.shellings = _parse_shellings(text)
 
     # --- MLRS ---
-    # "у тому числі 8 — з РСЗВ"
-    # "зокрема 42 – із реактивних систем"
-    # "із яких 45 обстрілів відбулися з реактивних систем" (msg 39635 —
-    # noun + verb between the count and "з реактивних"; allow any short
-    # non-digit gap so the connector isn't anchored to a dash/preposition).
-    s.mlrs_shellings = _extract_int(
-        r"(\d[\d\s]*\d|\d)\s*[^\d]{0,40}?(?:РСЗВ|реактивних\s*систем)",
-        text,
-    )
+    # A SUBSET of `shellings`, always phrased as "<total> обстрілів,
+    # <connector> <mlrs> — з/із РСЗВ | реактивних систем":
+    #   "у тому числі 8 — з РСЗВ"
+    #   "зокрема 42 – із застосуванням реактивних систем"
+    #   "із яких 45 обстрілів відбулися з реактивних систем" (msg 39635 —
+    #    noun + verb between the count and the anchor)
+    #   "зокрема чотири - із реактивних систем"       (word sub-count)
+    #
+    # Two things keep `_parse_mlrs` off what the old pattern read instead:
+    #
+    #  * the "з/із" preposition is REQUIRED by the anchor. Without it it also
+    #    hit the equipment-loss list — "39 артилерійських систем, одну РСЗВ"
+    #    (one MLRS destroyed) stored 39 as the day's MLRS shelling count.
+    #  * the count is taken from the token NEAREST the anchor, so the
+    #    shellings total that opens the sentence can't win over a word-form
+    #    sub-count: "155 обстрілів, шість із яких – із реактивних систем"
+    #    used to store 155 — every shelling counted as an MLRS one.
+    #
+    # The second case was largely invisible before 2026-09: totals big enough
+    # to be written "4 979" hit the U+202F hole in `_digits` and got discarded
+    # by accident. Closing that hole made it visible, and ~170 stored rows
+    # turn out to be wrong this way.
+    s.mlrs_shellings = _parse_mlrs(text)
 
     s.targets_destroyed = _count_targets_destroyed(text)
 
     return s
+
+
+# The "з/із" preposition is deliberately part of the anchor — see the comment
+# at the `mlrs_shellings` assignment for what it keeps this pattern away from.
+_MLRS_ANCHOR = re.compile(
+    r"(?:з|із)\s+(?:застосуванням\s+)?(?:РСЗВ|реактивних\s*систем)",
+    re.IGNORECASE,
+)
+# One token: a number (digit groups may be space-separated) or a word.
+_TOKEN = re.compile(r"\d[\d\s]*\d|\d|[\w'ʼ’]+")
+# How many tokens back from the anchor to look for the count. Five covers the
+# longest real connector ("шість із яких –", "три одиниці з яких") without
+# reaching into the previous clause.
+_MLRS_LOOKBACK = 5
+
+
+def _parse_mlrs(text: str) -> int | None:
+    """MLRS shellings — the count NEAREST to the anchor, digit or word form.
+
+    "Nearest wins" is the whole rule, and it is what the two-pattern version
+    of this got wrong. The figure is a SUBSET of the shellings total and the
+    sentence always puts the total first:
+
+        "здійснив 155 обстрілів, шість із яких – із реактивних систем"
+                   ^total                 ^mlrs
+
+    A digit-first pattern reads 155 (every shelling an MLRS one); a word
+    pattern anchored on the left captures the connector ("зокрема") instead of
+    the number. Walking backwards from the anchor gets both this shape and
+    "110 — із застосуванням реактивних систем", where the nearest count IS the
+    digit, with one rule instead of two.
+
+    Consecutive number words are taken as one value ("сорок чотири" → 44) via
+    `_ua_word_to_num`. Scanning stops at the sentence start so a count can't be
+    borrowed from the clause before.
+    """
+    for anchor in _MLRS_ANCHOR.finditer(text):
+        head = text[: anchor.start()]
+        # Don't cross a sentence/paragraph boundary.
+        head = re.split(r"[.!?\n]", head)[-1]
+        toks = _TOKEN.findall(head)[-_MLRS_LOOKBACK:]
+        while toks:
+            tok = toks[-1]
+            if _digits(tok).isdigit():
+                return int(_digits(tok))
+            if _ua_word_to_num(tok) is not None:
+                # Absorb a compound run to the left ("сорок чотири").
+                run = [tok]
+                while len(run) < len(toks) and _ua_word_to_num(
+                    toks[-len(run) - 1]
+                ) is not None:
+                    run.insert(0, toks[-len(run) - 1])
+                return _ua_word_to_num(" ".join(run))
+            toks.pop()
+    return None
+
+
+# An enemy noun in the subject slot — directly before the verb, no word
+# between. The gap matters: "по районах зосередження … ОВТ противника І
+# уразили два мости" is ours, with "противника" as the previous clause's
+# OBJECT, and one token of slack would reject it.
+_ENEMY_STRIKE = re.compile(
+    r"(?:терорист|окупант|загарбник|ворог|противник|агресор|росіян)\w*\s+$",
+    re.IGNORECASE,
+)
+# Air defence. "захисники неба уразили 24 «шахеди»" counts drones shot down,
+# not ground targets hit — a different series that must not land in this one.
+_AIR_DEFENCE = re.compile(
+    r"(?:захисник\w*\s+неба|сил\w*\s+ППО|протиповітрян\w*)\s+$", re.IGNORECASE
+)
+# Guided bombs as the instrument. Ukraine's combined tally never lists a KAB —
+# only Russia drops them — so a clause that names one is describing a strike
+# on a Ukrainian town ("Вовчанські Хутори уразили двома керованими
+# авіаційними бомбами"), which has no subject noun to catch it by.
+_KAB_INSTRUMENT = re.compile(
+    r"КАБ|керован\w*\s*(?:авіа\w*\s*)?бомб", re.IGNORECASE
+)
+
+
+def _not_our_strike(text: str, m: "re.Match[str]") -> bool:
+    """True when this "уразили" clause is not the UA combined-targets tally.
+
+    Each test is precise rather than broad, and measured over the whole
+    archive: across 871 posts carrying the verb, the three together reject
+    exactly the four clauses that are somebody else's and nothing more.
+    """
+    lead = text[max(0, m.start() - 60):m.start()]
+    return bool(
+        _ENEMY_STRIKE.search(lead)
+        or _AIR_DEFENCE.search(lead)
+        or _KAB_INSTRUMENT.search(m.group(1))
+    )
 
 
 def _count_targets_destroyed(text: str) -> int | None:
@@ -831,11 +1156,21 @@ def _count_targets_destroyed(text: str) -> int | None:
     and aviation can't be separated from missiles/artillery here.
 
     Returns None when the report has no "уразили" clause.
+
+    "уразили" on its own does not mean the clause is ours. The verb is also
+    how the report describes the ENEMY hitting a Ukrainian town, and how it
+    reports air defence shooting drones down — a different tally entirely. The
+    first match in the post is therefore not automatically the right one;
+    `_not_our_strike` skips the ones that belong to someone else.
     """
-    m = re.search(r"уразил\w*([^.]*)", text)
-    if m is None:
+    seg = None
+    for m in re.finditer(r"уразил\w*([^.]*)", text):
+        if _not_our_strike(text, m):
+            continue
+        seg = m.group(1).replace("’", "'").replace("ʼ", "'")
+        break
+    if seg is None:
         return None
-    seg = m.group(1).replace("’", "'").replace("ʼ", "'")
     total = 0
     counted = False
     # The clause is a list of "[N] <target-noun>" items joined by commas and
@@ -903,6 +1238,10 @@ UA_NUM = {
     "дев'ятнадцять": 19, "двадцять": 20, "тридцять": 30, "сорок": 40,
     "п'ятдесят": 50, "шістдесят": 60, "сімдесят": 70, "вісімдесят": 80,
     "дев'яносто": 90, "сто": 100,
+    # Oblique "ста" ("близько ста — із реактивних систем", msg 30035): without
+    # it that sub-count reads as no number at all and the MLRS scan falls
+    # through to a later, unrelated sentence.
+    "ста": 100,
 }
 
 # "N of M" constructions, where one sentence carries BOTH the direction's
@@ -1964,6 +2303,34 @@ def _migrate_add_targets_destroyed(conn: sqlite3.Connection) -> None:
         conn.execute("DROP VIEW IF EXISTS daily_combined")
 
 
+# Aggregate metrics each report in the General Staff's daily cycle is expected
+# to carry, keyed by the "станом на HH:MM" hour. Measured over every stored
+# post from 2025-01-01 on (1 800 reports), as the share of reports of that hour
+# where the parser found nothing:
+#
+#            kamikaze  shellings  KABs  air strikes  targets hit
+#   08:00        1%       11%      1%       7%           4%
+#   22:00        1%       12%      1%       3%          86%   ← no "уразили" line
+#   16:00      100%       99%     55%      66%         100%   ← interim report
+#
+# So targets_destroyed is a morning-report metric, and the midday interim
+# report (discontinued 2026-08-03, but still in the archive and still worth
+# not warning about) carries only the engagement count. The remaining
+# double-digit shellings share is parser debt this check is meant to surface,
+# not an expectation that it stays that way.
+#
+# combat_engagements is deliberately absent: it has its own NULL warning above
+# and would otherwise be reported twice.
+_EXPECTED_METRICS = {
+    "08:00": (
+        "air_strikes", "kabs_dropped", "kamikaze_drones",
+        "shellings", "targets_destroyed",
+    ),
+    "22:00": ("air_strikes", "kabs_dropped", "kamikaze_drones", "shellings"),
+    "16:00": (),
+}
+
+
 def _sanity_check(
     summary: "DailySummary",
     directions: list["DirectionEntry"],
@@ -2096,6 +2463,39 @@ def _sanity_check(
             f"is probably a wording no branch reads yet",
             extra=ann(title="gsua: possible direction-count gap"),
         )
+
+    # Aggregate-metric coverage. Same reasoning as the direction check above,
+    # for the top-level numbers: a metric the report states and the parser
+    # doesn't read stores NULL, and NULL is indistinguishable from "the GS
+    # didn't report it" once it's in the DB. So the expectation has to be
+    # asserted here, where the report type is still known.
+    #
+    # It is asserted per report type rather than blanket-always, because the
+    # three reports in the GS daily cycle carry different things and warning
+    # on all of them for everything would fire on ~570 midday reports that are
+    # correct — a panel nobody reads is the same as no panel. See
+    # `_EXPECTED_METRICS` for the per-report lists and the numbers behind them.
+    if not is_multipart:
+        hour = (summary.snapshot_at or "")[11:16]
+        expected = _EXPECTED_METRICS.get(hour)
+        if expected is None:
+            if summary.snapshot_at is not None:
+                log.warning(
+                    f"{prefix}: report at an unfamiliar snapshot hour {hour} — "
+                    f"metric-coverage check skipped; if the channel has moved "
+                    f"its schedule, add the hour to _EXPECTED_METRICS",
+                    extra=ann(level="notice", title="gsua: unfamiliar report hour"),
+                )
+        else:
+            missing = [f for f in expected if getattr(summary, f) is None]
+            if missing:
+                log.warning(
+                    f"{prefix}: {hour} report is missing {', '.join(missing)} — "
+                    f"this report normally carries "
+                    f"{'them' if len(missing) > 1 else 'it'}, so either the "
+                    f"wording changed or the GS omitted the line",
+                    extra=ann(title="gsua: aggregate metric not parsed"),
+                )
 
 
 def upsert_report(
