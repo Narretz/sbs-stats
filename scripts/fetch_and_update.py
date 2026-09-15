@@ -164,6 +164,12 @@ def ensure_columns(conn: sqlite3.Connection, table: str, target_ids: list[int]) 
     cur = conn.cursor()
     cur.execute(f"PRAGMA table_info({table})")
     existing = {row[1] for row in cur.fetchall()}
+    # "New" only means anything against a table that already has target
+    # columns. On a freshly created one every id is new, and warning about all
+    # 43 of them says nothing except "this table is empty" — noise that would
+    # fire on every backfill into a clean DB and train people to skip the
+    # panel.
+    established = any(c.startswith("hit_") for c in existing)
     added: list[int] = []
     for tid in target_ids:
         tid_added = False
@@ -176,7 +182,7 @@ def ensure_columns(conn: sqlite3.Connection, table: str, target_ids: list[int]) 
         if tid_added:
             added.append(tid)
     conn.commit()
-    if added:
+    if added and established:
         log.warning(
             f"NEW targetClassId(s) in {table}: {sorted(set(added))}. "
             "Add label(s) to TARGET_LABELS in src/types/index.ts or the "
