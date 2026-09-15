@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
 import {
@@ -148,19 +148,39 @@ export function MetricPicker({ selected, onChange, view, units = [], onOpen }: P
   // The trade-off: the search box filters this group's metric labels within
   // the CHOSEN unit only, so finding "Fenix · Tanks" means picking Fenix first.
   // Acceptable while the alternative is rendering every combination.
-  const unitsAvailable = units.length > 0 && view === "monthly";
+  // Two different questions: whether to show the group at all, and whether
+  // this chart's granularity can actually use it. On a daily chart the group
+  // still appears, saying why it is empty — silently omitting it is what made
+  // sub-unit metrics feel missing rather than inapplicable.
+  const unitsUsable = units.length > 0 && view === "monthly";
   const selectedUnitMetric = selected.find((id) => id.startsWith("sbs-unit."));
   const [unitSlug, setUnitSlug] = useState("");
-  // Follow the selection when one exists, so reopening the picker lands on the
-  // unit whose metrics are already on the chart rather than resetting.
+
+  // Typing a unit's name selects it. Without this the group only ever searched
+  // the unit that happened to be active, so searching "fenix" while Magyar's
+  // Birds was selected answered "No matches in this unit" — the one place
+  // someone looking for a unit would look, telling them it isn't there.
+  const queryUnit = useMemo(() => {
+    const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!tokens.length) return "";
+    const hit = units.find((u) => {
+      const name = sbsUnitLabel(u).toLowerCase();
+      return tokens.some((tok) => name.includes(tok));
+    });
+    return hit?.slug ?? "";
+  }, [units, query]);
+
+  // A search naming a unit wins while it lasts; clearing it returns to the
+  // explicit pick, then to whatever is already on the chart.
   const activeUnit =
+    queryUnit ||
     unitSlug ||
     (selectedUnitMetric ? selectedUnitMetric.split(".")[1] : "") ||
     units[0]?.slug ||
     "";
 
   const unitRows = useMemo(() => {
-    if (!unitsAvailable || !activeUnit) return [];
+    if (!unitsUsable || !activeUnit) return [];
     const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const name = units.find((u) => u.slug === activeUnit);
     const unitName = name ? sbsUnitLabel(name) : activeUnit;
@@ -169,13 +189,89 @@ export function MetricPicker({ selected, onChange, view, units = [], onOpen }: P
       const haystack = `${unitName} ${label} ${key}`.toLowerCase();
       return tokens.every((tok) => haystack.includes(tok));
     });
-  }, [unitsAvailable, activeUnit, units, query]);
+  }, [unitsUsable, activeUnit, units, query]);
 
   const selectedSet = new Set(selected);
   const toggle = (id: string) => {
     if (selectedSet.has(id)) onChange(selected.filter((x) => x !== id));
     else onChange([...selected, id]);
   };
+
+  const groupHeaderStyle = {
+    fontFamily: FONTS.display,
+    fontSize: 10,
+    fontWeight: 700,
+    color: t.textMuted,
+    letterSpacing: "0.07em",
+    textTransform: "uppercase" as const,
+    padding: "4px 4px 2px",
+  };
+
+  // Rendered directly under the SBS group rather than at the end of the list:
+  // it IS SBS data, and at the bottom of ~280 rows in a 460px-tall popover it
+  // was effectively unreachable.
+  const unitGroup = (
+    <div style={{ marginBottom: 8 }} data-testid="metric-picker-unit-group">
+      <div style={groupHeaderStyle}>SBS sub-unit</div>
+      {view !== "monthly" ? (
+        <div style={{ color: t.textMuted, fontFamily: FONTS.mono, fontSize: 11, padding: "2px 6px 4px" }}>
+          Monthly charts only — switch this chart to Monthly.
+        </div>
+      ) : units.length === 0 ? (
+        <div style={{ color: t.textMuted, fontFamily: FONTS.mono, fontSize: 11, padding: "2px 6px 4px" }}>
+          Loading units…
+        </div>
+      ) : (
+        <>
+          <select
+            className="ctl"
+            data-testid="metric-picker-unit"
+            value={activeUnit}
+            onChange={(e) => setUnitSlug(e.target.value)}
+            style={{ width: "100%", marginBottom: 4 }}
+          >
+            {units.map((u) => (
+              <option key={u.slug} value={u.slug}>{sbsUnitLabel(u)}</option>
+            ))}
+          </select>
+          {unitRows.length === 0 && (
+            <div style={{ color: t.textMuted, fontFamily: FONTS.mono, fontSize: 11, padding: 6 }}>
+              No matches in this unit.
+            </div>
+          )}
+          {unitRows.map(([key, label]) => {
+            const id = sbsUnitMetricId(activeUnit, key);
+            const on = selectedSet.has(id);
+            return (
+              <label
+                key={id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "4px 6px",
+                  fontFamily: FONTS.mono,
+                  fontSize: 11,
+                  cursor: "pointer",
+                  borderRadius: 3,
+                  color: on ? t.text : t.textMuted,
+                  background: on ? t.bgAlt : "transparent",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={() => toggle(id)}
+                  style={{ cursor: "pointer", accentColor: t.primary }}
+                />
+                <span>{label}</span>
+              </label>
+            );
+          })}
+        </>
+      )}
+    </div>
+  );
 
   const triggerProps: PopoverProps = { popovertarget: popoverId };
   const popoverProps: PopoverProps = { popover: "auto" };
@@ -241,18 +337,9 @@ export function MetricPicker({ selected, onChange, view, units = [], onOpen }: P
           </div>
         )}
         {grouped.map(({ source, metrics }) => (
-          <div key={source} style={{ marginBottom: 8 }}>
-            <div
-              style={{
-                fontFamily: FONTS.display,
-                fontSize: 10,
-                fontWeight: 700,
-                color: t.textMuted,
-                letterSpacing: "0.07em",
-                textTransform: "uppercase",
-                padding: "4px 4px 2px",
-              }}
-            >
+          <Fragment key={source}>
+          <div style={{ marginBottom: 8 }}>
+            <div style={groupHeaderStyle}>
               {SOURCE_LABELS[source]}
             </div>
             {metrics.map((m) => {
@@ -284,70 +371,13 @@ export function MetricPicker({ selected, onChange, view, units = [], onOpen }: P
               );
             })}
           </div>
+          {/* The sub-units belong with SBS, not after Mediazona. */}
+          {source === "sbs" && unitGroup}
+          </Fragment>
         ))}
-
-        {unitsAvailable && (
-          <div style={{ marginBottom: 8 }}>
-            <div
-              style={{
-                fontFamily: FONTS.display,
-                fontSize: 10,
-                fontWeight: 700,
-                color: t.textMuted,
-                letterSpacing: "0.07em",
-                textTransform: "uppercase",
-                padding: "4px 4px 2px",
-              }}
-            >
-              SBS sub-unit
-            </div>
-            <select
-              className="ctl"
-              data-testid="metric-picker-unit"
-              value={activeUnit}
-              onChange={(e) => setUnitSlug(e.target.value)}
-              style={{ width: "100%", marginBottom: 4 }}
-            >
-              {units.map((u) => (
-                <option key={u.slug} value={u.slug}>{sbsUnitLabel(u)}</option>
-              ))}
-            </select>
-            {unitRows.length === 0 && (
-              <div style={{ color: t.textMuted, fontFamily: FONTS.mono, fontSize: 11, padding: 6 }}>
-                No matches in this unit.
-              </div>
-            )}
-            {unitRows.map(([key, label]) => {
-              const id = sbsUnitMetricId(activeUnit, key);
-              const on = selectedSet.has(id);
-              return (
-                <label
-                  key={id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "4px 6px",
-                    fontFamily: FONTS.mono,
-                    fontSize: 11,
-                    cursor: "pointer",
-                    borderRadius: 3,
-                    color: on ? t.text : t.textMuted,
-                    background: on ? t.bgAlt : "transparent",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={() => toggle(id)}
-                    style={{ cursor: "pointer", accentColor: t.primary }}
-                  />
-                  <span>{label}</span>
-                </label>
-              );
-            })}
-          </div>
-        )}
+        {/* A search that filters every SBS metric out drops the SBS group, and
+            the sub-unit group would vanish with it — keep it reachable. */}
+        {!grouped.some((g) => g.source === "sbs") && unitGroup}
       </div>
     </>
   );

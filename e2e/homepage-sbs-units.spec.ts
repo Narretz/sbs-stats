@@ -100,12 +100,62 @@ test.describe("Homepage — SBS sub-unit metrics", () => {
       .toBe(102);
   });
 
-  test("sub-unit metrics are not offered on a daily chart", async ({ page }) => {
+  test("a daily chart says why the group is empty instead of hiding it", async ({ page }) => {
     // The per-unit daily series exists in the DB but starts from the day the
     // ingest was switched on — there is no backfill for it — so charting it
     // today would draw a near-empty line.
+    //
+    // Omitting the group entirely is what made the feature feel missing rather
+    // than inapplicable: the default chart granularity is daily, so that was
+    // the first thing anyone saw.
     await openHome(page);
     const pop = await openFirstPicker(page);
+    const group = pop.getByTestId("metric-picker-unit-group");
+    await expect(group).toBeVisible();
+    await expect(group).toContainText("Monthly charts only");
     await expect(pop.getByTestId("metric-picker-unit")).toHaveCount(0);
+  });
+
+  test("the group sits with SBS, not after the last source", async ({ page }) => {
+    // It IS SBS data. At the end of the list it sat ~4,700px down a 460px-tall
+    // popover, past every other source — unreachable in practice.
+    await openHome(page);
+    await firstChartToMonthly(page);
+    const pop = await openFirstPicker(page);
+    await pop.getByTestId("metric-picker-unit").waitFor();
+
+    const headers = await pop.locator("div").evaluateAll((els) =>
+      els
+        .filter((e) => e.children.length === 0 && (e.textContent ?? "").trim().length > 0)
+        .map((e) => (e.textContent ?? "").trim()),
+    );
+    const sbs = headers.indexOf("SBS");
+    const unit = headers.indexOf("SBS sub-unit");
+    expect(sbs).toBeGreaterThanOrEqual(0);
+    expect(unit).toBeGreaterThan(sbs);
+    // Directly after SBS — nothing else in between.
+    expect(headers.slice(sbs + 1, unit)).not.toContain("GSUA");
+  });
+
+  test("searching a unit's name selects that unit", async ({ page }) => {
+    // The group filters within one unit, so without this a search for "Fenix"
+    // while another unit was active answered "No matches in this unit" — in
+    // the one place someone hunting for a unit would look.
+    await openHome(page);
+    await firstChartToMonthly(page);
+    const pop = await openFirstPicker(page);
+    const unitSelect = pop.getByTestId("metric-picker-unit");
+    await unitSelect.waitFor();
+
+    await unitSelect.selectOption("alpha-unit");
+    await pop.locator('input[placeholder="Search metrics…"]').fill("bravo");
+    await expect(unitSelect).toHaveValue("bravo-unit");
+
+    // Narrowing further keeps the unit and filters its metrics.
+    await pop.locator('input[placeholder="Search metrics…"]').fill("bravo tanks");
+    await expect(unitSelect).toHaveValue("bravo-unit");
+    await expect
+      .poll(async () => pop.getByTestId("metric-picker-unit-group").locator("label").count())
+      .toBeLessThan(10);
   });
 });
