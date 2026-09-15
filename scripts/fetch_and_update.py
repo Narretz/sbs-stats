@@ -14,6 +14,12 @@ import zoneinfo
 import requests
 from datetime import datetime, timedelta, timezone
 
+# `scripts/` is this file's own directory, so it is already sys.path[0] — no
+# shim needed here, unlike the ingests that live a level down.
+from ingest_log import ann, get_logger
+
+log = get_logger("sbs")
+
 DB_PATH = os.environ.get("DB_PATH", "data/sbs.db")
 KYIV_TZ = zoneinfo.ZoneInfo("Europe/Kyiv")
 SUBDIVISION_ID = "68b0c85589944c4bfb2a5edc"
@@ -23,21 +29,20 @@ SUBDIVISION_ID = "68b0c85589944c4bfb2a5edc"
 BASE_PUBLIC_URL = "https://sbs-group.army/api/public"
 DAILY_URL = f"{BASE_PUBLIC_URL}/statistics/{SUBDIVISION_ID}/68fa98652f31834f2e051459"
 PREVIOUS_DAY_URL = f"{BASE_PUBLIC_URL}/statistics/{SUBDIVISION_ID}/68b4852e792cdf918400daf1"
-PERIODS_URL = f"{BASE_PUBLIC_URL}/periods"
+# `/periods` paginates and defaults to 50 of ~245 entries — it serves every
+# subdivision's periods, not just ours, so the 17 we care about only fit on
+# page 1 by luck of ordering. Ask for the lot; `discover_monthly_urls` checks
+# the pagination block and warns rather than silently working from a truncated
+# list, which would look exactly like "that month doesn't exist yet".
+PERIODS_URL = f"{BASE_PUBLIC_URL}/periods?limit=500"
 
-FALLBACK_MONTHLY_URLS: dict[str, str] = {
-    "2025-06": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/68e4e5d484f8ca462d9a7c77",
-    "2025-07": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/68e4e67684f8ca462d9a80db",
-    "2025-08": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/68b47e50792cdf918400b06c",
-    "2025-09": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/68b1c0f79d5ff32bdf80e705",
-    "2025-10": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/68dd1906de22367a4e908027",
-    "2025-11": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/690531b56519eae72cea27b4",
-    "2025-12": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/692cbeb9145504ee2b0171e5",
-    "2026-01": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/69559d35869d2691543f313f",
-    "2026-02": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/697e7bbb1ae0eb20ad9dbf56",
-    "2026-03": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/69a365b5e9679075a2e69d57",
-    "2026-04": "https://sbs-group.army/api/public/statistics/68b0c85589944c4bfb2a5edc/69cc3630d5f5789a478b2f7b",
-}
+# There is deliberately no hardcoded month -> URL fallback map here any more.
+# The one that used to live at this spot went stale in the worst possible way:
+# the API reuses a fixed set of twelve `monthly_N` period slots and re-points
+# them every year, so the id the map had filed under "2025-06" now serves
+# **June 2026**. A fallback that returns confidently wrong data is worse than
+# no fallback — a failed `/periods` call just means this run skips the monthly
+# section and the next hourly run picks it up.
 
 REQUEST_HEADERS = {
     "User-Agent": (
@@ -172,10 +177,11 @@ def ensure_columns(conn: sqlite3.Connection, table: str, target_ids: list[int]) 
             added.append(tid)
     conn.commit()
     if added:
-        print(
-            f"  ⚠ NEW targetClassId(s) in {table}: {sorted(set(added))}. "
+        log.warning(
+            f"NEW targetClassId(s) in {table}: {sorted(set(added))}. "
             "Add label(s) to TARGET_LABELS in src/types/index.ts or the "
-            "frontend will silently ignore this data."
+            "frontend will silently ignore this data.",
+            extra=ann(title="sbs: new targetClassId"),
         )
 
 
@@ -232,10 +238,37 @@ def _is_month_period(period: dict) -> bool:
     return end.day == (next_month_start - timedelta(days=1)).day
 
 
+def _period_month(start_s: str) -> str:
+    """The "YYYY-MM" a period's startDate belongs to, in Kyiv terms.
+
+    The single place this conversion happens, so that the month a URL is filed
+    under and the month its payload is later checked against can never drift
+    apart.
+    """
+    return datetime.fromisoformat(
+        start_s.replace("Z", "+00:00")
+    ).astimezone(KYIV_TZ).strftime("%Y-%m")
+
+
 def discover_monthly_urls() -> dict[str, str]:
     """Build month->URL map from the live /periods endpoint."""
     raw = fetch_json(PERIODS_URL)
-    periods = raw.get("data", {}).get("periods", [])
+    data = raw.get("data", {})
+    periods = data.get("periods", [])
+
+    # A truncated page is indistinguishable downstream from "the API has fewer
+    # months than it used to" — both just yield a shorter map — so say so here.
+    pagination = data.get("pagination") or {}
+    pages = pagination.get("pages")
+    if isinstance(pages, int) and pages > 1:
+        log.warning(
+            f"/periods returned page {pagination.get('current')} of {pages} "
+            f"({len(periods)} of {pagination.get('total')} periods). The limit is "
+            "no longer enough to hold every subdivision's periods — raise it or "
+            "paginate, or months will go missing without an error.",
+            extra=ann(title="sbs: /periods truncated"),
+        )
+
     monthly: dict[str, str] = {}
     for period in periods:
         if period.get("subdivision", {}).get("_id") != SUBDIVISION_ID:
@@ -246,10 +279,65 @@ def discover_monthly_urls() -> dict[str, str]:
         start_s = period.get("startDate")
         if not period_id or not start_s:
             continue
-        start = datetime.fromisoformat(start_s.replace("Z", "+00:00")).astimezone(KYIV_TZ)
-        month = start.strftime("%Y-%m")
-        monthly[month] = f"{BASE_PUBLIC_URL}/statistics/{SUBDIVISION_ID}/{period_id}"
+        monthly[_period_month(start_s)] = (
+            f"{BASE_PUBLIC_URL}/statistics/{SUBDIVISION_ID}/{period_id}"
+        )
     return dict(sorted(monthly.items()))
+
+
+# ─── Payload validation ───────────────────────────────────────────────────────
+# Two ways this API hands back data that looks fine and isn't:
+#
+#   1. `status: "not_collected"` — returned with HTTP 200 and every counter
+#      zeroed. It is what an unrecognised (subdivision, period) pair yields,
+#      and zero is NOT a sentinel here: real units do report months of zero, so
+#      only `status` separates the two.
+#   2. The twelve `monthly_N` period slots are reused and re-pointed each year,
+#      so a period id captured in one year serves a different year later. The
+#      payload always states its own `startDate`; trust that over the id we
+#      asked with.
+#
+# Both are silent corruption if unchecked — the row is written, it just holds
+# the wrong numbers — so both are warnings that skip the write.
+
+def _payload_is_usable(data: dict, what: str) -> bool:
+    """False (having warned) when the payload must not be written."""
+    status = data.get("status")
+    if status != "completed":
+        log.warning(
+            f"{what}: status={status!r}, not 'completed' — skipping. Zeroed "
+            "payloads come back with HTTP 200, so writing this would store "
+            "zeros as if they were reported.",
+            extra=ann(title="sbs: payload not collected"),
+        )
+        return False
+    return True
+
+
+def _payload_period_start(data: dict, what: str) -> str | None:
+    """The Kyiv calendar day the payload says it covers ("YYYY-MM-DD").
+
+    Goes through the same UTC->Kyiv conversion as `_period_month` so a date and
+    a month derived from one payload can never disagree with each other.
+    """
+    start_s = data.get("startDate")
+    if not isinstance(start_s, str) or len(start_s) < 10:
+        log.warning(
+            f"{what}: payload has no usable startDate ({start_s!r}) — cannot "
+            "verify which period it actually covers.",
+            extra=ann(title="sbs: payload missing startDate"),
+        )
+        return None
+    try:
+        return datetime.fromisoformat(
+            start_s.replace("Z", "+00:00")
+        ).astimezone(KYIV_TZ).strftime("%Y-%m-%d")
+    except ValueError:
+        log.warning(
+            f"{what}: unparseable startDate ({start_s!r}).",
+            extra=ann(title="sbs: payload missing startDate"),
+        )
+        return None
 
 
 # ─── Parse API response → internal dict ──────────────────────────────────────
@@ -513,39 +601,86 @@ def main() -> None:
 
     # ── Daily (today) ─────────────────────────────────────────────────────────
     print("Fetching daily data (today)...")
-    parsed = parse_api_response(fetch_json(DAILY_URL))
-    kyiv_dt = to_kyiv_dt(parsed["data_collected_at"])
-    parsed["date"] = kyiv_dt.strftime("%Y-%m-%d")
-    parsed["hour"] = kyiv_dt.hour
-    upsert_daily(conn, parsed)
-    updated.append(f"daily {parsed['date']} h{parsed['hour']}")
+    raw_daily = fetch_json(DAILY_URL)
+    data_daily = raw_daily.get("data", {})
+    if _payload_is_usable(data_daily, "daily (today)"):
+        parsed = parse_api_response(raw_daily)
+        kyiv_dt = to_kyiv_dt(parsed["data_collected_at"])
+        parsed["date"] = kyiv_dt.strftime("%Y-%m-%d")
+        parsed["hour"] = kyiv_dt.hour
+        # `hour` has to come from dataCollectedAt — it is the intraday bucket,
+        # and the end-of-day projection reads the curve it forms. `date` could
+        # come from the period's own startDate instead, and around Kyiv
+        # midnight the two can disagree: the collection stamp rolls over before
+        # the API swaps to the new day. Warn rather than switch, because moving
+        # `date` back a day while `hour` stays 0 would file the reading as an
+        # early-morning point on the *previous* day's curve and skew the
+        # projection. If this ever fires, that trade-off is worth revisiting
+        # with evidence in hand.
+        stated = _payload_period_start(data_daily, "daily (today)")
+        if stated and stated != parsed["date"]:
+            log.warning(
+                f"daily (today): period covers {stated} but dataCollectedAt is "
+                f"{parsed['date']} h{parsed['hour']} — storing under "
+                f"{parsed['date']}. Expected only around Kyiv midnight.",
+                extra=ann(level="notice", title="sbs: daily date disagreement"),
+            )
+        upsert_daily(conn, parsed)
+        updated.append(f"daily {parsed['date']} h{parsed['hour']}")
 
     # ── Daily (previous day correction) ───────────────────────────────────────
     print("Fetching daily data (previous day)...")
     try:
-        parsed_prev = parse_api_response(fetch_json(PREVIOUS_DAY_URL))
-        kyiv_now = datetime.now(KYIV_TZ)
-        yesterday = (kyiv_now - timedelta(days=1)).strftime("%Y-%m-%d")
-        parsed_prev["date"] = yesterday
-        if upsert_daily_correction(conn, parsed_prev):
-            updated.append(f"prev-day {yesterday}")
+        raw_prev = fetch_json(PREVIOUS_DAY_URL)
+        data_prev = raw_prev.get("data", {})
+        # Usability first: a not_collected payload carries no startDate either,
+        # and one finding per problem reads better than two.
+        if _payload_is_usable(data_prev, "daily (previous day)"):
+            kyiv_now = datetime.now(KYIV_TZ)
+            yesterday = (kyiv_now - timedelta(days=1)).strftime("%Y-%m-%d")
+            # The day this correction belongs to used to be pure wall-clock
+            # arithmetic — "yesterday, in Kyiv" — with nothing checking that
+            # the endpoint agreed. It states its own day, so use that: a
+            # lagging endpoint would otherwise file the day-before-yesterday's
+            # numbers as a correction to yesterday, overwriting a good row
+            # with a wrong one.
+            stated_prev = _payload_period_start(data_prev, "daily (previous day)")
+            if stated_prev and stated_prev != yesterday:
+                log.warning(
+                    f"daily (previous day): endpoint covers {stated_prev}, not "
+                    f"{yesterday} — filing the correction under {stated_prev}.",
+                    extra=ann(title="sbs: prev-day date disagreement"),
+                )
+            target_day = stated_prev or yesterday
+            parsed_prev = parse_api_response(raw_prev)
+            parsed_prev["date"] = target_day
+            if upsert_daily_correction(conn, parsed_prev):
+                updated.append(f"prev-day {target_day}")
     except Exception as e:
         print(f"  [WARN] Skipping previous day: {e}")
 
     # ── Monthly ───────────────────────────────────────────────────────────────
     kyiv_now = datetime.now(KYIV_TZ)
     kyiv_today = kyiv_now.date()
+    # No fallback map: see the note at PERIODS_URL. A run that can't reach
+    # /periods skips the monthly section entirely and the next run picks it up.
     try:
         monthly_urls = discover_monthly_urls()
-        if monthly_urls:
-            print(f"Discovered {len(monthly_urls)} monthly periods from /periods")
-        else:
-            print("  [WARN] No monthly periods discovered; falling back to static map")
-            monthly_urls = FALLBACK_MONTHLY_URLS
     except Exception as e:
-        print(f"  [WARN] Could not discover monthly periods: {e}")
-        print("  [WARN] Falling back to static monthly URL map")
-        monthly_urls = FALLBACK_MONTHLY_URLS
+        log.warning(
+            f"could not discover monthly periods ({e}) — skipping the monthly "
+            "section this run.",
+            extra=ann(title="sbs: /periods unreachable"),
+        )
+        monthly_urls = {}
+    if monthly_urls:
+        print(f"Discovered {len(monthly_urls)} monthly periods from /periods")
+    else:
+        log.warning(
+            "no monthly periods discovered for the USF subdivision — no "
+            "monthly rows will be written this run.",
+            extra=ann(title="sbs: no monthly periods"),
+        )
 
     for month, url in monthly_urls.items():
         if not args.all_months:
@@ -573,7 +708,25 @@ def main() -> None:
 
         print(f"Fetching monthly data for {month}...")
         try:
-            parsed_m = parse_api_response(fetch_json(url))
+            raw_m = fetch_json(url)
+            data_m = raw_m.get("data", {})
+            if not _payload_is_usable(data_m, f"monthly {month}"):
+                continue
+            # The period-slot reuse guard. `url` came from this same run's
+            # /periods call so it should always agree, but the twelve slots are
+            # re-pointed every year and a mismatch writes one year's totals
+            # under another year's date — the exact failure the deleted
+            # fallback map had already walked into.
+            stated_m = _payload_period_start(data_m, f"monthly {month}")
+            if stated_m and stated_m[:7] != month:
+                log.warning(
+                    f"monthly {month}: period {url.rsplit('/', 1)[-1]} returned "
+                    f"data for {stated_m[:7]} — skipping rather than filing it "
+                    f"under {month}.",
+                    extra=ann(title="sbs: monthly period mismatch"),
+                )
+                continue
+            parsed_m = parse_api_response(raw_m)
             parsed_m["date"] = f"{month}-01"
             if upsert_monthly(conn, parsed_m):
                 updated.append(f"monthly {month}")
