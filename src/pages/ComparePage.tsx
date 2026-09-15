@@ -396,8 +396,9 @@ export function ComparePage({ preset }: Props) {
 
 
   // Group order = table order. Size first (the denominator), then what each
-  // unit did, then its one headline total, then the breakdown of that total.
-  const groups: CompareGroup[] = ["context", "activity", "totals", "personnel", "struck"];
+  // unit did — sorties and the headline "all targets engaged" now live together
+  // under `activity` — then the breakdown of that total.
+  const groups: CompareGroup[] = ["context", "activity", "personnel", "struck"];
 
   return (
     <div>
