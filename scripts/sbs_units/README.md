@@ -90,15 +90,19 @@ bucket** in the primary key.
 
 | table | bucket | grain |
 |---|---|---|
-| `unit_daily_stats` | the UTC **day** | one calendar day |
-| `unit_monthly_stats` | the Monday of the UTC **ISO week** | one calendar month |
-| `unit_yearly_stats` | the Monday of the UTC **ISO week** | one calendar year |
+| `unit_daily_stats` | the Kyiv **day** | one calendar day |
+| `unit_monthly_stats` | the Monday of the Kyiv **ISO week** | one calendar month |
+| `unit_yearly_stats` | the Monday of the Kyiv **ISO week** | one calendar year |
+
+Kyiv rather than UTC so the bucket boundary lines up with the one the data
+uses. Under UTC, a run between 21:00 and midnight UTC — where Kyiv is already
+tomorrow — would file tomorrow's provisional row under today's bucket.
 
 A run whose bucket row already exists **updates it in place**. That decouples
-row count from run frequency: polling hourly and polling daily produce the same
-rows, only different freshness. `sbs.db`'s `monthly_stats` behaves the opposite
-way — its key carries `data_collected_at`, so more runs mean more rows, which
-is why it holds ~120 rows per month.
+row count from run frequency: both of the workflow's twice-daily runs land in
+one bucket, so the second improves freshness without costing a row. `sbs.db`'s
+`monthly_stats` behaves the opposite way — its key carries `data_collected_at`,
+so more runs mean more rows, which is why it holds ~120 rows per month.
 
 The bucket is a **cap, not a sample**: the current month's row is refreshed on
 every run, so the value the site shows is never more than one run old. What a
@@ -139,6 +143,23 @@ row can never absorb a later revision; its monthly row self-heals every run.
 And daily has **no backfill at all** — only today and yesterday are
 addressable, so the series starts the day the job is switched on and can never
 be filled in behind.
+
+## Cadence
+
+`update-sbs-units-db.yml` runs at **09:00 and 21:00 Kyiv**. Its own workflow
+rather than a job on `update-db.yml`, because that one is triggered externally
+about once an hour and this ingest has no use for that — ~60 requests to change
+freshness, not rows.
+
+21:00 is the useful run: `prev_day` has had ~21h to settle and "today" is ~87%
+complete for the provisional row, far enough from midnight that GitHub's
+scheduler lag can't push it past the rollover.
+
+09:00 is redundancy, and that is the point of running twice. A day's settled
+value is reachable only while it is `prev_day` — during the following day — so
+if both of a day's runs are skipped, that day's settled row is gone for good.
+The day still lands in the monthly totals, which are re-read independently; it
+is the daily row that is lost.
 
 ## Don't repeat these mistakes
 

@@ -67,6 +67,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from fetch_and_update import (  # noqa: E402
+    KYIV_TZ,
     BASE_STAT_COLS,
     _payload_is_usable,
     _payload_period_start,
@@ -92,11 +93,11 @@ STAT_TABLES = (DAILY_TABLE, MONTHLY_TABLE, YEARLY_TABLE)
 # ingest uses; it is the reason a closed month is re-read at all.
 REVISION_TAIL_DAYS = 10
 
-# The USF ingest is triggered hourly, and one unit run costs ~60 requests
-# against a small public API. Because the capture bucket caps row growth,
-# running hourly would buy nothing but freshness — the rows are identical. So
-# the run no-ops unless this much time has passed, which lets the workflow call
-# it on every SBS tick without thinking about it.
+# One unit run costs ~60 requests against a small public API, and the capture
+# bucket means extra runs change freshness rather than rows. The workflow's
+# own twice-daily schedule is the real rate limit; this is the backstop against
+# a duplicate fire or a re-dispatch loop. Well under the 12h between scheduled
+# runs, so it never blocks one; a manual dispatch passes 0 to skip it.
 DEFAULT_MIN_INTERVAL_HOURS = 6
 
 
@@ -175,8 +176,15 @@ def capture_bucket(grain: str, now: datetime) -> str:
     one captured during the day itself. Monthly and yearly bucket by ISO week,
     because a per-day record of a month-to-date counter is 30 rows a month
     restating what `unit_daily_stats` holds at better resolution.
+
+    Bucketed in **Kyiv** time, not UTC, so the boundary lines up with the one
+    the data itself uses. Under UTC a run in the 21:00-24:00 UTC window — where
+    Kyiv is already tomorrow — would file tomorrow's provisional row under
+    today's bucket. Harmless to `MAX(capture_bucket)`, but it would make "one
+    row per unit per day" stop being literally true, and that invariant is the
+    whole storage model.
     """
-    d = now.date()
+    d = now.astimezone(KYIV_TZ).date()
     if grain == "daily":
         return d.isoformat()
     return (d - timedelta(days=d.weekday())).isoformat()

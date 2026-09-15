@@ -11,15 +11,6 @@ on:
         type: boolean
         required: false
         default: false
-      units_all:
-        description: >-
-          Sub-units: re-read every month and year the API still exposes. Use
-          after an ingest fix, or if check_db reports an uncaptured month — the
-          monthly period slots only hold twelve months and a month that rolls
-          out of that window is unrecoverable.
-        type: boolean
-        required: false
-        default: false
 
 jobs:
   update-db:
@@ -99,47 +90,6 @@ jobs:
           npx --yes wrangler@4 r2 object put \
             russia-ukraine-war/sbs.db \
             --file data/sbs.db \
-            --content-type application/vnd.sqlite3 \
-            --remote
-
-      # ── Sub-units ──────────────────────────────────────────────────────────
-      # Separate DB, same trigger. It lives here rather than in its own
-      # workflow because it reads the same API and shares the ingest's HTTP and
-      # validation helpers; it runs after the sbs.db upload so a failure here
-      # can never cost the grouping data. The script's own --min-interval-hours
-      # makes it a cheap no-op on most of the hourly ticks.
-      - name: Download sub-units DB from R2
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          npx --yes wrangler@4 r2 object get \
-            russia-ukraine-war/sbs-units.db \
-            --file data/sbs-units.db \
-            --remote || echo "no sbs-units.db on R2 yet — starting fresh"
-
-      - name: Run sub-units ingest
-        id: units
-        env:
-          SBS_UNITS_DB_PATH: data/sbs-units.db
-          SUMMARY_PATH: /tmp/units-summary.txt
-        run: python3 scripts/sbs_units/ingest.py ${{ inputs.units_all && '--all' || '' }}
-
-      # Whole-table checks: a stalled unit, a month the API lists that we never
-      # captured, a closed month that moved by more than the source's usual
-      # revision noise. Non-blocking — findings surface as annotations.
-      - name: Check sub-units DB
-        if: always()
-        run: python3 scripts/sbs_units/check_db.py --db data/sbs-units.db || true
-
-      - name: Upload sub-units DB to R2
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          npx --yes wrangler@4 r2 object put \
-            russia-ukraine-war/sbs-units.db \
-            --file data/sbs-units.db \
             --content-type application/vnd.sqlite3 \
             --remote
 

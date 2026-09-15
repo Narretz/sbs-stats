@@ -1,0 +1,112 @@
+name: Update SBS Sub-units Database
+
+# The SBS sub-units (Птахи Мадяра, Фенікс, Nemesis, …) publish their own
+# statistics under the same API shape the grouping total uses. This is their
+# own workflow rather than a second job on `update-db.yml` for one reason:
+# cadence. That workflow is triggered externally about once an hour, and this
+# ingest has no use for that — its capture-bucket key means extra runs change
+# freshness, not row count, while costing ~60 requests each against a small
+# public API. See scripts/sbs_units/README.md.
+
+on:
+  workflow_dispatch: # manual trigger from the GitHub UI
+    inputs:
+      all:
+        description: >-
+          Re-read every month and year the API still exposes, not just the
+          current ones. Use after an ingest fix, or when check_db reports an
+          uncaptured month — the API keeps only twelve monthly period slots per
+          unit and re-points them yearly, so a month that rolls out of that
+          window is unrecoverable.
+        type: boolean
+        required: false
+        default: false
+  schedule:
+    # Twice a day, in Kyiv local time via the IANA `timezone:` field (the same
+    # arrangement update-telegram-web-dbs.yml uses) so the schedule tracks the
+    # day boundary the data itself uses and follows DST without offset
+    # juggling.
+    #
+    # 21:00 is the useful one: `prev_day` has had ~21h to settle, and "today"
+    # is ~87% complete for the provisional row — far enough from midnight that
+    # GitHub's habitual scheduler lag can't push it past the rollover and turn
+    # a nearly-complete day into an empty one.
+    #
+    # 09:00 is redundancy, which is the point of running twice. A day's settled
+    # value is only reachable while it is `prev_day` — i.e. during the
+    # following day — so if both of a day's runs are skipped, that day's
+    # settled row is gone for good. (The day still lands in the monthly totals,
+    # which are re-read independently; it is the daily row that is lost.)
+    - cron: "0 9,21 * * *"
+      timezone: "Europe/Kyiv"
+
+jobs:
+  update-sbs-units-db:
+    runs-on: ubuntu-latest
+
+    env:
+      R2_BUCKET: russia-ukraine-war
+      DB_NAME: sbs-units.db
+      SBS_UNITS_DB_PATH: data/sbs-units.db
+      # Naming a sink turns the ingest's warnings into GitHub annotations via
+      # the Annotate step below. Unset locally, so a dev run stays console-only.
+      INGEST_LOG: ${{ github.workspace }}/ingest-diagnostics.jsonl
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      # R2 is the source of truth — pull the current DB down so the ingest runs
+      # incrementally against the live state. The `||` covers the very first
+      # run, before the object exists.
+      - name: Download current DB from R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object get \
+            "$R2_BUCKET/$DB_NAME" \
+            --file "$SBS_UNITS_DB_PATH" \
+            --remote || echo "no $DB_NAME on R2 yet — starting fresh"
+
+      # A human asking for a run gets one: the script's interval backstop
+      # exists for duplicate scheduler fires, not to argue with a dispatch.
+      - name: Run sub-units ingest
+        env:
+          SUMMARY_PATH: /tmp/units-summary.txt
+        run: |
+          python3 scripts/sbs_units/ingest.py \
+            ${{ inputs.all && '--all' || '' }} \
+            ${{ github.event_name == 'workflow_dispatch' && '--min-interval-hours 0' || '' }}
+
+      # Whole-table checks — a stalled unit, a month the API lists that was
+      # never captured, a closed month that moved beyond the source's routine
+      # revision noise. Advisory: findings surface as annotations, and a
+      # finding must not stop the upload of the rows this run did capture.
+      - name: Check sub-units DB
+        if: always()
+        run: python3 scripts/sbs_units/check_db.py || true
+
+      - name: Upload DB to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/$DB_NAME" \
+            --file "$SBS_UNITS_DB_PATH" \
+            --content-type application/vnd.sqlite3 \
+            --remote
+
+      # Always, so a run that dies still reports what it found on the way.
+      - name: Annotate ingest diagnostics
+        if: always()
+        run: python3 scripts/annotate_log.py

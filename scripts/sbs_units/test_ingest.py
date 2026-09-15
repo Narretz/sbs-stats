@@ -113,7 +113,7 @@ class TestDiscovery:
 
 class TestCaptureBucket:
     def test_daily_buckets_by_day(self):
-        now = datetime(2026, 9, 15, 23, 59, tzinfo=timezone.utc)
+        now = datetime(2026, 9, 15, 18, 0, tzinfo=timezone.utc)   # 21:00 Kyiv
         assert ing.capture_bucket("daily", now) == "2026-09-15"
 
     @pytest.mark.parametrize("day,monday", [
@@ -126,11 +126,31 @@ class TestCaptureBucket:
         now = datetime.fromisoformat(f"{day}T08:00:00+00:00")
         assert ing.capture_bucket("monthly", now) == monday
 
+    def test_the_boundary_is_kyiv_not_utc(self):
+        # 22:00 UTC is already 01:00 the next day in Kyiv, and Kyiv is the day
+        # the DATA is keyed by — so a run then belongs to the new day. Under
+        # UTC bucketing it would file the new day's provisional row under the
+        # old day's bucket.
+        assert ing.capture_bucket(
+            "daily", datetime(2026, 9, 15, 22, 0, tzinfo=timezone.utc)) == "2026-09-16"
+        # …and the week rolls with it.
+        assert ing.capture_bucket(
+            "monthly", datetime(2026, 9, 20, 22, 0, tzinfo=timezone.utc)) == "2026-09-21"
+
+    def test_both_scheduled_runs_land_in_one_bucket(self):
+        # The workflow fires at 09:00 and 21:00 Kyiv. Both must bucket to the
+        # same day, or the twice-daily schedule would double the row count
+        # instead of just improving freshness.
+        for hour_utc in (6, 18):   # 09:00 and 21:00 Kyiv
+            assert ing.capture_bucket(
+                "daily", datetime(2026, 9, 15, hour_utc, tzinfo=timezone.utc)
+            ) == "2026-09-15"
+
     def test_frequency_does_not_create_rows(self):
         # The property the whole storage model rests on: two runs in one day
         # land in one bucket, so polling more often changes freshness only.
-        a = datetime(2026, 9, 15, 1, 0, tzinfo=timezone.utc)
-        b = datetime(2026, 9, 15, 23, 0, tzinfo=timezone.utc)
+        a = datetime(2026, 9, 15, 3, 0, tzinfo=timezone.utc)
+        b = datetime(2026, 9, 15, 20, 0, tzinfo=timezone.utc)
         assert ing.capture_bucket("daily", a) == ing.capture_bucket("daily", b)
         assert ing.capture_bucket("monthly", a) == ing.capture_bucket("monthly", b)
 

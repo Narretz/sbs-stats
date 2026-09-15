@@ -66,14 +66,18 @@ datasets for future views.
 ## CI / deploy
 
 GitHub Actions in `.github/workflows/`:
-- `update-db.yml` — SBS. Two halves: the grouping total into `sbs.db`, then
-  the 15 tracked sub-units into `sbs-units.db`
-  ([`scripts/sbs_units/`](scripts/sbs_units/README.md)). Separate DBs because
-  `sbs.db` is fetched whole by every SBS page and unit data is only read by the
-  monthly / compare / combined views. The unit half no-ops unless its last
-  capture is >6h old (`--min-interval-hours`), so it is cheap on the hourly
-  trigger — its capture-bucket key means extra runs change freshness, not row
-  count. Retirement is derived from "no live daily period", never listed.
+- `update-db.yml` — SBS grouping total. No `schedule:`; an external cron
+  dispatches it roughly hourly.
+- `update-sbs-units-db.yml` — the 15 tracked SBS sub-units
+  ([`scripts/sbs_units/`](scripts/sbs_units/README.md)). Its own workflow
+  precisely because it must NOT run hourly: the capture-bucket key means extra
+  runs change freshness rather than row count, at ~60 requests each. Scheduled
+  09:00 / 21:00 **Europe/Kyiv** (IANA `timezone:` cron field) — 21:00 for the
+  settled `prev_day` plus a nearly-complete "today", 09:00 as redundancy, since
+  a day's settled value is only reachable while it is `prev_day`. Separate DB
+  from `sbs.db` because that one is fetched whole by every SBS page and unit
+  data is only read by the monthly / compare / combined views. Retirement is
+  derived from "no live daily period", never listed.
 - `update-ru-losses-db.yml` — RU losses.
 - `update-telegram-web-dbs.yml` — GSUA + RU MoD (two jobs, both scrape the
   public `t.me/s` web preview, no API account). Scheduled at 08:00 / 16:00 /
@@ -121,11 +125,11 @@ only a re-scrape can. `update-telegram-web-dbs.yml`: `gsua_lookback_days` /
 `rumod_lookback_days` (default 2). `update-sbu-alfa-db.yml`: `pages` (default
 3 listing pages). `update-rubikon-db.yml`: `pages` (default 3 t.me/s preview
 pages). `update-db.yml`: `all_months` (bypass the SBS 10-day / 6-hour
-refresh thresholds) and `units_all` (re-read every sub-unit month and year the
-API still exposes). `units_all` is the one that is genuinely urgent when
-needed: the API keeps only twelve monthly period slots per unit and re-points
-them yearly, so a month nobody captured before it rolls out is gone for good —
-`scripts/sbs_units/check_db.py` reports exactly that. The Kaggle / CSV / article-bundle pipelines (RU losses, UA
+refresh thresholds). `update-sbs-units-db.yml`: `all` (re-read every sub-unit
+month and year the API still exposes) — the one that is genuinely urgent when
+needed, because the API keeps only twelve monthly period slots per unit and
+re-points them yearly, so a month nobody captured before it rolls out is gone
+for good; `scripts/sbs_units/check_db.py` reports exactly that. The Kaggle / CSV / article-bundle pipelines (RU losses, UA
 losses, missile attacks, Mediazona) re-pull the whole source every run, so a
 fix takes effect on the next run with no input to widen.
 
