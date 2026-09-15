@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useDatabaseSbs } from "@/hooks/useDatabaseSbs";
+import { useDatabaseSbsUnits } from "@/hooks/useDatabaseSbsUnits";
 import { useDatabaseGsua } from "@/hooks/useDatabaseGsua";
 import { useDatabaseRuLosses } from "@/hooks/useDatabaseRuLosses";
 import { useDatabaseUaLosses } from "@/hooks/useDatabaseUaLosses";
@@ -24,9 +25,10 @@ import { DAY_OPTIONS, type DayOption, parseDaysParam } from "@/utils/dayRange";
 import { MONTH_OPTIONS, type MonthOption } from "@/utils/monthRange";
 import { useStatScope, type StatScope } from "@/hooks/useStatScope";
 import { qualitativeColor } from "@/chartColors";
-import { findMetric, type CombinedMetric, type MetricSource } from "@/utils/combinedMetrics";
+import { findMetric, setSbsUnitNames, type CombinedMetric, type MetricSource } from "@/utils/combinedMetrics";
 import { fetchCombinedDaily, fetchCombinedMonthly, fetchCombinedGlobalStats, statsForMetric, type GlobalStatsBundle } from "@/utils/combinedQuery";
-import type { DailyDataPoint, Site } from "@/types";
+import type { DailyDataPoint, SbsUnit, Site } from "@/types";
+import { sbsUnitLabel } from "@/types";
 import { FONTS } from "@/theme";
 import defaultChartsConfig from "@/data/defaultCharts.json";
 
@@ -422,6 +424,27 @@ export function HomePage({ onGoToSite }: Props) {
   // and Mediazona are monthly-only and only appear in the picker when a
   // chart's granularity is "monthly".
   const sbs = useDatabaseSbs({ enabled: needed.has("sbs") });
+  // Loaded when a unit metric is already selected (a shared link, a saved
+  // chart) OR once someone opens a metric picker and could pick one. Not on
+  // every homepage visit: this DB grows by ~2.6 MB a year and most visits
+  // never touch a sub-unit.
+  const [unitsRequested, setUnitsRequested] = useState(false);
+  const sbsUnits = useDatabaseSbsUnits({
+    enabled: needed.has("sbs-unit") || unitsRequested,
+  });
+
+  // The picker needs the unit list, and `makeUnitMetric` needs display names
+  // for labels it may have to synthesise from a URL id alone. Both come from
+  // the same query, which is inert until a unit metric is actually selected —
+  // so the first unit metric has to be added by id (a shared link) or via the
+  // group the picker renders once this resolves.
+  const [sbsUnitList, setSbsUnitList] = useState<SbsUnit[]>([]);
+  useEffect(() => {
+    if (sbsUnits.loadState !== "ready") return;
+    const list = sbsUnits.queryUnits();
+    setSbsUnitList(list);
+    setSbsUnitNames(list.map((u) => ({ slug: u.slug, name: sbsUnitLabel(u) })));
+  }, [sbsUnits]);
   const gsua = useDatabaseGsua({ enabled: needed.has("gsua") });
   const ruLosses = useDatabaseRuLosses({ enabled: needed.has("ru-losses") });
   const uaLosses = useDatabaseUaLosses({ enabled: needed.has("ua-losses") });
@@ -468,6 +491,7 @@ export function HomePage({ onGoToSite }: Props) {
       [needed.has("ua-losses"), uaLosses.loadState],
       [needed.has("ru-airdef-mod"), ruMod.loadState],
       [needed.has("ru-air-attacks"), ruAir.loadState],
+      [needed.has("sbs-unit"), sbsUnits.loadState],
       [needed.has("sbu-alfa"), sbuAlfa.loadState],
       [needed.has("rubikon"), rubikon.loadState],
       [mediazonaNeeded, mediazona.loadState],
@@ -502,6 +526,7 @@ export function HomePage({ onGoToSite }: Props) {
       const promise = c.granularity === "monthly"
         ? fetchCombinedMonthly(metrics, c.window as MonthOption, selectedDate || undefined, {
             sbs: needed.has("sbs") ? sbs.queryMonthly : undefined,
+            sbsUnits: needed.has("sbs-unit") ? sbsUnits.queryMonthly : undefined,
             gsua: needed.has("gsua") ? gsua.queryMonthly : undefined,
             ruLosses: needed.has("ru-losses") ? ruLosses.queryMonthly : undefined,
             uaLosses: needed.has("ua-losses") ? uaLosses.queryMonthly : undefined,
@@ -529,6 +554,7 @@ export function HomePage({ onGoToSite }: Props) {
     return () => { cancelled = true; };
   }, [charts, chartFetchKeys, selectedDate, needed, mediazonaNeeded,
       sbs.loadState, sbs.queryDaily, sbs.queryMonthly,
+      sbsUnits.loadState, sbsUnits.queryMonthly,
       gsua.loadState, gsua.queryDaily, gsua.queryMonthly,
       ruLosses.loadState, ruLosses.queryDaily, ruLosses.queryMonthly,
       uaLosses.loadState, uaLosses.queryDaily, uaLosses.queryMonthly,
@@ -549,8 +575,9 @@ export function HomePage({ onGoToSite }: Props) {
       "ua-losses": needed.has("ua-losses") && uaLosses.loadState === "ready",
       "ru-airdef-mod": needed.has("ru-airdef-mod") && ruMod.loadState === "ready",
       "ru-air-attacks": needed.has("ru-air-attacks") && ruAir.loadState === "ready",
-      // SBU Alfa + Mediazona are monthly-only; the daily global-stats bundle
-      // doesn't carry them. Their charts fall back to window stats either way.
+      // Monthly-only sources; the daily global-stats bundle doesn't carry
+      // them. Their charts fall back to window stats either way.
+      "sbs-unit": false,
       "sbu-alfa": false,
       "rubikon": false,
       "mediazona-roles": false,
@@ -681,10 +708,11 @@ export function HomePage({ onGoToSite }: Props) {
     { needed: needed.has("ua-losses"),         h: uaLosses  },
     { needed: needed.has("ru-airdef-mod"),     h: ruMod     },
     { needed: needed.has("ru-air-attacks"),    h: ruAir     },
+    { needed: needed.has("sbs-unit"),          h: sbsUnits  },
     { needed: needed.has("sbu-alfa"),          h: sbuAlfa   },
     { needed: needed.has("rubikon"),           h: rubikon   },
     { needed: mediazonaNeeded,                 h: mediazona },
-  ]), [needed, mediazonaNeeded, sbs, gsua, ruLosses, uaLosses, ruMod, ruAir, sbuAlfa, rubikon, mediazona]);
+  ]), [needed, mediazonaNeeded, sbs, sbsUnits, gsua, ruLosses, uaLosses, ruMod, ruAir, sbuAlfa, rubikon, mediazona]);
 
   const refreshAggregated = useMemo(() => {
     const active = sourceHandles.filter((s) => s.needed);
@@ -771,6 +799,8 @@ export function HomePage({ onGoToSite }: Props) {
               cumulative={cumulative}
               seriesData={seriesByChart[c.uid] ?? {}}
               globalStats={globalStats}
+              sbsUnits={sbsUnitList}
+              onPickerOpen={() => setUnitsRequested(true)}
               onRename={(name) => updateChart(c.uid, { name })}
               onMetricsChange={(metricIds) => updateChart(c.uid, { metricIds })}
               onGranularityChange={(g) => changeChartGranularity(c.uid, g)}
@@ -805,6 +835,8 @@ interface ChartCardProps {
   cumulative: boolean;
   seriesData: Record<string, DailyDataPoint[]>;
   globalStats: GlobalStatsBundle;
+  sbsUnits: SbsUnit[];
+  onPickerOpen: () => void;
   onRename: (name: string) => void;
   onMetricsChange: (ids: string[]) => void;
   onGranularityChange: (g: ChartGranularity) => void;
@@ -831,7 +863,8 @@ function toCumulative(points: DailyDataPoint[]): DailyDataPoint[] {
 }
 
 function ChartCard({
-  config, isOnlyChart, indexLabel, yMode, cumulative, seriesData, globalStats,
+  config, isOnlyChart, indexLabel, yMode, cumulative, seriesData, globalStats, sbsUnits,
+  onPickerOpen,
   onRename, onMetricsChange, onGranularityChange, onWindowChange, onYModeChange, onRemove,
 }: ChartCardProps) {
   const { theme: t } = useTheme();
@@ -949,7 +982,13 @@ function ChartCard({
           <option value="log">Y: log</option>
           <option value="normalized">Y: normalized</option>
         </select>
-        <MetricPicker selected={config.metricIds} onChange={onMetricsChange} view={config.granularity} />
+        <MetricPicker
+          selected={config.metricIds}
+          onChange={onMetricsChange}
+          view={config.granularity}
+          units={sbsUnits}
+          onOpen={onPickerOpen}
+        />
         <button
           onClick={() => {
             const msg = isOnlyChart

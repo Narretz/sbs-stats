@@ -11,7 +11,7 @@ via sql.js / sql.js-httpvfs.
 | View | Site key | Source | Pipeline |
 |---|---|---|---|
 | SBS STATISTICS | `sbs` | sbs-group.army public API | `scripts/fetch_and_update.py` → `sbs.db` |
-| SBS SUB-UNITS | (filter / compare column) | sbs-group.army public API, per subdivision | [`scripts/sbs_units/`](scripts/sbs_units/README.md) → `sbs-units.db` |
+| SBS SUB-UNITS | (SBS monthly filter · compare column · `sbs-unit.*` metrics) | sbs-group.army public API, per subdivision | [`scripts/sbs_units/`](scripts/sbs_units/README.md) → `sbs-units.db` |
 | RU ATTACKS — GSUA | `ru-attacks-gsua` | Ukrainian General Staff operational reports (Telegram) | [`scripts/gsua/`](scripts/gsua/README.md) → `ru-attacks-gsua.db` |
 | RU LOSSES — GSUA | `ru-losses-gsua` | Ukrainian General Staff national totals (PetroIvaniuk dataset) | [`scripts/ru_losses/`](scripts/ru_losses/README.md) → `ru-losses-gsua-petroivaniuk.db` |
 | RU AIR DEFENSE — RU MoD | `ru-airdef-mod` | Russian MoD air-defense claims (Telegram) | [`scripts/ru_mod/`](scripts/ru_mod/README.md) → `ru-mod-ad.db` |
@@ -36,6 +36,20 @@ datasets for future views.
   recharts has sized its containers. The hover "#" affordance is CSS generated
   content, deliberately: as a real element it lands in the title's textContent
   and breaks `getByText(title, { exact: true })`.
+- **SBS sub-units are a refinement of the `sbs` source, not a source of their
+  own.** A unit publishes exactly the grouping's counters, so its rows ARE
+  `MonthlyRow` and every chart, target label and compare row mapping applies
+  unchanged — the cost of adding them was plumbing, not modelling. The
+  consequence to keep in mind: an `sbs` column/metric no longer determines its
+  own data, the unit does. On the compare page that means `snapshotFor(column)`
+  rather than `snapshots[entity]` at EVERY read (two were missed the first
+  time, and a sub-unit silently showed the whole grouping's figure). In the
+  combined charts it means one query per unit, not per source. The homepage
+  picker renders the units as one `<select>` plus the shared SBS metric list
+  rather than 15 × 89 flattened rows — that list is in the DOM once per chart
+  on the page, so the difference is ~90 rows versus 1,335. `sbs-units.db` is
+  loaded lazily everywhere: on first picker open, and only on the SBS monthly
+  page.
 - **Color**: `src/theme.ts` is the single source of truth — chrome tokens plus
   the chart-series tokens (`series1` blue = the main series of any chart,
   `series2` red = a second series drawn against it). `ThemeProvider` publishes

@@ -3,16 +3,26 @@ import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
 import {
   COMBINED_METRICS,
+  SBS_UNIT_METRIC_KEYS,
   SOURCE_LABELS,
+  sbsUnitMetricId,
   type CombinedMetric,
   type MetricSource,
   type MetricView,
 } from "@/utils/combinedMetrics";
+import { sbsUnitLabel, type SbsUnit } from "@/types";
 
 interface Props {
   selected: string[];
   onChange: (next: string[]) => void;
   view: MetricView;
+  // SBS sub-units, from sbs-units.db. Empty until it loads, in which case the
+  // group is simply absent.
+  units?: SbsUnit[];
+  // Fired when the popover opens. The units DB is not loaded for every
+  // homepage visit — it is fetched the first time someone opens a picker, so
+  // the sub-unit group can be populated without making everyone pay for it.
+  onOpen?: () => void;
 }
 
 const SOURCE_ORDER: MetricSource[] = [
@@ -39,7 +49,7 @@ type PopoverProps = {
   popovertargetaction?: "show" | "hide" | "toggle";
 };
 
-export function MetricPicker({ selected, onChange, view }: Props) {
+export function MetricPicker({ selected, onChange, view, units = [], onOpen }: Props) {
   const { theme: t } = useTheme();
   // Per-instance ID — useId() guarantees uniqueness when multiple pickers
   // render on the same page (one per chart on the homepage).
@@ -49,6 +59,10 @@ export function MetricPicker({ selected, onChange, view }: Props) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  // Held in a ref so the mount-once positioning effect below doesn't have to
+  // take `onOpen` as a dependency and re-register its listener.
+  const onOpenRef = useRef(onOpen);
+  onOpenRef.current = onOpen;
 
   // Position the popover relative to the trigger button when it opens.
   // Popovers default to the top layer at fixed 0,0, so we own placement
@@ -64,6 +78,7 @@ export function MetricPicker({ selected, onChange, view }: Props) {
     const handleToggle = (e: Event) => {
       const ev = e as ToggleEvent;
       if (ev.newState !== "open") return;
+      onOpenRef.current?.();
       const btn = triggerRef.current;
       if (!btn) return;
       const rect = btn.getBoundingClientRect();
@@ -123,6 +138,38 @@ export function MetricPicker({ selected, onChange, view }: Props) {
       return list ? [{ source: s, metrics: list }] : [];
     });
   }, [filtered]);
+
+  // ─── SBS sub-units ────────────────────────────────────────────────────────
+  // Rendered as ONE unit <select> plus the shared SBS metric list, rather than
+  // 15 units x 89 metrics flattened into the list above. That would be 1,335
+  // extra rows in the DOM — per picker, and there is one picker per chart on
+  // the page. This way the group costs ~90 rows however many units exist.
+  //
+  // The trade-off: the search box filters this group's metric labels within
+  // the CHOSEN unit only, so finding "Fenix · Tanks" means picking Fenix first.
+  // Acceptable while the alternative is rendering every combination.
+  const unitsAvailable = units.length > 0 && view === "monthly";
+  const selectedUnitMetric = selected.find((id) => id.startsWith("sbs-unit."));
+  const [unitSlug, setUnitSlug] = useState("");
+  // Follow the selection when one exists, so reopening the picker lands on the
+  // unit whose metrics are already on the chart rather than resetting.
+  const activeUnit =
+    unitSlug ||
+    (selectedUnitMetric ? selectedUnitMetric.split(".")[1] : "") ||
+    units[0]?.slug ||
+    "";
+
+  const unitRows = useMemo(() => {
+    if (!unitsAvailable || !activeUnit) return [];
+    const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const name = units.find((u) => u.slug === activeUnit);
+    const unitName = name ? sbsUnitLabel(name) : activeUnit;
+    return SBS_UNIT_METRIC_KEYS.filter(([key, label]) => {
+      if (!tokens.length) return true;
+      const haystack = `${unitName} ${label} ${key}`.toLowerCase();
+      return tokens.every((tok) => haystack.includes(tok));
+    });
+  }, [unitsAvailable, activeUnit, units, query]);
 
   const selectedSet = new Set(selected);
   const toggle = (id: string) => {
@@ -238,6 +285,69 @@ export function MetricPicker({ selected, onChange, view }: Props) {
             })}
           </div>
         ))}
+
+        {unitsAvailable && (
+          <div style={{ marginBottom: 8 }}>
+            <div
+              style={{
+                fontFamily: FONTS.display,
+                fontSize: 10,
+                fontWeight: 700,
+                color: t.textMuted,
+                letterSpacing: "0.07em",
+                textTransform: "uppercase",
+                padding: "4px 4px 2px",
+              }}
+            >
+              SBS sub-unit
+            </div>
+            <select
+              className="ctl"
+              data-testid="metric-picker-unit"
+              value={activeUnit}
+              onChange={(e) => setUnitSlug(e.target.value)}
+              style={{ width: "100%", marginBottom: 4 }}
+            >
+              {units.map((u) => (
+                <option key={u.slug} value={u.slug}>{sbsUnitLabel(u)}</option>
+              ))}
+            </select>
+            {unitRows.length === 0 && (
+              <div style={{ color: t.textMuted, fontFamily: FONTS.mono, fontSize: 11, padding: 6 }}>
+                No matches in this unit.
+              </div>
+            )}
+            {unitRows.map(([key, label]) => {
+              const id = sbsUnitMetricId(activeUnit, key);
+              const on = selectedSet.has(id);
+              return (
+                <label
+                  key={id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "4px 6px",
+                    fontFamily: FONTS.mono,
+                    fontSize: 11,
+                    cursor: "pointer",
+                    borderRadius: 3,
+                    color: on ? t.text : t.textMuted,
+                    background: on ? t.bgAlt : "transparent",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => toggle(id)}
+                    style={{ cursor: "pointer", accentColor: t.primary }}
+                  />
+                  <span>{label}</span>
+                </label>
+              );
+            })}
+          </div>
+        )}
       </div>
     </>
   );

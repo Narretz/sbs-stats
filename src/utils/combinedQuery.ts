@@ -81,6 +81,10 @@ function project(
 
 export interface CombinedMonthlyQueries {
   sbs?: () => MonthlyRow[];
+  // Parameterised, unlike every other entry here: one query per sub-unit, not
+  // one per source. The fetcher calls it once for each distinct unit the
+  // selected metrics name.
+  sbsUnits?: (unitSlug: string) => MonthlyRow[];
   gsua?: () => Promise<GsuaMonthlyRow[]>;
   ruLosses?: () => RuLossesMonthlyRow[];
   uaLosses?: () => UaLossesMonthlyRow[];
@@ -174,6 +178,20 @@ export async function fetchCombinedMonthly(
   const startMonth = windowStartMonth(endMonth, months);
 
   const sbsRows = sources.has("sbs") && queries.sbs ? queries.sbs() : null;
+
+  // One fetch per distinct sub-unit. `sources.has("sbs-unit")` is not enough
+  // to know what to load — the unit is part of the metric, so a chart with
+  // Fenix and Nemesis series needs two queries and a chart with two Fenix
+  // metrics needs one.
+  const unitRows = new Map<string, MonthlyRow[]>();
+  if (queries.sbsUnits) {
+    for (const slug of new Set(
+      metrics.filter((m) => m.source === "sbs-unit" && m.unit).map((m) => m.unit as string),
+    )) {
+      unitRows.set(slug, queries.sbsUnits(slug));
+    }
+  }
+
   const ruLossesRows = sources.has("ru-losses") && queries.ruLosses ? queries.ruLosses() : null;
   const uaLossesRows = sources.has("ua-losses") && queries.uaLosses ? queries.uaLosses() : null;
   const ruModRows = sources.has("ru-airdef-mod") && queries.ruMod ? queries.ruMod() : null;
@@ -187,6 +205,7 @@ export async function fetchCombinedMonthly(
 
   for (const m of metrics) {
     if (m.source === "sbs" && sbsRows) result[m.id] = projectMonthly(sbsRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
+    else if (m.source === "sbs-unit" && m.unit && unitRows.has(m.unit)) result[m.id] = projectMonthly(unitRows.get(m.unit) as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "gsua" && gsuaRows) result[m.id] = projectMonthly(gsuaRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "ru-losses" && ruLossesRows) result[m.id] = projectMonthly(ruLossesRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "ua-losses" && uaLossesRows) result[m.id] = projectMonthly(uaLossesRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);

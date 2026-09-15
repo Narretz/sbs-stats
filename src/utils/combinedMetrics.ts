@@ -26,6 +26,10 @@ import {
 
 export type MetricSource =
   | "sbs"
+  // One SBS sub-unit. Unlike every other source this one is not a single
+  // dataset: which rows it yields depends on WHICH unit the metric names, so
+  // its metrics carry a `unit` and its ids have three parts. See makeUnitMetric.
+  | "sbs-unit"
   | "gsua"
   | "ru-losses"
   | "ua-losses"
@@ -46,6 +50,7 @@ export type MetricSource =
 // `useDatabase*` hook needs to be `enabled` for a given source set.
 export type MetricDbHook =
   | "sbs"
+  | "sbs-units"
   | "gsua"
   | "ru-losses"
   | "ua-losses"
@@ -57,6 +62,7 @@ export type MetricDbHook =
 
 export const SOURCE_TO_DB: Record<MetricSource, MetricDbHook> = {
   "sbs": "sbs",
+  "sbs-unit": "sbs-units",
   "gsua": "gsua",
   "ru-losses": "ru-losses",
   "ua-losses": "ua-losses",
@@ -73,6 +79,10 @@ export type MetricView = "daily" | "monthly";
 export interface CombinedMetric {
   id: string;
   source: MetricSource;
+  // Set only for `sbs-unit`: the sub-unit slug whose rows this metric reads.
+  // The fetcher groups by it, because one query per source isn't enough when
+  // the source is parameterised.
+  unit?: string;
   // Column name in the source's daily/monthly row (the fetcher reads
   // `row[key]`). For paired sources like RU air attacks this is the
   // pivoted column (e.g. `drone_launched`).
@@ -85,6 +95,7 @@ export interface CombinedMetric {
 
 export const SOURCE_LABELS: Record<MetricSource, string> = {
   "sbs": "SBS",
+  "sbs-unit": "SBS Unit",
   "gsua": "GSUA",
   "ru-losses": "RU Losses",
   "ua-losses": "UA Personnel Losses",
@@ -198,10 +209,72 @@ export const COMBINED_METRICS: CombinedMetric[] = [
   ...MEDIAZONA_METRICS,
 ];
 
+// ─── SBS sub-units ───────────────────────────────────────────────────────────
+// Deliberately NOT expanded into COMBINED_METRICS. 15 units x 89 metrics is
+// 1,335 entries, and the picker renders its whole list into the DOM — once per
+// chart on the page. Instead the metrics are synthesised on demand: the picker
+// shows one unit <select> plus the shared SBS metric list, so its DOM grows by
+// ~90 rows once rather than 1,335 per instance.
+//
+// The counters are exactly SBS's, because a unit publishes exactly what the
+// grouping does. Same reason the compare page needed no new row mappings.
+export const SBS_UNIT_METRIC_KEYS: Array<[string, string]> = [
+  ...SBS_BASE,
+  ...TARGET_IDS.flatMap((id): Array<[string, string]> => [
+    [`hit_${id}`, `${TARGET_LABELS[id]} — Hit`],
+    [`destroyed_${id}`, `${TARGET_LABELS[id]} — Destroyed`],
+  ]),
+];
+
+const UNIT_METRIC_LABELS = new Map(SBS_UNIT_METRIC_KEYS);
+
+// Slug → display name, populated by the page once sbs-units.db has loaded.
+// A mutable module map rather than a parameter because `findMetric(id)` has to
+// work from an id alone — it is called on ids restored from the URL, before
+// any unit list exists. Unknown slugs fall back to the slug itself, which is
+// readable enough ("fenix") and self-corrects on the next render.
+const UNIT_NAMES = new Map<string, string>();
+
+export function setSbsUnitNames(units: Array<{ slug: string; name: string }>): void {
+  for (const u of units) UNIT_NAMES.set(u.slug, u.name);
+}
+
+export function sbsUnitMetricId(unit: string, key: string): string {
+  return `sbs-unit.${unit}.${key}`;
+}
+
+// Monthly only for now. The per-unit daily series exists in the DB but starts
+// from the day the ingest was switched on (only `daily`/`prev_day` are
+// addressable — there is no backfill), so charting it today would draw a
+// near-empty line. Flip to BOTH once it has history.
+export function makeUnitMetric(unit: string, key: string): CombinedMetric | undefined {
+  const metricLabel = UNIT_METRIC_LABELS.get(key);
+  if (!metricLabel) return undefined;
+  const sourceLabel = `SBS · ${UNIT_NAMES.get(unit) ?? unit}`;
+  return {
+    id: sbsUnitMetricId(unit, key),
+    source: "sbs-unit",
+    unit,
+    key,
+    sourceLabel,
+    metricLabel,
+    label: `${sourceLabel} · ${metricLabel}`,
+    views: MONTHLY_ONLY,
+  };
+}
+
 const BY_ID = new Map(COMBINED_METRICS.map((m) => [m.id, m]));
 
 export function findMetric(id: string): CombinedMetric | undefined {
-  return BY_ID.get(id);
+  const known = BY_ID.get(id);
+  if (known) return known;
+  // `sbs-unit.<slug>.<key>` — three parts, and the key itself never contains a
+  // dot (they are column names like `hit_24`), so a plain split is safe.
+  if (id.startsWith("sbs-unit.")) {
+    const [, unit, ...rest] = id.split(".");
+    if (unit && rest.length) return makeUnitMetric(unit, rest.join("."));
+  }
+  return undefined;
 }
 
 export function metricsForView(view: MetricView): CombinedMetric[] {
