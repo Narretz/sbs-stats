@@ -49,22 +49,38 @@ test.describe("Controls row visibility", () => {
   });
 
   // Both fixture datasets are deliberately tiny (see e2e/build-fixtures.mjs),
-  // so their monthly views sit under the 12-month threshold and the picker
-  // hides itself. Asserted concretely rather than as an if/else on what's
-  // rendered: a conditional would go quietly vacuous if the fixtures ever grew,
-  // whereas this fails loudly and tells whoever grew them to cover both sides.
+  // so their monthly views sit under the 12-month threshold and the month
+  // picker hides itself. Asserted concretely rather than as an if/else on
+  // what's rendered: a conditional would go quietly vacuous if the fixtures
+  // ever grew, whereas this fails loudly and tells whoever grew them to cover
+  // both sides.
   //
   // The row-present side of the rule is covered by the daily tests below —
   // same gate, same component.
-  for (const site of ["sbs", "ru-attacks-gsua"]) {
-    test(`${site} monthly is shorter than the smallest window → no controls at all`, async ({ page }) => {
-      await page.goto(`/?site=${site}&page=monthly`);
-      await page.waitForSelector(".recharts-surface");
-      const c = await counts(page);
-      expect(c.row, "whole row dropped, not just the scope control").toBe(0);
-      expect(c.scope).toBe(0);
-    });
-  }
+  test("gsua monthly is shorter than the smallest window → no controls at all", async ({ page }) => {
+    await page.goto("/?site=ru-attacks-gsua&page=monthly");
+    await page.waitForSelector(".recharts-surface");
+    const c = await counts(page);
+    expect(c.row, "whole row dropped, not just the scope control").toBe(0);
+    expect(c.scope).toBe(0);
+  });
+
+  test("sbs monthly keeps the unit picker but drops the window-dependent controls", async ({ page }) => {
+    // SBS monthly is the one page where the row survives a hidden month picker,
+    // because the unit filter is not window-dependent — and hiding the control
+    // that got you onto a short-history unit would strand you there.
+    //
+    // The rest of the rule is unchanged: with no window to pick, "Window data"
+    // and "All data" would compute identical figures, so the scope toggle still
+    // has to go.
+    await page.goto("/?site=sbs&page=monthly");
+    await page.waitForSelector(".recharts-surface");
+    const c = await counts(page);
+    expect(c.row, "the unit picker keeps the row alive").toBe(1);
+    expect(c.selects, "only the unit picker — no month range beside it").toBe(1);
+    expect(c.scope, "no window to scope against").toBe(0);
+    await expect(page.getByTestId("sbs-unit-select")).toBeVisible();
+  });
 
   test("the scope toggle never appears without a window picker", async ({ page }) => {
     // The invariant itself, swept across every fixture-backed view. Wherever a

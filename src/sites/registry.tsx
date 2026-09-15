@@ -1,7 +1,7 @@
 import type { ComponentType, ReactNode } from "react";
 import type { LoadState, Page, Site } from "@/types";
 import {
-  SbsDatabaseProvider, useSbsDatabaseContext,
+  useSbsDatabaseContext,
   GsuaDatabaseProvider, useGsuaDatabaseContext,
   RuLossesDatabaseProvider, useRuLossesDatabaseContext,
   RuModDatabaseProvider, useRuModDatabaseContext,
@@ -11,6 +11,7 @@ import {
   UaLossesDatabaseProvider, useUaLossesDatabaseContext,
   MediazonaDatabaseProvider, useMediazonaDatabaseContext,
 } from "@/context/databases";
+import { SbsProviders } from "@/sites/SbsProviders";
 import { SbsDailyPage } from "@/pages/SbsDailyPage";
 import { SbsHourlyPage } from "@/pages/SbsHourlyPage";
 import { SbsMonthlyPage } from "@/pages/SbsMonthlyPage";
@@ -61,7 +62,10 @@ export interface SiteConfig {
 // `ru-missiles-hur` prototype) are handled as explicit special cases in App.tsx.
 export const SITE_REGISTRY: Partial<Record<Site, SiteConfig>> = {
   sbs: {
-    provider: SbsDatabaseProvider,
+    provider: SbsProviders,
+    // The header's refresh indicator tracks the site's primary dataset. The
+    // units DB refreshes on its own cadence (hourly vs 10 minutes) and folding
+    // the two into one countdown would make both readings wrong.
     useDbContext: useSbsDatabaseContext,
     pages: { hourly: SbsHourlyPage, daily: SbsDailyPage, monthly: SbsMonthlyPage },
   },

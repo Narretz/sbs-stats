@@ -5,6 +5,7 @@
 // providers into the app shell.
 import { makeDatabaseContext } from "@/context/makeDatabaseContext";
 import { useDatabaseSbs } from "@/hooks/useDatabaseSbs";
+import { useDatabaseSbsUnits } from "@/hooks/useDatabaseSbsUnits";
 import { useDatabaseGsua } from "@/hooks/useDatabaseGsua";
 import { useDatabaseRuLosses } from "@/hooks/useDatabaseRuLosses";
 import { useDatabaseRuMod } from "@/hooks/useDatabaseRuMod";
@@ -16,6 +17,12 @@ import { useDatabaseMediazona } from "@/hooks/useDatabaseMediazona";
 
 export const { Provider: SbsDatabaseProvider, useDbContext: useSbsDatabaseContext } =
   makeDatabaseContext(useDatabaseSbs, "SBS");
+
+// Mounted only where the data is wanted (see SbsProviders in src/sites), so
+// consuming this outside the SBS monthly view throws rather than silently
+// returning an empty registry.
+export const { Provider: SbsUnitsDatabaseProvider, useDbContext: useSbsUnitsDatabaseContext } =
+  makeDatabaseContext(useDatabaseSbsUnits, "SBS units");
 
 export const { Provider: GsuaDatabaseProvider, useDbContext: useGsuaDatabaseContext } =
   makeDatabaseContext(useDatabaseGsua, "GSUA");

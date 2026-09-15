@@ -7,8 +7,9 @@ import { fileURLToPath } from "node:url";
 // committed data/*.db (which are large and CI-updated, so their freshness and
 // values can't be relied on in tests). We build the smallest synthetic dataset
 // each suite needs, using only the committed *schema* files for structure:
-//   - SBS  → data/schema.sql        (daily_stats)
-//   - GSUA → scripts/gsua/schema.sql (posts)
+//   - SBS       → data/schema.sql              (daily_stats, monthly_stats)
+//   - SBS units → scripts/sbs_units/schema.sql (units, unit_*_stats)
+//   - GSUA      → scripts/gsua/schema.sql      (posts)
 //
 // Freshness matters only for the end-of-day projection, which keys off the real
 // "today": so we anchor the synthetic days to the current Kyiv date and stop
@@ -24,6 +25,13 @@ function dayISO(offset) {
   const d = new Date(`${FIXED_TODAY}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + offset);
   return d.toISOString().slice(0, 10);
+}
+
+// Month `offset` months back from FIXED_TODAY's month, as "YYYY-MM".
+function monthISO(offset) {
+  const [y, m] = FIXED_TODAY.slice(0, 7).split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + offset, 1));
+  return d.toISOString().slice(0, 7);
 }
 
 // computeEodProjection needs ≥5 complete prior days sharing today's checkpoint
@@ -71,7 +79,99 @@ function buildSbs(SQL) {
   // so stat-scope.spec can assert "All data" surfaces it and "Window data" can't.
   ins.run(["2020-01-01", 23, ...SBS_COLS.map((c) => (c === "total_personnel_casualties" ? 999999 : 0))]);
   ins.free();
+
+  // Monthly rows for the grouping, so the monthly page's default "all" option
+  // has something to draw. Values are an order of magnitude above any unit's,
+  // which is what lets a test tell "showing the grouping" from "showing a
+  // unit" without reading the title.
+  const insM = db.prepare(
+    `INSERT INTO monthly_stats (date, data_collected_at, ${SBS_COLS.join(", ")}) ` +
+    `VALUES (?, ?, ${SBS_COLS.map(() => "?").join(", ")})`
+  );
+  for (let k = 2; k >= 0; k--) {
+    const month = monthISO(-k);
+    insM.run([`${month}-01`, `${FIXED_TODAY}T00:00:00Z`, ...SBS_COLS.map(() => 5000 + k)]);
+  }
+  insM.free();
+
   fs.writeFileSync(path.join(FIX_DIR, "sbs.db"), Buffer.from(db.export()));
+  db.close();
+}
+
+// ── SBS sub-units: `units` + capture-bucketed stat tables ────────────────────
+// The monthly page's unit picker needs three distinguishable cases: an active
+// unit, a retired one (listed under its own optgroup, labelled "(retired)"),
+// and a unit with NO monthly rows — which the hook filters out of the registry
+// entirely, because an option that resolves to an empty page is worse than no
+// option. Values are chosen so a test can tell the units apart by sight.
+export const SBS_UNITS = [
+  { slug: "alpha-unit", title: "Alpha Unit", active: 1, months: 3, hit: 100 },
+  { slug: "bravo-unit", title: "Bravo Unit", active: 1, months: 3, hit: 200 },
+  // Retired: no daily rows, and its months stop well in the past — which is
+  // also what makes DataWindow report it as far behind.
+  { slug: "gone-unit", title: "Gone Unit", active: 0, months: 2, hit: 50, retiredMonths: true },
+  // Registry row with no stats at all: must NOT appear in the picker.
+  { slug: "empty-unit", title: "Empty Unit", active: 1, months: 0, hit: 0 },
+];
+
+const UNIT_COLS = [
+  "personnel_killed", "personnel_wounded", "total_targets_hit", "total_targets_destroyed",
+  "total_personnel_casualties", "flights_strike", "flights_recon",
+  "hit_1", "destroyed_1", "hit_24", "destroyed_24",
+];
+
+function buildSbsUnits(SQL) {
+  const db = new SQL.Database();
+  db.run(fs.readFileSync(path.join(ROOT, "scripts/sbs_units/schema.sql"), "utf8"));
+  // The per-target columns are added at ingest time from the live payload, so
+  // the fixture adds the ones the charts read the same way.
+  for (const t of ["unit_daily_stats", "unit_monthly_stats", "unit_yearly_stats"]) {
+    for (const c of ["hit_1", "destroyed_1", "hit_24", "destroyed_24"]) {
+      db.run(`ALTER TABLE ${t} ADD COLUMN ${c} INTEGER`);
+    }
+  }
+
+  const insUnit = db.prepare(
+    `INSERT INTO units (slug, subdivision_id, division_id, title_uk, title_en, color,
+                        display_order, active, has_daily, first_month, last_month, scraped_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+  );
+  const insStat = (table) => db.prepare(
+    `INSERT INTO ${table} (unit_slug, date, capture_bucket, captured_at, ${UNIT_COLS.join(", ")})
+     VALUES (?, ?, ?, ?, ${UNIT_COLS.map(() => "?").join(", ")})`
+  );
+  const insMonthly = insStat("unit_monthly_stats");
+  const insDaily = insStat("unit_daily_stats");
+
+  SBS_UNITS.forEach((u, i) => {
+    // Retired units' months sit a year back, so they can't collide with the
+    // active ones' window and the "behind" wording is unambiguous.
+    const base = u.retiredMonths ? -12 : 0;
+    const months = Array.from({ length: u.months }, (_, k) => monthISO(base - k)).reverse();
+    insUnit.run([
+      u.slug, `sub-${u.slug}`, String(i), `${u.title} UK`, u.title, "#888",
+      i, u.active, u.active, months[0] ?? null, months[months.length - 1] ?? null,
+      `${FIXED_TODAY}T00:00:00Z`,
+    ]);
+    months.forEach((m, k) => {
+      const v = u.hit + k;
+      insMonthly.run([u.slug, `${m}-01`, FIXED_TODAY, `${FIXED_TODAY}T00:00:00Z`,
+        ...UNIT_COLS.map(() => v)]);
+    });
+    // Only active units have a daily series — `prev_day` is the ingest's source
+    // for it and retired units have no such period. That absence is what makes
+    // the page fall back to the monthly max for their data window.
+    if (u.active && u.months) {
+      for (let d = 1; d <= 2; d++) {
+        insDaily.run([u.slug, dayISO(-d), FIXED_TODAY, `${FIXED_TODAY}T00:00:00Z`,
+          ...UNIT_COLS.map(() => u.hit)]);
+      }
+    }
+  });
+  insUnit.free();
+  insMonthly.free();
+  insDaily.free();
+  fs.writeFileSync(path.join(FIX_DIR, "sbs-units.db"), Buffer.from(db.export()));
   db.close();
 }
 
@@ -218,6 +318,7 @@ export async function buildFixtures() {
   fs.mkdirSync(FIX_DIR, { recursive: true });
   const SQL = await initSqlJs({ locateFile: (f) => path.join(ROOT, "node_modules/sql.js/dist", f) });
   buildSbs(SQL);
+  buildSbsUnits(SQL);
   buildGsua(SQL);
   buildRuAirAttacks(SQL);
 }

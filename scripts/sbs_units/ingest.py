@@ -121,49 +121,15 @@ def hours_since_last_capture(conn: sqlite3.Connection, now: datetime) -> float |
 
 # ─── Schema ───────────────────────────────────────────────────────────────────
 
+# Target DB shape lives in ./schema.sql alongside this file, so the e2e fixture
+# builder can create the same tables from the same source rather than a
+# hand-copied approximation that drifts. Read at import; the per-target columns
+# are added dynamically by `ensure_columns`.
+SCHEMA_PATH = SCRIPT_DIR / "schema.sql"
+
+
 def ensure_schema(conn: sqlite3.Connection) -> None:
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS units (
-            slug            TEXT PRIMARY KEY,
-            subdivision_id  TEXT NOT NULL UNIQUE,
-            division_id     TEXT,
-            title_uk        TEXT,
-            title_en        TEXT,
-            color           TEXT,
-            display_order   INTEGER,
-            -- Derived from "still has a live daily period", never a hand-kept
-            -- list: the API flags nothing when a unit retires, it just stops
-            -- issuing periods for it.
-            active          INTEGER NOT NULL,
-            has_daily       INTEGER NOT NULL,
-            first_month     TEXT,
-            last_month      TEXT,
-            scraped_at      TEXT NOT NULL
-        )
-    """)
-    for table in STAT_TABLES:
-        conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {table} (
-                unit_slug          TEXT NOT NULL,
-                -- The bucket this row measures: the day, the month's 1st, or
-                -- the year's Jan 1.
-                date               DATE NOT NULL,
-                -- When we captured it, rounded to the bucket that caps row
-                -- growth (see the module docstring).
-                capture_bucket     TEXT NOT NULL,
-                captured_at        TEXT NOT NULL,
-                data_collected_at  TEXT,
-                last_updated       TEXT,
-                personnel_killed            INTEGER,
-                personnel_wounded           INTEGER,
-                total_targets_hit           INTEGER,
-                total_targets_destroyed     INTEGER,
-                total_personnel_casualties  INTEGER,
-                flights_strike              INTEGER,
-                flights_recon               INTEGER,
-                PRIMARY KEY (unit_slug, date, capture_bucket)
-            )
-        """)
+    conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
     conn.commit()
 
 
