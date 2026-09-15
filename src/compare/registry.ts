@@ -131,11 +131,40 @@ export interface EntityNativeKey {
 // purpose at the point the mapping was written.
 export type AnyNativeKey = EntityNativeKey[CompareEntityId];
 
+// ─── Column sources ──────────────────────────────────────────────────────────
+// A column names an entity and, for SBS only, optionally one of its sub-units.
+//
+// The sub-units are deliberately NOT extra `CompareEntityId`s. They publish
+// exactly the SBS vocabulary — same counters, same target ids — so every row's
+// `map` already describes them, and adding 15 entities would mean 15 more
+// entries in every row for no new information. Modelling them as a refinement
+// of the `sbs` entity instead means the whole CANONICAL_ROWS table works on
+// them untouched, and `SbsNativeKey` still type-checks the mappings.
+export interface ColumnSource {
+  entity: CompareEntityId;
+  // Slug from sbs-units.db. Only meaningful when entity === "sbs".
+  unit?: string;
+}
+
+// Stable string id for a source — the URL token and the key for "columns of
+// the same thing". `sbs` and `sbs:fenix` are different sources of one entity.
+export function sourceKey(src: ColumnSource): string {
+  return src.unit ? `${src.entity}:${src.unit}` : src.entity;
+}
+
 export const ENTITY_LABELS: Record<CompareEntityId, string> = {
   sbs: "SBS (USF)",
   "sbu-alfa": "SBU «Альфа»",
   rubikon: "«Рубикон»",
 };
+
+// Column header text. A sub-unit column says whose sub-unit it is, because the
+// comparison it is usually in — one unit against «Рубикон», or against the
+// grouping it belongs to — is unreadable without that.
+export function sourceLabel(src: ColumnSource, unitName?: string): string {
+  if (!src.unit) return ENTITY_LABELS[src.entity];
+  return `SBS · ${unitName ?? src.unit}`;
+}
 
 // ─── Values ──────────────────────────────────────────────────────────────────
 // What a cell knows. `bound` mirrors the SBU chart tooltips ("понад N" → a
@@ -270,8 +299,13 @@ const UNIT_SIZE: Record<CompareEntityId, UnitSizeEstimate[]> = {
 
 // Newest estimate at or before `month`. Null before the first one — better an
 // empty cell than a figure predating the column it sits in.
-export function unitSizeAt(entity: CompareEntityId, month: string): ResolvedCell | null {
-  const applicable = UNIT_SIZE[entity].filter((e) => e.asOf <= month);
+export function unitSizeAt(src: ColumnSource, month: string): ResolvedCell | null {
+  // No sub-unit publishes a headcount, and the grouping's ~60,000 describes the
+  // whole branch — attaching it to one unit's column would invite exactly the
+  // per-capita reading this row exists to enable, computed against the wrong
+  // denominator. An empty cell is the honest answer.
+  if (src.unit) return null;
+  const applicable = UNIT_SIZE[src.entity].filter((e) => e.asOf <= month);
   const e = applicable[applicable.length - 1];
   if (!e) return null;
   const stale = e.asOf !== month ? ` (as of ${e.asOf})` : "";
@@ -325,7 +359,9 @@ export interface CompareRowBase {
   scope?: Partial<Record<CompareEntityId, string>>;
   // Supplies the cell directly instead of summing native keys. `map` is then
   // empty and the row is always shown.
-  resolve?: (entity: CompareEntityId, month: string) => ResolvedCell | null;
+  // `src` rather than a bare entity: a sub-unit column is still the `sbs`
+  // entity but must not inherit the grouping's answer (see unitSizeAt).
+  resolve?: (src: ColumnSource, month: string) => ResolvedCell | null;
 }
 
 export interface CompareRow extends CompareRowBase {

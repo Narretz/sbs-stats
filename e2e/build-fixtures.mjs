@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 // each suite needs, using only the committed *schema* files for structure:
 //   - SBS       → data/schema.sql              (daily_stats, monthly_stats)
 //   - SBS units → scripts/sbs_units/schema.sql (units, unit_*_stats)
+//   - Rubikon   → scripts/rubikon/schema.sql   (reports, counters)
 //   - GSUA      → scripts/gsua/schema.sql      (posts)
 //
 // Freshness matters only for the end-of-day projection, which keys off the real
@@ -54,6 +55,11 @@ const SBS_COLS = [
   "personnel_killed", "personnel_wounded", "total_targets_hit", "total_targets_destroyed",
   "total_personnel_casualties", "flights_strike", "flights_recon",
   "hit_1", "destroyed_1", "hit_24", "destroyed_24",
+  // `hit_21` (Shelters) is the one target here that NO canonical compare row
+  // maps, so it is what puts an "Only in SBS" section on the compare page —
+  // the section that regressed by reading the entity's snapshot instead of
+  // the column's. Keep at least one unmapped native populated.
+  "hit_21", "destroyed_21",
 ];
 
 function buildSbs(SQL) {
@@ -118,6 +124,7 @@ const UNIT_COLS = [
   "personnel_killed", "personnel_wounded", "total_targets_hit", "total_targets_destroyed",
   "total_personnel_casualties", "flights_strike", "flights_recon",
   "hit_1", "destroyed_1", "hit_24", "destroyed_24",
+  "hit_21", "destroyed_21",   // unmapped — see SBS_COLS
 ];
 
 function buildSbsUnits(SQL) {
@@ -126,7 +133,7 @@ function buildSbsUnits(SQL) {
   // The per-target columns are added at ingest time from the live payload, so
   // the fixture adds the ones the charts read the same way.
   for (const t of ["unit_daily_stats", "unit_monthly_stats", "unit_yearly_stats"]) {
-    for (const c of ["hit_1", "destroyed_1", "hit_24", "destroyed_24"]) {
+    for (const c of ["hit_1", "destroyed_1", "hit_24", "destroyed_24", "hit_21", "destroyed_21"]) {
       db.run(`ALTER TABLE ${t} ADD COLUMN ${c} INTEGER`);
     }
   }
@@ -172,6 +179,51 @@ function buildSbsUnits(SQL) {
   insMonthly.free();
   insDaily.free();
   fs.writeFileSync(path.join(FIX_DIR, "sbs-units.db"), Buffer.from(db.export()));
+  db.close();
+}
+
+// ── Rubikon: monthly counters behind the `*_latest` views ────────────────────
+// Needed only by the compare page, which is the one view that renders two
+// entities side by side — and therefore the only place the "Only in <entity>"
+// sections exist at all. Without a second fixtured entity those sections can't
+// be tested, and the page would fall back to whatever data/rubikon.db happens
+// to be on disk.
+//
+// Deliberately sparse: a couple of categories the SBS mapping shares, so rows
+// populate on both sides, and NOTHING outside it — the "only in" sections are
+// about counters one entity has and the other doesn't.
+const RUBIKON_COUNTERS = [
+  ["combat_sorties", "sorties", 4000],
+  ["personnel", "engaged", 700],
+  ["tanks", "engaged", 40],
+];
+
+function buildRubikon(SQL) {
+  const db = new SQL.Database();
+  db.run(fs.readFileSync(path.join(ROOT, "scripts/rubikon/schema.sql"), "utf8"));
+  const insR = db.prepare(
+    `INSERT INTO reports (post_id, scraped_at, posted_at, report_type, period,
+                          period_start, period_end, url, body_text, text_hash)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`
+  );
+  const insC = db.prepare(
+    `INSERT INTO counters (post_id, scraped_at, category, kind, value, bound, raw_label)
+     VALUES (?,?,?,?,?,?,?)`
+  );
+  // Same three months the SBS fixture covers, so a column of each lines up.
+  for (let k = 2; k >= 0; k--) {
+    const month = monthISO(-k);
+    const postId = 1000 + k;
+    insR.run([postId, `${FIXED_TODAY}T00:00:00Z`, `${month}-03T09:00:00Z`, "monthly",
+      month, `${month}-01`, `${month}-28`,
+      `https://t.me/icpbtrubicon/${postId}`, "synthetic", `hash-${postId}`]);
+    for (const [category, kind, base] of RUBIKON_COUNTERS) {
+      insC.run([postId, `${FIXED_TODAY}T00:00:00Z`, category, kind, base + k, "exact", null]);
+    }
+  }
+  insR.free();
+  insC.free();
+  fs.writeFileSync(path.join(FIX_DIR, "rubikon.db"), Buffer.from(db.export()));
   db.close();
 }
 
@@ -319,6 +371,7 @@ export async function buildFixtures() {
   const SQL = await initSqlJs({ locateFile: (f) => path.join(ROOT, "node_modules/sql.js/dist", f) });
   buildSbs(SQL);
   buildSbsUnits(SQL);
+  buildRubikon(SQL);
   buildGsua(SQL);
   buildRuAirAttacks(SQL);
 }
