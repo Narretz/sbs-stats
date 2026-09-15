@@ -84,20 +84,35 @@ export type _UnnamedTargetIds = _AssertNever<
   Exclude<TargetId, (typeof SBS_TARGETS)[keyof typeof SBS_TARGETS]>
 >;
 
-// SBS is those slugs plus its three personnel counters. `destroyed_*` and the
-// `total_targets_*` roll-ups are excluded by construction (see SBS_NATIVES).
+// SBS is those slugs plus its three personnel counters and its own targets
+// total. `destroyed_*` and `total_targets_destroyed` are excluded by
+// construction (see SBS_NATIVES).
 // `total_personnel_casualties` is the one aggregate that IS included: it is
 // exactly killed + wounded in every month on record, and it is the only SBS
 // figure commensurable with what the other two units publish.
+// `total_targets_hit` is SBS's published «Targets Hit» figure: the sum of every
+// `hit_*` column, id 15 included — and id 15 ("ОС РОВ") is the personnel
+// casualties figure restated as a target class, equal to
+// `total_personnel_casualties` in all 16 months on record and in every
+// day-final row (three intraday readings on 2025-10-31 have it running ahead
+// of the personnel counters, which settle by end of day). So SBS already
+// counts personnel inside its targets total, exactly as «Рубикон» and «Альфа»
+// do — and this key must stay out of the native list (SBS_NATIVES), out of any
+// row a `hit_*` key feeds, AND away from `total_personnel_casualties`, all
+// three of which it would double-count. The roll-up row reads it alone.
 type SbsPersonnelKey = "personnel_killed" | "personnel_wounded" | "total_personnel_casualties";
 type SbsFlightKey = "flights_strike" | "flights_recon";
-export type SbsNativeKey = SbsPersonnelKey | SbsFlightKey | keyof typeof SBS_TARGETS;
+type SbsTotalKey = "total_targets_hit";
+export type SbsNativeKey = SbsPersonnelKey | SbsFlightKey | SbsTotalKey | keyof typeof SBS_TARGETS;
 
 // Slug → the column the SBS monthly row actually carries.
-export const SBS_COLUMNS: Record<SbsNativeKey, SbsPersonnelKey | SbsFlightKey | HitKey> = {
+export const SBS_COLUMNS: Record<
+  SbsNativeKey, SbsPersonnelKey | SbsFlightKey | SbsTotalKey | HitKey
+> = {
   personnel_killed: "personnel_killed",
   personnel_wounded: "personnel_wounded",
   total_personnel_casualties: "total_personnel_casualties",
+  total_targets_hit: "total_targets_hit",
   flights_strike: "flights_strike",
   flights_recon: "flights_recon",
   ...(Object.fromEntries(
@@ -284,7 +299,7 @@ export function unitSizeAt(entity: CompareEntityId, month: string): ResolvedCell
 // «відмінусували» (neutralised) and «Рубикон» files personnel under «Поражены»
 // (engaged) using the same verb it uses for tanks. Each column's verb is in its
 // scope caption, because the header can't be true of all three at once.
-export type CompareGroup = "context" | "activity" | "personnel" | "struck";
+export type CompareGroup = "context" | "activity" | "totals" | "personnel" | "struck";
 
 // What every row has, parent or child. Children reuse this shape, which is
 // also what makes a child structurally unable to have children of its own.
@@ -301,8 +316,9 @@ export interface CompareRowBase {
   label: string;
   // Per-entity native keys, summed into one cell. Typed against that entity's
   // own vocabulary, so `"sbu-alfa": ["uav_crews"]` fails to compile — the key
-  // is `drone_crews`.
-  map: { [E in CompareEntityId]?: EntityNativeKey[E][] };
+  // is `drone_crews`. An entry may instead be month-scoped (see MonthScoped),
+  // and the two forms mix in one list.
+  map: { [E in CompareEntityId]?: MapEntry<EntityNativeKey[E]>[] };
   // Rendered as a caption under the value — and ONLY when there is a value:
   // an entity with nothing to show gets a bare "—", since a caption explaining
   // an absence is noise on every row that has one.
@@ -337,14 +353,71 @@ export interface FlatRow extends CompareRowBase {
   id: string;
 }
 
-// The rows worth rendering for the entities currently in columns, already
-// flattened in display order.
+// Keys that only belong to the row for part of the record — for the counter
+// whose MEANING changed while its category key did not. «Альфа» published bare
+// «21 РЛС» / «23 РЛС» through 2026-05 and «РЛС та РЕБ» / «РЛС/РЕБ» from
+// 2026-06 under the same `radar` key, so a row meaning "radars, not EW" is
+// filled by that counter only up to May. `from` / `to` are inclusive "YYYY-MM"
+// and either may be omitted for an open end.
+//
+// Stacking them is how a counter that changed buckets rather than stopping is
+// written — `[{ to: "2026-05", values: ["radar"] }, { from: "2026-06", values:
+// ["radar_narrow"] }]` — which is why the month lives on the entry beside the
+// keys it scopes rather than in a separate per-row field.
+export interface MonthScoped<K> {
+  from?: string;
+  to?: string;
+  values: K[];
+}
+
+// One entry in an entity's mapping: a key that always applies, or a set of
+// keys that apply for a range of months.
+export type MapEntry<K> = K | MonthScoped<K>;
+
+// The keys a row draws on for one (entity, month): every unscoped key, plus
+// the scoped ones whose range covers the month.
+//
+// A Set, so overlapping ranges mean UNION. Ranges are hand-written and can
+// overlap — a window left open at one end, or a key listed both plain and
+// scoped — and concatenating would sum that counter twice and silently double
+// the cell (21 РЛС reading 42). Union is the only reading that can't be wrong:
+// summing one counter twice is never intended, while distinct keys from two
+// overlapping ranges do both apply that month, which is what you'd want.
+export function keysFor(
+  row: CompareRowBase, entity: CompareEntityId, month: string,
+): AnyNativeKey[] {
+  const entries = row.map[entity];
+  if (!entries?.length) return [];
+  const out = new Set<AnyNativeKey>();
+  for (const entry of entries) {
+    if (typeof entry === "string") { out.add(entry); continue; }
+    // "YYYY-MM" sorts lexicographically, which is the whole reason months are
+    // stored as strings in this app.
+    const inRange = (!entry.from || month >= entry.from) && (!entry.to || month <= entry.to);
+    if (inRange) for (const k of entry.values) out.add(k);
+  }
+  return [...out];
+}
+
+// Does this row draw on `entity` for `month`? False when the row has no
+// mapping for the entity at all, and when every mapping it has is scoped to
+// other months.
+export function mapsIn(row: CompareRowBase, entity: CompareEntityId, month: string): boolean {
+  return keysFor(row, entity, month).length > 0;
+}
+
+// The rows worth rendering for the columns currently on screen, already
+// flattened in display order. Takes the columns rather than just their
+// entities because a scoped mapping (see `MonthScoped`) can apply to one month
+// of an entity and not another.
 //
 // A subtree survives if the parent OR any child has a mapping — dropping a
 // parent whose children still have data would hide those rows entirely, so the
 // parent stays even when it can only render dashes.
-export function visibleRowsFor(entities: CompareEntityId[]): FlatRow[] {
-  const mapped = (r: CompareRowBase) => entities.some((e) => r.map[e]?.length);
+export function visibleRowsFor(
+  columns: readonly { entity: CompareEntityId; month: string }[],
+): FlatRow[] {
+  const mapped = (r: CompareRowBase) => columns.some((c) => mapsIn(r, c.entity, c.month));
   const out: FlatRow[] = [];
   for (const row of CANONICAL_ROWS) {
     const children = (row.children ?? []).filter(mapped);
@@ -366,6 +439,11 @@ export const GROUP_LABELS: Record<CompareGroup, string> = {
   // from everything below, and the denominator for it. Ordered first because
   // «Рубикон»'s own recap opens with the sortie count before «Поражены:».
   activity: "Activity — sorties flown",
+  // The headline figure. SBS publishes it; «Альфа» and «Рубикон» do not, so
+  // theirs are summed from the categories their recaps list (marked "*"). It is
+  // NOT the sum of the rows below — those are only the categories that map
+  // across units, and each unit reports counters that never reach one.
+  totals: "All reported target categories",
   personnel: "Personnel",
   struck: "Hit / struck (уражено / поражены)",
 };
@@ -402,6 +480,36 @@ export const CANONICAL_ROWS: CompareRow[] = [
         map: { sbs: ["flights_recon"] },
       },
     ],
+  },
+  {
+    // The one figure a reader looks for first. All three count personnel inside
+    // it, which is what makes the columns commensurable: «Рубикон» files
+    // «Живая сила» under «Поражены», «Альфа»'s roll-up includes its KIA line,
+    // and SBS carries the casualties figure as target class 15 ("ОС РОВ")
+    // inside its own «Targets Hit» total — so nothing is added on any side.
+    // Adding SBS's personnel counter here would double-count it (2026-08:
+    // 57,482 already contains the 11,010 on the personnel row below).
+    //
+    // Only «Альфа» and «Рубикон» need arithmetic: neither publishes a total, so
+    // their hooks sum the recap's own lines into `targets_enumerated` /
+    // `targets_engaged_all` and flag them derived. SBS's cell is its published
+    // figure and carries no "*" — that asymmetry is the point.
+    //
+    // Not a sum of the rows below it: it is each unit's whole reported output,
+    // including the counters that never reach a shared row and land in "only
+    // in <entity>". The unit-size row above is the denominator that makes the
+    // three comparable at all — «Рубикон»'s 17,485 comes off ~5,000 people.
+    group: "totals", key: "targets_all", label: "All targets engaged",
+    map: {
+      sbs: ["total_targets_hit"],
+      "sbu-alfa": ["targets_enumerated"],
+      rubikon: ["targets_engaged_all"],
+    },
+    scope: {
+      sbs: "«Targets Hit» — SBS's own total across every target class",
+      "sbu-alfa": "every category summed — a floor: the list is «серед» («among») what was hit, and the KIA line is itself qualified",
+      rubikon: "every «Поражены» line summed; EW-suppressed drones excluded (jammed, not struck)",
+    },
   },
   {
     // Matched on the BROADEST reading, which is the only one all three support.
@@ -588,8 +696,19 @@ export const CANONICAL_ROWS: CompareRow[] = [
     },
     children: [
       {
-        key: "radars", label: "Radars", map: {sbs: ["radar_vehicles", "radar_trench"], "sbu-alfa": ['radar']},
-        scope: {sbs: 'Vehicles and trench'}
+        // «Альфа»'s counter belongs here only while it was bare РЛС (through
+        // 2026-05). From 2026-06 the same `radar` key carries «РЛС та РЕБ», so
+        // it is already the parent's bucket and repeating it here restated the
+        // parent verbatim — 26 under 26 in 2026-08.
+        key: "radars", label: "Radars",
+        map: {
+          sbs: ["radar_vehicles", "radar_trench"],
+          "sbu-alfa": [{ to: "2026-05", values: ["radar"] }],
+        },
+        scope: {
+          sbs: "Vehicles and trench",
+          "sbu-alfa": "bare РЛС — from 2026-06 the counter bundles РЕБ and only the row above holds it",
+        },
       },
       {
         key: "ew", label: "EW",
@@ -693,7 +812,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
     // dugouts and read as temporary cover rather than built works, which is
     // what pushed the combined SBS figure to ~10x «Альфа»'s. They remain in
     // the SBS "only in" section.
-    group: "struck", key: "fortifications", label: "Fortifications / engineering / strongpoints",
+    group: "struck", key: "fortifications", label: "Engineering / strongpoints",
     map: {
       sbs: ["dugouts"],
       "sbu-alfa": ["fortifications"],
@@ -730,8 +849,10 @@ export interface NativeKey {
 // Aggregates and parents are held out of the native lists: they restate other
 // rows in the same column, so as standalone "unmapped" rows they'd read as
 // extra targets. `targets_enumerated` / `targets_engaged_all` are this app's
-// own roll-ups; `targets_*` are SBU's aggregate of the very bullets it lists;
-// the three vehicle children are already inside the mapped parent.
+// own roll-ups, consumed by the `targets_all` row above (which makes these two
+// entries belt-and-braces — a mapped key never reaches the "only in" section
+// anyway); `targets_*` are SBU's aggregate of the very bullets it lists; the
+// three vehicle children are already inside the mapped parent.
 const SBU_NOT_NATIVE = new Set<SbuAlfaCategoryKey>([
   "targets_enumerated", "targets_total", "targets_destroyed", "targets_damaged",
   "vehicles_light", "vehicles_moto", "vehicles_trucks",
@@ -745,8 +866,11 @@ const RUBIKON_NOT_NATIVE = new Set<RubikonCategoryKey>(["targets_engaged_all"]);
 const SBS_NOT_NATIVE = new Set<SbsNativeKey>([]);
 
 // SBS: the `hit_*` columns only. `destroyed_*` is a subset of `hit_*` (the
-// source reports both), and `total_*` sums the lot — either would double-count
-// against the hit-based canonical rows.
+// source reports both), and `total_targets_hit` sums the lot — either would
+// double-count against the hit-based canonical rows. (`total_targets_hit` is
+// still a native KEY, so the `targets_all` roll-up can read it; it just isn't
+// a native COUNTER anything else may pick up — and since it also contains the
+// id-15 personnel restatement, nothing may pair it with a personnel counter.)
 const SBS_NATIVES: NativeKey[] = [
   { key: "personnel_killed", label: "Personnel Killed" },
   { key: "personnel_wounded", label: "Personnel Wounded" },
@@ -774,8 +898,14 @@ const MAPPED_NATIVES: Record<CompareEntityId, Set<string>> = {
 };
 for (const row of CANONICAL_ROWS) {
   for (const r of [row, ...(row.children ?? [])]) {
-    for (const [entity, keys] of Object.entries(r.map)) {
-      for (const k of keys ?? []) MAPPED_NATIVES[entity as CompareEntityId].add(k);
+    for (const [entity, entries] of Object.entries(r.map)) {
+      // Month-scoped or not, a key a row consumes is accounted for — an
+      // "only in <entity>" section listing it for the months outside the
+      // scope would read as a second, separate counter.
+      for (const entry of entries ?? []) {
+        if (typeof entry === "string") MAPPED_NATIVES[entity as CompareEntityId].add(entry);
+        else for (const k of entry.values) MAPPED_NATIVES[entity as CompareEntityId].add(k);
+      }
     }
   }
 }

@@ -17,6 +17,7 @@ import {
   UNMAPPED_NATIVES,
   fmtPct,
   fmtValue,
+  keysFor,
   pctChange,
   sumNatives,
   visibleRowsFor,
@@ -273,7 +274,7 @@ export function ComparePage({ preset }: Props) {
     // Children are the only indented rows, so dropping them is the whole
     // filter — a hidden child never takes its parent's figure with it, since
     // parents resolve their own mapping rather than summing children.
-    const base = visibleRowsFor(entitiesInUse).filter((r) => showChildren || !r.indent);
+    const base = visibleRowsFor(columns).filter((r) => showChildren || !r.indent);
     if (!soloEntity) return base;
     // Appended to the last group so they simply continue the table — no header
     // separates them, which is the whole point.
@@ -287,12 +288,14 @@ export function ComparePage({ preset }: Props) {
       scope: { [soloEntity]: NATIVE_NOTES[soloEntity]?.[n.key] },
     }));
     return [...base, ...extras];
-  }, [entitiesInUse, soloEntity, nonZeroNatives, showChildren]);
+  }, [columns, soloEntity, nonZeroNatives, showChildren]);
 
-  const valueFor = (row: FlatRow, col: Column): CompareValue | null =>
-    row.resolve
-      ? (row.resolve(col.entity, col.month)?.value ?? null)
-      : sumNatives(snapshots[col.entity], col.month, row.map[col.entity]);
+  const valueFor = (row: FlatRow, col: Column): CompareValue | null => {
+    if (row.resolve) return row.resolve(col.entity, col.month)?.value ?? null;
+    // A mapping scoped to other months contributes no keys here, so the cell
+    // comes out empty rather than wrong — see `MonthScoped`.
+    return sumNatives(snapshots[col.entity], col.month, keysFor(row, col.entity, col.month));
+  };
 
   // A scope caveat describes the entity's bucket, not the month, so repeating
   // it under every column of the same entity is noise
@@ -392,7 +395,9 @@ export function ComparePage({ preset }: Props) {
 
 
 
-  const groups: CompareGroup[] = ["context", "activity", "personnel", "struck"];
+  // Group order = table order. Size first (the denominator), then what each
+  // unit did, then its one headline total, then the breakdown of that total.
+  const groups: CompareGroup[] = ["context", "activity", "totals", "personnel", "struck"];
 
   return (
     <div>
@@ -404,6 +409,9 @@ export function ComparePage({ preset }: Props) {
           Side-by-side monthly reports. Add a column per unit and month, or compare the same unit between months.
           The units break down the targets differently - the categories have been grouped where it makes sense.
           Categories that do not fit together are listed at the bottom.
+          The one total row covers every category a unit reported that month, personnel included.
+          SBS publishes that total; for «Альфа» and «Рубикон» it is this app's sum of the categories
+          their recaps list (marked *), and «Альфа»'s is a floor.
           The units also vary in size (SBS is a whole branch; «Альфа» and «Рубикон» are single formations), so
           direct number comparison needs to be taken with a grain of salt.
         </p>
