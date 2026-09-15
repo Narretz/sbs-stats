@@ -88,6 +88,90 @@ first build that ran this code. The frontend keeps installing its own views over
 its in-memory copy regardless, so the site stays correct against a DB of any
 vintage rather than depending on when the workflow last ran.
 
+## `destroyed_types` — what was *inside* a weapon row
+
+The second column piterfm added in Aug 2026 (first populated row reached our DB
+on 2026-08-23). The Air Force reports an overnight raid as a single
+`Shahed-136/131` line and then names the few odd weapons among those airframes,
+which lands here as a **Python dict repr** (not JSON — single quotes):
+
+```
+{'Banderol': {'launched': 3, 'destroyed': 3}, 'Turbojet': {'launched': 82}}
+```
+
+Two keys appear so far: `Banderol` (the S8000 jet-powered cruise missile) and
+`Turbojet` (jet-powered Geran airframes). Both are a **subset** of the parent
+row's `launched` / `destroyed`, never an addition — 82 turbojets inside a
+164-launched UAV row means 82 *of those* 164.
+
+The ingest stores the cell verbatim (the header-growth migration above did that
+much on its own). Reading it is a **read-side job**, same as `status_data`:
+`src/hooks/useDatabaseRuAirAttacks.ts` parses it once at load over its in-memory
+copy, so the site reads a DB of any vintage correctly instead of waiting for the
+next workflow run to reach R2. What happens to a parsed entry depends on whether
+it's the same kind of weapon as the row it arrived in
+(`ATTACK_SUBTYPE_CATEGORY`):
+
+- **`Turbojet` — a jet-powered Geran airframe, so still a drone.** It stays in
+  its parent's counts and surfaces as a tooltip row indented under that model
+  and labelled "of which" (table `attack_subtypes` → view `daily_by_subtype`).
+- **`Banderol` — a cruise missile.** The Air Force counts it inside the night's
+  UAV headline, so the itemization arrives on a row categorised `drone`, but
+  the ingest already classifies every standalone `model='Banderol'` row as
+  `cruise` (`CRUISE_MODELS`). Its counts are therefore **carved out of the
+  parent group and re-attributed to `Banderol` under `cruise`** (table
+  `subtype_moves` → view `attack_contributions`, which all three `daily_*`
+  aggregates now group). It lands under its own weapon name, so a day that also
+  has a stored `Banderol` row folds into one model row: 2026-08-18 charts
+  `Banderol 5/2` — the South command's own row (3/0) plus the 2/2 itemized
+  inside that night's UAV raid.
+
+The move is a pure re-attribution between categories: grand totals over
+`daily_by_category` are identical to a raw `SUM` of the table (verified over the
+full DB), and the `all` series is unchanged. But **per-category totals
+deliberately differ from a plain `GROUP BY category`** against the file — direct
+SQL against `ru-air-attacks-gsua.db` will read those ~51 Banderols (as of
+2026-09) as drones, because that's how the source grouped them.
+
+A sub-type that stays nested is a tooltip detail only, never a series of its
+own:
+
+- **Coverage is partial and started mid-Aug 2026.** Before 2026-08-18 there are
+  four scattered rows in the whole dataset, and even since, ~7 of 26 UAV days
+  carry no itemization at all. A day without a sub-type means it wasn't broken
+  out, *not* that none flew — so the silent days would chart as zeros.
+- **`destroyed` is often absent** (`{'Turbojet': {'launched': 82}}`): the launch
+  count was itemized, the intercepts weren't. That's rendered "—", and a group
+  containing one reads unknown rather than a partial sum that would look
+  complete.
+
+### Inside the row, or alongside it?
+
+Both, depending on the report — this is checkable against the Air Force's own
+figures, and it has changed over time:
+
+- **2026-09-11** — the report reads *"129 Shahed-type attack UAVs (half of them
+  jet-powered), S8000 Banderol missiles and Parodiya-type decoy drones"*. The DB
+  has one `Shahed-136/131` row of 129, **no** Banderol row, and `destroyed_types`
+  naming `Turbojet` 64 (= 64/129, the reported half) and `Banderol` 1. The 129
+  contains both → "of which".
+- **2025-09-27** — the report reads *"595 drones and 48 missiles"*. The DB has
+  `Shahed-136/131` 593 **plus a separate `Banderol` row of 2** (593 + 2 = 595;
+  the missiles are Kinzhal 2 + Kalibr 8 + Kh-101 38 = 48), and the Shahed row
+  *also* names `Banderol` 2 in `destroyed_types`. There the itemization repeats
+  the sibling row and the 593 does **not** contain it.
+
+A sibling row **from the same `source` post** is what tells the two apart, so
+the hook drops an itemization that has one: that weapon is already charted under
+its own model (Banderol is `cruise`), and repeating it under the UAV row would
+double-show it and misstate the parent's count. Note this is per *report*, not
+per day — on 2026-08-18 a `Banderol` row and a nested Banderol coexist from
+different commands and different time windows, i.e. two separate attacks, and
+both are kept.
+
+`e2e/subtype-breakdown.spec.ts` guards all of it: the nesting, the un-itemized
+intercepts, a day with no itemization, and the rowed-separately case.
+
 ## Derived columns
 
 Added by the build (not in the CSV):

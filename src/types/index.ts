@@ -463,13 +463,55 @@ export type RuAirAttacksModelDailyRow = {
 export type ModelBreakdownEntry = {
   model: string;
   launched: number;
-  intercepted: number;
+  // null when the count exists but upstream didn't itemize it — a sub-type
+  // entry naming how many were launched without saying how many were shot
+  // down (see ATTACK_SUBTYPE_LABELS). Rendered "—", not 0.
+  intercepted: number | null;
   // True when every row behind this entry was flagged `status_data='hidden'`
   // upstream — the attack was reported but its counts were withheld, so
   // `launched`/`intercepted` are placeholders. Rendered as "not disclosed"
   // rather than as the 0 the CSV carries. See UNDISCLOSED_NOTE.
   undisclosed?: boolean;
+  // True for a sub-type itemized *inside* the entry above it, whose counts are
+  // a subset of that entry rather than another sibling adding to the total.
+  // Rendered indented and without a share cell. See ATTACK_SUBTYPE_LABELS.
+  nested?: boolean;
 };
+
+// Weapon sub-types piterfm itemizes inside a parent weapon row, via the
+// `destroyed_types` column (added Aug 2026; first populated row reached our DB
+// on 2026-08-23). The Air Force reports an overnight raid as a single
+// "Shahed-136/131" line and then names the few Banderol cruise missiles or
+// jet-powered airframes among them, so these counts are *part of* that row —
+// hence "of which", which is what stops them reading as siblings that add to
+// the category total. A sub-type absent from a day means it wasn't itemized,
+// not that none flew, which is why this is a tooltip detail rather than a
+// series of its own.
+export const ATTACK_SUBTYPE_LABELS: Record<string, string> = {
+  Banderol: "of which Banderol",
+  Turbojet: "of which jet-powered",
+};
+
+// Which category an itemized sub-type really belongs to. A sub-type that
+// matches its parent's category stays inside it as an "of which" row; one that
+// doesn't is carved out of the parent and counted under its own weapon, because
+// the parent row's category is wrong for it.
+//
+// `Banderol` is the S8000 — a jet-powered cruise missile, not an airframe — and
+// the ingest already classifies the standalone `model='Banderol'` rows as
+// `cruise` (scripts/missile_attacks/ingest.py, CRUISE_MODELS). The Air Force
+// counts it inside the night's UAV headline, so an itemization inherits `drone`
+// from the row it was reported in; moving it applies the classification we had
+// already made everywhere else. `Turbojet` is a jet-powered Geran airframe and
+// stays a drone.
+export const ATTACK_SUBTYPE_CATEGORY: Record<string, AttackDbCategory> = {
+  Banderol: "cruise",
+  Turbojet: "drone",
+};
+
+export function attackSubtypeLabel(subtype: string): string {
+  return ATTACK_SUBTYPE_LABELS[subtype] ?? `of which ${subtype}`;
+}
 
 export type RuAirAttacksModelMonthlyRow = {
   date: string; // YYYY-MM
