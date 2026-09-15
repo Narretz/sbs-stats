@@ -299,7 +299,7 @@ export function unitSizeAt(entity: CompareEntityId, month: string): ResolvedCell
 // «відмінусували» (neutralised) and «Рубикон» files personnel under «Поражены»
 // (engaged) using the same verb it uses for tanks. Each column's verb is in its
 // scope caption, because the header can't be true of all three at once.
-export type CompareGroup = "context" | "activity" | "totals" | "personnel" | "struck";
+export type CompareGroup = "context" | "activity" | "personnel" | "struck";
 
 // What every row has, parent or child. Children reuse this shape, which is
 // also what makes a child structurally unable to have children of its own.
@@ -435,15 +435,13 @@ export const GROUP_LABELS: Record<CompareGroup, string> = {
   // everything below it can be read per capita. Kept first because it is the
   // denominator for the rest of the table.
   context: "Unit size — outside estimates, not reported by the units",
-  // Sorties are what the unit did, not what it destroyed — a separate axis
-  // from everything below, and the denominator for it. Ordered first because
-  // «Рубикон»'s own recap opens with the sortie count before «Поражены:».
-  activity: "Activity — sorties flown",
-  // The headline figure. SBS publishes it; «Альфа» and «Рубикон» do not, so
-  // theirs are summed from the categories their recaps list (marked "*"). It is
+  // Activity - a separate axis from everything below
+  // Contains sorties flown and total targets engaged. SBS publishes the latter,
+  // «Альфа» and «Рубикон» do not, so
+  // theirs are summed from the categories (marked "*"). It is
   // NOT the sum of the rows below — those are only the categories that map
   // across units, and each unit reports counters that never reach one.
-  totals: "All reported target categories",
+  activity: "Activity",
   personnel: "Personnel",
   struck: "Hit / struck (уражено / поражены)",
 };
@@ -482,7 +480,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
     ],
   },
   {
-    // The one figure a reader looks for first. All three count personnel inside
+    // Target totals. All three count personnel inside
     // it, which is what makes the columns commensurable: «Рубикон» files
     // «Живая сила» under «Поражены», «Альфа»'s roll-up includes its KIA line,
     // and SBS carries the casualties figure as target class 15 ("ОС РОВ")
@@ -497,9 +495,8 @@ export const CANONICAL_ROWS: CompareRow[] = [
     //
     // Not a sum of the rows below it: it is each unit's whole reported output,
     // including the counters that never reach a shared row and land in "only
-    // in <entity>". The unit-size row above is the denominator that makes the
-    // three comparable at all — «Рубикон»'s 17,485 comes off ~5,000 people.
-    group: "totals", key: "targets_all", label: "All targets engaged",
+    // in <entity>".
+    group: "activity", key: "targets_all", label: "All targets engaged",
     map: {
       sbs: ["total_targets_hit"],
       "sbu-alfa": ["targets_enumerated"],
