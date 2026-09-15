@@ -60,7 +60,13 @@ datasets for future views.
 - **Tests** (`e2e/`): e2e tests for the frontend application. Uses fixtures in place of live data.
   Add and run tests on your own discretion after features/fixes have been completed.
   (`scripts/*/test_ingest.py`): ingest tests for scripts that parse data from unstructered sources.
-  Must always be run and updated when the parser is changed.
+  Must always be run and updated when the parser is changed. Run them with
+  `bash scripts/test_python.sh`, which runs **one pytest process per dataset
+  directory** — `pytest scripts/` in one go dies with collection errors,
+  because every directory has its own `parse.py` / `ingest.py` and each script
+  puts its own directory on sys.path, so the first `parse` imported wins
+  sys.modules for all of them. `__init__.py` per directory does not fix it and
+  breaks the per-directory runs; the script's header has the detail.
 
 
 ## CI / deploy
@@ -116,6 +122,12 @@ GitHub Actions in `.github/workflows/`:
   `openpyxl` (the source is xlsx), so the job pip-installs it — the only ingest
   workflow that isn't stdlib-only. Not yet a dedicated site; feeds the combined
   charts only.
+- `python-tests.yml` — the ingest test suites, on push to any branch when a
+  `.py` under `scripts/` changed (plus `workflow_dispatch`). Installs pytest
+  only — the suites are stdlib-only, like the ingest paths they cover — and
+  calls `scripts/test_python.sh`. The scheduled ingest workflows are not a
+  substitute: they exercise whatever the source published today and stay green
+  while a fixture case breaks.
 - `deploy.yml` — builds and publishes to GitHub Pages.
 
 The scrapers that only re-read a recent window expose that window as a
@@ -168,6 +180,9 @@ npm run test:e2e     # Playwright e2e (uses .env.e2e fixture DBs)
 # Screenshot the compare page on the PRODUCTION DBs in data/ (starts its own
 # dev server; --zoom/--theme/--scope/--full, see the file's header comment):
 node scripts/screenshot_compare.mjs sbu-alfa:2026-07 sbu-alfa:2026-08
+
+bash scripts/test_python.sh          # every ingest test suite (one pytest per dir)
+bash scripts/test_python.sh scripts/rubikon   # …or just one
 
 # Python ingest scripts: see each scripts/<x>/README.md
 pip install -r scripts/requirements.txt   # the devcontainer does this on create
