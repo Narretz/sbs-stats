@@ -175,9 +175,9 @@ function describeHour({
     : null;
   const content = (
     <>
-      {eod && (
+      {currentEntry && (
         <div style={{ color: t.accent, marginBottom: 5, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
-          {`TODAY EoD est ~${eod.projected.toLocaleString()} (${Math.round(eod.fraction * 100)}% in by ${eod.asOf})`}
+          {eod ? 'TODAY' : currentDate} {currentEntry.value} {eod && `, EoD est ~${eod.projected.toLocaleString()} (${Math.round(eod.fraction * 100)}% in by ${eod.asOf})`}
         </div>
       )}
       <DateGrid>
