@@ -15,8 +15,14 @@ import {
 // An "entity" is one reporting unit whose monthly self-reports we can put in a
 // column. Adding a dataset here means: an id, a label, a native-key vocabulary
 // (below), and a snapshot builder in ComparePage that reads its hook.
-export const COMPARE_ENTITIES = ["sbs", "sbu-alfa", "rubikon"] as const;
+export const COMPARE_ENTITIES = ["sbu-alfa", "rubikon", "sbs"] as const;
 export type CompareEntityId = (typeof COMPARE_ENTITIES)[number];
+
+export const ENTITY_LABELS: Record<CompareEntityId, string> = {
+  "sbu-alfa": "UA SBU «Альфа»",
+  rubikon: "RU «Рубикон»",
+  sbs: "UA SBS (USF)",
+};
 
 // ─── Native keys ─────────────────────────────────────────────────────────────
 // The vocabulary each entity can be asked for, as a type. This is what makes a
@@ -151,12 +157,6 @@ export interface ColumnSource {
 export function sourceKey(src: ColumnSource): string {
   return src.unit ? `${src.entity}:${src.unit}` : src.entity;
 }
-
-export const ENTITY_LABELS: Record<CompareEntityId, string> = {
-  sbs: "SBS (USF)",
-  "sbu-alfa": "SBU «Альфа»",
-  rubikon: "«Рубикон»",
-};
 
 // Column header text. A sub-unit column says whose sub-unit it is, because the
 // comparison it is usually in — one unit against «Рубикон», or against the

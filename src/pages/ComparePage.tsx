@@ -555,7 +555,7 @@ export function ComparePage({ preset }: Props) {
           </div>
           {showScope && v != null && scopes?.[i] && (
             <div style={{
-              fontSize: 10, color: t.textMuted, marginTop: 2,
+              fontSize: 11, color: t.textMuted, marginTop: 2,
               fontStyle: "italic", fontWeight: 400,
             }}>
               {scopes[i]}
@@ -641,7 +641,7 @@ export function ComparePage({ preset }: Props) {
               e.target.value = "";
             }}
           >
-            <option value="">+ pick a unit…</option>
+            <option value="">unit</option>
             {COMPARE_ENTITIES.map((e) => (
               <option key={e} value={e}>{ENTITY_LABELS[e]}</option>
             ))}
@@ -651,14 +651,14 @@ export function ComparePage({ preset }: Props) {
                 picker does — their history is worth comparing, but a reader
                 scanning the list shouldn't have to know which names stopped. */}
             {units.some((u) => u.active) && (
-              <optgroup label="SBS sub-units">
+              <optgroup label="UA SBS sub-units">
                 {units.filter((u) => u.active).map((u) => (
                   <option key={u.slug} value={`sbs:${u.slug}`}>{sbsUnitLabel(u)}</option>
                 ))}
               </optgroup>
             )}
             {units.some((u) => !u.active) && (
-              <optgroup label="SBS sub-units — no longer reporting">
+              <optgroup label="UA SBS sub-units — no longer reporting">
                 {units.filter((u) => !u.active).map((u) => (
                   <option key={u.slug} value={`sbs:${u.slug}`}>{sbsUnitLabel(u)}</option>
                 ))}
@@ -812,7 +812,7 @@ export function ComparePage({ preset }: Props) {
                               <div style={{
                                 marginTop: 3,
                                 color: t.textFaint,
-                                fontSize: 10,
+                                fontSize: 11,
                                 whiteSpace: "normal",
                                 maxWidth: 360,
                               }}>
