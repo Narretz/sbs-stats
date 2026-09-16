@@ -177,7 +177,7 @@ function describeHour({
     <>
       {currentEntry && (
         <div style={{ color: t.accent, marginBottom: 5, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
-          {eod ? 'TODAY' : currentDate} {currentEntry.value} {eod && `, EoD est ~${eod.projected.toLocaleString()} (${Math.round(eod.fraction * 100)}% in by ${eod.asOf})`}
+          {eod ? 'TODAY' : currentDate} {currentEntry.value}{eod && `, EoD est ~${eod.projected.toLocaleString()} (${Math.round(eod.fraction * 100)}% in by ${eod.asOf})`}
         </div>
       )}
       <DateGrid>
@@ -196,6 +196,7 @@ function describeHour({
           return (
             <div key={p.dataKey} style={{
               display: "flex",
+              justifyContent: 'space-between',
               gap: 2,
               color: highlight ? chartColors(t).hourlyToday : t.textMuted,
               fontWeight: highlight ? 700 : 400,
