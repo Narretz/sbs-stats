@@ -23,13 +23,28 @@ export function DayRangeSelect<T extends number>({ options, value, onChange }: P
 
   const isPreset = (options as readonly number[]).includes(value);
 
-  const commit = (raw: string) => {
+  const parse = (raw: string): number | null => {
     const n = Number(raw);
-    if (Number.isInteger(n) && n > 0 && n !== value) {
-      onChange(n as T);
-    } else {
-      setDraft(String(value));
-    }
+    return raw.trim() !== "" && Number.isInteger(n) && n > 0 ? n : null;
+  };
+
+  // Typing passes through states that aren't a value yet — the empty field you
+  // get by clearing it, a lone "0" on the way to "05". So the debounce commits
+  // when there is something to commit and otherwise waits: putting the old
+  // value back mid-edit took the field away from under the cursor the instant
+  // it was cleared.
+  const commitIfValid = (raw: string) => {
+    const n = parse(raw);
+    if (n != null && n !== value) onChange(n as T);
+  };
+
+  // Blur is what ends an edit, so it is what decides an unfinished one is
+  // over: commit a value, put the old one back for anything else.
+  const commitOrRevert = (raw: string) => {
+    const n = parse(raw);
+    if (n == null) setDraft(String(value));
+    else if (n !== value) onChange(n as T);
+    else setDraft(String(n));
   };
 
   // Debounce commits so a flurry of spinner-button clicks (or fast typing)
@@ -77,11 +92,11 @@ export function DayRangeSelect<T extends number>({ options, value, onChange }: P
           const v = e.target.value;
           setDraft(v);
           cancelDebounce();
-          debounceRef.current = setTimeout(() => commit(v), 350);
+          debounceRef.current = setTimeout(() => commitIfValid(v), 350);
         }}
         onBlur={(e) => {
           cancelDebounce();
-          commit(e.target.value);
+          commitOrRevert(e.target.value);
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") inputRef.current?.blur();
