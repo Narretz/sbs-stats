@@ -48,11 +48,11 @@ test.describe("Compare — SBS sub-units", () => {
     const groups = await page.getByTestId(ADD).locator("optgroup").evaluateAll(
       (els) => els.map((e) => (e as HTMLOptGroupElement).label),
     );
-    expect(groups).toEqual(["SBS sub-units", "SBS sub-units — no longer reporting"]);
+    expect(groups).toEqual(["UA SBS sub-units", "UA SBS sub-units — no longer reporting"]);
 
     const options = (await page.getByTestId(ADD).locator("option").allTextContents()).join("|");
     // The three entities stay at the top level, ungrouped.
-    expect(options).toContain("SBS (USF)");
+    expect(options).toContain("UA SBS (USF)");
     expect(options).toContain("Alpha Unit");
     expect(options).toContain("Gone Unit (retired)");
     // A unit with no stored months would be an empty column.
@@ -76,7 +76,7 @@ test.describe("Compare — SBS sub-units", () => {
     await gotoCompare(page, `sbs:${month},sbs:alpha-unit:${month},sbs:bravo-unit:${month}`);
 
     const headers = (await page.locator("thead th").allTextContents()).join("|");
-    expect(headers).toContain("SBS (USF)");
+    expect(headers).toContain("UA SBS (USF)");
     expect(headers).toContain("Alpha Unit");
     expect(headers).toContain("Bravo Unit");
 
@@ -109,7 +109,7 @@ test.describe("Compare — SBS sub-units", () => {
   test("a pre-sub-unit link still resolves", async ({ page }) => {
     const month = thisMonth();
     await gotoCompare(page, `sbs:${month}`);
-    await expect(page.locator("thead th").nth(1)).toContainText("SBS (USF)");
+    await expect(page.locator("thead th").nth(1)).toContainText("UA SBS (USF)");
     const cells = await rowCells(page, "All targets engaged");
     expect(cells[1]).toMatch(/25,0\d\d/);
   });
@@ -125,7 +125,7 @@ test.describe("Compare — SBS sub-units", () => {
     const month = thisMonth();
     await gotoCompare(page, `sbs:${month},sbs:alpha-unit:${month},rubikon:${month}`);
 
-    await expect(page.getByText(/Only in SBS/)).toBeVisible();
+    await expect(page.getByText(/Only in .*SBS/)).toBeVisible();
 
     // `hit_21` (Shelters) is the one fixtured target no canonical row maps, so
     // it lands in the "Only in" section. Fixture: grouping 5,00x, Alpha 10x.
