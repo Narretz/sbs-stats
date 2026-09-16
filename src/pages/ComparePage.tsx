@@ -10,6 +10,7 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { FONTS } from "@/theme";
 import {
+  CANONICAL_ROWS,
   COMPARE_ENTITIES,
   SBS_COLUMNS,
   ENTITY_LABELS,
@@ -19,9 +20,11 @@ import {
   fmtPct,
   fmtValue,
   keysFor,
+  mapsIn,
   pctChange,
   sourceKey,
   sourceLabel,
+  sumCompareValues,
   sumNatives,
   visibleRowsFor,
   type ColumnSource,
@@ -366,11 +369,98 @@ export function ComparePage({ preset }: Props) {
     );
   }, [columns, snapshotFor]);
 
+  // ─── Comparable subset ────────────────────────────────────────────────────
+  // "All targets engaged" is each unit's WHOLE reported output, which is the
+  // honest headline but not a like-for-like: SBS counts target classes nobody
+  // else publishes, «Альфа» and «Рубикон» each report lines the others don't.
+  // Two columns can differ because one unit did more, or merely because it
+  // counts more things.
+  //
+  // This child answers the narrower question: add up only the categories EVERY
+  // selected column can actually fill. It is the comparable part of the row
+  // above, and the gap between the two is how much of each total is
+  // incommensurable.
+  //
+  // Parents only — the canonical children are subdivisions of their parent's
+  // mapping, so including them would double-count. Groups: `struck` plus
+  // `personnel`, because all three entities fold personnel INTO their targets
+  // total (see the targets_all comment in the registry), so leaving it out
+  // would compare against a different bucket than the parent does.
+  const COMPARABLE_GROUPS: CompareGroup[] = ["personnel", "struck"];
+
+  // Shared is a question about VOCABULARY, not about this month's values: a
+  // category counts unless it is unique to some of the selected units.
+  //
+  // The distinction is not academic. In 2026-08, «Рубикон» reported no air
+  // defence — but it does report air defence as a rule, so the category IS
+  // comparable and its silence means zero, not "incomparable". Keying off
+  // values instead dropped the whole row, took 17 off «Альфа» for a reason
+  // that had nothing to do with «Альфа», and made the shared set flicker from
+  // month to month. Aircraft and watercraft, which «Рубикон» has no counter
+  // for at all, stay out under either reading — those really are unique.
+  const comparable = useMemo(() => {
+    if (!columns.length) return { shared: [], dropped: [] as string[] };
+    const candidates = CANONICAL_ROWS.filter(
+      (r) => COMPARABLE_GROUPS.includes(r.group) && !r.resolve,
+    );
+    const shared: typeof candidates = [];
+    const dropped: string[] = [];
+    for (const r of candidates) {
+      const owners = columns.map((c) => mapsIn(r, c.entity, c.month));
+      if (owners.every(Boolean)) shared.push(r);
+      else if (owners.some(Boolean)) dropped.push(r.label);
+    }
+    return { shared, dropped };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- COMPARABLE_GROUPS is a literal
+  }, [columns, snapshotFor]);
+  const comparableRows = comparable.shared;
+
+  const comparableRow = useMemo<FlatRow | null>(() => {
+    if (!comparableRows.length) return null;
+    // Say what was LEFT OUT, not what went in: the rows that went in are
+    // visible further down the table, while the difference between this figure
+    // and the total above it is otherwise unexplained — the question this
+    // caption exists to answer.
+    const scope =
+      `${comparableRows.length} categories all selected units report` +
+      (comparable.dropped.length
+        ? ` · left out as unique to some: ${comparable.dropped.join(", ")}`
+        : "");
+    return {
+      group: "activity",
+      key: "targets_shared",
+      id: "targets_all/targets_shared",
+      label: "of which comparable",
+      indent: true,
+      map: {},
+      rowNote: scope,
+      resolve: (src, month) => {
+        // A shared category this column reported nothing for counts as zero.
+        // These sources enumerate what they hit, so an absent line is none —
+        // and the column's entity does carry the counter, or the row would not
+        // be in `shared` at all.
+        const parts = comparableRows
+          .map((r) => sumNatives(snapshotFor(src), month, keysFor(r, src.entity, month)))
+          .filter((v): v is CompareValue => v != null);
+        const value = sumCompareValues(parts);
+        // Derived: this app added it up, no source publishes it. No per-column
+        // scope — the caption is on the row (see rowNote).
+        return value ? { value: { ...value, derived: true }, scope: "" } : null;
+      },
+    };
+  }, [comparableRows, comparable.dropped, snapshotFor]);
+
   const visibleRows = useMemo(() => {
     // Children are the only indented rows, so dropping them is the whole
     // filter — a hidden child never takes its parent's figure with it, since
     // parents resolve their own mapping rather than summing children.
-    const base = visibleRowsFor(columns).filter((r) => showChildren || !r.indent);
+    let base = visibleRowsFor(columns).filter((r) => showChildren || !r.indent);
+    // Slotted in as a child of the row it qualifies, so it inherits the
+    // sub-category toggle rather than needing one of its own.
+    if (comparableRow && showChildren) {
+      const at = base.findIndex((r) => r.id === "targets_all");
+      if (at >= 0) base = [...base.slice(0, at + 1), comparableRow, ...base.slice(at + 1)];
+    }
     if (!soloEntity) return base;
     // Appended to the last group so they simply continue the table — no header
     // separates them, which is the whole point.
@@ -384,7 +474,7 @@ export function ComparePage({ preset }: Props) {
       scope: { [soloEntity]: NATIVE_NOTES[soloEntity]?.[n.key] },
     }));
     return [...base, ...extras];
-  }, [columns, soloEntity, nonZeroNatives, showChildren]);
+  }, [columns, soloEntity, nonZeroNatives, showChildren, comparableRow]);
 
   const valueFor = (row: FlatRow, col: Column): CompareValue | null => {
     if (row.resolve) return row.resolve(col, col.month)?.value ?? null;
@@ -718,6 +808,17 @@ export function ComparePage({ preset }: Props) {
                             whiteSpace: "nowrap",
                           }}>
                             {r.label}
+                            {showScope && r.rowNote && (
+                              <div style={{
+                                marginTop: 3,
+                                color: t.textFaint,
+                                fontSize: 10,
+                                whiteSpace: "normal",
+                                maxWidth: 360,
+                              }}>
+                                {r.rowNote}
+                              </div>
+                            )}
                           </td>
                           {renderCells(
                             columns.map((c) => valueFor(r, c)),

@@ -62,6 +62,18 @@ const SBS_COLS = [
   "hit_21", "destroyed_21",
 ];
 
+// A column's value for a row whose "base" figure is `v`. The aggregates can't
+// just repeat `v`: `total_targets_hit` is SBS's sum across every target class
+// (personnel restated as class 15 included), so a fixture where it equals one
+// class would encode a row the source can't produce — and would make the
+// compare page's "of which comparable" subset exceed the total it is a subset
+// of. Three target classes plus the personnel total gives 5v.
+function sbsCell(col, v) {
+  if (col === "total_targets_hit") return v * 5;
+  if (col === "total_personnel_casualties") return v * 2;
+  return v;
+}
+
 function buildSbs(SQL) {
   const db = new SQL.Database();
   db.run(fs.readFileSync(path.join(ROOT, "data/schema.sql"), "utf8"));
@@ -72,7 +84,7 @@ function buildSbs(SQL) {
   const insertDay = (date, curve, settled) => {
     for (const [hour, frac] of curve) {
       const v = Math.round(settled * frac);
-      ins.run([date, hour, ...SBS_COLS.map(() => v)]);
+      ins.run([date, hour, ...SBS_COLS.map((c) => sbsCell(c, v))]);
     }
   };
   // History: complete days. Distinct settled totals so the visible-window MAX is
@@ -96,7 +108,7 @@ function buildSbs(SQL) {
   );
   for (let k = 2; k >= 0; k--) {
     const month = monthISO(-k);
-    insM.run([`${month}-01`, `${FIXED_TODAY}T00:00:00Z`, ...SBS_COLS.map(() => 5000 + k)]);
+    insM.run([`${month}-01`, `${FIXED_TODAY}T00:00:00Z`, ...SBS_COLS.map((c) => sbsCell(c, 5000 + k))]);
   }
   insM.free();
 
@@ -163,7 +175,7 @@ function buildSbsUnits(SQL) {
     months.forEach((m, k) => {
       const v = u.hit + k;
       insMonthly.run([u.slug, `${m}-01`, FIXED_TODAY, `${FIXED_TODAY}T00:00:00Z`,
-        ...UNIT_COLS.map(() => v)]);
+        ...UNIT_COLS.map((c) => sbsCell(c, v))]);
     });
     // Only active units have a daily series — `prev_day` is the ingest's source
     // for it and retired units have no such period. That absence is what makes
@@ -171,7 +183,7 @@ function buildSbsUnits(SQL) {
     if (u.active && u.months) {
       for (let d = 1; d <= 2; d++) {
         insDaily.run([u.slug, dayISO(-d), FIXED_TODAY, `${FIXED_TODAY}T00:00:00Z`,
-          ...UNIT_COLS.map(() => u.hit)]);
+          ...UNIT_COLS.map((c) => sbsCell(c, u.hit))]);
       }
     }
   });

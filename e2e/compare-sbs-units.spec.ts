@@ -80,11 +80,18 @@ test.describe("Compare — SBS sub-units", () => {
     expect(headers).toContain("Alpha Unit");
     expect(headers).toContain("Bravo Unit");
 
-    const cells = await rowCells(page, "All targets engaged");
     // [label, grouping, alpha, bravo] — each column reads its own source.
-    expect(cells[1]).toMatch(/5,0\d\d/);
-    expect(cells[2]).toMatch(/^10\d/);
-    expect(cells[3]).toMatch(/^20\d/);
+    // `total_targets_hit` is 5x the per-class figure in the fixture (see
+    // sbsCell): grouping ~25,000, Alpha ~500, Bravo ~1,000. Parsed rather than
+    // pattern-matched: every cell but the first carries a "(-98.0%)" suffix.
+    const cells = (await rowCells(page, "All targets engaged")).slice(1).map(
+      (c) => Number((c.match(/[\d,]+/)?.[0] ?? "").replace(/,/g, "")),
+    );
+    expect(cells[0]).toBeGreaterThan(20000);
+    expect(cells[1]).toBeGreaterThanOrEqual(500);
+    expect(cells[1]).toBeLessThan(600);
+    expect(cells[2]).toBeGreaterThanOrEqual(1000);
+    expect(cells[2]).toBeLessThan(1100);
   });
 
   test("the headcount row stays empty for a sub-unit", async ({ page }) => {
@@ -104,7 +111,7 @@ test.describe("Compare — SBS sub-units", () => {
     await gotoCompare(page, `sbs:${month}`);
     await expect(page.locator("thead th").nth(1)).toContainText("SBS (USF)");
     const cells = await rowCells(page, "All targets engaged");
-    expect(cells[1]).toMatch(/5,0\d\d/);
+    expect(cells[1]).toMatch(/25,0\d\d/);
   });
 
   test("the 'Only in' section reads the unit, not the whole of SBS", async ({ page }) => {

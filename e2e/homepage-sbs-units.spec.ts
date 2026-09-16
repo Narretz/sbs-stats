@@ -83,7 +83,8 @@ test.describe("Homepage — SBS sub-unit metrics", () => {
       .poll(() => /sbs-unit\.alpha-unit\.total_targets_hit/.test(decodeURIComponent(page.url())))
       .toBe(true);
 
-    // Alpha Unit's three months are 100/101/102; the grouping's are ~5,000.
+    // Alpha Unit's Targets Hit runs 500/505/510 in the fixture (5x the
+    // per-class figure, see sbsCell); the grouping's is ~25,000.
     // The first chart's own y-axis top is what proves the series was read from
     // the unit's rows rather than the grouping's. Scoped to that chart — the
     // page has others, one of which carries a percentage axis.
@@ -97,7 +98,7 @@ test.describe("Homepage — SBS sub-unit metrics", () => {
         const nums = ticks.map((v) => Number(v.replace(/,/g, ""))).filter((n) => !Number.isNaN(n));
         return nums.length ? Math.max(...nums) : null;
       })
-      .toBe(102);
+      .toBe(510);
   });
 
   test("a daily chart says why the group is empty instead of hiding it", async ({ page }) => {

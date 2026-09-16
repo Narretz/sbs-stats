@@ -198,7 +198,16 @@ export function sumNatives(
   keys: readonly AnyNativeKey[] | undefined,
 ): CompareValue | null {
   if (!keys?.length) return null;
-  const parts = keys.map((k) => snap.get(month, k)).filter((p): p is CompareValue => p != null);
+  return sumCompareValues(
+    keys.map((k) => snap.get(month, k)).filter((p): p is CompareValue => p != null),
+  );
+}
+
+// Add up cells that are already resolved. Same precision rule as sumNatives —
+// the sum is only as precise as its least precise part — pulled out so a caller
+// summing whole ROWS rather than native keys (the comparable-subset row) can't
+// quietly invent a different one.
+export function sumCompareValues(parts: readonly CompareValue[]): CompareValue | null {
   if (!parts.length) return null;
   const bound =
     BOUND_PRECEDENCE.find((b) => parts.some((p) => p.bound === b)) ?? "exact";
@@ -382,6 +391,13 @@ export interface CompareRow extends CompareRowBase {
 export interface FlatRow extends CompareRowBase {
   group: CompareGroup;
   indent: boolean;
+  // A caption about the ROW rather than about any one column — rendered once,
+  // under the label. `scope` can't express this: it is per-entity and repeats
+  // under every column, which for a caption describing the comparison itself
+  // reads as a statement about each unit in turn. ("left out: Mortars" under
+  // «Альфа»'s column says «Альфа» lost mortars; it is «Альфа» that has no
+  // mortars counter, and it lost nothing.)
+  rowNote?: string;
   // Unique across the whole table, which `key` is not: a child's key only has
   // to be unique among its siblings, so "Vehicles" can sit under "Vehicles
   // (autos)" with both keyed `vehicles`. Namespacing children by their parent
