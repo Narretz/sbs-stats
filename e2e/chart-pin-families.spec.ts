@@ -83,3 +83,55 @@ test("the paired monthly chart pins", async ({ page }) => {
   await expect(sheet(page)).toContainText("Launched");
   expect(await hasCursor(card)).toBe(true);
 });
+
+test("the hourly tooltip's date list wraps instead of running off the screen", async ({ page }) => {
+  // One row per day in the window, so a 120-day window is a 120-row list. In
+  // the sheet it wraps against the sheet's own height; a floating tooltip is
+  // positioned rather than laid out, so nothing above it bounds anything — and
+  // an unbounded column-direction wrap never wraps. It ran off the bottom of
+  // the window as one very long column.
+  //
+  // The fixture is seven days, so the bound is brought to the list rather than
+  // the other way round: part of the cap is `vh`, so a short viewport shrinks
+  // it until seven rows no longer fit in a single column.
+  await page.setViewportSize({ width: 1280, height: 220 });
+  await page.goto("/?site=sbs&page=hourly");
+  await page.waitForSelector(".hourly-card");
+
+  const svg = page.locator(".hourly-card svg.recharts-surface").first();
+  await svg.scrollIntoViewIfNeeded();
+  const box = (await svg.boundingBox())!;
+  const list = page.getByTestId("hourly-tooltip-days");
+  const columns = list.locator("> div");
+  const rows = list.locator("> div > div");
+
+  // The fixture's days are sampled at a handful of checkpoint hours, and the
+  // hours in between are null for every series — where recharts raises an empty
+  // tooltip. So sweep for a band that has values rather than hard-coding an x
+  // fraction that would only be right for one axis width. (Two moves minimum
+  // anyway: the card admits the hover card only once it has seen a pointer that
+  // can genuinely hover — see usePinnedChart.)
+  for (const f of [0.6, 0.62, 0.58, 0.64, 0.56, 0.5, 0.44, 0.7, 0.76, 0.82, 0.9]) {
+    await svg.hover({ position: { x: box.width * f, y: box.height * 0.5 } });
+    if (await rows.count() > 0) break;
+  }
+
+  await expect(list).toBeVisible();
+  expect(await rows.count()).toBeGreaterThan(4);
+  expect(await columns.count()).toBeGreaterThan(1);
+
+  // Bounded by its own cap — 46vh of a 220px viewport — rather than by the
+  // window happening to be tall enough.
+  const listBox = (await list.boundingBox())!;
+  expect(listBox.height).toBeLessThanOrEqual(220 * 0.46 + 1);
+
+  // And the card is as wide as the columns it holds. This is the half of it
+  // that a wrapping flex box could not deliver: its max-content width measures
+  // one column in some engines, so the card was sized to its header line and
+  // the columns past the third hung outside the border.
+  const card = page.locator(".recharts-tooltip-wrapper > div").first();
+  const cardBox = (await card.boundingBox())!;
+  const rowsRight = await rows.evaluateAll((els) =>
+    Math.max(...els.map((el) => el.getBoundingClientRect().right)));
+  expect(rowsRight).toBeLessThanOrEqual(cardBox.x + cardBox.width);
+});
