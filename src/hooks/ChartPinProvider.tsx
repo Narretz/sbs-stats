@@ -1,5 +1,6 @@
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
+  useSyncExternalStore,
   type MutableRefObject, type ReactNode, type RefObject,
 } from "react";
 import { useRoute } from "@/hooks/RouteContext";
@@ -19,13 +20,46 @@ export interface ChartPin {
   x: string | number;
 }
 
+// The pin lives in a subscribable store rather than in provider state, and the
+// context value never changes identity. Both halves of that matter on a page
+// like SBS hourly, which mounts ~100 charts (7 base + 46 target classes x
+// hit/destroyed), each holding one <Line> per day in the window: as context
+// state, a pin re-rendered EVERY chart — ~10,000 recharts nodes at a 100-day
+// window — so opening or closing the sheet took seconds while the hover
+// tooltip, which only ever re-renders its own chart, stayed instant.
+//
+// With a store, `useChartPin` subscribes to a primitive (this chart's pinned x,
+// or null), so a pin re-renders the chart losing it and the chart gaining it,
+// and nothing else.
+interface PinStore {
+  get: () => ChartPin | null;
+  set: (p: ChartPin | null) => void;
+  subscribe: (onChange: () => void) => () => void;
+}
+
+function createPinStore(): PinStore {
+  let pin: ChartPin | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => pin,
+    set: (next) => {
+      // Re-selecting the same point is a no-op, not a re-render. recharts
+      // resolves a click to the nearest x-band, so a second click inside the
+      // same band arrives as an identical pin.
+      if (pin === next) return;
+      if (pin && next && pin.chartId === next.chartId && pin.x === next.x) return;
+      pin = next;
+      for (const l of [...listeners]) l();
+    },
+    subscribe: (onChange) => {
+      listeners.add(onChange);
+      return () => { listeners.delete(onChange); };
+    },
+  };
+}
+
 interface ChartPinContextValue {
-  pin: ChartPin | null;
-  setPin: (p: ChartPin | null) => void;
-  /** Portal target inside the sheet; the pinned chart renders its own header
-   *  and body into it (see ChartSheetContent), so the sheet never has to hold
-   *  a registry of charts or a stale copy of their data. */
-  host: HTMLDivElement | null;
+  store: PinStore;
   setHost: (el: HTMLDivElement | null) => void;
   /** The fixed sheet element — read for its height when deciding whether the
    *  pinned card needs scrolling clear of it. */
@@ -37,12 +71,25 @@ interface ChartPinContextValue {
 
 const ChartPinContext = createContext<ChartPinContextValue | null>(null);
 
+// Portal target inside the sheet; the pinned chart renders its own header and
+// body into it (see ChartSheetContent), so the sheet never has to hold a
+// registry of charts or a stale copy of their data.
+//
+// Its own context because it is the one value here that changes: kept in the
+// main one, the sheet mounting would re-render every chart on the page for a
+// value only ChartSheetContent reads.
+const SheetHostContext = createContext<HTMLDivElement | null>(null);
+
 export function ChartPinProvider({ children }: { children: ReactNode }) {
-  const [pin, setPin] = useState<ChartPin | null>(null);
   const [host, setHost] = useState<HTMLDivElement | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const stepRef = useRef<((delta: number) => void) | null>(null);
   const { route } = useRoute();
+
+  const value = useMemo<ChartPinContextValue>(
+    () => ({ store: createPinStore(), setHost, sheetRef, stepRef }),
+    [],
+  );
 
   // Navigating unmounts the pinned chart but not the sheet, which would leave
   // it rendering a selection for a chart that no longer exists. Re-resolving a
@@ -50,13 +97,13 @@ export function ChartPinProvider({ children }: { children: ReactNode }) {
   const routeKey = route.kind === "site"
     ? `site:${route.site}:${route.page}`
     : route.kind === "special" ? `special:${route.view}` : "home";
-  useEffect(() => { setPin(null); }, [routeKey]);
+  useEffect(() => { value.store.set(null); }, [routeKey, value]);
 
-  const value = useMemo<ChartPinContextValue>(
-    () => ({ pin, setPin, host, setHost, sheetRef, stepRef }),
-    [pin, host],
+  return (
+    <ChartPinContext.Provider value={value}>
+      <SheetHostContext.Provider value={host}>{children}</SheetHostContext.Provider>
+    </ChartPinContext.Provider>
   );
-  return <ChartPinContext.Provider value={value}>{children}</ChartPinContext.Provider>;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- hooks + provider colocated, matching RouteContext
@@ -64,6 +111,21 @@ export function useChartPinContext(): ChartPinContextValue {
   const v = useContext(ChartPinContext);
   if (!v) throw new Error("useChartPinContext must be used inside <ChartPinProvider>");
   return v;
+}
+
+/** The sheet's portal target. Only ChartSheetContent needs it. */
+// eslint-disable-next-line react-refresh/only-export-components -- hooks + provider colocated, matching RouteContext
+export function useSheetHost(): HTMLDivElement | null {
+  return useContext(SheetHostContext);
+}
+
+/** True while some chart is pinned. For the sheet itself, which is the only
+ *  consumer that cares about the pin without owning it. */
+// eslint-disable-next-line react-refresh/only-export-components -- hooks + provider colocated, matching RouteContext
+export function useSheetOpen(): boolean {
+  const { store } = useChartPinContext();
+  const snapshot = useCallback(() => store.get() !== null, [store]);
+  return useSyncExternalStore(store.subscribe, snapshot, snapshot);
 }
 
 // Scroll just enough to lift the pinned card clear of the sheet, and no more.
@@ -115,11 +177,20 @@ export function useChartPin(
   chartId: string,
   xValues: ReadonlyArray<string | number>,
 ): ChartPinState {
-  const { pin, setPin, sheetRef } = useChartPinContext();
+  const { store, sheetRef } = useChartPinContext();
+  const setPin = store.set;
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const isPinned = pin?.chartId === chartId;
-  const index = isPinned && pin ? xValues.indexOf(pin.x) : -1;
+  // A primitive, so a pin somewhere else on the page resolves to the same
+  // `null` this chart already had and React skips the re-render entirely.
+  const snapshot = useCallback(() => {
+    const p = store.get();
+    return p && p.chartId === chartId ? p.x : null;
+  }, [store, chartId]);
+  const pinnedX = useSyncExternalStore(store.subscribe, snapshot, snapshot);
+
+  const isPinned = pinnedX != null;
+  const index = isPinned ? xValues.indexOf(pinnedX) : -1;
 
   // The pinned date fell out of the loaded window (a narrower `days`, a
   // different `selectedDate`). Nothing to point at, so close.
