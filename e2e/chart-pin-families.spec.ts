@@ -69,8 +69,10 @@ test("the hourly overlay pins on its numeric x-axis", async ({ page }) => {
 test("the hourly sheet keeps the header's stats, which only the card had room for", async ({ page }) => {
   // The sheet used to skip the descriptor's header on the grounds that its
   // stepper already shows the x. That holds only while a header IS the x: the
-  // hourly one also carries the hour's median across the window and how far the
-  // current day sits from it, and pinning the chart dropped both.
+  // hourly one also carries the current day's value and projection, the hour's
+  // median across the window, and how far the day sits from it — all dropped
+  // the moment the chart was pinned. Matched loosely, on the shape of the
+  // stats rather than their wording, which is still being tuned.
   await page.goto("/?site=sbs&page=hourly");
   await page.waitForSelector(".hourly-card");
   const card = page.locator(".hourly-card").first();
@@ -80,12 +82,13 @@ test("the hourly sheet keeps the header's stats, which only the card had room fo
   await svg.hover({ position: { x: box.width * 0.58, y: box.height * 0.5 } });
   await svg.hover({ position: { x: box.width * 0.6, y: box.height * 0.5 } });
   const hover = await page.locator(".recharts-tooltip-wrapper > div > div").first().textContent();
-  // One line in the card, exactly as before the split.
-  expect(hover).toMatch(/^\d{2}:00–\d{2}:59 · med [\d,]+ · cur /);
+  expect(hover).toMatch(/(?:00:00|\d{2}:00–\d{2}:59)/);
+  expect(hover).toMatch(/median [\d,]+ · current .* vs median/);
 
   await pin(page, card);
   await expect(label(page)).toHaveText(/^(00:00|\d{2}:00–\d{2}:59)$/);
-  await expect(sheet(page)).toContainText(/med [\d,]+ · cur .* vs med/);
+  // The stats survive the pin — the stepper above carries only the hour.
+  await expect(sheet(page)).toContainText(/median [\d,]+ · current .* vs median/);
 });
 
 test("the stacked direction chart pins and lists its directions", async ({ page }) => {

@@ -287,7 +287,7 @@ export function TooltipCard({ header, footer, children, minWidth = 220 }: CardPr
       minWidth,
     }}>
       {header != null && (
-        <div style={{ color: t.textMuted, marginBottom: 4 }}>{header}</div>
+        <div style={{ color: t.textMuted, marginBottom: 5 }}>{header}</div>
       )}
       {children}
       {footer}

@@ -183,17 +183,29 @@ function describeHour({
   const currentDeltaPct = currentEntry
     ? (hourMedian !== 0 ? ((currentEntry.value - hourMedian) / hourMedian) * 100 : null)
     : null;
+
+  const multipleYears = new Set(sorted.map(p => p.dataKey.slice(0, 4))).size > 1;
+
+  const header = (
+    <div style={{marginBottom: 4}}>
+      <div style={{ color: t.accent, marginBottom: 5, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
+        {eod ? 'TODAY' : currentDate} {formatHour(label)}: {currentEntry ? currentEntry.value : 'n/a'}{eod && `, EoD est ~${eod.projected.toLocaleString()} (${Math.round(eod.fraction * 100)}% in by ${eod.asOf})`}
+      </div>
+      <div>
+        {`median ${hourMedian.toLocaleString()}`}
+        {` · current ${currentDeltaPct == null ? "n/a" : `${currentDeltaPct >= 0 ? "+" : ""}${currentDeltaPct.toFixed(1)}%`} vs median`}
+      </div>
+    </div>
+  );
+
   const content = (
     <>
-      {currentEntry && (
-        <div style={{ color: t.accent, marginBottom: 5, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
-          {eod ? 'TODAY' : currentDate} {currentEntry.value}{eod && `, EoD est ~${eod.projected.toLocaleString()} (${Math.round(eod.fraction * 100)}% in by ${eod.asOf})`}
-        </div>
-      )}
       <DateGrid>
         {sorted.map((p) => {
-          // Show MM-DD for past days to save space
-          const [, m, d] = p.dataKey.split('-');
+          // Show MM-DD for past days to save space — with the year in front of
+          // it only when the window spans more than one, where MM-DD alone
+          // would put two different days under the same label.
+          const [y, m, d] = p.dataKey.split('-');
 
           const isToday = p.dataKey === today;
 
@@ -201,32 +213,25 @@ function describeHour({
 
           const highlight = isToday || isCurrentDate;
 
-          const label = isToday ? "TODAY" : `${d}.${m}.`;
+          const label = isToday ? "TODAY" : multipleYears ? `${y}-${m}-${d}` : `${m}-${d}`;
 
           return (
             <div key={p.dataKey} style={{
               display: "flex",
+              gap: 8,
               justifyContent: 'space-between',
-              gap: 2,
-              color: highlight ? chartColors(t).hourlyToday : t.textMuted,
+              color: highlight ? t.accent : t.textMuted,
               fontWeight: highlight ? 700 : 400,
               lineHeight: `${LINE_H}px`,
             }}>
               <span>{label}</span>
-              <span style={{ color: t.text, fontWeight: isToday ? 700 : 400 }}>
+              <span style={{ color: highlight ? t.accent : t.text, fontWeight: highlight ? 700 : 400 }}>
                 {p.value.toLocaleString()}
               </span>
             </div>
           );
         })}
       </DateGrid>
-    </>
-  );
-  const header = (
-    <>
-      {formatHour(label)}
-      {` · med ${hourMedian.toLocaleString()}`}
-      {` · cur ${currentDeltaPct == null ? "n/a" : `${currentDeltaPct >= 0 ? "+" : ""}${currentDeltaPct.toFixed(1)}%`} vs med`}
     </>
   );
   return { header, rows: [], content, minWidth: 200 };

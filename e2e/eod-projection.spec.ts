@@ -82,7 +82,7 @@ test.describe("End-of-day projection", () => {
   test("SBS hourly — tooltip header shows the EoD estimate", async ({ page }) => {
     await page.goto(SBS_HOURLY);
     const txt = await eodTooltip(page, 0);
-    expect(txt).toMatch(/TODAY EoD est ~[\d,]+ \(\d+% in by \d{2}:\d{2}\)/);
+    expect(txt).toMatch(/TODAY (?:00:00|\d{2}:00–\d{2}:59): (?:n\/a|[\d,]+), EoD est ~[\d,]+ \(\d+% in by \d{2}:\d{2}\)/);
   });
 
   test("GSUA ru-attacks daily — single-series tooltip shows a projected value", async ({ page }) => {
@@ -96,6 +96,6 @@ test.describe("End-of-day projection", () => {
   test("GSUA ru-attacks hourly — tooltip header shows the EoD estimate", async ({ page }) => {
     await page.goto(GSUA_HOURLY);
     const txt = await eodTooltip(page, 0);
-    expect(txt).toMatch(/TODAY EoD est ~[\d,]+ \(\d+% in by \d{2}:\d{2}\)/);
+    expect(txt).toMatch(/TODAY (?:00:00|\d{2}:00–\d{2}:59): (?:n\/a|[\d,]+), EoD est ~[\d,]+ \(\d+% in by \d{2}:\d{2}\)/);
   });
 });
