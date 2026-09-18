@@ -84,9 +84,18 @@ test.describe("Compare — SBS sub-units", () => {
     // `total_targets_hit` is 5x the per-class figure in the fixture (see
     // sbsCell): grouping ~25,000, Alpha ~500, Bravo ~1,000. Parsed rather than
     // pattern-matched: every cell but the first carries a "(-98.0%)" suffix.
-    const cells = (await rowCells(page, "All targets engaged")).slice(1).map(
-      (c) => Number((c.match(/[\d,]+/)?.[0] ?? "").replace(/,/g, "")),
-    );
+    //
+    // Polled, not read once: the table renders its rows before the DBs resolve
+    // — and sbs-units.db is fetched only once a unit column asks for it — so a
+    // single read can catch em dashes. It did, but only under parallel load,
+    // where the wait is long enough to lose the race.
+    const engaged = async () =>
+      (await rowCells(page, "All targets engaged")).slice(1).map(
+        (c) => Number((c.match(/[\d,]+/)?.[0] ?? "").replace(/,/g, "")),
+      );
+    await expect.poll(async () => (await engaged()).filter((n) => n > 0).length).toBe(3);
+
+    const cells = await engaged();
     expect(cells[0]).toBeGreaterThan(20000);
     expect(cells[1]).toBeGreaterThanOrEqual(500);
     expect(cells[1]).toBeLessThan(600);
