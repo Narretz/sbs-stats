@@ -142,10 +142,10 @@ test("the hourly tooltip's date list wraps instead of running off the screen", a
   expect(await rows.count()).toBeGreaterThan(4);
   expect(await columns.count()).toBeGreaterThan(1);
 
-  // Bounded by its own cap — 46vh of a 220px viewport — rather than by the
+  // Bounded by MAX_GRID_HEIGHT — 34vh of a 220px viewport — rather than by the
   // window happening to be tall enough.
   const listBox = (await list.boundingBox())!;
-  expect(listBox.height).toBeLessThanOrEqual(220 * 0.46 + 1);
+  expect(listBox.height).toBeLessThanOrEqual(220 * 0.34 + 1);
 
   // And the card is as wide as the columns it holds. This is the half of it
   // that a wrapping flex box could not deliver: its max-content width measures
