@@ -26,6 +26,17 @@ jobs:
   update-rubikon-db:
     runs-on: ubuntu-latest
 
+    env:
+      # Findings from this job land here as JSONL; the last step turns them
+      # into annotations. See scripts/ingest_log.py. What this ingest raises is
+      # "a «Поражены» line no category claimed" — the channel writes the list
+      # by hand and a renamed or new label silently costs that counter, which
+      # is invisible in a green once-a-month run whose log nobody opens.
+      #
+      # `github.workspace`, not `runner.temp`: the runner context isn't
+      # available in a job-level env block (only in steps).
+      INGEST_LOG: ${{ github.workspace }}/ingest-diagnostics.jsonl
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
@@ -83,3 +94,8 @@ jobs:
             --file "data/$RUBIKON_DB_NAME" \
             --content-type application/vnd.sqlite3 \
             --remote
+
+      # Always, so a scrape that dies still reports what it found on the way.
+      - name: Annotate ingest diagnostics
+        if: always()
+        run: python3 scripts/annotate_log.py
