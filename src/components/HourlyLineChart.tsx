@@ -12,6 +12,7 @@ import type { Theme } from "@/theme";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { chartAnchor } from "@/utils/chartAnchor";
+import { ChartPlaceholder, useNearViewport } from "@/components/LazyChartArea";
 import { usePinnedChart } from "@/components/usePinnedChart";
 import type { TooltipDescriptor } from "@/components/TooltipTable";
 export type TooltipSortMode = "date" | "value";
@@ -55,6 +56,9 @@ function pivotData(series: DailyDaySeries[]): Record<string, number | null>[] {
 }
 type TooltipEntry = { dataKey: string; value: number };
 type HourRow = { hour: number } & Record<string, number | null>;
+// Stable identity, so the memo below doesn't hand recharts a new empty array
+// on every render of a chart that hasn't arrived yet.
+const EMPTY_ROWS: HourRow[] = [];
 
 function formatHour(hour: number | null | undefined): string {
   if (hour == null) return "";
@@ -261,7 +265,16 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
   const yScaleMax = win
     ? Math.max(max, pairedWinMax)
     : Math.max(max, pairedGlobalMax ?? 0);
-  const chartData = pivotData(data) as HourRow[];
+  // The plot area, and the pivot that feeds it, both wait until the card is
+  // nearly in view — see LazyChartArea. Memoised as well as deferred: `data`
+  // only changes when the page re-queries, while this component re-renders on
+  // every hover, and the pivot walks every day in the window.
+  const plotRef = useRef<HTMLDivElement>(null);
+  const near = useNearViewport(plotRef);
+  const chartData = useMemo(
+    () => (near ? (pivotData(data) as HourRow[]) : EMPTY_ROWS),
+    [near, data],
+  );
   // When a date is selected, highlight only the series for that exact date.
   // No fallback to the most-recent day: selecting a date with no data (e.g. a
   // day whose report hasn't landed) must not emphasise a different day.
@@ -310,6 +323,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
         <span style={{ color: c.medReference }}>~ MED {median.toLocaleString()}</span>
         <span style={{ color: t.textMuted }}>Σ TOTAL {windowTotal.toLocaleString()}</span>
       </div>
+{near ? (
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
           <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
@@ -346,6 +360,9 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
           {pin.cursor}
         </LineChart>
       </ResponsiveContainer>
+      ) : (
+        <ChartPlaceholder inner={plotRef} height={220} />
+      )}
       {pin.sheet}
     </div>
   );

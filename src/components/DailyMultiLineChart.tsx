@@ -6,6 +6,7 @@ import type { DailyDataPoint } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { FONTS, type Theme } from "@/theme";
+import { LazyChartArea } from "@/components/LazyChartArea";
 import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { chartAnchor } from "@/utils/chartAnchor";
 import { usePinnedChart } from "@/components/usePinnedChart";
@@ -228,52 +229,54 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
           );
         })}
       </div>
-      <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={rows} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
-          <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
-          <XAxis dataKey="date"
-            tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-            tickLine={false} axisLine={false}
-            tickFormatter={granularity === "monthly"
-              ? formatMonthTick
-              : (v: string) => { const p = v.slice(5).split("-"); return `${p[1]}/${p[0]}`; }}
-          />
-          {yMode === "log" ? (
-            <YAxis
-              allowDecimals={false}
+      <LazyChartArea height={220}>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={rows} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
+            <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
+            <XAxis dataKey="date"
               tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
               tickLine={false} axisLine={false}
-              scale="log"
-              domain={["auto", "auto"]}
-              allowDataOverflow
+              tickFormatter={granularity === "monthly"
+                ? formatMonthTick
+                : (v: string) => { const p = v.slice(5).split("-"); return `${p[1]}/${p[0]}`; }}
             />
-          ) : yMode === "normalized" ? (
-            <YAxis
-              tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-              tickLine={false} axisLine={false}
-              domain={[0, 1]}
-              tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
-            />
-          ) : (
-            <YAxis
-              allowDecimals={false}
-              tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-              tickLine={false} axisLine={false}
-              domain={[0, (dataMax: number) => Math.max(dataMax, ceiling)]}
-            />
-          )}
-          {pin.tooltip}
-          {series.map((s) => (
-            <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2}
-              dot={({ key, ...props }) => <Dot key={key} {...props} color={s.color} bg={t.surface} noteKey={`${s.key}__note`} noteColor={chartColors(t).noteText} />}
-              activeDot={{ r: 5, fill: s.color }} connectNulls={yMode === "log"} isAnimationActive={false}
-            />
-          ))}
-          {/* Painted last so it reads as a crosshair over the series,
-              not a stub buried under a bar. */}
-          {pin.cursor}
-        </LineChart>
-      </ResponsiveContainer>
+            {yMode === "log" ? (
+              <YAxis
+                allowDecimals={false}
+                tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+                tickLine={false} axisLine={false}
+                scale="log"
+                domain={["auto", "auto"]}
+                allowDataOverflow
+              />
+            ) : yMode === "normalized" ? (
+              <YAxis
+                tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+                tickLine={false} axisLine={false}
+                domain={[0, 1]}
+                tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
+              />
+            ) : (
+              <YAxis
+                allowDecimals={false}
+                tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+                tickLine={false} axisLine={false}
+                domain={[0, (dataMax: number) => Math.max(dataMax, ceiling)]}
+              />
+            )}
+            {pin.tooltip}
+            {series.map((s) => (
+              <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2}
+                dot={({ key, ...props }) => <Dot key={key} {...props} color={s.color} bg={t.surface} noteKey={`${s.key}__note`} noteColor={chartColors(t).noteText} />}
+                activeDot={{ r: 5, fill: s.color }} connectNulls={yMode === "log"} isAnimationActive={false}
+              />
+            ))}
+            {/* Painted last so it reads as a crosshair over the series,
+                not a stub buried under a bar. */}
+            {pin.cursor}
+          </LineChart>
+        </ResponsiveContainer>
+      </LazyChartArea>
       {pin.sheet}
     </div>
   );

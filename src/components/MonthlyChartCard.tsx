@@ -5,6 +5,7 @@ import {
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
+import { LazyChartArea } from "@/components/LazyChartArea";
 import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { chartAnchor } from "@/utils/chartAnchor";
 import { usePinnedChart } from "@/components/usePinnedChart";
@@ -79,23 +80,25 @@ export function MonthlyChartCard<TData extends { date: string }>({
         </div>
       )}
       {subheader}
-      <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
-          <CartesianGrid strokeDasharray="2 4" stroke={c.grid} />
-          <XAxis
-            dataKey="date"
-            tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-            tickLine={false} axisLine={false}
-            tickFormatter={(v: string) => v.slice(0, 7).replace("-", "/")}
-          />
-          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
-          {describe && pin.tooltip}
-          {children}
-          {/* Painted last so it reads as a crosshair over the bars, not a
-              stub buried under one. */}
-          {describe && pin.cursor}
-        </BarChart>
-      </ResponsiveContainer>
+      <LazyChartArea height={220}>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
+            <CartesianGrid strokeDasharray="2 4" stroke={c.grid} />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+              tickLine={false} axisLine={false}
+              tickFormatter={(v: string) => v.slice(0, 7).replace("-", "/")}
+            />
+            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
+            {describe && pin.tooltip}
+            {children}
+            {/* Painted last so it reads as a crosshair over the bars, not a
+                stub buried under one. */}
+            {describe && pin.cursor}
+          </BarChart>
+        </ResponsiveContainer>
+      </LazyChartArea>
       {pin.sheet}
     </div>
   );
