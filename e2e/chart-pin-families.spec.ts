@@ -66,6 +66,28 @@ test("the hourly overlay pins on its numeric x-axis", async ({ page }) => {
   expect(await label(page).textContent()).not.toBe(before);
 });
 
+test("the hourly sheet keeps the header's stats, which only the card had room for", async ({ page }) => {
+  // The sheet used to skip the descriptor's header on the grounds that its
+  // stepper already shows the x. That holds only while a header IS the x: the
+  // hourly one also carries the hour's median across the window and how far the
+  // current day sits from it, and pinning the chart dropped both.
+  await page.goto("/?site=sbs&page=hourly");
+  await page.waitForSelector(".hourly-card");
+  const card = page.locator(".hourly-card").first();
+
+  const svg = card.locator("svg.recharts-surface").first();
+  const box = (await svg.boundingBox())!;
+  await svg.hover({ position: { x: box.width * 0.58, y: box.height * 0.5 } });
+  await svg.hover({ position: { x: box.width * 0.6, y: box.height * 0.5 } });
+  const hover = await page.locator(".recharts-tooltip-wrapper > div > div").first().textContent();
+  // One line in the card, exactly as before the split.
+  expect(hover).toMatch(/^\d{2}:00–\d{2}:59 · med [\d,]+ · cur /);
+
+  await pin(page, card);
+  await expect(label(page)).toHaveText(/^(00:00|\d{2}:00–\d{2}:59)$/);
+  await expect(sheet(page)).toContainText(/med [\d,]+ · cur .* vs med/);
+});
+
 test("the stacked direction chart pins and lists its directions", async ({ page }) => {
   await page.goto("/?site=ru-attacks-gsua&page=monthly");
   await page.waitForSelector(".chart-card");
