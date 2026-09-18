@@ -4,6 +4,7 @@
 //   node scripts/screenshot_compare.mjs sbu-alfa:2026-07 sbu-alfa:2026-08
 //   node scripts/screenshot_compare.mjs alfa:07/26 alfa:08/26 --zoom 120
 //   node scripts/screenshot_compare.mjs sbs:2026-08 rubikon:2026-08 --theme light --scope
+//   node scripts/screenshot_compare.mjs sbs:2026-09 sbs:2026-09:proj
 //
 // Reads the PRODUCTION DBs out of ./data via the vite dev middleware — the same
 // files the deployed site reads — so a screenshot shows real numbers, not the
@@ -98,14 +99,20 @@ function parseArgs(argv) {
 }
 
 function parseColumn(spec) {
-  const [rawUnit, rawMonth] = spec.split(":");
+  // Trailing `:proj` is the page's own marker for "read this month as a
+  // month-end projection" (SBS only, current month only). Passed straight
+  // through to the URL rather than re-derived here.
+  const bits = spec.split(":");
+  const proj = bits.length > 2 && bits[bits.length - 1] === "proj";
+  if (proj) bits.pop();
+  const [rawUnit, rawMonth] = bits;
   if (!rawMonth) die(`"${spec}" is not unit:month (e.g. sbu-alfa:2026-07)`);
   const unit = ALIASES[rawUnit.toLowerCase()] ?? rawUnit.toLowerCase();
   if (!(unit in UNITS)) {
     die(`unknown unit "${rawUnit}" — known: ${Object.keys(UNITS).join(", ")} ` +
         `(aliases: ${Object.keys(ALIASES).join(", ")})`);
   }
-  return { unit, month: normalizeMonth(rawMonth, spec) };
+  return { unit, month: normalizeMonth(rawMonth, spec), proj };
 }
 
 const serverUp = async (port) => {
@@ -218,7 +225,7 @@ async function main() {
 
   const params = new URLSearchParams({
     view: "compare",
-    cols: columns.map((c) => `${c.unit}:${c.month}`).join(","),
+    cols: columns.map((c) => `${c.unit}:${c.month}${c.proj ? ":proj" : ""}`).join(","),
   });
   if (opts.pct === "prev") params.set("pct", "prev");
   if (opts.scope) params.set("scope", "1");
@@ -249,7 +256,9 @@ async function main() {
   await page.waitForTimeout(250);   // one frame for the zoomed reflow to settle
 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const slug = columns.map((c) => `${c.unit}-${c.month}`).join("_").slice(0, 80);
+  const slug = columns
+    .map((c) => `${c.unit}-${c.month}${c.proj ? "-proj" : ""}`)
+    .join("_").slice(0, 80);
   const out = resolve(ROOT, opts.out ?? join("tmp", `compare-${slug}-${stamp}.png`));
   mkdirSync(dirname(out), { recursive: true });
 

@@ -150,6 +150,12 @@ export interface ColumnSource {
   entity: CompareEntityId;
   // Slug from sbs-units.db. Only meaningful when entity === "sbs".
   unit?: string;
+  // Read the current month's month-end PROJECTION instead of the figure
+  // reported so far — the same pro-rata number the monthly charts draw as the
+  // ghost segment on the current bar. Only SBS (grouping or sub-unit) derives
+  // one, and only for the month still running, so this is never set anywhere
+  // else; see `EntitySnapshot.projMonth`.
+  proj?: boolean;
 }
 
 // Stable string id for a source — the URL token and the key for "columns of
@@ -184,6 +190,11 @@ export interface EntitySnapshot {
   id: CompareEntityId;
   months: string[];                                  // ascending, "YYYY-MM"
   get(month: string, nativeKey: AnyNativeKey): CompareValue | null;
+  // The one month this source can also answer as a month-end projection, if
+  // any. Undefined for every entity that publishes nothing but settled
+  // monthly recaps, and for an SBS unit that has stopped reporting — which is
+  // exactly what keeps the "(projected)" option out of those columns' pickers.
+  projMonth?: string;
 }
 
 // The sum is only as precise as its least precise part — same rule the SBU
