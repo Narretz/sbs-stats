@@ -21,7 +21,7 @@ import { RefreshIndicator } from "@/components/RefreshIndicator";
 import {
   AppHeader, AppHeaderGroup, Brand, CompareLink, SitePicker, ThemeToggle,
 } from "@/components/AppHeaderParts";
-import { DAY_OPTIONS, type DayOption, parseDaysParam } from "@/utils/dayRange";
+import { DAY_OPTIONS, type DayOption } from "@/utils/dayRange";
 import { MONTH_OPTIONS, type MonthOption } from "@/utils/monthRange";
 import { useStatScope, type StatScope } from "@/hooks/useStatScope";
 import { qualitativeColor } from "@/chartColors";
@@ -44,9 +44,6 @@ interface DefaultChartSpec {
   // Resolved opening window; falls back to the global per-granularity default
   // when the JSON entry omits `window`.
   window: DayOption | MonthOption;
-  // Whether the JSON set `window` explicitly. A legacy `?days=` URL seed only
-  // overrides charts that inherit the global default, not explicit ones.
-  explicitWindow: boolean;
   // Per-chart Y-axis override. undefined = inherit the global yMode.
   yMode?: YAxisMode;
 }
@@ -77,18 +74,18 @@ const DEFAULT_Y_MODE: YAxisMode = RAW_DEFAULTS.yMode === "log" || RAW_DEFAULTS.y
   ? RAW_DEFAULTS.yMode : "linear";
 const DEFAULT_CUMULATIVE = RAW_DEFAULTS.cumulative === true;
 // Resolve a JSON `window` value against the chart's granularity. Returns the
-// global default (and explicit=false) when the entry is absent or invalid.
+// global default when the entry is absent or invalid.
 function resolveSpecWindow(
   g: ChartGranularity,
   raw: number | "all" | undefined,
-): { window: DayOption | MonthOption; explicit: boolean } {
+): DayOption | MonthOption {
   if (g === "monthly") {
-    if (raw === "all") return { window: "all", explicit: true };
-    if (typeof raw === "number" && raw > 0) return { window: raw as MonthOption, explicit: true };
-    return { window: DEFAULT_MONTHS, explicit: false };
+    if (raw === "all") return "all";
+    if (typeof raw === "number" && raw > 0) return raw as MonthOption;
+    return DEFAULT_MONTHS;
   }
-  if (typeof raw === "number" && raw > 0) return { window: raw as DayOption, explicit: true };
-  return { window: DEFAULT_DAYS, explicit: false };
+  if (typeof raw === "number" && raw > 0) return raw as DayOption;
+  return DEFAULT_DAYS;
 }
 
 function resolveSpecYMode(raw: unknown): YAxisMode | undefined {
@@ -97,7 +94,7 @@ function resolveSpecYMode(raw: unknown): YAxisMode | undefined {
 
 const DEFAULT_CHART_SPECS: DefaultChartSpec[] = RAW_DEFAULTS.charts.map((c) => {
   const granularity: ChartGranularity = c.granularity === "monthly" ? "monthly" : "daily";
-  const { window, explicit } = resolveSpecWindow(granularity, c.window);
+  const window = resolveSpecWindow(granularity, c.window);
   return {
     name: c.name,
     granularity,
@@ -106,7 +103,6 @@ const DEFAULT_CHART_SPECS: DefaultChartSpec[] = RAW_DEFAULTS.charts.map((c) => {
       return m != null && m.views.includes(granularity);
     }),
     window,
-    explicitWindow: explicit,
     yMode: resolveSpecYMode(c.yMode),
   };
 });
@@ -151,16 +147,12 @@ function parseCumulative(raw: string | null): boolean {
   return raw === "1";
 }
 
-function makeDefaultCharts(globalDaysOverride?: number): ChartConfig[] {
+function makeDefaultCharts(): ChartConfig[] {
   return DEFAULT_CHART_SPECS.map((c) => ({
     uid: newChartUid(),
     name: c.name,
     granularity: c.granularity,
-    // A legacy `?days=` seed only overrides daily charts that inherit the
-    // global default; an explicit per-chart `window` always wins.
-    window: c.granularity === "daily" && !c.explicitWindow && globalDaysOverride != null
-      ? globalDaysOverride
-      : c.window,
+    window: c.window,
     yMode: c.yMode,
     metricIds: [...c.metricIds],
   }));
@@ -219,7 +211,7 @@ function formatSpec(c: ChartConfig): string {
   return c.yMode ? `${base}y${YMODE_TO_TOKEN[c.yMode]}` : base;
 }
 
-function parseCharts(raw: string | null, legacyMetrics: string[], legacyDays: number | null): ChartConfig[] {
+function parseCharts(raw: string | null, legacyMetrics: string[]): ChartConfig[] {
   if (!raw) {
     if (legacyMetrics.length > 0) {
       // Migrate the old single-chart `metrics=` URL into a single chart so old
@@ -228,18 +220,16 @@ function parseCharts(raw: string | null, legacyMetrics: string[], legacyDays: nu
         uid: newChartUid(),
         name: defaultChartName(1),
         granularity: "daily",
-        window: legacyDays ?? DEFAULT_DAYS,
+        window: DEFAULT_DAYS,
         metricIds: legacyMetrics,
       }];
     }
-    // No URL state — fall back to the curated defaults from JSON. A legacy
-    // `?days=N` (without a `charts=` param) overrides the daily window of the
-    // curated defaults so old shared links still feel right.
-    return makeDefaultCharts(legacyDays ?? undefined);
+    // No URL state — fall back to the curated defaults from JSON.
+    return makeDefaultCharts();
   }
   const chunks = raw.split(";").filter((c) => c.length > 0);
   if (chunks.length === 0) {
-    return makeDefaultCharts(legacyDays ?? undefined);
+    return makeDefaultCharts();
   }
   return chunks.map((chunk, idx) => {
     const parts = chunk.split(":");
@@ -323,17 +313,20 @@ function parseMetricsLegacy(raw: string | null): string[] {
 function getUrlParams() {
   const p = new URLSearchParams(window.location.search);
   const legacyMetrics = parseMetricsLegacy(p.get("metrics"));
-  // `days` is no longer a homepage-wide setting — windows are per-chart. The
-  // value still has a legacy migration role: if the URL has `?days=N` without
-  // a `charts=` param, it seeds the default daily window of the curated
-  // default charts. Otherwise it's ignored.
-  const rawDays = p.get("days");
-  const legacyDays = rawDays != null ? parseDaysParam(rawDays) : null;
+  // `?days=` is deliberately NOT read here. Windows are per-chart and live in
+  // `charts=`; the param belongs to the daily and hourly SITE pages, which all
+  // write their time window to it. Going home clears only `site` / `page` /
+  // `view`, so theirs rides along on the URL the same way `weekdays` and
+  // `months` do — and the homepage leaves all three alone.
+  //
+  // It did once mean "every daily chart's window" here, and was still honoured
+  // as that, which made walking home from a 60-day SBS view silently retune
+  // the curated charts to 60 days and then strip the param.
   return {
     date: parseDate(p.get("date")),
     yMode: p.get("y") != null ? parseYMode(p.get("y")) : DEFAULT_Y_MODE,
     cumulative: p.get("cum") != null ? parseCumulative(p.get("cum")) : DEFAULT_CUMULATIVE,
-    charts: parseCharts(p.get("charts"), legacyMetrics, legacyDays),
+    charts: parseCharts(p.get("charts"), legacyMetrics),
   };
 }
 
@@ -388,13 +381,12 @@ export function HomePage({ onGoToSite }: Props) {
     cumulative === DEFAULT_CUMULATIVE &&
     isDefaultCharts(charts);
 
-  // Clear the legacy `metrics=` / `days=` params once on mount if we migrated.
-  // Re-serialize charts onto the URL if migration produced non-default state.
+  // Clear the legacy `metrics=` param once on mount if we migrated it, and
+  // re-serialize charts onto the URL if that produced non-default state.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     let dirty = false;
     if (p.has("metrics")) { p.delete("metrics"); dirty = true; }
-    if (p.has("days")) { p.delete("days"); dirty = true; }
     if (dirty) {
       if (!isDefaultCharts(charts)) p.set("charts", serializeCharts(charts));
       const qs = p.toString();
