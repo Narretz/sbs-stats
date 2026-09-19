@@ -71,10 +71,23 @@ datasets for future views.
   a row is never overwritten; an edit/correction inserts a new row keyed by an
   ingest timestamp (`scraped_at`), and reads resolve the latest version. See the
   per-script READMEs for details.
-- **Tests** (`e2e/`): e2e tests for the frontend application. Uses fixtures in place of live data.
-  Add and run tests on your own discretion after features/fixes have been completed.
-  (`scripts/*/test_ingest.py`): ingest tests for scripts that parse data from unstructered sources.
-  Must always be run and updated when the parser is changed.
+- **Tests**, three tiers, split by what a case actually needs:
+  - `src/**/*.test.ts` (vitest, `npm test`): the app's pure logic — the
+    homepage's `charts=` codec (`src/home/charts.ts`), the compare registry's
+    value arithmetic, the date/window helpers, the EoD projection. Plain Node,
+    no DOM, sub-second, so edge cases (delimiters in a name, a malformed spec,
+    a settled day) cost a line each. A new pure helper belongs here.
+  - `e2e/` (Playwright, `npm run test:e2e`): everything that needs the real
+    thing — a DB loading, recharts sizing itself, an IntersectionObserver, the
+    history stack. Uses synthetic fixtures, never `data/*.db`. Reach for it
+    when the question is "does this reach the screen", not "is this the right
+    number".
+  - `scripts/*/test_ingest.py`: ingest tests for scripts that parse data from
+    unstructered sources. Must always be run and updated when the parser is
+    changed.
+
+  The first two are also the rule for where logic lives: if an e2e test is
+  asserting arithmetic, the arithmetic wants lifting out of the component.
 
 
 ## CI / deploy
@@ -177,6 +190,8 @@ however wide `pages` is.
 npm run dev          # local dev server (Vite, port from vite.config.ts)
 npm run build        # production build → dist/
 npm run lint         # eslint, zero-warnings
+npm test             # vitest unit tests (src/**/*.test.ts) — fast, no browser
+npm run test:watch   # the same, in watch mode
 npm run test:e2e     # Playwright e2e (uses .env.e2e fixture DBs)
 
 # Screenshot the compare page on the PRODUCTION DBs in data/ (starts its own

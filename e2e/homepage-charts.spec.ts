@@ -37,32 +37,10 @@ test.describe("Homepage custom charts", () => {
     await expect(trigger).toHaveText(afterAdd);
   });
 
-  test("URL is single-encoded — chart names with spaces appear with '+' not '%2520'", async ({ page }) => {
-    await openHomeWithDefaults(page);
-    // Mutate the chart name to something with whitespace so the encoded form
-    // is observable. Defaults already contain spaces, but the URL is omitted
-    // entirely while the state equals defaults — change the window to force
-    // serialization.
-    await page.locator('[data-testid="day-range"]').first().selectOption("30");
-    await page.waitForFunction(() => /[?&]charts=/.test(location.search));
-
-    const url = page.url();
-    expect(url).not.toContain("%2520");          // no doubled space
-    expect(url).toMatch(/RU\+vs\+UA\+UAV\+Attacks/); // single-encoded space → '+'
-  });
-
-  test("chart names containing ':' and ';' round-trip through the URL", async ({ page }) => {
-    // Construct a URL with a name carrying both delimiters. The escape replaces
-    // ':'→%3A and ';'→%3B before URLSearchParams encodes the % again to %25.
-    const tricky = "My: chart; name";
-    const enc = tricky.replace(/[%:;]/g, encodeURIComponent);
-    const param = encodeURIComponent(`${enc}:d20:sbs.personnel_killed`);
-    await page.goto(`/?charts=${param}`);
-
-    const nameInput = page.locator('input[placeholder="Chart name"]').first();
-    await expect(nameInput).toHaveValue(tricky);
-    await expect(page.locator('[data-testid="day-range-custom"]').first()).toHaveValue("20");
-  });
+  // The `charts=` encoding itself — delimiters in a name, single-encoding
+  // through URLSearchParams, malformed specs — is covered in
+  // src/home/charts.test.ts, where the cases cost a line each instead of a
+  // browser boot.
 
   test("Remove prompts via window.confirm; dismissing keeps the chart", async ({ page }) => {
     await openHomeWithDefaults(page);
