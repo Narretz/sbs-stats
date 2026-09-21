@@ -11,6 +11,7 @@ import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { TooltipSortSelect } from "@/components/TooltipSortSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam } from "@/utils/dayRange";
+import { resolvedEndDate } from "@/utils/padTrailing";
 import { buildMetrics } from "@/utils/metrics";
 import type { DailyRow, DailyDaySeries, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
 
@@ -86,6 +87,9 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
     updateDate(next);
   };
   const canGoNext = selectedDate !== "" && selectedDate < maxSelectableDate;
+  // The window the charts actually cover, and what the start-date field is
+  // derived against: the picked day, or today when the picker is on "live".
+  const endDate = resolvedEndDate(selectedDate);
 
   useEffect(() => {
     if (loadState === "ready") {
@@ -144,8 +148,8 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
       </>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="sbs" />}
       controls={<>
-        <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
-        <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
+        <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
+        <DateNav label="End" value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
         <WeekdayMultiSelect
           selected={selectedWeekdays}
           onChange={updateWeekdays}

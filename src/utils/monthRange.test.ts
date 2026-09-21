@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseMonthsParam, windowStartMonth } from "@/utils/monthRange";
-import { parseDaysParam, windowStartDate, windowStartSql } from "@/utils/dayRange";
+import { daysBetweenInclusive, parseDaysParam, windowStartDate, windowStartSql } from "@/utils/dayRange";
 
 describe("parseDaysParam", () => {
   it("takes any positive integer, not just the picker's presets", () => {
@@ -62,5 +62,54 @@ describe("window starts are inclusive of both ends", () => {
 
   it("expresses the same offset in SQL as in JS", () => {
     expect(windowStartSql("2026-09-30", 30)).toBe("date('2026-09-30', '-29 days')");
+  });
+});
+
+describe("daysBetweenInclusive", () => {
+  // The start-date field on the daily/hourly pages is not state of its own —
+  // it displays windowStartDate(end, days) and commits the day count a picked
+  // date implies. That only holds while the two are exact inverses, which is
+  // what these cases pin.
+  it("round-trips windowStartDate", () => {
+    for (const days of [1, 2, 7, 30, 60, 180, 365]) {
+      const start = windowStartDate("2026-09-17", days);
+      expect(daysBetweenInclusive(start, "2026-09-17"), `for ${days}d`).toBe(days);
+    }
+  });
+
+  it("counts both ends, so one day is 1", () => {
+    expect(daysBetweenInclusive("2026-09-17", "2026-09-17")).toBe(1);
+    expect(daysBetweenInclusive("2026-09-01", "2026-09-17")).toBe(17);
+  });
+
+  it("spans a calendar month exactly", () => {
+    // The case the field exists for: type the 1st, get the month.
+    expect(daysBetweenInclusive("2026-03-01", "2026-03-31")).toBe(31);
+    expect(daysBetweenInclusive("2026-02-01", "2026-02-28")).toBe(28);
+    expect(daysBetweenInclusive("2028-02-01", "2028-02-29")).toBe(29);
+  });
+
+  it("is unmoved by a DST transition", () => {
+    // EU clocks go forward 2026-03-29 and back 2026-10-25. Both helpers anchor
+    // at noon precisely so those days are still one day wide.
+    expect(daysBetweenInclusive("2026-03-28", "2026-03-30")).toBe(3);
+    expect(daysBetweenInclusive("2026-10-24", "2026-10-26")).toBe(3);
+  });
+
+  it("crosses a year boundary", () => {
+    expect(daysBetweenInclusive("2026-12-29", "2027-01-02")).toBe(5);
+  });
+
+  it("rejects a start after the end, rather than clamping", () => {
+    // Reachable by typing past the field's own max; the caller ignores null and
+    // the control snaps back to the real window.
+    expect(daysBetweenInclusive("2026-09-18", "2026-09-17")).toBeNull();
+  });
+
+  it("rejects anything that isn't a date", () => {
+    for (const raw of ["", "2026-09", "17/09/2026", "abc", "2026-13-01"]) {
+      expect(daysBetweenInclusive(raw, "2026-09-17"), `for ${JSON.stringify(raw)}`).toBeNull();
+      expect(daysBetweenInclusive("2026-09-01", raw), `for ${JSON.stringify(raw)}`).toBeNull();
+    }
   });
 });

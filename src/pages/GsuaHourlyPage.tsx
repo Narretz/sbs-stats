@@ -12,6 +12,7 @@ import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { TooltipSortSelect } from "@/components/TooltipSortSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam } from "@/utils/dayRange";
+import { resolvedEndDate } from "@/utils/padTrailing";
 import {
   GSUA_METRIC_KEYS,
   GSUA_METRIC_LABELS,
@@ -112,6 +113,9 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
     updateDate(next);
   };
   const canGoNext = selectedDate !== "" && selectedDate < maxSelectableDate;
+  // The window the charts actually cover, and what the start-date field is
+  // derived against: the picked day, or today when the picker is on "live".
+  const endDate = resolvedEndDate(selectedDate);
 
   useEffect(() => {
     if (loadState !== "ready") return;
@@ -261,8 +265,8 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
       description="Each line = one day · X-axis = hour-of-snapshot · GS posts run cumulative totals throughout the day. Parsed deterministically from Telegram @GeneralStaffZSU. May be incomplete or incorrect."
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />}
       controls={<>
-        <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
-        <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
+        <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
+        <DateNav label="End" value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
         <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
         <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
           Direction

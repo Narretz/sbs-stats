@@ -28,3 +28,20 @@ export function windowStartDate(endDate: string, days: number): string {
   d.setDate(d.getDate() - (days - 1));
   return d.toISOString().slice(0, 10);
 }
+
+// Inverse of windowStartDate: how many days the inclusive window
+// [startDate, endDate] spans. Both ends count, so a single day is 1 and
+// 2026-09-01 → 2026-09-17 is 17 — the same off-by-one the rest of this file
+// encodes as `days - 1`. Noon anchor for the same reason windowStartDate uses
+// one: a DST shift moves midnight, never midday, so the division is exact.
+// Returns null for a start after the end or an unparseable date; callers treat
+// that as "not a window" rather than clamping, since the only way to produce
+// one is typing into the date field past its own max.
+export function daysBetweenInclusive(startDate: string, endDate: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) return null;
+  const a = new Date(`${startDate}T12:00:00`);
+  const b = new Date(`${endDate}T12:00:00`);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+  const days = Math.round((b.getTime() - a.getTime()) / 86_400_000) + 1;
+  return days > 0 ? days : null;
+}
