@@ -165,7 +165,7 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
         const srcKey = scaleSourceKey(m.key);
         return (
           <HourlyLineChart
-            key={m.key}
+            key={m.id}
             title={m.label}
             data={makeDataset(m.key)}
             globalMax={globalStats[m.key]?.max ?? 0}

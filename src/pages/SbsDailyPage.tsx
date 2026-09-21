@@ -147,7 +147,7 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
       hasData={hasData}
       gridChildren={metrics.map((m: Metric) => (
         <DailyLineChart
-          key={m.key}
+          key={m.id}
           title={m.label}
           data={makeDataset(m.key)}
           globalMax={globalStats[m.key]?.max ?? 0}

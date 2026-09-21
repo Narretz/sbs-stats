@@ -194,6 +194,12 @@ export interface MonthlyDataPoint {
 export type PairMode = "subset" | "sum";
 
 export interface Metric {
+  // Stable identity for React keys and any per-chart bookkeeping. NOT the same
+  // thing as `key`: a key is the data column a chart reads, and two charts can
+  // legitimately read the same one — the SBS daily view draws
+  // total_personnel_casualties both on its own and paired against
+  // personnel_killed. buildMetrics derives this; nothing else should invent one.
+  id: string;
   key: StatKey;
   label: string;
   wfull?: boolean;

@@ -240,7 +240,7 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
       gridChildren={<>
           {baseMetrics.map((m: Metric) => (
             <MonthlyBarChart
-              key={m.key}
+              key={m.id}
               title={m.label}
               data={makeDataset(m.key)}
               wfull={m.wfull ?? false}
