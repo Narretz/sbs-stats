@@ -8,6 +8,9 @@ import { FIXED_TODAY } from "./build-fixtures.mjs";
 // window on a real page — including through the end-date stepper, where a
 // derived start has to slide rather than stretch.
 
+// No window reaches back past the start of the full-scale invasion.
+const WAR_START = "2022-02-24";
+
 // ISO date `offset` days from FIXED_TODAY (UTC math so DST can't shift it).
 function dayISO(offset: number): string {
   const d = new Date(`${FIXED_TODAY}T00:00:00Z`);
@@ -110,6 +113,45 @@ test.describe("Daily/hourly pages — window start date", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "Date: next day" }).waitFor();
     await expect(page.getByRole("button", { name: /End:/ })).toHaveCount(0);
+  });
+
+  test("an absurd `days` in the URL is capped at the floor", async ({ page }) => {
+    // Measured against an end date near the floor, so the assertion doesn't
+    // cost a chart per day back to 2022.
+    await page.goto("/?site=sbs&page=daily&days=99999&date=2022-03-01");
+    await expect(page.locator('[data-testid="window-start"]')).toHaveValue(WAR_START);
+    await expect(page.locator('[data-testid="day-range-custom"]')).toHaveValue("6");
+  });
+
+  test("moving the end earlier shortens the window rather than crossing the floor", async ({ page }) => {
+    await page.goto("/?site=sbs&page=daily&days=30&date=2022-04-01");
+    const start = page.locator('[data-testid="window-start"]');
+    await expect(start).toHaveValue("2022-03-03");
+
+    // The window is measured back from its end, so this would have dragged the
+    // start to 2022-01-28.
+    await page.getByLabel("End", { exact: true }).fill("2022-02-26");
+    await expect(page.locator('[data-testid="day-range-custom"]')).toHaveValue("3");
+    await expect(start).toHaveValue(WAR_START);
+    await page.waitForFunction(() => /[?&]days=3(&|$)/.test(location.search));
+  });
+
+  test("the end date stops at the floor too, and offers no window longer than it", async ({ page }) => {
+    await page.goto(`/?site=sbs&page=daily&days=1&date=${WAR_START}`);
+    await expect(page.getByLabel("End", { exact: true })).toHaveAttribute("min", WAR_START);
+    await expect(page.getByRole("button", { name: "End: previous day" })).toBeDisabled();
+
+    // Every preset (7d and up) reaches back past the floor from here, so none
+    // is listed — only the custom value the window actually holds.
+    const presets = await page.locator('[data-testid="day-range"] option').allTextContents();
+    expect(presets).toEqual(["1d"]);
+  });
+
+  test("the homepage's per-chart windows are bounded too", async ({ page }) => {
+    // No start field there, but the same floor: the window is what gets
+    // fetched and padded, whether or not a control shows both of its ends.
+    await page.goto("/?date=2022-03-01&charts=Chart%201:d99999:sbs.flights_strike");
+    await expect(page.locator('[data-testid="day-range-custom"]').first()).toHaveValue("6");
   });
 
   test("the homepage's per-chart pickers have no start field", async ({ page }) => {

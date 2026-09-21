@@ -10,7 +10,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { TooltipSortSelect } from "@/components/TooltipSortSelect";
-import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam } from "@/utils/dayRange";
+import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR } from "@/utils/dayRange";
 import { resolvedEndDate } from "@/utils/padTrailing";
 import { buildMetrics } from "@/utils/metrics";
 import type { DailyRow, DailyDaySeries, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
@@ -38,7 +38,10 @@ function getUrlParams() {
   const p = new URLSearchParams(window.location.search);
   const s = p.get("sort");
   return {
-    days: parseDaysParam(p.get("days")),
+    // Clamped on the way in rather than after mount: a `days` straight from
+    // the URL gets one query and one chart padded to it before anything
+    // downstream could correct it.
+    days: parseDaysParam(p.get("days"), resolvedEndDate(parseDate(p.get("date")))),
     sort: (SORT_OPTIONS.includes(s as TooltipSortMode) ? s : "value") as TooltipSortMode,
     weekdays: parseWeekdays(p.get("weekdays")),
     date: parseDate(p.get("date")),
@@ -70,8 +73,20 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>(initial.weekdays);
   const [selectedDate, setSelectedDate] = useState<string>(initial.date);
 
-  const updateDays = (d: DayOption) => { setDays(d); setUrlParams({ days: String(d) }); };
-  const updateDate = (d: string) => { setSelectedDate(d); setUrlParams({ date: d }); };
+  const updateDays = (d: DayOption) => {
+    const capped = clampDays(d, endDate);
+    setDays(capped);
+    setUrlParams({ days: String(capped) });
+  };
+  const updateDate = (d: string) => {
+    setSelectedDate(d);
+    // A window is measured back from its end, so moving the end earlier
+    // pushes the start earlier by the same amount. Shorten it instead of
+    // letting it cross the floor.
+    const capped = clampDays(days, resolvedEndDate(d));
+    setDays(capped);
+    setUrlParams({ date: d, days: String(capped) });
+  };
   const updateSort = (s: TooltipSortMode) => { setTooltipSort(s); setUrlParams({ sort: s }); };
   const updateWeekdays = (next: number[]) => {
     setSelectedWeekdays(next);
@@ -83,10 +98,12 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
   const shiftSelectedDate = (delta: number) => {
     const base = selectedDate || Temporal.Now.plainDateISO("Europe/Kyiv").toString();
     const next = Temporal.PlainDate.from(base).add({ days: delta }).toString();
-    if (next > maxSelectableDate) return;
+    if (next > maxSelectableDate || next < WINDOW_FLOOR) return;
     updateDate(next);
   };
   const canGoNext = selectedDate !== "" && selectedDate < maxSelectableDate;
+  // "live" sits at today, so there is always a day behind it.
+  const canGoPrev = selectedDate === "" || selectedDate > WINDOW_FLOOR;
   // The window the charts actually cover, and what the start-date field is
   // derived against: the picked day, or today when the picker is on "live".
   const endDate = resolvedEndDate(selectedDate);
@@ -149,7 +166,7 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="sbs" />}
       controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
-        <DateNav label="End" value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
+        <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} canGoPrev={canGoPrev} />
         <WeekdayMultiSelect
           selected={selectedWeekdays}
           onChange={updateWeekdays}

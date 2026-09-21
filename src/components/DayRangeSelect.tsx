@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { windowStartDate, daysBetweenInclusive } from "@/utils/dayRange";
+import { windowStartDate, daysBetweenInclusive, clampDays, maxDaysFor } from "@/utils/dayRange";
 import { DateNav } from "@/components/DateNav";
 
 interface Props<T extends number> {
@@ -11,14 +11,20 @@ interface Props<T extends number> {
   // length spelled the other way round, so the field DISPLAYS
   // windowStartDate(endDate, value) and picking a date COMMITS the day count it
   // implies. Nothing to keep in sync, nothing to put in the URL, and no rule for
-  // which of the two wins — there is only ever one window. Pages without an end
-  // date to offer (the homepage's per-chart windows always end today) omit it
-  // and get the picker as it was.
+  // which of the two wins — there is only ever one window.
+  //
+  // It is also what every window here is bounded against: a length only crosses
+  // WINDOW_FLOOR relative to some end. A caller with no end date at all gets the
+  // picker unbounded, as it was.
   endDate?: string;
-  // Earliest date the dataset covers, used only as the field's `min`. Picking a
-  // start years before the first row is harmless to the query but pads the
-  // chart with thousands of empty days, so the browser stops it at the edge of
-  // the data instead.
+  // Whether to show the start field. Off for the homepage's per-chart pickers,
+  // which sit in a row per chart and would triple its width for a date the
+  // page-level "Date" control already implies — they still want the bound.
+  startField?: boolean;
+  // Earliest date the dataset covers. Tightens the start field's floor past
+  // WINDOW_FLOOR where a dataset begins later than the war did — picking a
+  // start before the first row is harmless to the query but pads the chart with
+  // empty days, so the browser stops it at the edge of the data instead.
   minDate?: string;
 }
 
@@ -27,7 +33,9 @@ interface Props<T extends number> {
 // select shows "Custom"; selecting "Custom" explicitly just focuses the input.
 // With `endDate`, a start-date field is the third way to say the same thing —
 // see the prop comment.
-export function DayRangeSelect<T extends number>({ options, value, onChange, endDate, minDate }: Props<T>) {
+export function DayRangeSelect<T extends number>({
+  options, value, onChange, endDate, minDate, startField = true,
+}: Props<T>) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(String(value));
 
@@ -41,6 +49,11 @@ export function DayRangeSelect<T extends number>({ options, value, onChange, end
 
   const isPreset = (options as readonly number[]).includes(value);
 
+  // Every commit goes through here, so the floor is enforced once for the
+  // select, the number input and the start field alike. Without an end date
+  // there is no floor to measure against and the value passes through.
+  const bound = (n: number): T => (endDate ? clampDays(n, endDate) : n) as T;
+
   const parse = (raw: string): number | null => {
     const n = Number(raw);
     return raw.trim() !== "" && Number.isInteger(n) && n > 0 ? n : null;
@@ -53,7 +66,7 @@ export function DayRangeSelect<T extends number>({ options, value, onChange, end
   // it was cleared.
   const commitIfValid = (raw: string) => {
     const n = parse(raw);
-    if (n != null && n !== value) onChange(n as T);
+    if (n != null && bound(n) !== value) onChange(bound(n));
   };
 
   // Blur is what ends an edit, so it is what decides an unfinished one is
@@ -61,8 +74,8 @@ export function DayRangeSelect<T extends number>({ options, value, onChange, end
   const commitOrRevert = (raw: string) => {
     const n = parse(raw);
     if (n == null) setDraft(String(value));
-    else if (n !== value) onChange(n as T);
-    else setDraft(String(n));
+    else if (bound(n) !== value) onChange(bound(n));
+    else setDraft(String(bound(n)));
   };
 
   // Debounce commits so a flurry of spinner-button clicks (or fast typing)
@@ -83,11 +96,22 @@ export function DayRangeSelect<T extends number>({ options, value, onChange, end
 
   const inputStyle = { width: 52, cursor: "text" } as const;
 
+  // What the controls may offer, once the floor is taken into account. Near it
+  // the longer presets are unreachable, so they are not listed.
+  const maxDays = endDate ? maxDaysFor(endDate) : undefined;
+  const offered = maxDays == null ? options : options.filter((d) => d <= maxDays);
+
   // No draft state for the start field, unlike the number input above: a native
   // date input reports "" until the date is complete, so there are no
   // half-typed values to protect, and the control being fully derived means an
   // ignored edit snaps back to the real window on the next render for free.
   const hasFloor = !!minDate && /^\d{4}-\d{2}-\d{2}$/.test(minDate);
+  // The earliest start on offer: as far back as the floor allows, or the first
+  // day of the data when that is later. windowStartDate of the widest window is
+  // WINDOW_FLOOR itself, and can never land after the end it was measured from,
+  // so the input's min <= max holds even for an end date before the war.
+  const hardStart = endDate ? windowStartDate(endDate, maxDaysFor(endDate)) : "";
+  const startMin = hasFloor && minDate! > hardStart && minDate! <= endDate! ? minDate! : hardStart;
   const startDate = endDate ? windowStartDate(endDate, value) : "";
   const commitStart = (raw: string) => {
     if (!endDate) return;
@@ -104,16 +128,16 @@ export function DayRangeSelect<T extends number>({ options, value, onChange, end
   // A day later must leave at least the end date itself; a day earlier must
   // stay inside the data, when the caller said where that ends.
   const canStartGoNext = value > 1;
-  const canStartGoPrev = !hasFloor || !endDate || windowStartDate(endDate, value + 1) >= minDate!;
+  const canStartGoPrev = !!endDate && windowStartDate(endDate, value + 1) >= startMin;
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      {endDate && (
+      {endDate && startField && (
         <DateNav
           label="Start"
           testId="window-start"
           value={startDate}
-          min={hasFloor ? minDate : undefined}
+          min={startMin}
           max={endDate}
           onChange={commitStart}
           onShift={shiftStart}
@@ -129,10 +153,10 @@ export function DayRangeSelect<T extends number>({ options, value, onChange, end
       <select
         data-testid="day-range"
         value={isPreset ? String(value) : "custom"}
-        onChange={(e) => onChange(Number(e.target.value) as T)}
+        onChange={(e) => onChange(bound(Number(e.target.value)))}
         className="ctl"
       >
-        {options.map((d) => (
+        {offered.map((d) => (
           <option key={d} value={d}>{d}d</option>
         ))}
         {!isPreset && <option value="custom">{value}d</option>}
@@ -142,6 +166,7 @@ export function DayRangeSelect<T extends number>({ options, value, onChange, end
         data-testid="day-range-custom"
         type="number"
         min={1}
+        max={maxDays}
         step={1}
         value={draft}
         onChange={(e) => {

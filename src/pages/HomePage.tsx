@@ -21,7 +21,8 @@ import { RefreshIndicator } from "@/components/RefreshIndicator";
 import {
   AppHeader, AppHeaderGroup, Brand, CompareLink, SitePicker, ThemeToggle,
 } from "@/components/AppHeaderParts";
-import { DAY_OPTIONS, type DayOption } from "@/utils/dayRange";
+import { DAY_OPTIONS, type DayOption, WINDOW_FLOOR, clampDays } from "@/utils/dayRange";
+import { resolvedEndDate } from "@/utils/padTrailing";
 import { MONTH_OPTIONS, type MonthOption } from "@/utils/monthRange";
 import { useStatScope, type StatScope } from "@/hooks/useStatScope";
 import {
@@ -273,7 +274,10 @@ export function HomePage({ onGoToSite }: Props) {
             mediazonaRoles: needed.has("mediazona-roles") ? mediazona.queryRolesMonthly : undefined,
             mediazonaEstimate: needed.has("mediazona-estimate") ? mediazona.queryEstimateMonthly : undefined,
           })
-        : fetchCombinedDaily(metrics, c.window as DayOption, selectedDate || undefined, {
+        // Bounded like every other window here: a hand-edited `d99999` in the
+        // spec, or a Date moved back toward the floor, must not fetch and pad
+        // a chart for every day before the war.
+        : fetchCombinedDaily(metrics, clampDays(c.window as DayOption, resolvedEndDate(selectedDate)), selectedDate || undefined, {
             sbs: needed.has("sbs") ? sbs.queryDaily : undefined,
             gsua: needed.has("gsua") ? gsua.queryDaily : undefined,
             ruLosses: needed.has("ru-losses") ? ruLosses.queryDaily : undefined,
@@ -407,10 +411,12 @@ export function HomePage({ onGoToSite }: Props) {
     const d = new Date(base + "T12:00:00");
     d.setDate(d.getDate() + delta);
     const next = d.toISOString().slice(0, 10);
-    if (next > maxSelectableDate) return;
+    if (next > maxSelectableDate || next < WINDOW_FLOOR) return;
     updateDate(next);
   };
   const canGoNext = selectedDate !== "" && selectedDate < maxSelectableDate;
+  // "live" sits at today, so there is always a day behind it.
+  const canGoPrev = selectedDate === "" || selectedDate > WINDOW_FLOOR;
 
   const loadingSources = useMemo(() => {
     const states: Array<[string, string, boolean]> = [
@@ -496,7 +502,7 @@ export function HomePage({ onGoToSite }: Props) {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
-          <DateNav label="Date" value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
+          <DateNav label="Date" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} canGoPrev={canGoPrev} />
           <StatScopeToggle />
           <select
             value={yMode}
@@ -536,6 +542,7 @@ export function HomePage({ onGoToSite }: Props) {
               seriesData={seriesByChart[c.uid] ?? {}}
               globalStats={globalStats}
               sbsUnits={sbsUnitList}
+              endDate={selectedDate || maxSelectableDate}
               onPickerOpen={() => setUnitsRequested(true)}
               onRename={(name) => updateChart(c.uid, { name })}
               onMetricsChange={(metricIds) => updateChart(c.uid, { metricIds })}
@@ -572,6 +579,7 @@ interface ChartCardProps {
   seriesData: Record<string, DailyDataPoint[]>;
   globalStats: GlobalStatsBundle;
   sbsUnits: SbsUnit[];
+  endDate: string;
   onPickerOpen: () => void;
   onRename: (name: string) => void;
   onMetricsChange: (ids: string[]) => void;
@@ -599,7 +607,7 @@ function toCumulative(points: DailyDataPoint[]): DailyDataPoint[] {
 }
 
 function ChartCard({
-  config, isOnlyChart, indexLabel, yMode, cumulative, seriesData, globalStats, sbsUnits,
+  config, isOnlyChart, indexLabel, yMode, cumulative, seriesData, globalStats, sbsUnits, endDate,
   onPickerOpen,
   onRename, onMetricsChange, onGranularityChange, onWindowChange, onYModeChange, onRemove,
 }: ChartCardProps) {
@@ -700,8 +708,10 @@ function ChartCard({
         ) : (
           <DayRangeSelect
             options={DAY_OPTIONS}
-            value={config.window as DayOption}
+            value={clampDays(config.window as DayOption, endDate) as DayOption}
             onChange={(w) => onWindowChange(w)}
+            endDate={endDate}
+            startField={false}
           />
         )}
         <select

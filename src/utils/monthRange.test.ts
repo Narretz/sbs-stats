@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { parseMonthsParam, windowStartMonth } from "@/utils/monthRange";
-import { daysBetweenInclusive, parseDaysParam, windowStartDate, windowStartSql } from "@/utils/dayRange";
+import {
+  WINDOW_FLOOR, clampDays, daysBetweenInclusive, maxDaysFor, parseDaysParam,
+  windowStartDate, windowStartSql,
+} from "@/utils/dayRange";
 
 describe("parseDaysParam", () => {
   it("takes any positive integer, not just the picker's presets", () => {
@@ -111,5 +114,42 @@ describe("daysBetweenInclusive", () => {
       expect(daysBetweenInclusive(raw, "2026-09-17"), `for ${JSON.stringify(raw)}`).toBeNull();
       expect(daysBetweenInclusive("2026-09-01", raw), `for ${JSON.stringify(raw)}`).toBeNull();
     }
+  });
+});
+
+describe("the window floor", () => {
+  // Nothing here predates the full-scale invasion, and every chart materialises
+  // one point per day of its window, so an unbounded `days` is a page that
+  // stops responding rather than a chart that says nothing.
+  it("is the day the full-scale invasion began", () => {
+    expect(WINDOW_FLOOR).toBe("2022-02-24");
+  });
+
+  it("measures the widest window back to it, inclusively", () => {
+    expect(maxDaysFor("2022-02-24")).toBe(1);
+    expect(maxDaysFor("2022-03-01")).toBe(6);
+    expect(windowStartDate("2022-03-01", maxDaysFor("2022-03-01"))).toBe(WINDOW_FLOOR);
+  });
+
+  it("gives an end date before the floor the one day it is", () => {
+    // Nothing to show, but a window still has to be at least a day wide, and
+    // the start can't be asked to sit after the end it is measured from.
+    expect(maxDaysFor("2020-01-01")).toBe(1);
+    expect(windowStartDate("2020-01-01", maxDaysFor("2020-01-01"))).toBe("2020-01-01");
+  });
+
+  it("caps a window, and leaves a shorter one alone", () => {
+    expect(clampDays(99_999, "2022-03-01")).toBe(6);
+    expect(clampDays(3, "2022-03-01")).toBe(3);
+    expect(clampDays(0, "2022-03-01")).toBe(1);
+  });
+
+  it("caps what the URL asks for, when the caller knows the end", () => {
+    expect(parseDaysParam("99999", "2022-03-01")).toBe(6);
+    expect(parseDaysParam("3", "2022-03-01")).toBe(3);
+    // The default is a real value too, and gets capped like any other.
+    expect(parseDaysParam(null, "2022-02-26")).toBe(3);
+    // Without an end date there is no floor to measure against.
+    expect(parseDaysParam("99999")).toBe(99_999);
   });
 });
