@@ -192,7 +192,12 @@ npm run build        # production build → dist/
 npm run lint         # eslint, zero-warnings
 npm test             # vitest unit tests (src/**/*.test.ts) — fast, no browser
 npm run test:watch   # the same, in watch mode
-npm run test:e2e     # Playwright e2e (uses .env.e2e fixture DBs)
+npm run test:e2e     # Playwright e2e (uses .env.e2e fixture DBs).
+# Only run e2e tests that directly cover the area you are working in —
+# `.githooks/pre-push` runs the whole suite (plus `npm test`) on every push,
+# which is where the full sweep belongs. `git push --no-verify`, or
+# SKIP_TESTS=1, skips it. `npm install` points core.hooksPath at .githooks;
+# a hooksPath somebody has deliberately set elsewhere is left alone.
 
 # Screenshot the compare page on the PRODUCTION DBs in data/ (starts its own
 # dev server; --zoom/--theme/--scope/--full, see the file's header comment):
