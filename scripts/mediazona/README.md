@@ -128,9 +128,92 @@ Weeks here are **Monday-anchored** — a different grid from `weekly_roles`.
 > comparison line in that window; this export doesn't expose it. The frontend
 > shades that window on the names-vs-estimate chart.
 
-Note: the headline of the article usually has a larger number of losses than the
-estimate/record dataset. Probably because the latter only goes to the end of 2025, and the headline
-count contains data until the current date (like the role breakdown data)
+Note: the article's prose numbers, the two series here and the per-person atlas
+are three different cuts of one list — see the reconciliation below.
+
+## A third dataset — the 200.zona.media atlas (not ingested)
+
+[200.zona.media](https://200.zona.media/) is the same project's **per-person**
+list: the individual records behind the two aggregate series above. Not
+currently ingested; documented here because it is the only public source for
+per-name attributes, and because its totals are what reconcile the article's
+prose numbers.
+
+### How to get it
+
+Static files under `https://s3.zona.media/infographics/g200w/` (brotli; any
+client sending `Accept-Encoding: br` decodes them transparently):
+
+| File | Content |
+|---|---|
+| `urls.json.br` | the roster — one slug per person, `Фамилия_Имя_Отчество_возраст`. **Array position is the person id** everywhere else |
+| `atlas_64/atlas_N.csv.br` | `i,x,y` — person id → pixel offset in photo sheet N |
+| `atlas_64/atlas_N.basis` | 4096×4096 Basis Universal (ETC1S) GPU texture of 64×64 portraits, transcoded in-browser by loaders.gl. A texture, **not data** |
+| `output_singles/<slug>.jpg` | a single 64px portrait, no atlas decoding needed |
+| `mosaic_indices.csv.br`, `distributed_markers.csv.br`, `location_names.csv.br` | photomosaic cell, map position (ints ÷ 100) and place labels |
+
+Plus an undocumented JSON API on the site itself:
+
+```sh
+# list — needs at least one filter; an empty query returns []
+curl 'https://200.zona.media/api/case?death=2026'
+#   → [{"url":"…","name":"…","id":240198,"color":0}, …]
+
+# full record, keyed by the urls.json slug
+curl 'https://200.zona.media/api/case/Аликин_Максим_Анатольевич_18'
+#   → {"name":"Аликин Максим Анатольевич","region":"Иркутская область",
+#      "type":"добровольцы","rank":"рядовой","age":18,"birth":"10.07.2007",
+#      "death":"20.06.2026#","source":"https://archive.ph/98Gib",
+#      "locationId":54706099632,"locationName":"село Худоеланское","uid":"e68106…"}
+```
+
+Filters: `region`, `location`, `type`, `rank`, `death` (year), `age` (band),
+`latest=true` (added since the previous release). `uid` is the stable key — the
+slug embeds the age and changes on correction. Needs a browser `User-Agent`,
+and rate-limits above a handful of concurrent requests.
+
+`death` encodes its own provenance, which is worth preserving rather than
+parsing away (shares from sampling the 2026-09-21 release):
+
+- a trailing **`#` means the date came from official registries**, not from the
+  obituary — the UI captions it "может отличаться от реальной". ~⅔ of all dates.
+- `??.MM.YYYY` — day unknown, month and year known. Rare (<1 %).
+- `null` — **no date at all, not a coarser one.** 300/300 sampled had no month
+  and no week; a third of them do carry a birth date.
+
+### How the totals reconcile
+
+At the 2026-09-21 release:
+
+| | |
+|---|---|
+| names in `urls.json.br` | 258,989 |
+| … added since the 11 Sep release (`latest=true`) | 10,168 |
+| … with a death year | 243,658 |
+| … with no date of death at all | 15,331 |
+| … with an age (slug ends `_NN`) | 244,803 — article prose: "244,700" |
+
+`weekly_roles.total` resolved latest-per-week sums to **241,565**, which is the
+article's *"the date of death is known in 241,600 cases"*: the atlas list minus
+the records that can't be placed on a specific day.
+
+### Differences to the two ingested series
+
+- **Grain.** One row per person (region, place, branch, rank, age, birth,
+  death, source) versus weekly aggregates with no identity.
+- **Population.** The atlas and `weekly_roles` are the same list.
+  `weekly_estimate.documented` is **not**: latest-per-week it totals 249,255
+  through 2025-12-22, ~14.5k *more* than `weekly_roles` over that same window,
+  and the excess sits entirely in 2024–25 (+7.2k each, ≈0 before). That is close
+  to the 15,331 undated, so that line appears to place every known name on the
+  axis — including those with no published date — to keep the comparison against
+  the estimate fair. Don't read the two charts' totals as the same count.
+- **Cadence.** Same bi-weekly release as the article (the atlas files carried
+  the same 2026-09-21 date), but the atlas exposes its own delta via
+  `latest=true`, which the CSV blobs don't.
+- **Cost.** The roster is one ~1.9 MB request; the per-person attributes are one
+  request each (259k), so a full pull needs a slow resumable crawl, then
+  `latest=true` for each release's delta.
 
 ## Date model
 
