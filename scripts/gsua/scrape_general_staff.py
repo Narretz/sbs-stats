@@ -102,7 +102,7 @@ LOG_LEVEL = logging.INFO
 # scripts run with cwd set to their own directory, so the parent has to go on
 # sys.path explicitly.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ingest_log import ann, get_logger  # noqa: E402
+from ingest_log import ann, excerpt, get_logger  # noqa: E402
 
 log = get_logger("gsua", LOG_LEVEL)
 
@@ -162,6 +162,10 @@ class DirectionEntry:
     # the paragraph reports an assault but no branch could read a number out of
     # it, i.e. a suspected parser gap. _sanity_check turns it into a WARNING.
     unparsed_count: bool = False
+    # The sentence that gap was found in, so the warning can quote it. Also
+    # diagnostic only. Without it the finding says a number is in the text and
+    # then makes you go to R2 to see which — see ingest_log.excerpt.
+    unparsed_text: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -2069,6 +2073,7 @@ def parse_directions(text: str, msg: Message, report_date: str) -> list[Directio
                 attacks_group_size=group_size,
                 attacks_group_id=group_id,
                 unparsed_count=unparsed and not per_direction,
+                unparsed_text=anchor_sentence if unparsed and not per_direction else "",
             ))
 
     return entries
@@ -2457,10 +2462,15 @@ def _sanity_check(
     # in hand; see the comment there for what qualifies.
     missed = [d.direction for d in directions if d.unparsed_count]
     if missed:
+        # Quote the sentence. The whole point of this finding is that some
+        # wording states a count no branch reads, and you cannot propose the
+        # branch without seeing the wording.
+        said = next((d.unparsed_text for d in directions if d.unparsed_count), "")
         log.warning(
             f"{prefix}: no attack count parsed for {', '.join(sorted(set(missed)))} — "
             f"the paragraph reports an assault and does contain a number, so this "
-            f"is probably a wording no branch reads yet",
+            f"is probably a wording no branch reads yet"
+            + (f": {excerpt(said)}" if said else ""),
             extra=ann(title="gsua: possible direction-count gap"),
         )
 

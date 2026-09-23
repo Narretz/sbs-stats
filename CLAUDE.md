@@ -253,7 +253,11 @@ bash scripts/setup_env.sh                 # npm + pip bootstrap for a fresh cont
   annotations plus a job-summary table. So a finding is raised once, at the
   place that found it, and surfaces the same way for every dataset — never
   hand-roll a `print("::warning …")`. Use `ann(title=…)` to group a finding in
-  the UI and `ann(level="notice")` for advisory ones. Checks that need the
+  the UI and `ann(level="notice")` for advisory ones. A finding **about source
+  text** quotes it with `excerpt(text)` — a check that says "the paragraph
+  contains a number no branch read" is not actionable unless you can see the
+  paragraph, and the raw text only exists in the authoritative `<name>.db` on
+  R2, which a reader of the annotations panel does not have. Checks that need the
   whole table rather than one record live in a `check_db.py` next to the
   ingest, not as inline SQL in the workflow.
 - All DBs under `data/` are gitignored and pulled from R2 (see

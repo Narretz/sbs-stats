@@ -2519,6 +2519,11 @@ class TestUnparsedCountFlag:
         assert "Oleksandrivka" in gaps[0].message
         # Carries an annotation title so annotate_log groups it in the UI.
         assert gaps[0].ingest_ann["title"] == "gsua: possible direction-count gap"
+        # …and quotes the sentence. The finding claims a number is in the text
+        # and no branch read it; proposing the branch needs the wording, which
+        # otherwise lives only in the DB on R2.
+        assert "«" in gaps[0].message
+        assert "одинадцять із тринадцяти" in gaps[0].message
 
 
 # ---------------------------------------------------------------------------
@@ -2911,6 +2916,42 @@ class TestCheckDb:
         # Advisory, not a warning: the two fields legitimately differ, and a
         # yellow annotation here would train people to ignore the panel.
         assert rec.ingest_ann["level"] == "notice"
+
+    def test_the_finding_quotes_the_missile_sentence(self, tmp_path, caplog):
+        conn = self._db(tmp_path, [("2026-05-01", "1", 1, None)])
+        conn.execute(
+            "UPDATE posts SET text = ?",
+            ("Обстановка суттєво не змінилася. Противник завдав одного "
+             "ракетного удару по цивільній інфраструктурі. Втрати живої сили "
+             "ворога зросли.",),
+        )
+        conn.commit()
+        with caplog.at_level(logging.WARNING, logger=check_db.log.name):
+            check_db.check_missile_field_asymmetry(conn, "2026-01-01")
+        conn.close()
+        msg = self._notices(caplog)[0].message
+        # The missile clause is what tells a reader whether the empty field is
+        # a parser gap or a genuine omission.
+        assert "ракетного удару" in msg
+        # …and only that clause: quoting the whole report would bury it, and the
+        # equipment-loss list is where the bare "N ракет" the parser deliberately
+        # ignores lives.
+        assert "Обстановка" not in msg
+        assert "Втрати живої сили" not in msg
+
+    def test_a_stripped_text_column_leaves_the_message_alone(self, tmp_path, caplog):
+        # The normal case against an `.app.db`, whose posts.text is blanked. The
+        # finding must read as it did before rather than claim the source was
+        # silent.
+        conn = self._db(tmp_path, [("2026-05-01", "1", 1, None)])
+        conn.execute("UPDATE posts SET text = ''")
+        conn.commit()
+        with caplog.at_level(logging.WARNING, logger=check_db.log.name):
+            assert check_db.check_missile_field_asymmetry(conn, "2026-01-01") == 1
+        conn.close()
+        msg = self._notices(caplog)[0].message
+        assert msg.endswith("missiles_used=∅).")
+        assert "«" not in msg
 
     def test_ignores_a_date_with_both_or_neither(self, tmp_path, caplog):
         conn = self._db(tmp_path, [

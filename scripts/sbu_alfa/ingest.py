@@ -49,7 +49,7 @@ if str(SCRIPT_DIR) not in sys.path:
 if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
-from ingest_log import ann, get_logger  # noqa: E402
+from ingest_log import ann, excerpt, get_logger  # noqa: E402
 from parse import Counter, ParsedReport, extract_text, parse  # noqa: E402
 
 log = get_logger("sbu-alfa")
@@ -345,10 +345,14 @@ def run_reparse(db_path: Path, apply: bool = False) -> int:
                 # --report-type / --period override that parse() can't
                 # reproduce. Leave it alone either way — a reparse must not
                 # quietly downgrade a row a human curated.
+                # The URL alone means fetching the press release to see what
+                # changed, which the triage routine may not be able to reach.
+                # The stored body is what the parser actually read, so quote it.
                 log.warning(
                     f"stored {period or '?'} report parses as "
                     f"{report.report_type}/{report.period} but is stored as "
-                    f"{report_type}/{period} — left untouched: {url}",
+                    f"{report_type}/{period} — left untouched: {url} "
+                    f"{excerpt(body_text)}",
                     extra=ann(title="sbu-alfa: reparse skipped a stored report"),
                 )
                 skipped += 1

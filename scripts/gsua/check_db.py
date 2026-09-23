@@ -13,12 +13,13 @@ that prints them to stderr locally turns them into annotations in Actions.
 from __future__ import annotations
 
 import argparse
+import re
 import sqlite3
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ingest_log import ann, get_logger  # noqa: E402
+from ingest_log import ann, excerpt, get_logger  # noqa: E402
 
 import scrape_general_staff as gs  # noqa: E402
 
@@ -38,6 +39,26 @@ _LATEST_POSTS = """
 """
 
 
+# Sentences worth quoting when a missile field is missing: the ones that
+# mention a missile at all. Quoting the whole report would bury the relevant
+# clause in 2 kB of unrelated equipment losses, and the loss list is exactly
+# where the bare "N ракет" that the parser deliberately ignores lives.
+_MISSILE_SENTENCE = re.compile(r"[^.!?]*ракет\w*[^.!?]*[.!?]?", re.IGNORECASE)
+
+
+def _missile_sentences(text: str | None, limit: int = 2) -> str:
+    """The first `limit` sentences mentioning missiles, joined.
+
+    Empty when the text is blank — which is the normal case against an
+    `.app.db`, whose `posts.text` is stripped. The finding then reads exactly as
+    it did before, rather than claiming the source said nothing.
+    """
+    if not text:
+        return ""
+    found = [m.group(0).strip() for m in _MISSILE_SENTENCE.finditer(text) if m.group(0).strip()]
+    return " ".join(found[:limit])
+
+
 def check_missile_field_asymmetry(conn: sqlite3.Connection, since: str) -> int:
     """Flag dates where exactly one of missile_strikes / missiles_used is set.
 
@@ -48,22 +69,31 @@ def check_missile_field_asymmetry(conn: sqlite3.Connection, since: str) -> int:
     train people to ignore the panel, which is how the direction-count gaps
     went unnoticed for two years.
     """
+    # `text` comes along so the finding can quote the sentence that mentions
+    # missiles. Deciding whether the absent field is a parser gap or a genuine
+    # omission needs the wording, and the wording only exists in the
+    # authoritative `<name>.db` — the `.app.db` the frontend reads has
+    # `posts.text` blanked, and nobody reading the annotations panel has either.
+    # MAX() over the group is arbitrary-but-deterministic in SQLite; one post
+    # per date is the normal case, and any of them shows the phrasing.
     rows = conn.execute(
         _LATEST_POSTS
         + """
-        SELECT date, MAX(missile_strikes), MAX(missiles_used)
+        SELECT date, MAX(missile_strikes), MAX(missiles_used), MAX(text)
         FROM lp GROUP BY date ORDER BY date
         """,
         (since,),
     ).fetchall()
     hits = 0
-    for date, strikes, used in rows:
+    for date, strikes, used, text in rows:
         if (strikes is None) != (used is None):
             s = strikes if strikes is not None else "∅"
             u = used if used is not None else "∅"
+            said = excerpt(_missile_sentences(text))
             log.warning(
                 f"GSUA {date}: only one of the missile fields is set "
-                f"(missile_strikes={s}, missiles_used={u}).",
+                f"(missile_strikes={s}, missiles_used={u})."
+                + (f" Source says: {said}" if said else ""),
                 extra=ann(
                     level="notice",
                     title="gsua: missile-field asymmetry",

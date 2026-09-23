@@ -72,10 +72,11 @@ A finding is **actionable** when you can establish it from the repository alone:
 
 A finding is **not actionable** when:
 
-- **Its message tells a human to run something.** `ru-mod: half-covered days`
-  and `days with no AD report` ask for `probe_gap.py` and `--mark-silent`. Those
-  mutate a published dataset on judgement you do not have. Never run them. At
-  most, keep one tracking issue.
+- **Acting on it would mutate a published dataset.** `ru-mod: half-covered days`
+  and `days with no AD report` end in `--mark-silent`, which records a human's
+  judgement that the MoD really was silent. Never run it. But do not write the
+  whole finding off either: "no row" also covers a gate that wrongly rejected a
+  real post, and that half IS yours to fix — see **Getting at the evidence**.
 - **It reports an expected state.** `sbs-units: unit has no monthly data`
   (1-cus) is what the source publishing nothing looks like; retirement is
   derived, never listed.
@@ -94,23 +95,48 @@ A finding is **not actionable** when:
 - **Deciding needs data you cannot reach.** See below. File an issue that names
   the evidence gap; do not guess at a regex.
 
-### What you cannot see
+### Getting at the evidence
 
-The environment's network policy allows `github.com`, `api.github.com`, npm and
-PyPI. It **denies** R2 (`pub-*.r2.dev`), `t.me`, `sbs-group.army` and the Actions
-log blob store. So you cannot download a DB, read a source post, or reproduce an
-ingest end to end.
+Many findings are about text a parser read, or about a report that should exist
+and doesn't. Neither can be judged from the repository alone.
 
-This matters most for findings about what a parser *read*, like
-`gsua: missile-field asymmetry` — 7 dates in a fortnight, always
-`missile_strikes` set and `missiles_used` empty, never the reverse. That
-one-sidedness is suspicious, but confirming it needs the post text. Do not
-invent a regex change to satisfy it. Either file an issue with the dates and the
-asymmetry direction, or propose making the check carry a text excerpt in its
-annotation so the evidence travels with the finding next time.
+**Download only what the task in front of you needs.** Never run
+`scripts/fetch_prod_dbs.sh` — it pulls every DB in `.env.production`, both
+variants, including the full GSUA attacks DB that production range-fetches
+precisely because of its size. On a routine whose usual answer is "nothing
+actionable" that is a lot of bytes for nothing. Take the single URL for the one
+dataset you are investigating, and only once you have a finding worth chasing.
 
-If a finding would be actionable with R2 access, say so explicitly in your
-report — widening the allowed domains is the user's call to make.
+**Text a parser misread** — the authoritative `<name>.db` on R2 carries the raw
+text; the `.app.db` the frontend reads has it blanked. Pull the full one, find
+the wording no branch reads, fix it, run that dataset's suite, then verify with
+the dataset's reparse in DRY-RUN — `scripts/gsua/reparse.py`, or
+`scripts/rubikon/ingest.py --reparse`, or `scripts/sbu_alfa/ingest.py
+--reparse`, never `--apply`. The per-counter diff it prints belongs in the PR
+body. Many checks now quote the offending text in the annotation itself (see
+`ingest_log.excerpt`), so read the digest before downloading anything — the
+evidence may already be in front of you.
+
+**A report that should exist and doesn't** — `ru-mod: days with no AD report`
+and `half-covered days`. "No row" means either the MoD posted nothing or a gate
+rejected what it posted, and only the source tells those apart. Re-read the
+window over the public web preview (`ru_mod/ingest.py --source web`, the default
+and stdlib-only) against a SCRATCH COPY of the DB, never the one you would
+upload. `scripts/ru_mod/probe_gap.py` is the better tool but needs
+`TELEGRAM_API_ID` / `TELEGRAM_API_HASH`, which this environment does not carry —
+if a case genuinely needs the Telegram API, say so and stop there.
+
+Finding a gate that wrongly rejected a real post is a fix worth making. Finding
+that the MoD was genuinely silent is NOT yours to record: `--mark-silent` writes
+to a published dataset. Report it and let a human mark it.
+
+**A post the scrape dropped entirely** is not fixable from here either. A
+reparse cannot recover it — it was never stored — and the only remedy is a
+widened-lookback re-scrape, which is a `workflow_dispatch` that writes to R2.
+Say what you found and leave the run to a human.
+
+If a finding would be actionable with access this environment lacks, say which
+host or credential, explicitly, in your report.
 
 ## 5. Fix, validate, open one PR per finding class
 

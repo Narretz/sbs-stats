@@ -221,3 +221,49 @@ class TestAnnotator:
         assert len(out) == 2
         assert out[0].startswith("::warning") and "unusual direction count (3)" in out[0]
         assert out[1].startswith("::notice")
+
+
+# ─── excerpt() ───────────────────────────────────────────────────────────────
+
+class TestExcerpt:
+    """Quoting source text in a finding that is *about* that text.
+
+    The reason this exists: `gsua: possible direction-count gap` said "the
+    paragraph does contain a number" without showing the paragraph, so acting on
+    it meant pulling a DB off R2 — which the daily triage routine, and anyone
+    reading the annotations panel, may not be able to do.
+    """
+
+    def test_a_sentence_is_quoted(self):
+        assert ingest_log.excerpt("На Покровському напрямку 12 атак") == (
+            "«На Покровському напрямку 12 атак»"
+        )
+
+    def test_whitespace_is_collapsed_to_one_line(self):
+        # An annotation is parsed as a single line; a multi-line quote is
+        # unreadable in the panel even though annotate_log escapes the breaks.
+        assert ingest_log.excerpt("first\nsecond\t\tthird\r\n  fourth") == (
+            "«first second third fourth»"
+        )
+
+    def test_long_text_is_truncated_with_an_ellipsis(self):
+        out = ingest_log.excerpt("x" * 500)
+        assert len(out) == ingest_log.EXCERPT_CHARS + 2  # the guillemets
+        assert out.endswith("…»")
+
+    def test_the_limit_is_overridable(self):
+        assert ingest_log.excerpt("abcdefghij", limit=5) == "«abcd…»"
+
+    def test_text_at_exactly_the_limit_is_not_truncated(self):
+        out = ingest_log.excerpt("y" * ingest_log.EXCERPT_CHARS)
+        assert "…" not in out
+
+    @pytest.mark.parametrize("value", [None, "", "   ", "\n\t "])
+    def test_nothing_to_quote_gives_an_empty_string(self, value):
+        # Call sites append it unconditionally, so this must be falsy rather
+        # than "«»" — and a blank is the NORMAL case against an `.app.db`,
+        # whose text columns are stripped.
+        assert ingest_log.excerpt(value) == ""
+
+    def test_a_non_string_is_coerced(self):
+        assert ingest_log.excerpt(1234) == "«1234»"
