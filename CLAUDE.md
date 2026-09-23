@@ -84,8 +84,8 @@ datasets for future views.
     number".
   - `scripts/*/test_ingest.py`: ingest tests for scripts that parse data from
     unstructered sources. Must always be run and updated when the parser is
-    changed. Run them with `bash scripts/test_python.sh`, which runs 
-    **one pytest process per dataset directory** — `pytest scripts/` in one go.
+    changed. Run them with `bash scripts/test_python.sh`, which runs
+    **one pytest process per dataset directory**.
 
   The first two are also the rule for where logic lives: if an e2e test is
   asserting arithmetic, the arithmetic wants lifting out of the component.
