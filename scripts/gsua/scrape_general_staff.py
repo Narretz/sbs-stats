@@ -902,6 +902,21 @@ def parse_summary(text: str, msg: Message) -> DailySummary | None:
             r"застосу\w+[^.]{0,120}?(\d[\d\s]*\d|\d)\s+(?:крилат|авіаційн)\w*[^.]{0,40}?ракет",
             r"застосу\w+[^.]{0,120}?([\w'ʼ’]+)\s+(?:крилат|авіаційн)\w*[^.]{0,40}?ракет",
         )
+    # A third form has no use verb at all: the missile count follows the strike
+    # count directly, in the instrumental case —
+    #   "завдав одного ракетного удару двома ракетами"          (msg 42005)
+    #   "двох ракетних ударів, 42 ракетами"                     (msg 30358)
+    #   "ракетного удару однією ракетою"                        (msg 36677)
+    # Every branch above anchors on a use verb, so these were read as "no count
+    # stated": 66 posts from 2024 on, 14 days left with no figure at all. The
+    # strike phrase is the anchor here, and the instrumental ending (-ами/-ою)
+    # is what the losses line ("знешкоджено 13 ракет") can never produce.
+    if s.missiles_used is None:
+        s.missiles_used = _extract_count(
+            text,
+            r"ракетн\w+\s+удар\w*,?\s+(\d[\d\s]*\d|\d)\s+ракет(?:ами|ою)\b",
+            r"ракетн\w+\s+удар\w*,?\s+([\w'ʼ’]+)\s+ракет(?:ами|ою)\b",
+        )
 
     # --- Air strikes ---
     # "86 авіаційних ударів" / "51 авіаційного удару" (genitive sg) and the
@@ -1242,6 +1257,13 @@ UA_NUM = {
     # it that sub-count reads as no number at all and the MLRS scan falls
     # through to a later, unrelated sentence.
     "ста": 100,
+    # Instrumental — "одного ракетного удару двома ракетами" (msg 42005),
+    # "…удару однією ракетою" (msg 33366). The only construction that uses it
+    # is the missile count glued to the strike count; see missiles_used.
+    "однією": 1, "одним": 1, "двома": 2, "трьома": 3, "чотирма": 4,
+    "п'ятьма": 5, "п'ятьома": 5, "шістьма": 6, "шістьома": 6,
+    "сімома": 7, "сьома": 7, "вісьмома": 8, "вісьма": 8,
+    "дев'ятьма": 9, "дев'ятьома": 9, "десятьма": 10, "десятьома": 10,
 }
 
 # "N of M" constructions, where one sentence carries BOTH the direction's

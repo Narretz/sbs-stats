@@ -1037,6 +1037,37 @@ class TestMetrics:
         assert s.missile_strikes == 1
         assert s.missiles_used is None
 
+    def test_missiles_used_instrumental_word(self):
+        # msg 42005 (2026-08-24): no use verb at all — the missile count
+        # follows the strike count directly, in the instrumental case.
+        s = self._parse(
+            "Агресор завдав одного ракетного удару двома ракетами та здійснив "
+            "58 авіаційних ударів."
+        )
+        assert s.missile_strikes == 1
+        assert s.missiles_used == 2
+
+    def test_missiles_used_instrumental_singular(self):
+        # msg 36677 (2026-03-29): "однією ракетою", feminine singular.
+        s = self._parse("Вчора противник завдав ракетного удару однією ракетою, 70 авіаційних ударів.")
+        assert s.missiles_used == 1
+
+    def test_missiles_used_instrumental_digit_after_comma(self):
+        # msg 30358 (2025-10-16): digits, with a comma between the two counts.
+        s = self._parse("Противник завдав двох ракетних ударів, 42 ракетами та 100 авіаційних ударів.")
+        assert s.missile_strikes == 2
+        assert s.missiles_used == 42
+
+    def test_missiles_used_instrumental_needs_the_strike_anchor(self):
+        # The instrumental noun alone is not enough: aviation's unguided rockets
+        # ("завдавши ударів вісьмома некерованими ракетами", msg 18737) are fired
+        # in a direction paragraph and are not the missile-strike figure.
+        s = self._parse(
+            "Ворог застосував штурмову авіацію, завдавши ударів вісьмома "
+            "некерованими ракетами по району Новомаркове."
+        )
+        assert s.missiles_used is None
+
     def test_targets_destroyed_numbered_list(self):
         # 2026-08-01: sum every item; "один …" counts explicitly.
         s = self._parse(
@@ -2158,6 +2189,18 @@ class TestNarrativeMentions:
         text = _wrap_evening(body)
         return {d.direction: d for d in gs.parse_directions(text, _msg(text, mid=mid), date)}
 
+    def test_instrumental_attack_count(self):
+        # msg 15229 / 17121: the attack count in the instrumental case, which
+        # UA_NUM didn't know, so both directions stored NULL (Siversk had no row).
+        d = self._dirs(
+            "На Краматорському напрямку активність російських загарбників "
+            "обмежилась п'ятьма бойовими зіткненнями.\n"
+            "Активність ворога на Сіверському напрямку проявилась сімома штурмовими діями.",
+            mid=15229, date="2024-06-06",
+        )
+        assert d["Kramatorsk"].attacks == 5
+        assert d["Siversk"].attacks == 7
+
     def test_lead_mention_does_not_lock_out_the_real_paragraph(self):
         # msg 14661: the opener names two sectors, the real figures come later.
         # The first anchor per direction wins, so the mention wasn't just adding
@@ -2538,6 +2581,13 @@ class TestUaWordToNum:
         # Multi-word NUMWORD regex can capture "окупанти шістнадцять"
         # when the noun ("разів") comes after; drop leading non-number tokens.
         assert gs._ua_word_to_num("окупанти шістнадцять") == 16
+
+    def test_instrumental_forms(self):
+        # "двома ракетами", "проявилась сімома штурмовими діями" (msg 17121).
+        assert gs._ua_word_to_num("двома") == 2
+        assert gs._ua_word_to_num("однією") == 1
+        assert gs._ua_word_to_num("сімома") == 7
+        assert gs._ua_word_to_num("п’ятьма") == 5      # typographic apostrophe
 
     def test_trailing_non_number_fails(self):
         # But a trailing non-number word means the tail isn't a compound
