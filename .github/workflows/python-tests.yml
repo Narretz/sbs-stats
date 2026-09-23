@@ -1,0 +1,53 @@
+name: Python tests
+
+# The ingest parsers read unstructured sources (Telegram posts, press releases,
+# CSV/xlsx exports) and their tests are the only thing standing between a
+# regex tweak and a dataset that quietly loses a category. They ran by hand
+# until now, so a parser change could reach main untested — and the scheduled
+# ingest workflows are no safety net: they exercise the happy path against
+# whatever the source published today and stay green while a fixture case
+# breaks.
+#
+# On push for any branch, not just main: the point is to catch it before the
+# merge, and these suites take seconds.
+on:
+  push:
+    paths:
+      - "scripts/**/*.py"
+      - "scripts/*.py"
+      - "scripts/test_python.sh"
+      - ".github/workflows/python-tests.yml"
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # pytest and requests, which is the whole of it — verified by running the
+      # suites with openpyxl, telethon, playwright and python-dotenv all blocked
+      # at import. requests is NOT avoidable: `scripts/fetch_and_update.py`
+      # imports it at module level, and six suites reach it transitively
+      # (`sbs_units/discover.py` imports its HTTP helpers, and so on), so
+      # leaving it out fails collection rather than skipping a test.
+      #
+      # The rest of scripts/requirements.txt stays out on purpose: telethon is
+      # imported lazily inside the functions that need it, playwright only in
+      # gsua's scrape_facebook / scrape_twitter which no test imports, and
+      # openpyxl only inside the UA-losses ingest path. Installing playwright
+      # here would cost minutes per run for nothing.
+      - name: Install test dependencies
+        run: pip install "pytest>=8.0.0" "requests>=2.31.0"
+
+      # One pytest process per dataset directory — see the script's header for
+      # why they can't share one.
+      - name: Run ingest test suites
+        run: bash scripts/test_python.sh

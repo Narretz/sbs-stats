@@ -61,9 +61,17 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+# Shared diagnostics sink: stderr as before, plus a JSONL record per WARNING
+# when $INGEST_LOG is set, which scripts/annotate_log.py turns into GitHub
+# annotations. `scripts/` isn't a package, so the parent goes on sys.path too.
+if str(SCRIPT_DIR.parent) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 import parse_digest  # noqa: E402
+from ingest_log import ann, get_logger  # noqa: E402
 from parse import parse  # noqa: E402
+
+log = get_logger("rubikon")
 
 CHANNEL = os.environ.get("RUBIKON_CHANNEL", "icpbtrubicon")
 DEFAULT_DB = Path("data") / os.environ.get("RUBIKON_DB_NAME", "rubikon.db")
@@ -329,34 +337,36 @@ def _print_report(post_id: int, report: Parsed) -> None:
         print(f"    {category:22s} {kind:18s} {value:>8d}{flag}")
 
 
-def _annotate(title: str, message: str) -> None:
-    """Emit a warning, as a GitHub Actions annotation when running in CI.
-
-    A bare stderr line lands in the middle of a job log nobody opens on a green
-    run — and these runs ARE green: an unrecognised category doesn't fail the
-    ingest, because failing would skip the R2 upload and lose the whole month
-    over one counter. The annotation surfaces on the run summary instead, so
-    drift is visible without being fatal. One flat line locally.
-    """
-    flat = " ".join(message.split())
-    if os.environ.get("GITHUB_ACTIONS"):
-        print(f"::warning title={title}::{flat}")
-    print(f"WARNING: {flat}", file=sys.stderr)
-
-
 def _warn(post_id: int, report: Parsed) -> None:
-    """Surface drift and source oddities instead of dropping them silently."""
+    """Surface drift and source oddities instead of dropping them silently.
+
+    Routed through ingest_log, which is the only thing that should be emitting
+    workflow commands: it dedupes, caps, and builds the job-summary table from
+    the whole set, none of which a `print("::warning")` at the call site can do
+    (see that module's docstring — this script was its last hand-rolled
+    caller). Locally, with INGEST_LOG unset, these stay plain stderr lines.
+
+    Still only a warning, never fatal: an unrecognised category must not fail
+    the ingest, because failing skips the R2 upload and loses the whole month
+    over one counter.
+    """
     module = "parse.py" if report.report_type == "monthly" else "parse_digest.py"
     if report.unmatched:
-        _annotate(
-            "Rubikon: unrecognised category",
+        log.warning(
             f"post {post_id} has {len(report.unmatched)} line(s) no category "
             f"claimed (new or renamed?) — add an alias in "
             f"scripts/rubikon/{module}, then re-run with --reparse: "
             f"{report.unmatched}",
+            extra=ann(
+                title="rubikon: unrecognised category",
+                file=f"scripts/rubikon/{module}",
+            ),
         )
     for w in report.warnings:
-        _annotate("Rubikon: source oddity", f"post {post_id}: {w}")
+        log.warning(
+            f"post {post_id}: {w}",
+            extra=ann(title="rubikon: source oddity"),
+        )
 
 
 # ── modes ───────────────────────────────────────────────────────────────────
@@ -417,8 +427,11 @@ def run_reparse(args: argparse.Namespace) -> int:
         for post_id, posted_at, body_text in rows:
             report = parse_any(body_text, datetime.fromisoformat(posted_at))
             if report.report_type == "unknown":
-                print(f"WARNING: stored post {post_id} no longer parses as either "
-                      f"monthly series — leaving it untouched", file=sys.stderr)
+                log.warning(
+                    f"stored post {post_id} no longer parses as either monthly "
+                    f"series — leaving it untouched",
+                    extra=ann(title="rubikon: stored post stopped parsing"),
+                )
                 continue
             _warn(post_id, report)
             if dry_run:

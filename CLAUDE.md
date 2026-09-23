@@ -84,7 +84,8 @@ datasets for future views.
     number".
   - `scripts/*/test_ingest.py`: ingest tests for scripts that parse data from
     unstructered sources. Must always be run and updated when the parser is
-    changed.
+    changed. Run them with `bash scripts/test_python.sh`, which runs 
+    **one pytest process per dataset directory** — `pytest scripts/` in one go.
 
   The first two are also the rule for where logic lives: if an e2e test is
   asserting arithmetic, the arithmetic wants lifting out of the component.
@@ -143,6 +144,14 @@ GitHub Actions in `.github/workflows/`:
   `openpyxl` (the source is xlsx), so the job pip-installs it — the only ingest
   workflow that isn't stdlib-only. Not yet a dedicated site; feeds the combined
   charts only.
+- `python-tests.yml` — the ingest test suites, on push to any branch when a
+  `.py` under `scripts/` changed (plus `workflow_dispatch`). Installs pytest and
+  `requests`, which is the whole of it — `fetch_and_update.py` imports requests
+  at module level and six suites reach it transitively, so leaving it out fails
+  collection rather than skipping a test; the rest of `scripts/requirements.txt`
+  is lazily imported and stays out. Calls `scripts/test_python.sh`. The
+  scheduled ingest workflows are not a substitute: they exercise whatever the
+  source published today and stay green while a fixture case breaks.
 - `deploy.yml` — builds and publishes to GitHub Pages.
 
 The scrapers that only re-read a recent window expose that window as a
@@ -202,6 +211,9 @@ npm run test:e2e     # Playwright e2e (uses .env.e2e fixture DBs).
 # Screenshot the compare page on the PRODUCTION DBs in data/ (starts its own
 # dev server; --zoom/--theme/--scope/--full, see the file's header comment):
 node scripts/screenshot_compare.mjs sbu-alfa:2026-07 sbu-alfa:2026-08
+
+bash scripts/test_python.sh          # every ingest test suite (one pytest per dir)
+bash scripts/test_python.sh scripts/rubikon   # …or just one
 
 # Python ingest scripts: see each scripts/<x>/README.md
 pip install -r scripts/requirements.txt   # the devcontainer does this on create
