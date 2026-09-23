@@ -110,11 +110,20 @@ test.describe("Compare — SBS sub-units", () => {
     const month = thisMonth();
     await gotoCompare(page, `sbs:${month},sbs:alpha-unit:${month}`);
 
+    // Wait until BOTH columns hold data before reading the headcount row: an
+    // unloaded cell also renders "—", so asserting the unit's "—" any earlier
+    // would pass whether or not the row is right.
+    await expect
+      .poll(async () => (await rowCells(page, "All targets engaged"))[2])
+      .toMatch(/\d/);
+    await expect
+      .poll(async () => (await rowCells(page, "Unit size (personnel)"))[1])
+      .toContain("60,000");
+
     const cells = await rowCells(page, "Unit size (personnel)");
     // No sub-unit publishes a headcount, and the grouping's figure describes
     // the whole branch — inheriting it would invite a per-capita reading
     // against the wrong denominator.
-    expect(cells[1]).toContain("60,000");
     expect(cells[2]).toBe("—");
   });
 
@@ -122,8 +131,10 @@ test.describe("Compare — SBS sub-units", () => {
     const month = thisMonth();
     await gotoCompare(page, `sbs:${month}`);
     await expect(page.locator("thead th").nth(1)).toContainText("UA SBS (USF)");
-    const cells = await rowCells(page, "All targets engaged");
-    expect(cells[1]).toMatch(/25,0\d\d/);
+    // Polled: the row renders before sbs.db resolves.
+    await expect
+      .poll(async () => (await rowCells(page, "All targets engaged"))[1])
+      .toMatch(/25,0\d\d/);
   });
 
   test("the 'Only in' section reads the unit, not the whole of SBS", async ({ page }) => {
@@ -141,6 +152,12 @@ test.describe("Compare — SBS sub-units", () => {
 
     // `hit_21` (Shelters) is the one fixtured target no canonical row maps, so
     // it lands in the "Only in" section. Fixture: grouping 5,00x, Alpha 10x.
+    // Polled until the unit's cell has loaded — sbs-units.db arrives after
+    // sbs.db, and before it does the cell is "—", which differs from the
+    // grouping's figure for the wrong reason.
+    await expect
+      .poll(async () => (await rowCells(page, "Shelters"))[2])
+      .toMatch(/^10\d/);
     const cells = await rowCells(page, "Shelters");
     expect(cells[1]).toMatch(/5,0\d\d/);
     expect(cells[2]).toMatch(/^10\d/);
