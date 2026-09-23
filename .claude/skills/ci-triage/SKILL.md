@@ -119,12 +119,22 @@ evidence may already be in front of you.
 
 **A report that should exist and doesn't** — `ru-mod: days with no AD report`
 and `half-covered days`. "No row" means either the MoD posted nothing or a gate
-rejected what it posted, and only the source tells those apart. Re-read the
-window over the public web preview (`ru_mod/ingest.py --source web`, the default
-and stdlib-only) against a SCRATCH COPY of the DB, never the one you would
-upload. `scripts/ru_mod/probe_gap.py` is the better tool but needs
-`TELEGRAM_API_ID` / `TELEGRAM_API_HASH`, which this environment does not carry —
-if a case genuinely needs the Telegram API, say so and stop there.
+rejected what it posted, and only the source tells those apart:
+
+```sh
+python3 scripts/ru_mod/probe_gap.py --dates 2026-09-21 --full
+```
+
+That is `--source web` by default — the same t.me/s preview the scheduled ingest
+reads, stdlib only, no Telegram account — and `--full` prints each post with the
+reason `parse_report` dropped it. Read the exit code: **2 means the walk ran out
+of pages before reaching your dates**, so the window was not covered and absence
+proves nothing. Raise `--max-pages`, or accept that an older window needs
+`--source telethon` (`TELEGRAM_API_ID` / `TELEGRAM_API_HASH`, which this
+environment does not carry — say so and stop). `--ids` is telethon-only.
+
+A post the probe shows as `-- MISSED` while its text is plainly an AD report is
+a gate bug, and fixing it is squarely yours.
 
 Finding a gate that wrongly rejected a real post is a fix worth making. Finding
 that the MoD was genuinely silent is NOT yours to record: `--mark-silent` writes

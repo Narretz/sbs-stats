@@ -110,7 +110,13 @@ GitHub Actions in `.github/workflows/`:
 - `update-telegram-web-dbs.yml` — GSUA + RU MoD (two jobs, both scrape the
   public `t.me/s` web preview, no API account). Scheduled at 08:00 / 16:00 /
   22:00 **Europe/Kyiv** (IANA `timezone:` cron field) to land just after the GS
-  reports; a 2-day idempotent lookback covers GitHub's scheduler lag.
+  reports; a 2-day idempotent lookback covers GitHub's scheduler lag. When
+  RU MoD reports a gap day, `scripts/ru_mod/probe_gap.py` tells "the MoD posted
+  nothing" apart from "a gate rejected what it posted" — `--source web` by
+  default, so it needs no Telegram account either; it exits 2 when the preview
+  walk ran out of pages before reaching the dates, because absence you did not
+  actually look at is not evidence. `--source telethon` (and `--ids`) remain for
+  historical windows.
 - `update-missile-attacks-db.yml` — RU missile & UAV attacks. Daily (06:00 UTC);
   pulls piterfm's Kaggle dataset (needs `KAGGLE_USERNAME` / `KAGGLE_KEY`
   secrets), append-on-change so an unchanged ~weekly re-publish inserts nothing.

@@ -1,5 +1,5 @@
 """
-Probe a date window via telethon to see what the channel actually posted,
+Probe a date window against the channel to see what it actually posted,
 independent of the AD/svodka gates. Used to investigate suspected gap days:
 the regular ingest only stores posts that pass a gate, so a day with no
 ad_reports row could mean "MoD didn't post one" OR "gate rejected it" — this
@@ -16,11 +16,25 @@ Lines worth inspecting:
   'AD MISSED'   — would pass the gate but never reached our scraper (need to
                   re-run `ingest.py --source telethon --since … --until …`).
 
+Two backends, same output. `--source web` (the DEFAULT) reads the public
+t.me/s preview with the stdlib, exactly as the scheduled ingest does, and needs
+no Telegram account — which is what makes this usable from CI or an agent
+sandbox. It can only walk backwards from the channel head, so it is the right
+tool for a RECENT gap (a few pages) and the wrong one for 2024 (hundreds). When
+the walk runs out of pages before reaching the window, that is reported loudly:
+"no posts" must never be mistaken for "the MoD was silent".
+
+`--source telethon` uses the Telegram API (needs TELEGRAM_API_ID/HASH) and can
+start at an arbitrary date, so it stays the tool for historical windows. `--ids`
+is telethon-only: fetching by id is one API call, whereas the web preview would
+have to page back through tens of thousands of posts to reach a 2024 id.
+
 Usage:
-  python probe_gap.py --since 2024-10-11 --until 2024-10-16     # date window (MSK)
-  python probe_gap.py --dates 2024-10-12 2024-11-21 2025-03-02  # specific MSK dates
-  python probe_gap.py --ids 44509 44515 44518                   # specific post_ids
-  python probe_gap.py --since 2024-10-11 --until 2024-10-16 --full
+  python probe_gap.py --since 2026-09-20 --until 2026-09-22     # date window (MSK)
+  python probe_gap.py --dates 2026-09-21 2026-09-22             # specific MSK dates
+  python probe_gap.py --since 2024-10-11 --until 2024-10-16 --source telethon
+  python probe_gap.py --ids 44509 44515 44518                   # telethon only
+  python probe_gap.py --since 2026-09-20 --until 2026-09-22 --full
 
 `--full` runs parse_report on each post and prints WHY parse rejected it
 (AD gate / count regex / breakdown), so we can tell whether a MISSED post
@@ -29,6 +43,7 @@ is dropped by the gate, the COUNT_RE noun-phrase anchor, or stored fine.
 import argparse
 import re
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -61,6 +76,38 @@ def _check_date(date_str: str, flag: str) -> str:
     return date_str
 
 
+# How far back the caller asked us to look, and whether we got there. The web
+# backend walks from the channel head, so "0 posts in the window" has two very
+# different causes — the channel really posted nothing, or we ran out of pages
+# before reaching the dates. Conflating those would turn this tool into a
+# machine for wrongly concluding the MoD was silent, which is the single thing
+# it exists to prevent.
+class _Reach:
+    def __init__(self):
+        self.crossed = False   # saw a post OLDER than the lower bound
+
+    def note_older(self):
+        self.crossed = True
+
+
+def _web_stream(args, lower_bound_msk: str, keep, reach: "_Reach"):
+    """Walk the t.me/s preview newest→oldest, yielding posts `keep` accepts.
+
+    `backfill=True` / `since_id=0` because a probe wants every post regardless
+    of what is already stored — the stored/MISSED flag is computed downstream.
+    """
+    for pid, posted, text in ig.iter_web(
+        args.channel, since_id=0, max_pages=args.max_pages,
+        sleep=args.sleep, backfill=True,
+    ):
+        msk_date = posted.astimezone(ig.MSK).date().isoformat()
+        if msk_date < lower_bound_msk:
+            reach.note_older()
+            return
+        if keep(msk_date):
+            yield pid, posted, text
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     p.add_argument("--since", help="Lower bound (inclusive), YYYY-MM-DD MSK.",
@@ -77,6 +124,16 @@ def main() -> int:
                    help="Specific post_ids to fetch instead of dates.")
     p.add_argument("--full", action="store_true",
                    help="Print the post's full text + parse_report verdict.")
+    p.add_argument("--source", choices=("web", "telethon"), default="web",
+                   help="Backend. web (default) reads the t.me/s preview with no "
+                        "Telegram account but can only walk back from the channel "
+                        "head; telethon can start at any date.")
+    p.add_argument("--max-pages", type=int, default=40,
+                   help="web: pages to walk before giving up (10-20 posts each). "
+                        "A recent gap needs a handful; a 2024 one is out of reach "
+                        "— use --source telethon.")
+    p.add_argument("--sleep", type=float, default=1.0,
+                   help="web: delay between page fetches.")
     p.add_argument("--channel", default="mod_russia")
     p.add_argument("--db", default=str(Path(__file__).parent.parent.parent
                                        / "data" / ig.DEFAULT_DB_NAME),
@@ -91,6 +148,10 @@ def main() -> int:
                 "or --since YYYY-MM-DD --until YYYY-MM-DD")
     if args.since and not args.until or args.until and not args.since:
         p.error("--since and --until must be used together (use --dates for non-contiguous days)")
+    if args.ids and args.source != "telethon":
+        p.error("--ids needs --source telethon: fetching by id is one API call, "
+                "while the web preview would have to page back through tens of "
+                "thousands of posts to reach an arbitrary id")
 
     db_path = Path(args.db)
     if db_path.exists():
@@ -101,6 +162,8 @@ def main() -> int:
         # No DB → can't mark stored/MISSED, but the gate verdict is still useful.
         print(f"# NOTE: {db_path} not found — every post will be marked MISSED.")
         known_ad, known_sv = set(), set()
+
+    reach = _Reach()
 
     # Pick the post stream: either every post in a date range, or just the
     # specific ids requested (used to drill into known-suspicious posts).
@@ -131,26 +194,36 @@ def main() -> int:
         min_d = min(args.dates)
         max_d = max(args.dates)
         offset = datetime.fromisoformat(f"{max_d}T23:59:59+03:00")
-        def stream():
-            for pid, posted, text in ig.iter_telethon(args.channel, offset_date=offset):
-                msk_date = posted.astimezone(ig.MSK).date().isoformat()
-                if msk_date < min_d:
-                    return
-                if msk_date in wanted:
-                    yield pid, posted, text
-        src = stream()
+        if args.source == "web":
+            src = _web_stream(args, min_d, lambda d: d in wanted, reach)
+        else:
+            def stream():
+                for pid, posted, text in ig.iter_telethon(args.channel, offset_date=offset):
+                    msk_date = posted.astimezone(ig.MSK).date().isoformat()
+                    if msk_date < min_d:
+                        reach.note_older()
+                        return
+                    if msk_date in wanted:
+                        yield pid, posted, text
+            src = stream()
     else:
         # --since/--until window — interpret as inclusive MSK dates,
         # converted to the corresponding UTC instants so a post posted
         # at 23:30 MSK on --until still falls inside.
         since = datetime.fromisoformat(f"{args.since}T00:00:00+03:00")
         until = datetime.fromisoformat(f"{args.until}T23:59:59+03:00")
-        def stream():
-            for pid, posted, text in ig.iter_telethon(args.channel, offset_date=until):
-                if posted < since:
-                    return
-                yield pid, posted, text
-        src = stream()
+        if args.source == "web":
+            src = _web_stream(
+                args, args.since, lambda d: args.since <= d <= args.until, reach
+            )
+        else:
+            def stream():
+                for pid, posted, text in ig.iter_telethon(args.channel, offset_date=until):
+                    if posted < since:
+                        reach.note_older()
+                        return
+                    yield pid, posted, text
+            src = stream()
 
     n_total = n_ad = n_sv = n_missed = 0
     for pid, posted, text in src:
@@ -194,6 +267,19 @@ def main() -> int:
         f"\n# {n_total} post(s) in {where}:"
         f" {n_ad} AD-gate, {n_sv} svodka-gate, {n_missed} not in our DB."
     )
+    # The web walk never got past the oldest date asked for, so the window was
+    # only partly covered — or not at all. Saying "0 posts" here without saying
+    # this would read as "the channel was silent", which is the wrong
+    # conclusion and the expensive one: it is what `--mark-silent` records.
+    if args.source == "web" and not args.ids and not reach.crossed:
+        print(
+            f"# INCOMPLETE: walked {args.max_pages} page(s) of the t.me/s preview "
+            f"without reaching a post older than {where} — the window is not "
+            f"fully covered, so absence here does NOT mean the channel was "
+            f"silent. Raise --max-pages, or use --source telethon for an older "
+            f"window."
+        )
+        return 2
     return 0
 
 
