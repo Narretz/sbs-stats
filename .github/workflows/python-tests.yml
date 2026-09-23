@@ -32,14 +32,20 @@ jobs:
         with:
           python-version: "3.12"
 
-      # pytest only. The suites are stdlib-only by design, like the ingest
-      # paths they cover: the sole module-level third-party imports under
-      # scripts/ are playwright in gsua's scrape_facebook / scrape_twitter,
-      # which no test imports, and telethon is imported lazily inside the
-      # functions that need it. If a suite ever does need a real dependency,
-      # install scripts/requirements.txt here instead.
-      - name: Install pytest
-        run: pip install "pytest>=8.0.0"
+      # pytest and requests, which is the whole of it — verified by running the
+      # suites with openpyxl, telethon, playwright and python-dotenv all blocked
+      # at import. requests is NOT avoidable: `scripts/fetch_and_update.py`
+      # imports it at module level, and six suites reach it transitively
+      # (`sbs_units/discover.py` imports its HTTP helpers, and so on), so
+      # leaving it out fails collection rather than skipping a test.
+      #
+      # The rest of scripts/requirements.txt stays out on purpose: telethon is
+      # imported lazily inside the functions that need it, playwright only in
+      # gsua's scrape_facebook / scrape_twitter which no test imports, and
+      # openpyxl only inside the UA-losses ingest path. Installing playwright
+      # here would cost minutes per run for nothing.
+      - name: Install test dependencies
+        run: pip install "pytest>=8.0.0" "requests>=2.31.0"
 
       # One pytest process per dataset directory — see the script's header for
       # why they can't share one.
