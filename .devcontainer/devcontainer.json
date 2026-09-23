@@ -19,7 +19,7 @@
   // registered as /home/martin/... Nothing in here resolves that, so /plugin
   // reports "cache-miss" and no plugins load — installing from inside the
   // container doesn't help, it inherits the same host path. The alias fixes it.
-  "postCreateCommand": "sudo ln -sfn /home/node /home/martin && sudo apt-get update && sudo apt-get install -y sqlite3 && npm install && pip install --user -r scripts/requirements.txt && sudo npx --yes playwright install-deps chromium && npx --yes playwright install chromium && python -m playwright install chromium",
+  "postCreateCommand": "sudo ln -sfn /home/node /home/martin && sudo apt-get update && sudo apt-get install -y sqlite3 && npm install && pip install --user -r scripts/requirements.txt && sudo npx --yes playwright install-deps chromium && npx --yes playwright install chromium",
   "appPort": ["6173:5173"],
   "customizations": {
     "vscode": {
