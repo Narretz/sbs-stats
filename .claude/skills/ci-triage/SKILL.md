@@ -79,6 +79,13 @@ A finding is **not actionable** when:
 - **It reports an expected state.** `sbs-units: unit has no monthly data`
   (1-cus) is what the source publishing nothing looks like; retirement is
   derived, never listed.
+- **It is the runner's own chatter.** The `ubuntu-latest` → Ubuntu 26 migration
+  notice was 456 of 650 annotations over a fortnight. Pinning the runner has
+  been considered and declined: `ubuntu-latest` auto-migrates, which is what we
+  want long-term, and pinning trades that for 15 lines to bump by hand plus an
+  all-at-once break when the pinned image retires. Do not re-propose it.
+  Untitled annotations are already bucketed as noise by the digest, so this
+  costs the panel nothing.
 - **It only appears in `Reparse *` runs.** Those are manual backfills over
   years of history, human-initiated. The GSUA `combat_engagements` and
   `unfamiliar report hour` findings are real parser gaps, but they are not this
