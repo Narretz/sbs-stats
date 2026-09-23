@@ -265,6 +265,70 @@ subagent — the per-msg work is read-only (compare bold headers against the
   matched (`kamikaze_drones`) or when it appears earlier in the post
   (`shellings` — see `_parse_shellings`).
 
+## Multipart posts — a known, bounded gap
+
+**Dead format.** The channel split long reports into `(1/2)` / `(2/2)` between
+**2024-05-24 and 2024-11-26** — 171 rows, 116 of them in June 2024 — and has
+not done it since. A scan of every stored post for *any* split-looking marker
+(round and square brackets, the `(1\2)` backslash typo, `частина N`,
+`продовження`) finds 171 hits, all in 2024, **all already flagged**.
+
+**What the parser does.** `parse_summary` returns early on a continuation part
+(`part` > 1), leaving every aggregate NULL. Only `parse_summary` — directions
+are parsed from continuation parts normally, and that is where most of them
+live (541 direction rows from 78 part-2 posts, against 190 from 93 part-1s).
+
+**Why.** Part 2 carries no aggregate paragraph, and every aggregate extractor
+takes the leftmost match. Parsing a continuation part on its own yields a
+*per-direction* figure where the daily total should be — measured against the
+`1/2` sibling, 53 values come out wrong: combat 31, KABs 10, air 7, shellings
+4, kamikaze 1, e.g. combat 110 → 10 and shellings 4000 → 472. Every one is
+smaller than the true value, so `daily_combined`'s `MAX()` would mask them;
+the early return protects the raw `posts` rows, which `reparse`, `check_db`
+and ad-hoc queries read directly.
+
+**What it costs.** 29 aggregate values that exist only in part 2 —
+targets_destroyed 12, KABs 5, kamikaze 4, MLRS 3, air 2, shellings 2, combat 1.
+
+### If someone wants to close it
+
+Stitching works, and is easier than it looks. Pairing is unambiguous: 74 of
+the 78 continuation parts pair on `snapshot_at`, and in **all 74** the
+`source_id` delta is exactly 1 (consecutive messages). No snapshot holds more
+than two parts. Parsing `part1 + "\n\n" + part2` with the split markers
+stripped gains those 29 values and changes only 3 — all `combat_engagements`,
+all for the worse (88→10, 89→37, 95→10), branch 1a reaching into part 2.
+
+If no new multipart post will ever arrive, do it in `reparse.py`.
+If they do, note that the web preview iterates newest→oldest —
+part 2 is processed before part 1, so the sibling isn't in the DB yet.
+(The telethon path uses `reverse=True` and would be
+fine.) At reparse time both rows exist by definition. Sketch: when a row has
+`part` > 1, fetch its sibling by `(source, snapshot_at, part='1/2')`, parse
+the join, keep **part 1's `combat_engagements`**, and write the result to both
+rows so the `MAX()` merge is unaffected either way.
+
+### Related defect: the halves can disagree on `date`
+
+Five pairs share an identical `snapshot_at` but land on `date` values one day
+apart:
+
+```
+2024-05-28T12:00  msg14986 [1/2] → 2024-05-27   msg14987 [2/2] → 2024-05-28
+2024-06-18T10:00  msg15531 (1/2) → 2024-06-17   msg15532 (2/2) → 2024-06-18
+```
+
+Part 1 is the previous-day wrap-up so `_parse_snapshot` dates it to D-1; part
+2 happens to contain a running "Від початку цієї доби відбулося N бойових
+зіткнень" sentence, hits `SAME_DAY_MARKERS`, and is dated to D. Since
+`daily_combined` groups by `(source, date, snapshot_at)`, those halves **never
+merge** — so the claim in `schema.sql` that the view COALESCEs the parts holds
+for 69 pairs and fails for 5. It also puts 22 direction rows on the wrong day.
+
+A stitched parse fixes this for free (one text, one date). Fixing it alone
+would mean having a continuation part inherit its sibling's `date` rather than
+running the day-marker heuristic over text that has no aggregate in it.
+
 ## Charting / consuming the data
 
 For aggregate time series, query the **`daily_combined` view** — one row per

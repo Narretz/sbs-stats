@@ -1,0 +1,44 @@
+#!/bin/sh
+# Run the whole test suite before anything leaves the machine.
+#
+# The Playwright suite is ~8 minutes, which is why CLAUDE.md says to run only
+# the specs covering what you're working on while you work. A push is the point
+# where that stops being enough: it's infrequent, it's the last moment a failure
+# is still cheap, and it's unattended anyway.
+#
+# The unit tier runs first purely to fail fast — it's ~1s, so a broken pure
+# helper costs a second instead of eight minutes.
+#
+# Escape hatches: `git push --no-verify`, or `SKIP_TESTS=1 git push`.
+set -e
+
+if [ -n "$SKIP_TESTS" ]; then
+  echo "pre-push: SKIP_TESTS set — not running tests"
+  exit 0
+fi
+
+# stdin carries one line per ref being pushed: <local ref> <local sha> <remote
+# ref> <remote sha>. A deletion has an all-zero local sha and nothing to test.
+# No lines at all means the hook was invoked by hand, so run everything.
+saw_ref=0
+only_deletes=1
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  saw_ref=1
+  case "$local_sha" in
+    *[!0]*) only_deletes=0 ;;
+  esac
+done
+if [ "$saw_ref" = 1 ] && [ "$only_deletes" = 1 ]; then
+  echo "pre-push: deleting refs only — not running tests"
+  exit 0
+fi
+
+cd "$(git rev-parse --show-toplevel)"
+
+echo "pre-push: unit tests"
+npm test --silent
+
+echo "pre-push: full Playwright suite (a few minutes; --no-verify skips it)"
+npm run test:e2e --silent
+
+echo "pre-push: green"

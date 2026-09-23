@@ -112,6 +112,41 @@ export type MonthlyRow = {
   projection_days_in_month: number | null;
 } & Record<StatKey, number> & Partial<Record<ProjectedKey, number>>;
 
+// ─── SBS sub-units ───────────────────────────────────────────────────────────
+// The units publish the same counters the grouping total does, so their rows
+// ARE `MonthlyRow` / `DailyRow` — no separate row shape, and every chart, label
+// map and projection the SBS pages already use carries over untouched. What is
+// new is only the unit itself.
+//
+// `slug` is the URL-facing id (`?site=sbs&page=monthly&unit=fenix`) and the key
+// every stored row references. See scripts/sbs_units/README.md for why the
+// ingest warns rather than quietly re-slugs when a unit is renamed.
+export interface SbsUnit {
+  slug: string;
+  subdivision_id: string;
+  division_id: string | null;
+  title_uk: string | null;
+  title_en: string | null;
+  color: string | null;
+  display_order: number | null;
+  // Derived by the ingest from "still has a live daily period" — the API flags
+  // nothing when a unit retires, it just stops issuing periods. Retired units
+  // keep their history and stay selectable; the label carries the suffix.
+  active: boolean;
+  first_month: string | null;   // "YYYY-MM"
+  last_month: string | null;    // "YYYY-MM"
+}
+
+// What the picker shows. The grouping total is not a row in the units table —
+// it is `sbs.db` — so it is represented by this sentinel rather than being
+// faked into the list.
+export const SBS_UNIT_ALL = "all";
+
+export function sbsUnitLabel(u: SbsUnit): string {
+  const name = u.title_en || u.title_uk || u.slug;
+  return u.active ? name : `${name} (retired)`;
+}
+
 // ─── Daily chart (one value per day) ─────────────────────────────────────────
 export interface DailyDataPoint {
   date: string;
@@ -159,6 +194,12 @@ export interface MonthlyDataPoint {
 export type PairMode = "subset" | "sum";
 
 export interface Metric {
+  // Stable identity for React keys and any per-chart bookkeeping. NOT the same
+  // thing as `key`: a key is the data column a chart reads, and two charts can
+  // legitimately read the same one — the SBS daily view draws
+  // total_personnel_casualties both on its own and paired against
+  // personnel_killed. buildMetrics derives this; nothing else should invent one.
+  id: string;
   key: StatKey;
   label: string;
   wfull?: boolean;

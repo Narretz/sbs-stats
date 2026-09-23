@@ -8,7 +8,7 @@ import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
-import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam } from "@/utils/dayRange";
+import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR } from "@/utils/dayRange";
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
 import {
   RU_LOSSES_METRIC_KEYS,
@@ -32,7 +32,10 @@ function parseDate(raw: string | null): string {
 function getUrlParams() {
   const p = new URLSearchParams(window.location.search);
   return {
-    days: parseDaysParam(p.get("days")),
+    // Clamped on the way in rather than after mount: a `days` straight from
+    // the URL gets one query and one chart padded to it before anything
+    // downstream could correct it.
+    days: parseDaysParam(p.get("days"), resolvedEndDate(parseDate(p.get("date")))),
     weekdays: parseWeekdays(p.get("weekdays")),
     date: parseDate(p.get("date")),
   };
@@ -64,8 +67,20 @@ export function RuLossesDailyPage({ refreshKey }: Props) {
   const [globalStats, setGlobalStats] = useState<RuLossesGlobalStats>({} as RuLossesGlobalStats);
   const [hasData, setHasData] = useState(false);
 
-  const updateDays = (d: DayOption) => { setDays(d); setUrlParams({ days: String(d) }); };
-  const updateDate = (d: string) => { setSelectedDate(d); setUrlParams({ date: d }); };
+  const updateDays = (d: DayOption) => {
+    const capped = clampDays(d, endDate);
+    setDays(capped);
+    setUrlParams({ days: String(capped) });
+  };
+  const updateDate = (d: string) => {
+    setSelectedDate(d);
+    // A window is measured back from its end, so moving the end earlier
+    // pushes the start earlier by the same amount. Shorten it instead of
+    // letting it cross the floor.
+    const capped = clampDays(days, resolvedEndDate(d));
+    setDays(capped);
+    setUrlParams({ date: d, days: String(capped) });
+  };
   const updateWeekdays = (next: number[]) => {
     setSelectedWeekdays(next);
     setUrlParams({ weekdays: next.join(",") });
@@ -88,10 +103,12 @@ export function RuLossesDailyPage({ refreshKey }: Props) {
   const shiftSelectedDate = (delta: number) => {
     const base = selectedDate || Temporal.Now.plainDateISO("Europe/Kyiv").toString();
     const next = Temporal.PlainDate.from(base).add({ days: delta }).toString();
-    if (next > maxSelectableDate) return;
+    if (next > maxSelectableDate || next < WINDOW_FLOOR) return;
     updateDate(next);
   };
   const canGoNext = selectedDate !== "" && selectedDate < maxSelectableDate;
+  // "live" sits at today, so there is always a day behind it.
+  const canGoPrev = selectedDate === "" || selectedDate > WINDOW_FLOOR;
 
   const filteredRows = useMemo(() => {
     if (selectedDate) {
@@ -127,8 +144,8 @@ export function RuLossesDailyPage({ refreshKey }: Props) {
       description={<>Daily Russian losses reported by the Ukrainian General Staff · source: <a href="https://github.com/PetroIvaniuk/2022-Ukraine-Russia-War-Dataset" rel="nofollow external" target="_blank">PetroIvaniuk dataset</a> / <a href="https://mod.gov.ua/en/news" rel="nofollow external" target="_blank">Ukrainian Ministry of Defense</a></>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-losses" />}
       controls={<>
-        <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
-        <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
+        <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
+        <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} canGoPrev={canGoPrev} />
         <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
         <StatScopeToggle />
       </>}

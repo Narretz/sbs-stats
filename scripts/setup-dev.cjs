@@ -30,3 +30,44 @@ for (const file of ["sqlite.worker.js", "sql-wasm.wasm"]) {
     console.log(`Copied ${file} to ${httpvfsDir}`);
   }
 }
+
+// Point git at the versioned hooks in .githooks/ (pre-push runs the suite).
+// .git/hooks isn't versioned, so core.hooksPath is what makes a hook arrive
+// with a clone instead of having to be installed by hand.
+//
+// Skipped in CI, which never pushes, and skipped if the repo already has a
+// hooksPath set to something else — that's someone's deliberate choice and
+// silently taking it over would disable their hooks.
+// A hooksPath pointing at the repo's own .git/hooks is git's default spelled
+// out, so on its own it expresses no preference — some tooling writes it. Only
+// treat it as a real choice if somebody has actually put a hook there; the
+// shipped .sample files don't run and don't count.
+function isVestigial(hooksPath, gitDir) {
+  if (path.resolve(hooksPath) !== path.join(gitDir, "hooks")) return false;
+  return !fs
+    .readdirSync(path.resolve(hooksPath))
+    .some((f) => !f.endsWith(".sample"));
+}
+
+if (!process.env.CI) {
+  const { execFileSync } = require("child_process");
+  const git = (args) =>
+    execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  try {
+    git(["rev-parse", "--git-dir"]);
+    let current = "";
+    try {
+      current = git(["config", "--get", "core.hooksPath"]);
+    } catch {
+      // Unset — `git config --get` exits 1, which is the common case.
+    }
+    if (current === "" || isVestigial(current, git(["rev-parse", "--absolute-git-dir"]))) {
+      git(["config", "core.hooksPath", ".githooks"]);
+      console.log("Set core.hooksPath to .githooks (pre-push runs the test suite)");
+    } else if (current !== ".githooks") {
+      console.log(`Left core.hooksPath as ${current}; .githooks/pre-push not installed`);
+    }
+  } catch {
+    // Not a git work tree (a tarball install, say) — nothing to wire up.
+  }
+}

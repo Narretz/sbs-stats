@@ -1,7 +1,7 @@
 import { useTheme } from "@/hooks/useTheme";
 import { ThemeProvider } from "@/hooks/ThemeProvider";
 import { StatScopeProvider } from "@/hooks/StatScopeProvider";
-import { SbsDatabaseProvider, SbuAlfaDatabaseProvider, RubikonDatabaseProvider } from "@/context/databases";
+import { SbsDatabaseProvider, SbsUnitsDatabaseProvider, SbuAlfaDatabaseProvider, RubikonDatabaseProvider } from "@/context/databases";
 import { SITE_REGISTRY, type SiteConfig } from "@/sites/registry";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { RouteProvider } from "@/hooks/RouteContext";
@@ -132,7 +132,13 @@ function AppInner() {
         )}
         {route.kind === "special" && (
           <ErrorShell>
+            {/* The compare table can put any SBS sub-unit in a column, so the
+                units DB is mounted here too — unlike the SBS site, where it is
+                gated to the monthly page (see SbsProviders). Both hooks share a
+                module-scope cache, so arriving here from that page reuses the
+                already-loaded Database. */}
             <SbsDatabaseProvider>
+              <SbsUnitsDatabaseProvider>
               <SbuAlfaDatabaseProvider>
                 <RubikonDatabaseProvider>
                   <SpecialViewHeader />
@@ -143,6 +149,7 @@ function AppInner() {
                   </PageShell>
                 </RubikonDatabaseProvider>
               </SbuAlfaDatabaseProvider>
+              </SbsUnitsDatabaseProvider>
             </SbsDatabaseProvider>
           </ErrorShell>
         )}

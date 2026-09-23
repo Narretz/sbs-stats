@@ -25,10 +25,13 @@ export function WeekdayMultiSelect({ selected, onChange, todayDow }: WeekdayMult
   }, [open]);
 
   const active = selected.length > 0;
+
+  const ALL_WEEKDAYS = 'All';
+
   const summary = !active
-    ? "All weekdays"
+    ? ALL_WEEKDAYS
     : selected.length === 7
-      ? "All weekdays"
+      ? ALL_WEEKDAYS
       : selected.map(d => DOW_LABELS[d]).join(", ");
 
   const toggle = (dow: number) => {

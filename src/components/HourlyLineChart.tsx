@@ -3,7 +3,7 @@ import {
   ReferenceLine, ResponsiveContainer,
 } from "recharts";
 import { Temporal } from "temporal-polyfill";
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DailyDaySeries, EodEstimate } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
@@ -12,6 +12,7 @@ import type { Theme } from "@/theme";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { chartAnchor } from "@/utils/chartAnchor";
+import { ChartPlaceholder, useNearViewport } from "@/components/LazyChartArea";
 import { usePinnedChart } from "@/components/usePinnedChart";
 import type { TooltipDescriptor } from "@/components/TooltipTable";
 export type TooltipSortMode = "date" | "value";
@@ -55,12 +56,98 @@ function pivotData(series: DailyDaySeries[]): Record<string, number | null>[] {
 }
 type TooltipEntry = { dataKey: string; value: number };
 type HourRow = { hour: number } & Record<string, number | null>;
+// Stable identity, so the memo below doesn't hand recharts a new empty array
+// on every render of a chart that hasn't arrived yet.
+const EMPTY_ROWS: HourRow[] = [];
 
 function formatHour(hour: number | null | undefined): string {
   if (hour == null) return "";
   if (hour === 0) return "00:00";
   const h = String(hour - 1).padStart(2, "0");
   return `${h}:00–${h}:59`;
+}
+
+// The date grid: one row per day in the window, in as many columns as the
+// available height allows.
+//
+// The columns are real sibling elements, chunked here, rather than a
+// column-direction `flex-wrap`. The wrap reads better and needs no arithmetic,
+// but a wrapping flex box reports its max-content width as a SINGLE column in
+// Firefox (Chrome sums the lines), and the card is sized by exactly that
+// measurement — so the card came out as wide as its header line, about three
+// columns, and every column past the third hung outside its border. As a row
+// of siblings the width is the sum by construction, in every engine.
+//
+// How many rows per column is a question about height, and neither renderer
+// answers it on its own: the sheet hands the grid a definite height (it is a
+// flex child of `.chart-sheet-body`) but more of it than the grid should take,
+// while a floating tooltip is positioned rather than laid out and bounds
+// nothing at all. So MAX_GRID_HEIGHT bounds both, and the grid re-chunks to
+// the height it actually got — which converges in one layout pass, and follows
+// a window resize or a rotation.
+const LINE_H = 15;
+const ROW_GAP = 4;
+// The grid's shape, in one knob. Rows fill a column before a new one starts,
+// so this is the height at which it gives up and goes wider: lower is shorter
+// and wider, higher is taller and narrower. It binds in BOTH renderers — the
+// sheet has more height to offer than the grid should take, and a grid that
+// filled it left a column of narrow columns and a needlessly tall sheet.
+//
+// At 1440x900, for a 120-day window: 46vh/420 is 6 columns of 22 (576px wide),
+// 34vh/300 is 8 of 16 (772px), 28vh/240 is 10 of 12 (968px), 22vh/190 is 12 of
+// 10 and 1164px — past which the card is wider than most of the window it
+// floats over.
+const MAX_GRID_HEIGHT = "min(34vh, 300px)";
+const MAX_GRID_HEIGHT_PX = (vh: number) => Math.min(vh * 0.34, 300);
+// Rows that fit in `h` pixels: n lines plus the gaps BETWEEN them, so the
+// inverse is (h + gap) / (line + gap) — not h / row, which reads one row short
+// of what it just laid out and walks the column count down a row per pass.
+const rowsIn = (h: number) => Math.max(1, Math.floor((h + ROW_GAP) / (LINE_H + ROW_GAP)));
+
+function DateGrid({ children }: { children: React.ReactNode[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [perColumn, setPerColumn] = useState(() =>
+    rowsIn(MAX_GRID_HEIGHT_PX(window.innerHeight)));
+
+  // Observed rather than measured once: the height this grid is given changes
+  // under it — the window resizes, the sheet opens, a phone rotates.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const h = el.clientHeight;
+      if (h > 0) setPerColumn((prev) => (prev === rowsIn(h) ? prev : rowsIn(h)));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const columns: React.ReactNode[][] = [];
+  for (let i = 0; i < children.length; i += perColumn) {
+    columns.push(children.slice(i, i + perColumn));
+  }
+  return (
+    <div
+      ref={ref}
+      data-testid="hourly-tooltip-days"
+      style={{
+        display: "flex",
+        gap: 12,
+        alignItems: "flex-start",
+        // Claims the sheet body's leftover height; inert in the card, where the
+        // parent is an ordinary block and the cap is the only bound.
+        flex: "1 1 auto",
+        minHeight: 0,
+        maxHeight: MAX_GRID_HEIGHT,
+      }}
+    >
+      {columns.map((col, ci) => (
+        <div key={ci} style={{ display: "flex", flexDirection: "column", gap: ROW_GAP }}>{col}</div>
+      ))}
+    </div>
+  );
 }
 
 // This tooltip is a grid of dates, not a table of series, so it goes through
@@ -100,62 +187,55 @@ function describeHour({
   const currentDeltaPct = currentEntry
     ? (hourMedian !== 0 ? ((currentEntry.value - hourMedian) / hourMedian) * 100 : null)
     : null;
-  // Split into columns of max 10 rows each
-  const ROWS_PER_COL = 10;
-  const columns: typeof sorted[] = [];
-  for (let i = 0; i < sorted.length; i += ROWS_PER_COL) {
-    columns.push(sorted.slice(i, i + ROWS_PER_COL));
-  }
+
+  const multipleYears = new Set(sorted.map(p => p.dataKey.slice(0, 4))).size > 1;
+
+  const header = (
+    <div style={{marginBottom: 4}}>
+      <div style={{ color: t.accent, marginBottom: 5, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
+        {eod ? 'TODAY' : currentDate} {formatHour(label)}: {currentEntry ? currentEntry.value : 'n/a'}{eod && `, EoD est ~${eod.projected.toLocaleString()} (${Math.round(eod.fraction * 100)}% in by ${eod.asOf})`}
+      </div>
+      <div>
+        {`median ${hourMedian.toLocaleString()}`}
+        {` · current ${currentDeltaPct == null ? "n/a" : `${currentDeltaPct >= 0 ? "+" : ""}${currentDeltaPct.toFixed(1)}%`} vs median`}
+      </div>
+    </div>
+  );
+
   const content = (
     <>
-      {eod && (
-        <div style={{ color: t.accent, marginBottom: 5, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
-          {`TODAY EoD est ~${eod.projected.toLocaleString()} (${Math.round(eod.fraction * 100)}% in by ${eod.asOf})`}
-        </div>
-      )}
-      {/* Columns */}
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        {columns.map((col, ci) => (
-          <div key={ci}>
-            {col.map((p) => {
-              // Show MM-DD for past days to save space
-              const [, m, d] = p.dataKey.split('-');
+      <DateGrid>
+        {sorted.map((p) => {
+          // Show MM-DD for past days to save space — with the year in front of
+          // it only when the window spans more than one, where MM-DD alone
+          // would put two different days under the same label.
+          const [y, m, d] = p.dataKey.split('-');
 
-              const isToday = p.dataKey === today;
+          const isToday = p.dataKey === today;
 
-              const isCurrentDate = p.dataKey === currentDate;
+          const isCurrentDate = p.dataKey === currentDate;
 
-              const highlight = isToday || isCurrentDate;
+          const highlight = isToday || isCurrentDate;
 
-              const label = isToday ? "TODAY" : `${d}.${m}.`;
+          const label = isToday ? "TODAY" : multipleYears ? `${y}-${m}-${d}` : `${m}-${d}`;
 
-              return (
-                <div key={p.dataKey} style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 8,
-                  marginBottom: 2,
-                  color: highlight ? chartColors(t).hourlyToday : t.textMuted,
-                  fontWeight: highlight ? 700 : 400,
-                  lineHeight: "15px",
-                }}>
-                  <span>{label}</span>
-                  <span style={{ color: t.text, fontWeight: isToday ? 700 : 400 }}>
-                    {p.value.toLocaleString()}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </>
-  );
-  const header = (
-    <>
-      {formatHour(label)}
-      {` · med ${hourMedian.toLocaleString()}`}
-      {` · cur ${currentDeltaPct == null ? "n/a" : `${currentDeltaPct >= 0 ? "+" : ""}${currentDeltaPct.toFixed(1)}%`} vs med`}
+          return (
+            <div key={p.dataKey} style={{
+              display: "flex",
+              gap: 8,
+              justifyContent: 'space-between',
+              color: highlight ? t.accent : t.textMuted,
+              fontWeight: highlight ? 700 : 400,
+              lineHeight: `${LINE_H}px`,
+            }}>
+              <span>{label}</span>
+              <span style={{ color: highlight ? t.accent : t.text, fontWeight: highlight ? 700 : 400 }}>
+                {p.value.toLocaleString()}
+              </span>
+            </div>
+          );
+        })}
+      </DateGrid>
     </>
   );
   return { header, rows: [], content, minWidth: 200 };
@@ -185,7 +265,16 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
   const yScaleMax = win
     ? Math.max(max, pairedWinMax)
     : Math.max(max, pairedGlobalMax ?? 0);
-  const chartData = pivotData(data) as HourRow[];
+  // The plot area, and the pivot that feeds it, both wait until the card is
+  // nearly in view — see LazyChartArea. Memoised as well as deferred: `data`
+  // only changes when the page re-queries, while this component re-renders on
+  // every hover, and the pivot walks every day in the window.
+  const plotRef = useRef<HTMLDivElement>(null);
+  const near = useNearViewport(plotRef);
+  const chartData = useMemo(
+    () => (near ? (pivotData(data) as HourRow[]) : EMPTY_ROWS),
+    [near, data],
+  );
   // When a date is selected, highlight only the series for that exact date.
   // No fallback to the most-recent day: selecting a date with no data (e.g. a
   // day whose report hasn't landed) must not emphasise a different day.
@@ -210,6 +299,9 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
       sortMode: tooltipSort, eod: isToday ? (eod ?? null) : null,
     }),
     formatLabel: (r) => formatHour(r.hour),
+    // The date grid is as wide as its column count, which a half-width chart
+    // is not: without this the columns hang out past the card's border.
+    fitToContent: true,
   });
 
   return (
@@ -231,6 +323,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
         <span style={{ color: c.medReference }}>~ MED {median.toLocaleString()}</span>
         <span style={{ color: t.textMuted }}>Σ TOTAL {windowTotal.toLocaleString()}</span>
       </div>
+{near ? (
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
           <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
@@ -267,6 +360,9 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
           {pin.cursor}
         </LineChart>
       </ResponsiveContainer>
+      ) : (
+        <ChartPlaceholder inner={plotRef} height={220} />
+      )}
       {pin.sheet}
     </div>
   );

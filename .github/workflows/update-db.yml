@@ -18,6 +18,11 @@ jobs:
     permissions:
       contents: write  # needed for `gh release` (Releases live under contents)
 
+    env:
+      # Naming a sink turns the ingest's warnings into GitHub annotations via
+      # the Annotate step below. Unset locally, so a dev run stays console-only.
+      INGEST_LOG: ${{ github.workspace }}/ingest-diagnostics.jsonl
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
@@ -87,3 +92,8 @@ jobs:
             --file data/sbs.db \
             --content-type application/vnd.sqlite3 \
             --remote
+
+      # Always, so a run that dies still reports what it found on the way.
+      - name: Annotate ingest diagnostics
+        if: always()
+        run: python3 scripts/annotate_log.py

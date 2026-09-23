@@ -11,6 +11,7 @@ via sql.js / sql.js-httpvfs.
 | View | Site key | Source | Pipeline |
 |---|---|---|---|
 | SBS STATISTICS | `sbs` | sbs-group.army public API | `scripts/fetch_and_update.py` → `sbs.db` |
+| SBS SUB-UNITS | (SBS monthly filter · compare column · `sbs-unit.*` metrics) | sbs-group.army public API, per subdivision | [`scripts/sbs_units/`](scripts/sbs_units/README.md) → `sbs-units.db` |
 | RU ATTACKS — GSUA | `ru-attacks-gsua` | Ukrainian General Staff operational reports (Telegram) | [`scripts/gsua/`](scripts/gsua/README.md) → `ru-attacks-gsua.db` |
 | RU LOSSES — GSUA | `ru-losses-gsua` | Ukrainian General Staff national totals (PetroIvaniuk dataset) | [`scripts/ru_losses/`](scripts/ru_losses/README.md) → `ru-losses-gsua-petroivaniuk.db` |
 | RU AIR DEFENSE — RU MoD | `ru-airdef-mod` | Russian MoD air-defense claims (Telegram) | [`scripts/ru_mod/`](scripts/ru_mod/README.md) → `ru-mod-ad.db` |
@@ -35,6 +36,20 @@ datasets for future views.
   recharts has sized its containers. The hover "#" affordance is CSS generated
   content, deliberately: as a real element it lands in the title's textContent
   and breaks `getByText(title, { exact: true })`.
+- **SBS sub-units are a refinement of the `sbs` source, not a source of their
+  own.** A unit publishes exactly the grouping's counters, so its rows ARE
+  `MonthlyRow` and every chart, target label and compare row mapping applies
+  unchanged — the cost of adding them was plumbing, not modelling. The
+  consequence to keep in mind: an `sbs` column/metric no longer determines its
+  own data, the unit does. On the compare page that means `snapshotFor(column)`
+  rather than `snapshots[entity]` at EVERY read (two were missed the first
+  time, and a sub-unit silently showed the whole grouping's figure). In the
+  combined charts it means one query per unit, not per source. The homepage
+  picker renders the units as one `<select>` plus the shared SBS metric list
+  rather than 15 × 89 flattened rows — that list is in the DOM once per chart
+  on the page, so the difference is ~90 rows versus 1,335. `sbs-units.db` is
+  loaded lazily everywhere: on first picker open, and only on the SBS monthly
+  page.
 - **Color**: `src/theme.ts` is the single source of truth — chrome tokens plus
   the chart-series tokens (`series1` blue = the main series of any chart,
   `series2` red = a second series drawn against it). `ThemeProvider` publishes
@@ -56,22 +71,41 @@ datasets for future views.
   a row is never overwritten; an edit/correction inserts a new row keyed by an
   ingest timestamp (`scraped_at`), and reads resolve the latest version. See the
   per-script READMEs for details.
-- **Tests** (`e2e/`): e2e tests for the frontend application. Uses fixtures in place of live data.
-  Add and run tests on your own discretion after features/fixes have been completed.
-  (`scripts/*/test_ingest.py`): ingest tests for scripts that parse data from unstructered sources.
-  Must always be run and updated when the parser is changed. Run them with
-  `bash scripts/test_python.sh`, which runs **one pytest process per dataset
-  directory** — `pytest scripts/` in one go dies with collection errors,
-  because every directory has its own `parse.py` / `ingest.py` and each script
-  puts its own directory on sys.path, so the first `parse` imported wins
-  sys.modules for all of them. `__init__.py` per directory does not fix it and
-  breaks the per-directory runs; the script's header has the detail.
+- **Tests**, three tiers, split by what a case actually needs:
+  - `src/**/*.test.ts` (vitest, `npm test`): the app's pure logic — the
+    homepage's `charts=` codec (`src/home/charts.ts`), the compare registry's
+    value arithmetic, the date/window helpers, the EoD projection. Plain Node,
+    no DOM, sub-second, so edge cases (delimiters in a name, a malformed spec,
+    a settled day) cost a line each. A new pure helper belongs here.
+  - `e2e/` (Playwright, `npm run test:e2e`): everything that needs the real
+    thing — a DB loading, recharts sizing itself, an IntersectionObserver, the
+    history stack. Uses synthetic fixtures, never `data/*.db`. Reach for it
+    when the question is "does this reach the screen", not "is this the right
+    number".
+  - `scripts/*/test_ingest.py`: ingest tests for scripts that parse data from
+    unstructered sources. Must always be run and updated when the parser is
+    changed. Run them with `bash scripts/test_python.sh`, which runs 
+    **one pytest process per dataset directory** — `pytest scripts/` in one go.
+
+  The first two are also the rule for where logic lives: if an e2e test is
+  asserting arithmetic, the arithmetic wants lifting out of the component.
 
 
 ## CI / deploy
 
 GitHub Actions in `.github/workflows/`:
-- `update-db.yml` — SBS.
+- `update-db.yml` — SBS grouping total. No `schedule:`; an external cron
+  dispatches it roughly hourly.
+- `update-sbs-units-db.yml` — the 15 tracked SBS sub-units
+  ([`scripts/sbs_units/`](scripts/sbs_units/README.md)). Its own workflow
+  precisely because it must NOT run hourly: the capture-bucket key means extra
+  runs change freshness rather than row count, at ~60 requests each. Scheduled
+  09:00 / 21:00 **Europe/Kyiv** (IANA `timezone:` cron field) — 21:00 for the
+  settled `prev_day` plus a nearly-complete "today", 09:00 as redundancy, since
+  a day's settled value is only reachable while it is `prev_day`. Separate DB
+  from `sbs.db` because that one is fetched whole by every SBS page and unit
+  data is only read by the monthly / compare / combined views. Retirement is
+  derived from "no live daily period", never listed.
 - `update-ru-losses-db.yml` — RU losses.
 - `update-telegram-web-dbs.yml` — GSUA + RU MoD (two jobs, both scrape the
   public `t.me/s` web preview, no API account). Scheduled at 08:00 / 16:00 /
@@ -125,7 +159,11 @@ only a re-scrape can. `update-telegram-web-dbs.yml`: `gsua_lookback_days` /
 `rumod_lookback_days` (default 2). `update-sbu-alfa-db.yml`: `pages` (default
 3 listing pages). `update-rubikon-db.yml`: `pages` (default 3 t.me/s preview
 pages). `update-db.yml`: `all_months` (bypass the SBS 10-day / 6-hour
-refresh thresholds). The Kaggle / CSV / article-bundle pipelines (RU losses, UA
+refresh thresholds). `update-sbs-units-db.yml`: `all` (re-read every sub-unit
+month and year the API still exposes) — the one that is genuinely urgent when
+needed, because the API keeps only twelve monthly period slots per unit and
+re-points them yearly, so a month nobody captured before it rolls out is gone
+for good; `scripts/sbs_units/check_db.py` reports exactly that. The Kaggle / CSV / article-bundle pipelines (RU losses, UA
 losses, missile attacks, Mediazona) re-pull the whole source every run, so a
 fix takes effect on the next run with no input to widen.
 
@@ -159,7 +197,14 @@ however wide `pages` is.
 npm run dev          # local dev server (Vite, port from vite.config.ts)
 npm run build        # production build → dist/
 npm run lint         # eslint, zero-warnings
-npm run test:e2e     # Playwright e2e (uses .env.e2e fixture DBs)
+npm test             # vitest unit tests (src/**/*.test.ts) — fast, no browser
+npm run test:watch   # the same, in watch mode
+npm run test:e2e     # Playwright e2e (uses .env.e2e fixture DBs).
+# Only run e2e tests that directly cover the area you are working in —
+# `.githooks/pre-push` runs the whole suite (plus `npm test`) on every push,
+# which is where the full sweep belongs. `git push --no-verify`, or
+# SKIP_TESTS=1, skips it. `npm install` points core.hooksPath at .githooks;
+# a hooksPath somebody has deliberately set elsewhere is left alone.
 
 # Screenshot the compare page on the PRODUCTION DBs in data/ (starts its own
 # dev server; --zoom/--theme/--scope/--full, see the file's header comment):

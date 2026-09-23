@@ -37,6 +37,17 @@ interface Options<T> {
    *  by charts that explain their gaps: recharts hides the wrapper when every
    *  series is null at that x, which is exactly the case worth a note. */
   showEmptyWrapper?: boolean;
+  /** Let the hover card size to its content rather than to the chart.
+   *
+   *  The wrapper is positioned absolutely inside the chart, so its shrink-to-fit
+   *  width tops out at the chart's own — which is right for a table (it wraps
+   *  or ellipsises) and wrong for content that lays itself out in columns: the
+   *  hourly overlay's date grid simply spilled out past the card's border on a
+   *  half-width chart, by ~100px at 1024x768.
+   *
+   *  On the wrapper rather than the card so recharts measures the real width
+   *  when it decides which side of the cursor to hang it from. */
+  fitToContent?: boolean;
 }
 
 export interface PinnedChart {
@@ -64,6 +75,7 @@ export interface PinnedChart {
 
 export function usePinnedChart<T>({
   chartId, title, data, xOf, describe, formatLabel, cursor, cursorProps, showEmptyWrapper,
+  fitToContent,
 }: Options<T>): PinnedChart {
   const { theme: t } = useTheme();
   // Recomputed per render rather than memoised: `xOf` is nearly always an
@@ -118,9 +130,11 @@ export function usePinnedChart<T>({
       // The same prop is what keeps touch out of the hover card (see above).
       active={pin.isPinned || !hovering ? false : undefined}
       allowEscapeViewBox={{ x: false, y: true }}
-      wrapperStyle={showEmptyWrapper
-        ? { zIndex: 9999, visibility: "visible" }
-        : { zIndex: 9999 }}
+      wrapperStyle={{
+        zIndex: 9999,
+        ...(showEmptyWrapper ? { visibility: "visible" as const } : null),
+        ...(fitToContent ? { width: "max-content" } : null),
+      }}
       cursor={cursor}
       content={(props) => {
         const p = props as {

@@ -72,4 +72,28 @@ test.describe("Homepage custom charts — time window picker", () => {
     const ids = firstChunk.split(":").at(-1)!.split(",");
     expect(ids.length).toBe(3);
   });
+
+  test("clearing the input leaves it cleared, and blur restores the value", async ({ page }) => {
+    await openHomeWithDefaults(page);
+    const custom = page.locator('[data-testid="day-range-custom"]').first();
+    await expect(custom).toHaveValue("60");
+
+    // An empty field is a state on the way to another value, not an invalid
+    // commit to be corrected: the debounce used to put the old value back
+    // 350ms later, so clearing the field to type a new number snatched it back
+    // under the cursor.
+    await custom.focus();
+    await custom.fill("");
+    await page.waitForTimeout(700);
+    await expect(custom).toHaveValue("");
+
+    // Typing on from there commits normally.
+    await custom.fill("45");
+    await page.waitForFunction(() => /[?&]charts=.*d45/.test(location.search), null, { timeout: 2_000 });
+
+    // Blur is what ends the edit, so an abandoned one reverts there.
+    await custom.fill("");
+    await custom.blur();
+    await expect(custom).toHaveValue("45");
+  });
 });

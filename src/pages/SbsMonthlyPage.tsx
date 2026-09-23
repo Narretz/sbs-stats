@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { SUBSET_LABEL } from "@/tooltipLabels";
-import { useSbsDatabaseContext } from "@/context/databases";
+import { useSbsDatabaseContext, useSbsUnitsDatabaseContext } from "@/context/databases";
+import { UnitSelect } from "@/components/UnitSelect";
 import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyMetricGrid } from "@/hooks/useMonthlyMetricGrid";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
@@ -12,7 +13,7 @@ import { PageScaffold } from "@/components/PageScaffold";
 import { buildMetrics } from "@/utils/metrics";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
-import { TARGET_IDS, TARGET_LABELS } from "@/types";
+import { SBS_UNIT_ALL, TARGET_IDS, TARGET_LABELS, sbsUnitLabel } from "@/types";
 import type { MonthlyDataPoint, MonthlyRow, StatKey, Metric } from "@/types";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
@@ -21,10 +22,66 @@ interface MonthlyPageProps {
   refreshKey?: number;
 }
 
+// The selected unit lives in the URL so a view is linkable
+// (`?site=sbs&page=monthly&unit=fenix`). Picking a unit is a filter, not a
+// navigation, so it replaces the entry rather than pushing one — the same rule
+// the homepage and compare page use for their own params.
+function readUnitFromUrl(): string {
+  return new URLSearchParams(window.location.search).get("unit") || SBS_UNIT_ALL;
+}
+
+function writeUnitToUrl(slug: string): void {
+  const p = new URLSearchParams(window.location.search);
+  if (slug === SBS_UNIT_ALL) p.delete("unit");
+  else p.set("unit", slug);
+  const qs = p.toString();
+  window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+}
+
 export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryMonthly, queryDataWindow } = useSbsDatabaseContext();
-  const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
+  const grouping = useSbsDatabaseContext();
+  const units = useSbsUnitsDatabaseContext();
+
+  const [unit, setUnit] = useState<string>(readUnitFromUrl);
+  const isAll = unit === SBS_UNIT_ALL;
+
+  const unitList = useMemo(
+    () => (units.loadState === "ready" ? units.queryUnits() : []),
+    [units],
+  );
+
+  // A `unit=` naming something the registry doesn't have — a typo, or a slug
+  // that moved — falls back to the grouping rather than rendering an empty
+  // page. Deferred until the registry is loaded, or it would fire on every
+  // first paint.
+  useEffect(() => {
+    if (isAll || !unitList.length) return;
+    if (!unitList.some((u) => u.slug === unit)) setUnit(SBS_UNIT_ALL);
+  }, [isAll, unit, unitList]);
+
+  useEffect(() => { writeUnitToUrl(unit); }, [unit]);
+
+  const selected = useMemo(
+    () => (isAll ? null : unitList.find((u) => u.slug === unit) ?? null),
+    [isAll, unit, unitList],
+  );
+
+  // Past this point the page doesn't branch on which DB it is reading: both
+  // hand back MonthlyRow, so every chart, projection and stat below is
+  // untouched by the unit filter.
+  const loadState = isAll ? grouping.loadState : units.loadState;
+  const error = isAll ? grouping.error : units.error;
+
+  const queryMonthly = useCallback(
+    () => (isAll ? grouping.queryMonthly() : units.queryMonthly(unit)),
+    [isAll, grouping, units, unit],
+  );
+  const dataWindow = useMemo(
+    () => (isAll ? grouping.queryDataWindow() : units.queryDataWindow(unit)),
+    [isAll, grouping, units, unit],
+  );
+
   const { allRows, rows, hasData, yr } = useMonthlyMetricGrid({
     loadState, queryMonthly, refreshKey,
   });
@@ -141,8 +198,18 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
 
   return (
     <PageScaffold
-      title="UA SBS Monthly Statistics"
-      description={<>Syly bezpilotnykh system / Unmannend System Force (SBS/USF) · Monthly aggregates - current month shows end-of-month projection. · From <a href="noreferer nofollow">https://sbs-group.army/</a></>}
+      title={selected ? `UA SBS Monthly — ${sbsUnitLabel(selected)}` : "UA SBS Monthly Statistics"}
+      description={selected ? (
+        <>
+          {selected.title_uk ? `${selected.title_uk} · ` : ""}One sub-unit of the SBS grouping ·
+          Monthly aggregates - current month shows end-of-month projection. · The named
+          units do not sum to the grouping total (~0.4% is unattributed), so read this
+          against the grouping rather than as a share of it. · From{" "}
+          <a href="noreferer nofollow">https://sbs-group.army/</a>
+        </>
+      ) : (
+        <>Syly bezpilotnykh system / Unmannend System Force (SBS/USF) · Monthly aggregates - current month shows end-of-month projection. · From <a href="noreferer nofollow">https://sbs-group.army/</a></>
+      )}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="sbs" />}
       headerExtra={
         <div style={{ display: "flex", gap: 20, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
@@ -151,20 +218,29 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
           <span style={{ color: t.textMuted }}>Lighter segment = current-month projection</span>
         </div>
       }
-      // No window picker → no scope toggle either; see StatScopeToggle.
-      controls={yr.hidden ? undefined : (
+      // The unit picker shows even when the month range doesn't: a unit with
+      // only a handful of months hides the range picker (see
+      // useMonthlyMonthRange), and hiding the control that got you there would
+      // strand you on that unit.
+      controls={
         <>
-          <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
-          <StatScopeToggle />
+          <UnitSelect units={unitList} value={unit} onChange={setUnit} />
+          {!yr.hidden && (
+            <>
+              <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
+              {/* No window picker → no scope toggle either; see StatScopeToggle. */}
+              <StatScopeToggle />
+            </>
+          )}
         </>
-      )}
+      }
       loadState={loadState}
       error={error}
       hasData={hasData}
       gridChildren={<>
           {baseMetrics.map((m: Metric) => (
             <MonthlyBarChart
-              key={m.key}
+              key={m.id}
               title={m.label}
               data={makeDataset(m.key)}
               wfull={m.wfull ?? false}

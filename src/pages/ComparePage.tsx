@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import {
   useRubikonDatabaseContext,
   useSbsDatabaseContext,
+  useSbsUnitsDatabaseContext,
   useSbuAlfaDatabaseContext,
 } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
@@ -9,6 +10,7 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { FONTS } from "@/theme";
 import {
+  CANONICAL_ROWS,
   COMPARE_ENTITIES,
   SBS_COLUMNS,
   ENTITY_LABELS,
@@ -18,9 +20,14 @@ import {
   fmtPct,
   fmtValue,
   keysFor,
+  mapsIn,
   pctChange,
+  sourceKey,
+  sourceLabel,
+  sumCompareValues,
   sumNatives,
   visibleRowsFor,
+  type ColumnSource,
   type CompareEntityId,
   type CompareGroup,
   type CompareValue,
@@ -31,9 +38,11 @@ import {
 import type {
   MonthlyRow,
   RubikonCounterRow,
+  SbsUnit,
   SbuAlfaBound,
   SbuAlfaCounterRow,
 } from "@/types";
+import { sbsUnitLabel } from "@/types";
 
 interface Props {
   // `?view=sbs-vs-sbu-alfa` is the old hardcoded page's URL. It still resolves,
@@ -44,10 +53,18 @@ interface Props {
 
 // A column is one (entity, month) pair. Two columns of the same entity with
 // different months IS the month-to-month comparison — no separate mode needed.
-interface Column {
+interface Column extends ColumnSource {
   id: number;
-  entity: CompareEntityId;
   month: string;
+}
+
+// The two readings of one monthly source. Built as a pair rather than switched
+// inside a single snapshot because `EntitySnapshot.get` takes (month, key) and
+// nothing else — which is exactly what keeps the table free of per-entity
+// branching, and worth more than saving one object.
+interface SnapshotPair {
+  reported: EntitySnapshot;
+  projected: EntitySnapshot;
 }
 
 // Soft green tint for the largest value in a row. Works as an overlay on both
@@ -55,6 +72,11 @@ interface Column {
 const HIGHLIGHT_BG = "rgba(34, 197, 94, 0.15)";
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
+
+// Marks a column as reading the month-end projection rather than the figure
+// reported so far. One constant for the URL token and the <select> value, so a
+// shared link and the control that produced it can't drift apart.
+const PROJ = ":proj";
 
 // Percentages compare either against the leftmost column (a fixed baseline,
 // good for "how does everyone stack up against X") or against the column
@@ -66,15 +88,34 @@ function readParam(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name);
 }
 
+// `sbs:2026-08` for an entity, `sbs:fenix:2026-08` for one of its sub-units,
+// either with a trailing `:proj`. The two-token form is the original and still
+// parses, so links shared before sub-units existed keep working.
 function readColumnsFromUrl(): Column[] {
   const raw = new URLSearchParams(window.location.search).get("cols");
   if (!raw) return [];
   const out: Column[] = [];
   for (const part of raw.split(",")) {
-    const [entity, month] = part.split(":");
-    if ((COMPARE_ENTITIES as readonly string[]).includes(entity) && MONTH_RE.test(month ?? "")) {
-      out.push({ id: out.length, entity: entity as CompareEntityId, month });
-    }
+    const bits = part.split(":");
+    // Stripped before the positional tokens are read, so the month stays last
+    // whether or not the marker is there.
+    const proj = bits.length > 2 && bits[bits.length - 1] === "proj";
+    if (proj) bits.pop();
+    const entity = bits[0];
+    const unit = bits.length >= 3 ? bits[1] : undefined;
+    const month = bits[bits.length - 1];
+    if (!(COMPARE_ENTITIES as readonly string[]).includes(entity)) continue;
+    if (!MONTH_RE.test(month ?? "")) continue;
+    // A unit slug is only meaningful on SBS; anywhere else it is a malformed
+    // link, and dropping the token is friendlier than dropping the column.
+    // Same for `:proj` — only SBS derives one.
+    out.push({
+      id: out.length,
+      entity: entity as CompareEntityId,
+      ...(unit && entity === "sbs" ? { unit } : {}),
+      ...(proj && entity === "sbs" ? { proj: true } : {}),
+      month,
+    });
   }
   return out;
 }
@@ -86,7 +127,9 @@ function writeViewToUrl(
   columns: Column[], pctMode: PctMode, showScope: boolean, showChildren: boolean,
 ) {
   const p = new URLSearchParams(window.location.search);
-  if (columns.length) p.set("cols", columns.map((c) => `${c.entity}:${c.month}`).join(","));
+  if (columns.length) {
+    p.set("cols", columns.map((c) => `${sourceKey(c)}:${c.month}${c.proj ? PROJ : ""}`).join(","));
+  }
   else p.delete("cols");
   // Only non-default settings are written, so a plain comparison keeps a clean
   // URL and a shared link carries exactly what the sender was looking at.
@@ -96,6 +139,47 @@ function writeViewToUrl(
   window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
 }
 
+// The monthly-rows sources — the SBS grouping and every one of its sub-units —
+// share one snapshot shape, which is the whole reason sub-units cost plumbing
+// rather than modelling. `mode` picks which figure a cell reads: what has been
+// reported so far this month, or the month-end projection the SBS hooks derive
+// for the month still running (the same pro-rata number the monthly charts draw
+// as the ghost segment on the current bar).
+//
+// A projected cell is `approx`, so it renders as "~N". The header says
+// "projected" once, but cells travel — a screenshot, a pasted row — and the
+// tilde travels with them.
+function monthlySnapshot(rows: MonthlyRow[], mode: "reported" | "projected"): EntitySnapshot {
+  const byMonth = new Map(rows.map((r) => [r.date, r]));
+  const current = rows.find((r) => r.is_current_month && r.projection_day != null);
+  return {
+    id: "sbs",
+    months: [...byMonth.keys()].sort(),
+    projMonth: current?.date,
+    get(month, key) {
+      const row = byMonth.get(month);
+      if (!row) return null;
+      // Rows address SBS by slug ("copter_uav"); the DB column is the target
+      // id ("hit_24"). Only SBS keys ever reach this snapshot, so the cast is
+      // the union-to-member narrowing the call site already guarantees.
+      const col = SBS_COLUMNS[key as SbsNativeKey];
+      const cells = row as unknown as Record<string, unknown>;
+      const v = cells[mode === "projected" ? `${col}_projected` : col];
+      if (typeof v !== "number") return null;
+      if (mode === "reported") return { value: v, bound: "exact", derived: false };
+      // Deliberately no fallback to the reported figure: a month carrying no
+      // projection is a settled month, and serving its total under a
+      // "projected" header is the one answer here that would be wrong.
+      return {
+        value: v,
+        bound: "approx",
+        derived: false,
+        note: `Month-end projection · day ${row.projection_day} of ${row.projection_days_in_month}`,
+      };
+    },
+  };
+}
+
 export function ComparePage({ preset }: Props) {
   const { theme: t } = useTheme();
   useDocumentTitle("Compare");
@@ -103,6 +187,7 @@ export function ComparePage({ preset }: Props) {
   const sbs = useSbsDatabaseContext();
   const sbu = useSbuAlfaDatabaseContext();
   const rubikon = useRubikonDatabaseContext();
+  const sbsUnits = useSbsUnitsDatabaseContext();
 
   const [sbsRows, setSbsRows] = useState<MonthlyRow[]>([]);
   const [sbuRows, setSbuRows] = useState<SbuAlfaCounterRow[]>([]);
@@ -118,24 +203,16 @@ export function ComparePage({ preset }: Props) {
     if (rubikon.loadState === "ready") setRubikonRows(rubikon.queryCounters());
   }, [rubikon]);
 
+  const [units, setUnits] = useState<SbsUnit[]>([]);
+  useEffect(() => {
+    if (sbsUnits.loadState === "ready") setUnits(sbsUnits.queryUnits());
+  }, [sbsUnits]);
+
   // ─── Snapshots ────────────────────────────────────────────────────────────
   // Each dataset's rows, reshaped into the one lookup the table needs. Past
   // this point nothing in the page branches on which entity it is holding.
-  const sbsSnapshot = useMemo<EntitySnapshot>(() => {
-    const byMonth = new Map(sbsRows.map((r) => [r.date, r]));
-    return {
-      id: "sbs",
-      months: [...byMonth.keys()].sort(),
-      get(month, key) {
-        const row = byMonth.get(month) as Record<string, unknown> | undefined;
-        // Rows address SBS by slug ("copter_uav"); the DB column is the target
-        // id ("hit_24"). Only SBS keys ever reach this snapshot, so the cast is
-        // the union-to-member narrowing the call site already guarantees.
-        const v = row?.[SBS_COLUMNS[key as SbsNativeKey]];
-        return typeof v === "number" ? { value: v, bound: "exact", derived: false } : null;
-      },
-    };
-  }, [sbsRows]);
+  const sbsSnapshot = useMemo(() => monthlySnapshot(sbsRows, "reported"), [sbsRows]);
+  const sbsProjSnapshot = useMemo(() => monthlySnapshot(sbsRows, "projected"), [sbsRows]);
 
   const sbuSnapshot = useMemo<EntitySnapshot>(() => {
     const byKey = new Map(sbuRows.map((r) => [`${r.period}|${r.category}`, r]));
@@ -182,6 +259,82 @@ export function ComparePage({ preset }: Props) {
 
   // ─── Columns ──────────────────────────────────────────────────────────────
   const [columns, setColumns] = useState<Column[]>(readColumnsFromUrl);
+
+  // One snapshot per sub-unit, built lazily and only for units a column
+  // actually names — querying all 15 on mount would parse ~180 monthly rows
+  // nobody asked for. Each keeps `id: "sbs"`: a unit's vocabulary IS
+  // SbsNativeKey, which is exactly why no row mapping had to change.
+  const unitSnapshots = useMemo<Record<string, SnapshotPair>>(() => {
+    const wanted = [...new Set(columns.map((c) => c.unit).filter((u): u is string => !!u))];
+    const out: Record<string, SnapshotPair> = {};
+    if (sbsUnits.loadState !== "ready") return out;
+    for (const slug of wanted) {
+      const rows = sbsUnits.queryMonthly(slug);
+      out[slug] = {
+        reported: monthlySnapshot(rows, "reported"),
+        projected: monthlySnapshot(rows, "projected"),
+      };
+    }
+    return out;
+  }, [columns, sbsUnits]);
+
+  // The one place a column turns into data. A unit whose snapshot hasn't
+  // resolved yet falls back to an empty one rather than the grouping's, so a
+  // slow load shows blanks instead of silently attributing the whole branch's
+  // figures to one unit.
+  const EMPTY_SNAPSHOT: EntitySnapshot = useMemo(
+    () => ({ id: "sbs", months: [], get: () => null }),
+    [],
+  );
+  const snapshotFor = useCallback(
+    (src: ColumnSource): EntitySnapshot => {
+      if (src.unit) {
+        const pair = unitSnapshots[src.unit];
+        if (!pair) return EMPTY_SNAPSHOT;
+        return src.proj ? pair.projected : pair.reported;
+      }
+      // `proj` is only ever set on SBS columns (the picker offers it nowhere
+      // else and the URL reader drops it elsewhere), but the entity check keeps
+      // that a local fact rather than an assumption held at a distance.
+      return src.proj && src.entity === "sbs" ? sbsProjSnapshot : snapshots[src.entity];
+    },
+    [unitSnapshots, snapshots, sbsProjSnapshot, EMPTY_SNAPSHOT],
+  );
+
+  // The months a column can actually offer. A unit snapshot only exists once a
+  // column names that unit, so fall back to the entity's list until it does —
+  // otherwise a freshly added unit column would have nothing to select.
+  const monthsFor = useCallback(
+    (src: ColumnSource): string[] => {
+      const own = snapshotFor(src).months;
+      return own.length ? own : snapshots[src.entity].months;
+    },
+    [snapshotFor, snapshots],
+  );
+
+  // The month a column can offer as a projection, if any. Same fallback rule as
+  // monthsFor, so the option appears as soon as the column does — and stays
+  // away from a unit that has stopped reporting, whose rows carry none.
+  const projMonthFor = useCallback(
+    (src: ColumnSource): string | undefined => {
+      const own = snapshotFor(src);
+      return (own.months.length ? own : snapshots[src.entity]).projMonth;
+    },
+    [snapshotFor, snapshots],
+  );
+
+  const unitName = useCallback(
+    (slug: string) => {
+      const u = units.find((x) => x.slug === slug);
+      return u ? sbsUnitLabel(u) : slug;
+    },
+    [units],
+  );
+  const labelFor = useCallback(
+    (src: ColumnSource) => sourceLabel(src, src.unit ? unitName(src.unit) : undefined),
+    [unitName],
+  );
+
   const [pctMode, setPctMode] = useState<PctMode>(() => (readParam("pct") === "prev" ? "prev" : "first"));
   const [showScope, setShowScope] = useState(() => readParam("scope") === "1");
   // Sub-categories are shown by default; only the opt-out is written to the URL.
@@ -190,6 +343,26 @@ export function ComparePage({ preset }: Props) {
   useEffect(() => {
     writeViewToUrl(columns, pctMode, showScope, showChildren);
   }, [columns, pctMode, showScope, showChildren]);
+
+  // A shared "(projected)" link outlives the month it projected: come October,
+  // September's rows carry no projection and the column would be a stripe of em
+  // dashes. The settled total is what the projection stood in for, so fall back
+  // to it.
+  useEffect(() => {
+    setColumns((cs) => {
+      const next = cs.map((c) => {
+        if (!c.proj) return c;
+        // Each column waits for ITS OWN rows — `loadState` is not enough, since
+        // the query results land in a state update one render later, and a
+        // source with nothing in yet answers "no projection" for every month.
+        // Stripping on that answer would drop a perfectly good flag on load.
+        const snap = snapshotFor(c);
+        if (!snap.months.length || snap.projMonth === c.month) return c;
+        return { ...c, proj: undefined };
+      });
+      return next.some((c, i) => c !== cs[i]) ? next : cs;
+    });
+  }, [snapshotFor]);
 
   // Seed the old page's two columns once the data needed to pick a month is in.
   const presetDone = useRef(false);
@@ -212,8 +385,12 @@ export function ComparePage({ preset }: Props) {
   const allMonths = useMemo(() => {
     const set = new Set<string>();
     for (const e of COMPARE_ENTITIES) snapshots[e].months.forEach((m) => set.add(m));
+    // A unit's months are a subset of the grouping's in practice, but not by
+    // construction — a unit that outlives the grouping's window would otherwise
+    // have no selectable month at all.
+    for (const pair of Object.values(unitSnapshots)) pair.reported.months.forEach((m) => set.add(m));
     return [...set].sort().reverse();
-  }, [snapshots]);
+  }, [snapshots, unitSnapshots]);
 
   // The global control shows a month only when every column already agrees on
   // one; otherwise it sits on "Mixed" until used.
@@ -223,23 +400,54 @@ export function ComparePage({ preset }: Props) {
     return columns.every((c) => c.month === first) ? first : "";
   }, [columns]);
 
+  // Moving a column to another month drops its projection flag with it: a
+  // settled month has nothing to project, and leaving the flag set would label
+  // the column with a reading its data can't produce.
   const setAllMonths = (month: string) =>
-    setColumns((cs) => cs.map((c) => ({ ...c, month })));
+    setColumns((cs) => cs.map((c) => (c.month === month ? c : { ...c, month, proj: undefined })));
 
-  const addColumn = (entity: CompareEntityId) => {
-    const months = snapshots[entity].months;
-    // New columns follow the global month when there is one, so adding an
-    // entity to an existing comparison lines up by default.
+  const addColumn = (src: ColumnSource) => {
+    // A unit's own snapshot only exists once a column names it, so the month
+    // for a brand-new unit column comes from the entity it belongs to. Their
+    // coverage overlaps; where it doesn't, the cell reads "—", which is the
+    // honest answer and the same thing any mismatched month already does.
+    const months = monthsFor(src);
     const month =
       (globalMonth && months.includes(globalMonth) ? globalMonth : "") ||
       months[months.length - 1] ||
       allMonths[0];
     if (!month) return;
-    setColumns((cs) => [...cs, { id: nextId.current++, entity, month }]);
+    setColumns((cs) => [...cs, { id: nextId.current++, ...src, month }]);
   };
 
-  const setColumnMonth = (id: number, month: string) =>
-    setColumns((cs) => cs.map((c) => (c.id === id ? { ...c, month } : c)));
+  // The picker's value carries both facts — `2026-09` or `2026-09:proj` — so
+  // the two can't be set out of step with each other.
+  const setColumnMonth = (id: number, value: string) => {
+    const proj = value.endsWith(PROJ);
+    const month = proj ? value.slice(0, -PROJ.length) : value;
+    setColumns((cs) => cs.map((c) => (c.id === id ? { ...c, month, proj: proj || undefined } : c)));
+  };
+
+  const monthValue = (c: Column) => (c.proj ? `${c.month}${PROJ}` : c.month);
+
+  // What one column's month picker offers: every month it covers, plus the
+  // month-end projection slotted directly under the month it projects.
+  const monthOptions = (c: Column): { value: string; label: string }[] => {
+    const projMonth = projMonthFor(c);
+    const out: { value: string; label: string }[] = [];
+    for (const m of [...monthsFor(c)].reverse()) {
+      out.push({ value: m, label: m });
+      if (m === projMonth) out.push({ value: `${m}${PROJ}`, label: `${m} (projected)` });
+    }
+    // A month the global picker set but this column's source never covered
+    // still needs an option, or the select renders blank. So does a projection
+    // whose month has since settled, for the render before the flag is dropped.
+    const value = monthValue(c);
+    if (!out.some((o) => o.value === value)) {
+      out.unshift({ value, label: `${c.month}${c.proj ? " (projected)" : ""} (no data)` });
+    }
+    return out;
+  };
 
   const removeColumn = (id: number) => setColumns((cs) => cs.filter((c) => c.id !== id));
 
@@ -264,17 +472,107 @@ export function ComparePage({ preset }: Props) {
     const cols = columns.filter((c) => c.entity === entity);
     return UNMAPPED_NATIVES[entity].filter((n) =>
       cols.some((c) => {
-        const v = snapshots[entity].get(c.month, n.key);
+        // Per-column, not per-entity: a target class the grouping reports and
+        // one sub-unit never touches should still surface when that unit's
+        // sibling column has it.
+        const v = snapshotFor(c).get(c.month, n.key);
         return v != null && v.value !== 0;
       }),
     );
-  }, [columns, snapshots]);
+  }, [columns, snapshotFor]);
+
+  // ─── Comparable subset ────────────────────────────────────────────────────
+  // "All targets engaged" is each unit's WHOLE reported output, which is the
+  // honest headline but not a like-for-like: SBS counts target classes nobody
+  // else publishes, «Альфа» and «Рубикон» each report lines the others don't.
+  // Two columns can differ because one unit did more, or merely because it
+  // counts more things.
+  //
+  // This child answers the narrower question: add up only the categories EVERY
+  // selected column can actually fill. It is the comparable part of the row
+  // above, and the gap between the two is how much of each total is
+  // incommensurable.
+  //
+  // Parents only — the canonical children are subdivisions of their parent's
+  // mapping, so including them would double-count. Groups: `struck` plus
+  // `personnel`, because all three entities fold personnel INTO their targets
+  // total (see the targets_all comment in the registry), so leaving it out
+  // would compare against a different bucket than the parent does.
+  const COMPARABLE_GROUPS: CompareGroup[] = ["personnel", "struck"];
+
+  // Shared is a question about VOCABULARY, not about this month's values: a
+  // category counts unless it is unique to some of the selected units.
+  //
+  // The distinction is not academic. In 2026-08, «Рубикон» reported no air
+  // defence — but it does report air defence as a rule, so the category IS
+  // comparable and its silence means zero, not "incomparable". Keying off
+  // values instead dropped the whole row, took 17 off «Альфа» for a reason
+  // that had nothing to do with «Альфа», and made the shared set flicker from
+  // month to month. Aircraft and watercraft, which «Рубикон» has no counter
+  // for at all, stay out under either reading — those really are unique.
+  const comparable = useMemo(() => {
+    if (!columns.length) return { shared: [], dropped: [] as string[] };
+    const candidates = CANONICAL_ROWS.filter(
+      (r) => COMPARABLE_GROUPS.includes(r.group) && !r.resolve,
+    );
+    const shared: typeof candidates = [];
+    const dropped: string[] = [];
+    for (const r of candidates) {
+      const owners = columns.map((c) => mapsIn(r, c.entity, c.month));
+      if (owners.every(Boolean)) shared.push(r);
+      else if (owners.some(Boolean)) dropped.push(r.label);
+    }
+    return { shared, dropped };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- COMPARABLE_GROUPS is a literal
+  }, [columns, snapshotFor]);
+  const comparableRows = comparable.shared;
+
+  const comparableRow = useMemo<FlatRow | null>(() => {
+    if (!comparableRows.length) return null;
+    // Say what was LEFT OUT, not what went in: the rows that went in are
+    // visible further down the table, while the difference between this figure
+    // and the total above it is otherwise unexplained — the question this
+    // caption exists to answer.
+    const scope =
+      `${comparableRows.length} categories all selected units report` +
+      (comparable.dropped.length
+        ? ` · left out as unique to some: ${comparable.dropped.join(", ")}`
+        : "");
+    return {
+      group: "activity",
+      key: "targets_shared",
+      id: "targets_all/targets_shared",
+      label: "of which comparable",
+      indent: true,
+      map: {},
+      rowNote: scope,
+      resolve: (src, month) => {
+        // A shared category this column reported nothing for counts as zero.
+        // These sources enumerate what they hit, so an absent line is none —
+        // and the column's entity does carry the counter, or the row would not
+        // be in `shared` at all.
+        const parts = comparableRows
+          .map((r) => sumNatives(snapshotFor(src), month, keysFor(r, src.entity, month)))
+          .filter((v): v is CompareValue => v != null);
+        const value = sumCompareValues(parts);
+        // Derived: this app added it up, no source publishes it. No per-column
+        // scope — the caption is on the row (see rowNote).
+        return value ? { value: { ...value, derived: true }, scope: "" } : null;
+      },
+    };
+  }, [comparableRows, comparable.dropped, snapshotFor]);
 
   const visibleRows = useMemo(() => {
     // Children are the only indented rows, so dropping them is the whole
     // filter — a hidden child never takes its parent's figure with it, since
     // parents resolve their own mapping rather than summing children.
-    const base = visibleRowsFor(columns).filter((r) => showChildren || !r.indent);
+    let base = visibleRowsFor(columns).filter((r) => showChildren || !r.indent);
+    // Slotted in as a child of the row it qualifies, so it inherits the
+    // sub-category toggle rather than needing one of its own.
+    if (comparableRow && showChildren) {
+      const at = base.findIndex((r) => r.id === "targets_all");
+      if (at >= 0) base = [...base.slice(0, at + 1), comparableRow, ...base.slice(at + 1)];
+    }
     if (!soloEntity) return base;
     // Appended to the last group so they simply continue the table — no header
     // separates them, which is the whole point.
@@ -288,13 +586,13 @@ export function ComparePage({ preset }: Props) {
       scope: { [soloEntity]: NATIVE_NOTES[soloEntity]?.[n.key] },
     }));
     return [...base, ...extras];
-  }, [columns, soloEntity, nonZeroNatives, showChildren]);
+  }, [columns, soloEntity, nonZeroNatives, showChildren, comparableRow]);
 
   const valueFor = (row: FlatRow, col: Column): CompareValue | null => {
-    if (row.resolve) return row.resolve(col.entity, col.month)?.value ?? null;
+    if (row.resolve) return row.resolve(col, col.month)?.value ?? null;
     // A mapping scoped to other months contributes no keys here, so the cell
     // comes out empty rather than wrong — see `MonthScoped`.
-    return sumNatives(snapshots[col.entity], col.month, keysFor(row, col.entity, col.month));
+    return sumNatives(snapshotFor(col), col.month, keysFor(row, col.entity, col.month));
   };
 
   // A scope caveat describes the entity's bucket, not the month, so repeating
@@ -311,7 +609,7 @@ export function ComparePage({ preset }: Props) {
       // every column; a static one describes the entity's bucket and is
       // deduplicated to that entity's leftmost column.
       row.resolve
-        ? row.resolve(c.entity, c.month)?.scope
+        ? row.resolve(c, c.month)?.scope
         : firstColOfEntity.get(c.entity) === i ? row.scope?.[c.entity] : undefined,
     );
 
@@ -326,10 +624,12 @@ export function ComparePage({ preset }: Props) {
   }, [entitiesInUse, soloEntity, nonZeroNatives]);
 
   const loading =
-    sbs.loadState === "loading" || sbu.loadState === "loading" || rubikon.loadState === "loading";
+    sbs.loadState === "loading" || sbu.loadState === "loading" ||
+    rubikon.loadState === "loading" || sbsUnits.loadState === "loading";
   const errored =
-    sbs.loadState === "error" || sbu.loadState === "error" || rubikon.loadState === "error";
-  const errorMsg = sbs.error ?? sbu.error ?? rubikon.error ?? "";
+    sbs.loadState === "error" || sbu.loadState === "error" ||
+    rubikon.loadState === "error" || sbsUnits.loadState === "error";
+  const errorMsg = sbs.error ?? sbu.error ?? rubikon.error ?? sbsUnits.error ?? "";
 
   // ─── Render helpers ───────────────────────────────────────────────────────
   const cellStyle = (highlight: boolean) => ({
@@ -367,7 +667,7 @@ export function ComparePage({ preset }: Props) {
           </div>
           {showScope && v != null && scopes?.[i] && (
             <div style={{
-              fontSize: 10, color: t.textMuted, marginTop: 2,
+              fontSize: 11, color: t.textMuted, marginTop: 2,
               fontStyle: "italic", fontWeight: 400,
             }}>
               {scopes[i]}
@@ -396,8 +696,9 @@ export function ComparePage({ preset }: Props) {
 
 
   // Group order = table order. Size first (the denominator), then what each
-  // unit did, then its one headline total, then the breakdown of that total.
-  const groups: CompareGroup[] = ["context", "activity", "totals", "personnel", "struck"];
+  // unit did — sorties and the headline "all targets engaged" now live together
+  // under `activity` — then the breakdown of that total.
+  const groups: CompareGroup[] = ["context", "activity", "personnel", "struck"];
 
   return (
     <div>
@@ -414,6 +715,9 @@ export function ComparePage({ preset }: Props) {
           their recaps list (marked *), and «Альфа»'s is a floor.
           The units also vary in size (SBS is a whole branch; «Альфа» and «Рубикон» are single formations), so
           direct number comparison needs to be taken with a grain of salt.
+          The month still running can also be read as a month-end projection — SBS and its sub-units only,
+          since the others publish nothing until the month is over. Those figures are this app's
+          extrapolation from the days so far, shown as ~N.
         </p>
       </div>
 
@@ -441,14 +745,40 @@ export function ComparePage({ preset }: Props) {
             data-testid="compare-add-column"
             value=""
             onChange={(e) => {
-              if (e.target.value) addColumn(e.target.value as CompareEntityId);
+              const v = e.target.value;
+              if (v) {
+                // "sbs:fenix" adds a sub-unit column; a bare entity id adds the
+                // entity's own. Same token shape as the URL, so the two can't
+                // drift apart.
+                const [entity, unit] = v.split(":");
+                addColumn({ entity: entity as CompareEntityId, ...(unit ? { unit } : {}) });
+              }
               e.target.value = "";
             }}
           >
-            <option value="">+ pick a unit…</option>
+            <option value="">unit</option>
             {COMPARE_ENTITIES.map((e) => (
               <option key={e} value={e}>{ENTITY_LABELS[e]}</option>
             ))}
+            {/* The SBS sub-units, grouped rather than listed flat: 15 of them
+                inline would bury the other two entities. Retired units keep
+                their own group here for the same reason the monthly page's
+                picker does — their history is worth comparing, but a reader
+                scanning the list shouldn't have to know which names stopped. */}
+            {units.some((u) => u.active) && (
+              <optgroup label="UA SBS sub-units">
+                {units.filter((u) => u.active).map((u) => (
+                  <option key={u.slug} value={`sbs:${u.slug}`}>{sbsUnitLabel(u)}</option>
+                ))}
+              </optgroup>
+            )}
+            {units.some((u) => !u.active) && (
+              <optgroup label="UA SBS sub-units — no longer reporting">
+                {units.filter((u) => !u.active).map((u) => (
+                  <option key={u.slug} value={`sbs:${u.slug}`}>{sbsUnitLabel(u)}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
 
@@ -537,7 +867,7 @@ export function ComparePage({ preset }: Props) {
                       whiteSpace: "nowrap",
                     }}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>
-                        <span style={{ color: t.text }}>{ENTITY_LABELS[c.entity]}</span>
+                        <span style={{ color: t.text }}>{labelFor(c)}</span>
                         <button
                           onClick={() => removeColumn(c.id)}
                           title="Remove column"
@@ -552,21 +882,22 @@ export function ComparePage({ preset }: Props) {
                       <div style={{ marginTop: 4 }}>
                         <select
                           className="ctl"
-                          value={c.month}
+                          value={monthValue(c)}
                           onChange={(e) => setColumnMonth(c.id, e.target.value)}
                           style={{ textTransform: "none" }}
                         >
-                          {/* A month the global picker set but this entity
-                              never covered still needs an option, or the
-                              select would render blank. */}
-                          {!snapshots[c.entity].months.includes(c.month) && (
-                            <option value={c.month}>{c.month} (no data)</option>
-                          )}
-                          {[...snapshots[c.entity].months].reverse().map((m) => (
-                            <option key={m} value={m}>{m}</option>
+                          {monthOptions(c).map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
                           ))}
                         </select>
                       </div>
+                      {/* Said once per column rather than per cell: the "~" on
+                          every figure is the in-place reminder. */}
+                      {c.proj && (
+                        <div style={{ marginTop: 4, color: t.textFaint, fontSize: 9, textTransform: "none", letterSpacing: 0 }}>
+                          month-end projection
+                        </div>
+                      )}
                       {i === 0 && columns.length > 1 && pctMode === "first" && (
                         <div style={{ marginTop: 4, color: t.textFaint, fontSize: 9, textTransform: "none", letterSpacing: 0 }}>
                           baseline
@@ -593,6 +924,17 @@ export function ComparePage({ preset }: Props) {
                             whiteSpace: "nowrap",
                           }}>
                             {r.label}
+                            {showScope && r.rowNote && (
+                              <div style={{
+                                marginTop: 3,
+                                color: t.textFaint,
+                                fontSize: 11,
+                                whiteSpace: "normal",
+                                maxWidth: 360,
+                              }}>
+                                {r.rowNote}
+                              </div>
+                            )}
                           </td>
                           {renderCells(
                             columns.map((c) => valueFor(r, c)),
@@ -617,7 +959,11 @@ export function ComparePage({ preset }: Props) {
                           {n.label}
                         </td>
                         {renderCells(
-                          columns.map((c) => (c.entity === entity ? snapshots[entity].get(c.month, n.key) : null)),
+                          // snapshotFor(c), NOT snapshots[entity]: a sub-unit
+                          // column belongs to the `sbs` entity but must read
+                          // its own figures, or it silently shows the whole
+                          // grouping's.
+                          columns.map((c) => (c.entity === entity ? snapshotFor(c).get(c.month, n.key) : null)),
                           columns.map((c, i) =>
                             c.entity === entity && firstColOfEntity.get(entity) === i
                               ? NATIVE_NOTES[entity]?.[n.key]

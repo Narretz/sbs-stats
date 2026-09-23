@@ -287,7 +287,7 @@ export function TooltipCard({ header, footer, children, minWidth = 220 }: CardPr
       minWidth,
     }}>
       {header != null && (
-        <div style={{ color: t.textMuted, marginBottom: 4 }}>{header}</div>
+        <div style={{ color: t.textMuted, marginBottom: 5 }}>{header}</div>
       )}
       {children}
       {footer}
@@ -302,10 +302,16 @@ export function TooltipCard({ header, footer, children, minWidth = 220 }: CardPr
 // the body of the pinned bottom sheet (see ChartSheet). Charts return a
 // descriptor from a `describe(x)` function; the two renderers below are the
 // only places that turn one into elements.
+//
+// Every field means the same thing in both, `header` included — the renderers
+// differ in their chrome, not in what a descriptor is.
 
 export interface TooltipDescriptor {
-  /** Usually the formatted date. The sheet lifts this into its own header
-   *  (next to the ‹ › stepper) rather than rendering it inline. */
+  /** The line above the body — usually the formatted date, sometimes more
+   *  (the hourly overlay adds the hour's median and the current day's distance
+   *  from it). Both renderers show it, whole: the sheet repeats the x that its
+   *  stepper already carries rather than have `header` mean one thing here and
+   *  another there. */
   header?: ReactNode;
   rows: TooltipTableRow[];
   /** Prose below the table — warning notes, caveats. */
@@ -347,16 +353,22 @@ export function DescriptorCard({ d }: { d: TooltipDescriptor | null }) {
   );
 }
 
-/** Sheet-body rendering: no card chrome (the sheet supplies it), no inline
- *  header (the sheet's own header carries the date), and `emptyState` honoured
- *  so a no-data date explains itself. */
+/** Sheet-body rendering: no card chrome (the sheet supplies it), and
+ *  `emptyState` honoured so a no-data date explains itself. */
 export function DescriptorBody({ d }: { d: TooltipDescriptor | null }) {
   const { theme: t } = useTheme();
   if (!d) return null;
-  if (d.content != null) return <>{d.content}{d.footer}</>;
+  // `flex: none`, because the sheet's body is a flex column and everything in
+  // it is a flex item — without it this line would be stretched or squeezed by
+  // whatever the body is making room for below it.
+  const header = d.header == null ? null : (
+    <div style={{ color: t.textMuted, marginBottom: 4, flex: "none" }}>{d.header}</div>
+  );
+  if (d.content != null) return <>{header}{d.content}{d.footer}</>;
   if (d.rows.length === 0) {
     return (
       <>
+        {header}
         {d.emptyState != null && (
           <div style={{ color: t.textMuted }}>{d.emptyState}</div>
         )}
@@ -366,6 +378,7 @@ export function DescriptorBody({ d }: { d: TooltipDescriptor | null }) {
   }
   return (
     <>
+      {header}
       <TooltipTable
         rows={d.rows}
         formatValue={d.formatValue}

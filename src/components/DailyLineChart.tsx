@@ -6,6 +6,7 @@ import { useCallback, useMemo, type ReactNode } from "react";
 import type { DailyDataPoint, EodEstimate, ModelBreakdownEntry, PairMode } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
+import { LazyChartArea } from "@/components/LazyChartArea";
 import { usePinnedChart } from "@/components/usePinnedChart";
 import { maxMedian } from "@/utils/windowStats";
 import { FONTS, type Theme } from "@/theme";
@@ -439,61 +440,63 @@ export function DailyLineChart({
           </>
         )}
       </div>
-      <ResponsiveContainer width="100%" height={220}>
-        {hasPair ? (
-          <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
-            <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
-            <XAxis dataKey="date"
-              tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-              tickLine={false} axisLine={false}
-              tickFormatter={(v: string) => { const p = v.slice(5).split('-'); return `${p[1]}/${p[0]}`; }}
-            />
-            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
-              domain={[0, (dataMax: number) => Math.max(dataMax, yMax)]} />
-            {pin.tooltip}
-            <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
-              label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
-              <Area type="monotone" dataKey="value2" name={resolvedSecondaryLabel} stackId="1"
-              stroke={secondaryColor} strokeWidth={1.5} fill={secondaryColor} fillOpacity={AREA_FILL_OPACITY.destroyed} isAnimationActive={false} />
-            <Area type="monotone" dataKey="valueDiff" name={resolvedPrimaryLabel} stackId="1"
-              stroke={primaryColor} strokeWidth={1.5} fill={primaryColor} fillOpacity={AREA_FILL_OPACITY.damaged} isAnimationActive={false} />
-            {/* Painted last so it reads as a crosshair over the series,
-              not a stub buried under a bar. */}
-          {pin.cursor}
-        </ComposedChart>
-        ) : (
-          <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
-            <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
-            <XAxis dataKey="date"
-              tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-              tickLine={false} axisLine={false}
-              tickFormatter={(v: string) => { const p = v.slice(5).split('-'); return `${p[1]}/${p[0]}`; }}
-            />
-            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
-              domain={[0, (dataMax: number) => Math.max(dataMax, max)]} />
-            {pin.tooltip}
-            <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
-              label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
-              {/* No draw-in animation, matching the two <Area>s above. recharts
-                re-runs it whenever the series' props change, so with it on, the
-                whole line redrew itself every time the sheet opened, closed, or
-                stepped a day — a full re-animation per press of ›. */}
-            <Line type="monotone" dataKey="value" name={resolvedPrimaryLabel} stroke={primaryColor} strokeWidth={2} isAnimationActive={false}
-              dot={({ key, ...props }) => <CustomDot key={key} {...props} accentColor={t.accent} primaryColor={primaryColor} bgColor={t.surface} noteColor={chartColors(t).noteText} pinnedDate={pinnedDate} />}
-              // The hover activeDot is the last piece of hover feedback recharts
-              // draws from its own state rather than from `active`, so it has to
-              // be switched off by hand while pinned.
-              activeDot={pin.isPinned ? false : { r: 5, fill: primaryColor }}
-            />
-            <Line type="linear" dataKey="trend1" name="Trend" stroke={c.trend} strokeWidth={1.5}
-              strokeDasharray="6 3" dot={false} activeDot={false} isAnimationActive={false}
-            />
-            {/* Painted last so it reads as a crosshair over the series,
-              not a stub buried under a bar. */}
-          {pin.cursor}
-        </LineChart>
-        )}
-      </ResponsiveContainer>
+      <LazyChartArea height={220}>
+        <ResponsiveContainer width="100%" height={220}>
+          {hasPair ? (
+            <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
+              <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
+              <XAxis dataKey="date"
+                tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+                tickLine={false} axisLine={false}
+                tickFormatter={(v: string) => { const p = v.slice(5).split('-'); return `${p[1]}/${p[0]}`; }}
+              />
+              <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
+                domain={[0, (dataMax: number) => Math.max(dataMax, yMax)]} />
+              {pin.tooltip}
+              <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
+                label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
+                <Area type="monotone" dataKey="value2" name={resolvedSecondaryLabel} stackId="1"
+                stroke={secondaryColor} strokeWidth={1.5} fill={secondaryColor} fillOpacity={AREA_FILL_OPACITY.destroyed} isAnimationActive={false} />
+              <Area type="monotone" dataKey="valueDiff" name={resolvedPrimaryLabel} stackId="1"
+                stroke={primaryColor} strokeWidth={1.5} fill={primaryColor} fillOpacity={AREA_FILL_OPACITY.damaged} isAnimationActive={false} />
+              {/* Painted last so it reads as a crosshair over the series,
+                not a stub buried under a bar. */}
+            {pin.cursor}
+          </ComposedChart>
+          ) : (
+            <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
+              <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
+              <XAxis dataKey="date"
+                tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+                tickLine={false} axisLine={false}
+                tickFormatter={(v: string) => { const p = v.slice(5).split('-'); return `${p[1]}/${p[0]}`; }}
+              />
+              <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
+                domain={[0, (dataMax: number) => Math.max(dataMax, max)]} />
+              {pin.tooltip}
+              <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
+                label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
+                {/* No draw-in animation, matching the two <Area>s above. recharts
+                  re-runs it whenever the series' props change, so with it on, the
+                  whole line redrew itself every time the sheet opened, closed, or
+                  stepped a day — a full re-animation per press of ›. */}
+              <Line type="monotone" dataKey="value" name={resolvedPrimaryLabel} stroke={primaryColor} strokeWidth={2} isAnimationActive={false}
+                dot={({ key, ...props }) => <CustomDot key={key} {...props} accentColor={t.accent} primaryColor={primaryColor} bgColor={t.surface} noteColor={chartColors(t).noteText} pinnedDate={pinnedDate} />}
+                // The hover activeDot is the last piece of hover feedback recharts
+                // draws from its own state rather than from `active`, so it has to
+                // be switched off by hand while pinned.
+                activeDot={pin.isPinned ? false : { r: 5, fill: primaryColor }}
+              />
+              <Line type="linear" dataKey="trend1" name="Trend" stroke={c.trend} strokeWidth={1.5}
+                strokeDasharray="6 3" dot={false} activeDot={false} isAnimationActive={false}
+              />
+              {/* Painted last so it reads as a crosshair over the series,
+                not a stub buried under a bar. */}
+            {pin.cursor}
+          </LineChart>
+          )}
+        </ResponsiveContainer>
+      </LazyChartArea>
       {pin.sheet}
     </div>
   );

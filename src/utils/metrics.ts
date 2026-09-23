@@ -2,10 +2,18 @@ import type { Metric } from "@/types";
 import { TARGET_IDS, TARGET_LABELS } from "@/types";
 import { SUBSET_LABEL } from "@/tooltipLabels";
 
+// A chart is identified by the pair it draws, not by the column it reads —
+// see the comment on Metric.id. Deriving the id here rather than writing one
+// out per entry keeps the two halves of a pair from drifting apart, and the
+// target metrics below are generated anyway.
+type MetricSpec = Omit<Metric, "id">;
+const withIds = (specs: MetricSpec[]): Metric[] =>
+  specs.map((m) => ({ ...m, id: m.pairedKey ? `${m.key}~${m.pairedKey}` : m.key }));
+
 export function buildMetrics(options?: { paired?: boolean }): Metric[] {
   const paired = options?.paired ?? false;
 
-  const base: Metric[] = paired
+  const base: MetricSpec[] = paired
     ? [
         { key: "total_personnel_casualties", label: "Personnel Casualties", wfull: true },
         {
@@ -39,7 +47,7 @@ export function buildMetrics(options?: { paired?: boolean }): Metric[] {
         { key: "total_targets_destroyed", label: "Targets Destroyed" },
       ];
 
-  const targetMetrics: Metric[] = paired
+  const targetMetrics: MetricSpec[] = paired
     ? TARGET_IDS.map((id) => ({
         key: `hit_${id}` as Metric["key"],
         label: `${TARGET_LABELS[id]} — Hit / Destroyed`,
@@ -54,5 +62,5 @@ export function buildMetrics(options?: { paired?: boolean }): Metric[] {
         { key: `destroyed_${id}` as Metric["key"], label: `${TARGET_LABELS[id]} — Destroyed` },
       ]);
 
-  return [...base, ...targetMetrics];
+  return withIds([...base, ...targetMetrics]);
 }

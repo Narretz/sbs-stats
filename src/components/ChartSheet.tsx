@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useChartPinContext } from "@/hooks/ChartPinProvider";
+import { useChartPinContext, useSheetHost, useSheetOpen } from "@/hooks/ChartPinProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
 
@@ -16,8 +16,9 @@ const TITLE_ID = "chart-sheet-title";
 // on open and released on close, no focus trap, background never inert.
 export function ChartSheet() {
   const { theme: t } = useTheme();
-  const { pin, setPin, setHost, sheetRef, stepRef } = useChartPinContext();
-  const open = pin !== null;
+  const { store, setHost, sheetRef, stepRef } = useChartPinContext();
+  const setPin = store.set;
+  const open = useSheetOpen();
 
   // Extend the page's scroll range by the sheet's height so the last chart on
   // the page can still be scrolled clear of it. Padding the scroll container
@@ -122,7 +123,8 @@ export function ChartSheetContent({
   title, label, canPrev, canNext, onStep, onClose, children,
 }: ContentProps) {
   const { theme: t } = useTheme();
-  const { host, stepRef } = useChartPinContext();
+  const { stepRef } = useChartPinContext();
+  const host = useSheetHost();
 
   // Hand the stepper to the sheet's keyboard handler for the arrow keys.
   useEffect(() => {

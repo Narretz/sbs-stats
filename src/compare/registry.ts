@@ -15,8 +15,14 @@ import {
 // An "entity" is one reporting unit whose monthly self-reports we can put in a
 // column. Adding a dataset here means: an id, a label, a native-key vocabulary
 // (below), and a snapshot builder in ComparePage that reads its hook.
-export const COMPARE_ENTITIES = ["sbs", "sbu-alfa", "rubikon"] as const;
+export const COMPARE_ENTITIES = ["sbu-alfa", "rubikon", "sbs"] as const;
 export type CompareEntityId = (typeof COMPARE_ENTITIES)[number];
+
+export const ENTITY_LABELS: Record<CompareEntityId, string> = {
+  "sbu-alfa": "UA SBU «Альфа»",
+  rubikon: "RU «Рубикон»",
+  sbs: "UA SBS (USF)",
+};
 
 // ─── Native keys ─────────────────────────────────────────────────────────────
 // The vocabulary each entity can be asked for, as a type. This is what makes a
@@ -131,11 +137,40 @@ export interface EntityNativeKey {
 // purpose at the point the mapping was written.
 export type AnyNativeKey = EntityNativeKey[CompareEntityId];
 
-export const ENTITY_LABELS: Record<CompareEntityId, string> = {
-  sbs: "SBS (USF)",
-  "sbu-alfa": "SBU «Альфа»",
-  rubikon: "«Рубикон»",
-};
+// ─── Column sources ──────────────────────────────────────────────────────────
+// A column names an entity and, for SBS only, optionally one of its sub-units.
+//
+// The sub-units are deliberately NOT extra `CompareEntityId`s. They publish
+// exactly the SBS vocabulary — same counters, same target ids — so every row's
+// `map` already describes them, and adding 15 entities would mean 15 more
+// entries in every row for no new information. Modelling them as a refinement
+// of the `sbs` entity instead means the whole CANONICAL_ROWS table works on
+// them untouched, and `SbsNativeKey` still type-checks the mappings.
+export interface ColumnSource {
+  entity: CompareEntityId;
+  // Slug from sbs-units.db. Only meaningful when entity === "sbs".
+  unit?: string;
+  // Read the current month's month-end PROJECTION instead of the figure
+  // reported so far — the same pro-rata number the monthly charts draw as the
+  // ghost segment on the current bar. Only SBS (grouping or sub-unit) derives
+  // one, and only for the month still running, so this is never set anywhere
+  // else; see `EntitySnapshot.projMonth`.
+  proj?: boolean;
+}
+
+// Stable string id for a source — the URL token and the key for "columns of
+// the same thing". `sbs` and `sbs:fenix` are different sources of one entity.
+export function sourceKey(src: ColumnSource): string {
+  return src.unit ? `${src.entity}:${src.unit}` : src.entity;
+}
+
+// Column header text. A sub-unit column says whose sub-unit it is, because the
+// comparison it is usually in — one unit against «Рубикон», or against the
+// grouping it belongs to — is unreadable without that.
+export function sourceLabel(src: ColumnSource, unitName?: string): string {
+  if (!src.unit) return ENTITY_LABELS[src.entity];
+  return `SBS · ${unitName ?? src.unit}`;
+}
 
 // ─── Values ──────────────────────────────────────────────────────────────────
 // What a cell knows. `bound` mirrors the SBU chart tooltips ("понад N" → a
@@ -155,6 +190,11 @@ export interface EntitySnapshot {
   id: CompareEntityId;
   months: string[];                                  // ascending, "YYYY-MM"
   get(month: string, nativeKey: AnyNativeKey): CompareValue | null;
+  // The one month this source can also answer as a month-end projection, if
+  // any. Undefined for every entity that publishes nothing but settled
+  // monthly recaps, and for an SBS unit that has stopped reporting — which is
+  // exactly what keeps the "(projected)" option out of those columns' pickers.
+  projMonth?: string;
 }
 
 // The sum is only as precise as its least precise part — same rule the SBU
@@ -169,7 +209,16 @@ export function sumNatives(
   keys: readonly AnyNativeKey[] | undefined,
 ): CompareValue | null {
   if (!keys?.length) return null;
-  const parts = keys.map((k) => snap.get(month, k)).filter((p): p is CompareValue => p != null);
+  return sumCompareValues(
+    keys.map((k) => snap.get(month, k)).filter((p): p is CompareValue => p != null),
+  );
+}
+
+// Add up cells that are already resolved. Same precision rule as sumNatives —
+// the sum is only as precise as its least precise part — pulled out so a caller
+// summing whole ROWS rather than native keys (the comparable-subset row) can't
+// quietly invent a different one.
+export function sumCompareValues(parts: readonly CompareValue[]): CompareValue | null {
   if (!parts.length) return null;
   const bound =
     BOUND_PRECEDENCE.find((b) => parts.some((p) => p.bound === b)) ?? "exact";
@@ -270,8 +319,13 @@ const UNIT_SIZE: Record<CompareEntityId, UnitSizeEstimate[]> = {
 
 // Newest estimate at or before `month`. Null before the first one — better an
 // empty cell than a figure predating the column it sits in.
-export function unitSizeAt(entity: CompareEntityId, month: string): ResolvedCell | null {
-  const applicable = UNIT_SIZE[entity].filter((e) => e.asOf <= month);
+export function unitSizeAt(src: ColumnSource, month: string): ResolvedCell | null {
+  // No sub-unit publishes a headcount, and the grouping's ~60,000 describes the
+  // whole branch — attaching it to one unit's column would invite exactly the
+  // per-capita reading this row exists to enable, computed against the wrong
+  // denominator. An empty cell is the honest answer.
+  if (src.unit) return null;
+  const applicable = UNIT_SIZE[src.entity].filter((e) => e.asOf <= month);
   const e = applicable[applicable.length - 1];
   if (!e) return null;
   const stale = e.asOf !== month ? ` (as of ${e.asOf})` : "";
@@ -299,7 +353,7 @@ export function unitSizeAt(entity: CompareEntityId, month: string): ResolvedCell
 // «відмінусували» (neutralised) and «Рубикон» files personnel under «Поражены»
 // (engaged) using the same verb it uses for tanks. Each column's verb is in its
 // scope caption, because the header can't be true of all three at once.
-export type CompareGroup = "context" | "activity" | "totals" | "personnel" | "struck";
+export type CompareGroup = "context" | "activity" | "personnel" | "struck";
 
 // What every row has, parent or child. Children reuse this shape, which is
 // also what makes a child structurally unable to have children of its own.
@@ -325,7 +379,9 @@ export interface CompareRowBase {
   scope?: Partial<Record<CompareEntityId, string>>;
   // Supplies the cell directly instead of summing native keys. `map` is then
   // empty and the row is always shown.
-  resolve?: (entity: CompareEntityId, month: string) => ResolvedCell | null;
+  // `src` rather than a bare entity: a sub-unit column is still the `sbs`
+  // entity but must not inherit the grouping's answer (see unitSizeAt).
+  resolve?: (src: ColumnSource, month: string) => ResolvedCell | null;
 }
 
 export interface CompareRow extends CompareRowBase {
@@ -346,6 +402,13 @@ export interface CompareRow extends CompareRowBase {
 export interface FlatRow extends CompareRowBase {
   group: CompareGroup;
   indent: boolean;
+  // A caption about the ROW rather than about any one column — rendered once,
+  // under the label. `scope` can't express this: it is per-entity and repeats
+  // under every column, which for a caption describing the comparison itself
+  // reads as a statement about each unit in turn. ("left out: Mortars" under
+  // «Альфа»'s column says «Альфа» lost mortars; it is «Альфа» that has no
+  // mortars counter, and it lost nothing.)
+  rowNote?: string;
   // Unique across the whole table, which `key` is not: a child's key only has
   // to be unique among its siblings, so "Vehicles" can sit under "Vehicles
   // (autos)" with both keyed `vehicles`. Namespacing children by their parent
@@ -435,15 +498,13 @@ export const GROUP_LABELS: Record<CompareGroup, string> = {
   // everything below it can be read per capita. Kept first because it is the
   // denominator for the rest of the table.
   context: "Unit size — outside estimates, not reported by the units",
-  // Sorties are what the unit did, not what it destroyed — a separate axis
-  // from everything below, and the denominator for it. Ordered first because
-  // «Рубикон»'s own recap opens with the sortie count before «Поражены:».
-  activity: "Activity — sorties flown",
-  // The headline figure. SBS publishes it; «Альфа» and «Рубикон» do not, so
-  // theirs are summed from the categories their recaps list (marked "*"). It is
+  // Activity - a separate axis from everything below
+  // Contains sorties flown and total targets engaged. SBS publishes the latter,
+  // «Альфа» and «Рубикон» do not, so
+  // theirs are summed from the categories (marked "*"). It is
   // NOT the sum of the rows below — those are only the categories that map
   // across units, and each unit reports counters that never reach one.
-  totals: "All reported target categories",
+  activity: "Activity",
   personnel: "Personnel",
   struck: "Hit / struck (уражено / поражены)",
 };
@@ -482,7 +543,7 @@ export const CANONICAL_ROWS: CompareRow[] = [
     ],
   },
   {
-    // The one figure a reader looks for first. All three count personnel inside
+    // Target totals. All three count personnel inside
     // it, which is what makes the columns commensurable: «Рубикон» files
     // «Живая сила» under «Поражены», «Альфа»'s roll-up includes its KIA line,
     // and SBS carries the casualties figure as target class 15 ("ОС РОВ")
@@ -497,9 +558,8 @@ export const CANONICAL_ROWS: CompareRow[] = [
     //
     // Not a sum of the rows below it: it is each unit's whole reported output,
     // including the counters that never reach a shared row and land in "only
-    // in <entity>". The unit-size row above is the denominator that makes the
-    // three comparable at all — «Рубикон»'s 17,485 comes off ~5,000 people.
-    group: "totals", key: "targets_all", label: "All targets engaged",
+    // in <entity>".
+    group: "activity", key: "targets_all", label: "All targets engaged",
     map: {
       sbs: ["total_targets_hit"],
       "sbu-alfa": ["targets_enumerated"],

@@ -385,6 +385,12 @@ summary::marker {
    overflow-x is an escape hatch for ~320px devices where even the shrunk
    5-column table doesn't fit — not a layout anyone should hit. */
 .chart-sheet-body {
+  /* A column, so a descriptor's prose footer stays under its table. The flex
+     is for the descriptors that need a *bounded* height to lay themselves out
+     against — the hourly overlay's date list wraps into columns and can only
+     know how many once something tells it how tall it may be. */
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
