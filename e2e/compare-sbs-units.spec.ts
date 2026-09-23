@@ -75,10 +75,13 @@ test.describe("Compare — SBS sub-units", () => {
     const month = thisMonth();
     await gotoCompare(page, `sbs:${month},sbs:alpha-unit:${month},sbs:bravo-unit:${month}`);
 
-    const headers = (await page.locator("thead th").allTextContents()).join("|");
-    expect(headers).toContain("UA SBS (USF)");
-    expect(headers).toContain("Alpha Unit");
-    expect(headers).toContain("Bravo Unit");
+    // Retrying assertions, not one read: a unit's display name comes from
+    // sbs-units.db, which loads lazily, so until it lands the header shows the
+    // slug ("SBS · alpha-unit"). Same race as the rows below.
+    const head = page.locator("thead");
+    await expect(head).toContainText("UA SBS (USF)");
+    await expect(head).toContainText("Alpha Unit");
+    await expect(head).toContainText("Bravo Unit");
 
     // [label, grouping, alpha, bravo] — each column reads its own source.
     // `total_targets_hit` is 5x the per-class figure in the fixture (see
