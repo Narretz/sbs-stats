@@ -36,6 +36,11 @@ cd "$(dirname "$0")/.."
 
 # Discovered, not listed: a new dataset's suite joins in by existing. `dirname`
 # per match, deduplicated, so several test files in one directory are one run.
+#
+# The top-level suites (scripts/test_ingest_log.py, scripts/test_fetch_and_update.py)
+# are a group of their own, passed as FILES rather than as `scripts/`: the
+# directory would recurse into every dataset subdirectory and hit exactly the
+# sibling-name collision described above.
 dirs=()
 if [ "$#" -gt 0 ]; then
   dirs=("$@")
@@ -43,6 +48,10 @@ else
   while IFS= read -r d; do
     dirs+=("$d")
   done < <(ls scripts/*/test_*.py 2>/dev/null | xargs -n1 dirname | sort -u)
+  top=$(ls scripts/test_*.py 2>/dev/null | tr '\n' ' ')
+  if [ -n "$top" ]; then
+    dirs+=("${top% }")
+  fi
 fi
 
 if [ "${#dirs[@]}" -eq 0 ]; then
@@ -53,7 +62,10 @@ fi
 failed=()
 for d in "${dirs[@]}"; do
   echo "── $d"
-  python3 -m pytest "$d" -q || failed+=("$d")
+  # An entry is either one directory or the space-separated top-level file
+  # group, so split it back into arguments rather than passing it as one.
+  read -ra targets <<< "$d"
+  python3 -m pytest "${targets[@]}" -q || failed+=("$d")
 done
 
 echo
