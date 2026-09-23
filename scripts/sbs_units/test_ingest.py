@@ -20,6 +20,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SCRIPT_DIR.parent))
 
+import check_db  # noqa: E402
 import discover as dsc  # noqa: E402
 import ingest as ing  # noqa: E402
 
@@ -372,3 +373,102 @@ class TestUpsertUnits:
         with caplog.at_level("WARNING"):
             ing.upsert_units(conn, [self._unit(active=False)], "t1")
         assert any("retired" in r.message for r in caplog.records)
+
+
+# ─── check_db: the closed-month revision check ───────────────────────────────
+
+class TestLargeRevision:
+    """`check_db`'s "large revision" notice, which asks whether the SOURCE
+    changed a figure it had already settled.
+
+    The trap these cover: a month is first captured partway through itself, so
+    the earliest capture of a tracked month is a partial total. Measuring from
+    there reports the month filling up as a revision — every unit, every run,
+    forever, while a genuine retroactive edit to a closed month is exactly what
+    the check is for.
+    """
+
+    # The month under test and the two capture buckets around its end. The
+    # Mondays are real ISO-week Mondays, as `capture_bucket` produces.
+    MONTH = "2026-08-01"
+    MID_MONTH = "2026-08-17"    # captured while August was still running
+    AFTER_CLOSE = "2026-09-07"  # first capture once August had ended
+    LATER = "2026-09-14"
+
+    @staticmethod
+    def _tracked_unit(conn, slug="fenix", month="2026-08"):
+        # active=0 so the daily-staleness checks stay quiet, and one month in
+        # [first_month, last_month] so the uncaptured-month check does too.
+        conn.execute(
+            "INSERT INTO units (slug, subdivision_id, active, has_daily, "
+            "first_month, last_month, scraped_at) VALUES (?, ?, 0, 0, ?, ?, 't0')",
+            (slug, f"sid-{slug}", month, month),
+        )
+
+    @staticmethod
+    def _capture(conn, bucket, hit, captured_at, slug="fenix", month="2026-08-01"):
+        ing.upsert_stats(conn, ing.MONTHLY_TABLE, slug, month, bucket,
+                         _payload(hit), captured_at)
+
+    @staticmethod
+    def _notices(caplog):
+        return [r.message for r in caplog.records if "targets hit revised" in r.message]
+
+    def test_an_in_progress_month_accruing_is_not_a_revision(self, conn, caplog):
+        # The September regression: +10% between the first mid-month capture
+        # and the latest one is the month filling up, and fired on 9 units.
+        self._tracked_unit(conn, month="2026-09")
+        self._capture(conn, "2026-09-07", 3062, "2026-09-07T09:00:00Z", month="2026-09-01")
+        self._capture(conn, "2026-09-14", 3413, "2026-09-14T09:00:00Z", month="2026-09-01")
+        with caplog.at_level("WARNING"):
+            check_db.check(conn, date(2026, 9, 23))
+        assert self._notices(caplog) == []
+
+    def test_a_settled_month_edited_afterwards_is_reported(self, conn, caplog):
+        self._tracked_unit(conn)
+        self._capture(conn, self.MID_MONTH, 500, "2026-08-17T09:00:00Z")
+        self._capture(conn, self.AFTER_CLOSE, 1000, "2026-09-07T09:00:00Z")
+        self._capture(conn, self.LATER, 1100, "2026-09-14T09:00:00Z")
+        with caplog.at_level("WARNING"):
+            check_db.check(conn, date(2026, 9, 23))
+        # Measured from the settled 1000, not the mid-month 500.
+        assert self._notices(caplog) == [
+            "fenix 2026-08: targets hit revised 1000 -> 1100 (+10.0%) after the "
+            "month closed."
+        ]
+
+    def test_a_downward_edit_is_reported_too(self, conn, caplog):
+        self._tracked_unit(conn)
+        self._capture(conn, self.AFTER_CLOSE, 1000, "2026-09-07T09:00:00Z")
+        self._capture(conn, self.LATER, 900, "2026-09-14T09:00:00Z")
+        with caplog.at_level("WARNING"):
+            check_db.check(conn, date(2026, 9, 23))
+        assert "-10.0%" in self._notices(caplog)[0]
+
+    def test_routine_drift_under_the_threshold_stays_quiet(self, conn, caplog):
+        # The measured behaviour REVISION_PCT is set against: closed months
+        # move by single digits in both directions.
+        self._tracked_unit(conn)
+        self._capture(conn, self.AFTER_CLOSE, 1000, "2026-09-07T09:00:00Z")
+        self._capture(conn, self.LATER, 1004, "2026-09-14T09:00:00Z")
+        with caplog.at_level("WARNING"):
+            check_db.check(conn, date(2026, 9, 23))
+        assert self._notices(caplog) == []
+
+    def test_a_month_with_no_settled_capture_yet_is_skipped(self, conn, caplog):
+        # August ended but was only ever read during itself — there is no
+        # settled figure to compare against, so there is nothing to say.
+        self._tracked_unit(conn)
+        self._capture(conn, "2026-08-10", 400, "2026-08-10T09:00:00Z")
+        self._capture(conn, self.MID_MONTH, 500, "2026-08-17T09:00:00Z")
+        with caplog.at_level("WARNING"):
+            check_db.check(conn, date(2026, 9, 23))
+        assert self._notices(caplog) == []
+
+    def test_one_settled_capture_alone_is_not_a_revision(self, conn, caplog):
+        self._tracked_unit(conn)
+        self._capture(conn, self.MID_MONTH, 500, "2026-08-17T09:00:00Z")
+        self._capture(conn, self.AFTER_CLOSE, 1000, "2026-09-07T09:00:00Z")
+        with caplog.at_level("WARNING"):
+            check_db.check(conn, date(2026, 9, 23))
+        assert self._notices(caplog) == []
