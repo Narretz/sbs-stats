@@ -1,0 +1,57 @@
+name: Node tests
+
+# The frontend counterpart to python-tests.yml. Same reasoning: `.githooks/
+# pre-push` runs the full sweep locally, but nothing ran it in CI, so a change
+# pushed from a container without the hooks installed — an agent's branch, a
+# `--no-verify`, a web session — reached main unchecked.
+#
+# Vitest and eslint only, NOT the Playwright suite. The e2e tier needs a
+# browser download plus the `.env.e2e` fixture DBs, which is minutes per run
+# for the tier least likely to catch a regression in a parser or helper fix;
+# the pre-push hook is where that sweep belongs. What runs here is the tier
+# CLAUDE.md describes as "plain Node, no DOM, sub-second".
+#
+# On push for any branch, like python-tests.yml — the point is to catch it
+# before the merge, not after.
+on:
+  push:
+    paths:
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "tsconfig*.json"
+      - ".eslintrc*"
+      - "eslint.config.*"
+      - ".github/workflows/node-tests.yml"
+  workflow_dispatch:
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      # Node 20 and `cache: npm`, matching deploy.yml — a test run that passes
+      # on a different major than the one that builds the site is worth less.
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Both run even if the first fails: a lint error and a test failure are
+      # independent findings, and one run should report both rather than making
+      # the next push discover the second.
+      - name: Lint
+        id: lint
+        run: npm run lint
+
+      - name: Unit tests
+        if: always() && steps.lint.conclusion != 'cancelled'
+        run: npm test

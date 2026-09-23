@@ -152,6 +152,12 @@ GitHub Actions in `.github/workflows/`:
   is lazily imported and stays out. Calls `scripts/test_python.sh`. The
   scheduled ingest workflows are not a substitute: they exercise whatever the
   source published today and stay green while a fixture case breaks.
+- `node-tests.yml` — eslint plus the vitest tier, on push to any branch when
+  `src/` or the build config changed. Deliberately not the Playwright tier:
+  that needs a browser download and the `.env.e2e` fixture DBs, which is
+  minutes per run for the tier least likely to catch a helper or parser
+  regression — `.githooks/pre-push` is where the full sweep belongs. Node 20
+  and `cache: npm`, matching `deploy.yml`.
 - `deploy.yml` — builds and publishes to GitHub Pages.
 
 The scrapers that only re-read a recent window expose that window as a
