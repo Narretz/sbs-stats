@@ -23,7 +23,9 @@ Why a script and not "ask the GitHub MCP server". Three things it can't do:
 
 What it deliberately does NOT do: fetch job logs. The REST log endpoint 302s to
 `*.blob.core.windows.net`, which the sandbox network policy denies, so a log can
-only be read through the MCP server's `get_job_logs`. The digest prints each
+only be read through the GitHub MCP server's `get_job_logs` — which a
+connector-less session may not have, so the failing STEP NAME below is the
+primary signal and the log is the fallback. The digest prints each
 failed job's id so that call can be made for the few that need it — and note
 that `tail_lines` tails the WHOLE job, so with `annotate_log` running last under
 `if: always()` a small tail shows post-job cleanup, not the error. Ask for 120+

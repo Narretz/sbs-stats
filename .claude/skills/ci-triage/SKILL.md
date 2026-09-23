@@ -38,6 +38,27 @@ handled by step 1, so overlap is free.
 If `--check-auth` reports UNAUTHENTICATED, stop and say so — 60 requests/hour
 cannot cover the window.
 
+## How you reach GitHub
+
+Do NOT assume the `mcp__github__*` tools exist: this Routine's sessions are
+fired without connectors, so they may not. Everything the triage needs works
+through plain `curl https://api.github.com/...`, which the environment's proxy
+authenticates for you — an installation token with `push` and `admin` on this
+repo and a 15,000/hour limit. `python3 scripts/ci_digest.py --check-auth`
+confirms it in one call; if it reports UNAUTHENTICATED, stop and say so.
+
+So: list runs, read annotations, create the PR (`POST /repos/{owner}/{repo}/pulls`
+— remember `-H "Content-Type: application/json"`, the API rejects the body
+without it), comment on an issue, all with curl. `git push` works too, over the
+same proxy.
+
+The one thing curl cannot do is read a **job log**: the REST endpoint 302s to
+`*.blob.core.windows.net`, which the network policy denies. Use
+`mcp__github__get_job_logs` if it happens to be available; if not, note it and
+work from the failing STEP NAME the digest already gives you, which is enough to
+classify almost every failure. Say in your report when a log would have settled
+a question you had to leave open.
+
 ## 3. Triage failures
 
 The digest names the **failing step** for each failed job and its failure rate
@@ -48,7 +69,7 @@ within the window. Use the rate:
   with assorted `HTTP 404` / `HTTP 500` from the GitHub release API. Leave it
   alone. Do not "harden" a step because it flaked once.
 - **The same step failing repeatedly, or a cluster in one morning** — real. Root
-  cause it. Read the log via the MCP server's `get_job_logs` with
+  cause it. Read the log via the GitHub MCP server's `get_job_logs` with
   `tail_lines: 120` or more; a small tail shows post-job cleanup, because
   `annotate_log` runs last under `if: always()`.
 - **An ingest script dying mid-run** — always worth a look, because an
