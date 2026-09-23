@@ -8,7 +8,7 @@ Kept here so it is version-controlled and editable alongside the rules it points
 at. To change the schedule or the text, update the Routine in the Claude Code
 web UI (or via `update_trigger`) *and* update this file, or they drift.
 
-Live as `trig_01CVbrB1ujC536cLgUkeyWK9` — Routine "Daily CI triage",
+Live as `trig_01CVbrB1ujC536cLgUkeyWK9` — Routine "RU UA Stats Daily CI triage",
 `30 7 * * *` UTC, environment `SBS CI Check Read`
 (`env_01NobDKJmfFABF8Y1eVzW6Cs`), fresh session per firing, model
 `claude-opus-5-5`, email notifications. Change the prompt with
@@ -25,8 +25,7 @@ Run the daily CI triage for this repository.
 
 Use the `ci-triage` skill and follow it exactly. If it is not listed, read
 `.claude/skills/ci-triage/SKILL.md` and follow that. If neither exists on this
-checkout, the branch that adds them has not merged yet — say exactly that and
-stop, do not improvise a triage.
+checkout say exactly that and stop, do not improvise a triage.
 
 The shape of it: dedup against `ci-triage-fingerprint` markers already in open
 PRs and recent issues BEFORE anything else, then `python3 scripts/ci_digest.py
