@@ -160,6 +160,14 @@ GitHub Actions in `.github/workflows/`:
   and `cache: npm`, matching `deploy.yml`.
 - `deploy.yml` — builds and publishes to GitHub Pages.
 
+Nothing in CI reads the annotations the ingests raise, so a daily Claude Code
+web Routine does: `.claude/skills/ci-triage/SKILL.md` is its operating manual
+and `routine-prompt.md` beside it is the scheduled message. It reads
+`scripts/ci_digest.py --hours 48`, fixes what it can establish from the repo
+alone, and files nothing it has already filed — fingerprints in PR bodies are
+its only memory between runs. What it must NOT do is the important half: no
+ingest, no reparse, no dataset mutation, no PR for a step that flaked once.
+
 The scrapers that only re-read a recent window expose that window as a
 `workflow_dispatch` input, so a manual run can widen it after a parser fix — a
 post the parser dropped was never stored, so `reparse.py` can't recover it and
