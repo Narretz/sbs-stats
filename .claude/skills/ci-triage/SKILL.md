@@ -38,26 +38,54 @@ handled by step 1, so overlap is free.
 If `--check-auth` reports UNAUTHENTICATED, stop and say so — 60 requests/hour
 cannot cover the window.
 
-## How you reach GitHub
+## Reaching GitHub (reference, not a step)
 
-Do NOT assume the `mcp__github__*` tools exist: this Routine's sessions are
-fired without connectors, so they may not. Everything the triage needs works
-through plain `curl https://api.github.com/...`, which the environment's proxy
-authenticates for you — an installation token with `push` and `admin` on this
-repo and a 15,000/hour limit. `python3 scripts/ci_digest.py --check-auth`
-confirms it in one call; if it reports UNAUTHENTICATED, stop and say so.
+**You do not have the `mcp__github__*` tools.** This was measured, not assumed:
+a session created in this Routine's environment reported `GitHub MCP not loaded`
+and its whole tool list was Bash / Write / Edit / Read / Glob / Grep / Agent /
+NotebookEdit / WebFetch / WebSearch / TaskStop / SearchMcpRegistry /
+SuggestConnectors / ListConnectors / Artifact. The server is a connector, and a
+Routine fires without connectors. Do not go looking for those tools, and do not
+try to load them — it is not a deferred-tool situation, the server is not
+attached. (If a future firing DOES have them, fine, use them; just never depend
+on it.)
 
-So: list runs, read annotations, create the PR (`POST /repos/{owner}/{repo}/pulls`
-— remember `-H "Content-Type: application/json"`, the API rejects the body
-without it), comment on an issue, all with curl. `git push` works too, over the
-same proxy.
+Everything the triage needs works through plain `curl https://api.github.com/…`,
+which the environment's proxy authenticates for you: an installation token with
+`push` and `admin` on this repo and a 15,000/hour limit.
+`python3 scripts/ci_digest.py --check-auth` confirms it in one call — if it
+reports UNAUTHENTICATED, stop and say so rather than triaging a partial picture.
 
-The one thing curl cannot do is read a **job log**: the REST endpoint 302s to
-`*.blob.core.windows.net`, which the network policy denies. Use
-`mcp__github__get_job_logs` if it happens to be available; if not, note it and
-work from the failing STEP NAME the digest already gives you, which is enough to
-classify almost every failure. Say in your report when a log would have settled
-a question you had to leave open.
+So, with curl: list runs and jobs, read annotations, comment on an issue, and
+create the PR with `POST /repos/{owner}/{repo}/pulls`. Pass
+`-H "Content-Type: application/json"` explicitly — without it the API answers
+415, not a validation error, which looks like a malformed request rather than a
+missing header. `git push` works too, over the same proxy.
+
+### Reading a failed job's log
+
+The REST endpoint 302s to a signed `*.blob.core.windows.net` URL, so:
+
+```sh
+curl -sL -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/repos/{owner}/{repo}/actions/jobs/<job_id>/logs" \
+  -o /tmp/job.log
+```
+
+`ci_digest.py` prints the `job_id` for every failed job. Two things to know:
+
+- **The signed URL expires in about ten minutes.** Follow the redirect in the
+  same command (`-L`); never stash the redirect target to fetch later.
+- **It is the WHOLE job log, and the error is in the middle, not at the end.**
+  `annotate_log.py` runs last under `if: always()`, so the tail is post-job
+  cleanup. Find the failure with `grep -n '##\[error\]' /tmp/job.log` and read
+  the lines above it.
+
+If the fetch comes back empty or the proxy reports the host denied, the blob host
+is not in this environment's allowed domains. Say so, and fall back to the
+failing STEP NAME the digest already gives you — that alone classified 7 of the
+8 failures in the fortnight this skill was written against. Report explicitly
+when a log would have settled a question you had to leave open.
 
 ## 3. Triage failures
 
@@ -69,9 +97,8 @@ within the window. Use the rate:
   with assorted `HTTP 404` / `HTTP 500` from the GitHub release API. Leave it
   alone. Do not "harden" a step because it flaked once.
 - **The same step failing repeatedly, or a cluster in one morning** — real. Root
-  cause it. Read the log via the GitHub MCP server's `get_job_logs` with
-  `tail_lines: 120` or more; a small tail shows post-job cleanup, because
-  `annotate_log` runs last under `if: always()`.
+  cause it. Fetch the log with curl and grep for `##[error]` — see **Reading a
+  failed job's log**; the tail of the file is cleanup, not the failure.
 - **An ingest script dying mid-run** — always worth a look, because an
   interrupted run uploads nothing. The sub-units ingest died on an unhandled
   `429` from the SBS API, and per `CLAUDE.md` a sub-unit month that rolls out of

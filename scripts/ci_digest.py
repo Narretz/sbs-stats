@@ -21,15 +21,17 @@ Why a script and not "ask the GitHub MCP server". Three things it can't do:
   - A single `list_workflow_runs` page of 40 runs is ~79k characters, over the
     tool-result limit. This script's whole output is a few hundred lines.
 
-What it deliberately does NOT do: fetch job logs. The REST log endpoint 302s to
-`*.blob.core.windows.net`, which the sandbox network policy denies, so a log can
-only be read through the GitHub MCP server's `get_job_logs` — which a
-connector-less session may not have, so the failing STEP NAME below is the
-primary signal and the log is the fallback. The digest prints each
-failed job's id so that call can be made for the few that need it — and note
-that `tail_lines` tails the WHOLE job, so with `annotate_log` running last under
-`if: always()` a small tail shows post-job cleanup, not the error. Ask for 120+
-lines, or read the failing step named here and skip the log entirely.
+What it deliberately does NOT do: fetch job logs. It prints each failed job's id
+instead, because the failing STEP NAME it already extracts settles most failures
+without a log at all. When you do want one:
+
+    curl -sL "https://api.github.com/repos/<repo>/actions/jobs/<job_id>/logs" -o /tmp/job.log
+    grep -n '##\[error\]' /tmp/job.log
+
+That needs `*.blob.core.windows.net` in the environment's allowed domains, since
+the REST endpoint 302s to a signed URL there which expires in ~10 minutes — hence
+`-L` in the same command. And grep rather than tail: `annotate_log.py` runs last
+under `if: always()`, so the end of the file is post-job cleanup, not the error.
 
 Auth: `GITHUB_TOKEN` / `GH_TOKEN` if set. Unset is fine wherever the
 environment's proxy injects credentials (check with `--check-auth`); an
@@ -330,7 +332,7 @@ def render(d: dict) -> str:
             f"{'/' + f['branch'] if f['branch'] else ''}]"
         )
         L.append(f"    failed step: {steps}")
-        L.append(f"    {f['run_url']}   job_id={f['job_id']} (for get_job_logs)")
+        L.append(f"    {f['run_url']}   job_id={f['job_id']} (see module docstring for the log)")
     if d["failed_step_rate"]:
         L += ["", "Failure rate within this window (same step, same workflow):"]
         for key, v in d["failed_step_rate"].items():
