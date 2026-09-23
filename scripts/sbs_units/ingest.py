@@ -57,6 +57,7 @@ import argparse
 import os
 import sqlite3
 import sys
+import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -304,6 +305,35 @@ def upsert_units(conn: sqlite3.Connection, units: list[Unit], now_iso: str) -> N
 
 # ─── Fetch one bucket ────────────────────────────────────────────────────────
 
+# Minimum gap between two period reads. `fetch_json` now retries a 429 instead
+# of raising, which saves the run — but this is the half that stops the 429
+# happening. One run is ~60 reads and they used to go out back to back as fast
+# as the API answered; at 0.4s apart the whole run takes ~25s longer, which is
+# nothing on a twice-daily schedule and keeps the burst off a small public API.
+# `--all` makes several hundred reads, where it matters considerably more.
+REQUEST_INTERVAL_S = float(os.environ.get("SBS_UNITS_REQUEST_INTERVAL", "0.4"))
+
+_last_fetch_at = 0.0
+
+
+def _paced_fetch(url: str) -> dict:
+    """`fetch_json`, never two requests closer together than the interval.
+
+    Measured from the END of the previous request, so a slow answer already
+    counts towards the gap and only a genuinely fast one waits. Set
+    SBS_UNITS_REQUEST_INTERVAL=0 to turn the pacing off.
+    """
+    global _last_fetch_at
+    if _last_fetch_at and REQUEST_INTERVAL_S > 0:
+        gap = time.monotonic() - _last_fetch_at
+        if gap < REQUEST_INTERVAL_S:
+            time.sleep(REQUEST_INTERVAL_S - gap)
+    try:
+        return fetch_json(url)
+    finally:
+        _last_fetch_at = time.monotonic()
+
+
 def read_period(
     disc: Discovery, unit: Unit, period_id: str, what: str, expect_start: str | None,
 ) -> dict | None:
@@ -315,7 +345,7 @@ def read_period(
     August, not this one's.
     """
     url = disc.stats_url(unit.subdivision_id, period_id)
-    raw = fetch_json(url)
+    raw = _paced_fetch(url)
     data = raw.get("data", {})
     if not _payload_is_usable(data, f"{unit.slug} {what}"):
         return None

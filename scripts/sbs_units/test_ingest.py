@@ -27,6 +27,18 @@ import ingest as ing  # noqa: E402
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
+@pytest.fixture(autouse=True)
+def _no_request_pacing(monkeypatch):
+    """Nothing in this suite makes a real request, so nothing should wait.
+
+    Without this the ingest's 0.4s inter-read gap fires between every
+    monkeypatched fetch and the suite takes ten times as long for no coverage.
+    TestPacedFetch sets its own interval, which wins — this fixture runs first.
+    """
+    monkeypatch.setattr(ing, "REQUEST_INTERVAL_S", 0.0)
+    monkeypatch.setattr(ing, "_last_fetch_at", 0.0)
+
+
 def subdivision(sid: str, div: str, title_en: str, title_uk: str = "x") -> dict:
     return {"_id": sid, "division_id": div, "title": title_uk, "title_en": title_en,
             "color": "#fff", "displayOrder": int(div)}
@@ -472,3 +484,69 @@ class TestLargeRevision:
         with caplog.at_level("WARNING"):
             check_db.check(conn, date(2026, 9, 23))
         assert self._notices(caplog) == []
+
+
+# ─── Request pacing ──────────────────────────────────────────────────────────
+
+class TestPacedFetch:
+    """`fetch_json` retrying a 429 saves the run; this is what stops the 429.
+
+    ~60 reads a run used to go out as fast as the API answered, and `--all`
+    makes several hundred.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset(self, monkeypatch):
+        monkeypatch.setattr(ing, "_last_fetch_at", 0.0)
+
+    def _clock(self, monkeypatch, slept: list[float]):
+        now = {"t": 100.0}
+        monkeypatch.setattr(ing.time, "monotonic", lambda: now["t"])
+        monkeypatch.setattr(ing.time, "sleep", lambda s: (slept.append(s),
+                                                          now.__setitem__("t", now["t"] + s)))
+        monkeypatch.setattr(ing, "fetch_json", lambda url: {"data": {"url": url}})
+        return now
+
+    def test_the_first_read_does_not_wait(self, monkeypatch):
+        slept: list[float] = []
+        self._clock(monkeypatch, slept)
+        assert ing._paced_fetch("http://x/1") == {"data": {"url": "http://x/1"}}
+        assert slept == []
+
+    def test_a_second_read_waits_out_the_interval(self, monkeypatch):
+        slept: list[float] = []
+        monkeypatch.setattr(ing, "REQUEST_INTERVAL_S", 0.4)
+        self._clock(monkeypatch, slept)
+        ing._paced_fetch("http://x/1")
+        ing._paced_fetch("http://x/2")
+        assert slept == [pytest.approx(0.4)]
+
+    def test_a_slow_request_counts_towards_the_gap(self, monkeypatch):
+        # The interval is measured from the END of the previous request, so an
+        # API that already took longer than the interval is not made slower.
+        slept: list[float] = []
+        monkeypatch.setattr(ing, "REQUEST_INTERVAL_S", 0.4)
+        now = self._clock(monkeypatch, slept)
+        ing._paced_fetch("http://x/1")
+        now["t"] += 2.0  # the caller spent 2s doing something else
+        ing._paced_fetch("http://x/2")
+        assert slept == []
+
+    def test_zero_turns_the_pacing_off(self, monkeypatch):
+        slept: list[float] = []
+        monkeypatch.setattr(ing, "REQUEST_INTERVAL_S", 0.0)
+        self._clock(monkeypatch, slept)
+        ing._paced_fetch("http://x/1")
+        ing._paced_fetch("http://x/2")
+        assert slept == []
+
+    def test_a_raising_fetch_still_advances_the_clock(self, monkeypatch):
+        # Otherwise a burst of failures would ignore the pacing entirely,
+        # which is the exact situation a 429 puts us in.
+        slept: list[float] = []
+        monkeypatch.setattr(ing, "REQUEST_INTERVAL_S", 0.4)
+        self._clock(monkeypatch, slept)
+        monkeypatch.setattr(ing, "fetch_json", lambda url: (_ for _ in ()).throw(RuntimeError("429")))
+        with pytest.raises(RuntimeError):
+            ing._paced_fetch("http://x/1")
+        assert ing._last_fetch_at != 0.0
