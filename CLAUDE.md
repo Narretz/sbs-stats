@@ -145,11 +145,13 @@ GitHub Actions in `.github/workflows/`:
   workflow that isn't stdlib-only. Not yet a dedicated site; feeds the combined
   charts only.
 - `python-tests.yml` — the ingest test suites, on push to any branch when a
-  `.py` under `scripts/` changed (plus `workflow_dispatch`). Installs pytest
-  only — the suites are stdlib-only, like the ingest paths they cover — and
-  calls `scripts/test_python.sh`. The scheduled ingest workflows are not a
-  substitute: they exercise whatever the source published today and stay green
-  while a fixture case breaks.
+  `.py` under `scripts/` changed (plus `workflow_dispatch`). Installs pytest and
+  `requests`, which is the whole of it — `fetch_and_update.py` imports requests
+  at module level and six suites reach it transitively, so leaving it out fails
+  collection rather than skipping a test; the rest of `scripts/requirements.txt`
+  is lazily imported and stays out. Calls `scripts/test_python.sh`. The
+  scheduled ingest workflows are not a substitute: they exercise whatever the
+  source published today and stay green while a fixture case breaks.
 - `deploy.yml` — builds and publishes to GitHub Pages.
 
 The scrapers that only re-read a recent window expose that window as a
