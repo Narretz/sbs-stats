@@ -7,6 +7,14 @@ Builds **`ru-mod-ad.db`** from the Russian Ministry of Defence Telegram channel
 > … дежурными средствами ПВО перехвачены и уничтожены **N** украинских
 > беспилотных летательных аппаратов … над территориями …
 
+Since **21 Sep 2026** the channel also posts the same sentence **without
+"украинских"** (msg 67567: *"уничтожены 514 беспилотных летательных
+аппаратов"*), and still mixes both forms day to day. That word used to be the
+anchor separating a headline from a per-region bullet, so the unqualified form
+is matched by its own pattern, tried last and only across the post's first
+sentence, where a bullet list cannot have started. It cost four reports (1,100
+drones, 21–23 Sep 2026) before it was handled.
+
 We extract the drone-intercept counts (and, when present, the per-region
 breakdown). **These are UNVERIFIED Russian claims**; "intercepted/downed" is a
 floor for "launched".
@@ -105,6 +113,14 @@ time rather than being found later on a chart:
   silence or a parser miss. This matters as much as an empty day: the date still
   has a row, so it renders as a plausible real value rather than a gap. (This is
   what 25 Aug 2026 looked like.)
+- **scheduled reports stopped arriving** — 4 or more of the last 8 *due*
+  windows are missing. The two checks above look only at dates inside the span a
+  run happened to scan and stop at yesterday, so each quiet day reads as its own
+  small anomaly; this one asks whether the schedule itself is broken, counts
+  from the clock (so today's overnight report is in scope from 12:00 MSK), and
+  tolerates the misses being interleaved with good reports. Calibrated against
+  2024-10 → 2026-09: at 4 missing it fires 5 times in two years, at 3 it fires
+  13 times. Single and double misses are normal for this channel and stay quiet.
 - overlapping windows (possible double-count), per-region breakdowns that don't
   sum to the headline, and air-target-worded reports (above).
 

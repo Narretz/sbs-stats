@@ -1472,3 +1472,181 @@ class TestGapWarning:
         out = _warnings(caplog)
         assert "with no AD report in DB" in out
         assert "2026-08-23, 2026-08-24" in out
+
+
+# ── headline without the "украинских" qualifier (from 21 Sep 2026) ────────────
+# The channel began intermittently dropping the modifier that every count
+# pattern anchored on, so four real reports (21 Sep night+day, 22 Sep night,
+# 23 Sep night — 1,100 drones) were parsed as "not an AD post" and never stored.
+UNQUALIFIED_67567 = (
+    "⚡️ В течение прошедшей ночи дежурными силами ПВО перехвачены и уничтожены 514 "
+    "беспилотных летательных аппаратов самолетного типа над территориями Белгородской, "
+    "Курской, Брянской областей, Краснодарского края, республиками Крым, Башкортостан, "
+    "над акваториями Азовского и Черного морей.\n\n🔹 Минобороны России"
+)
+
+
+class TestUnqualifiedHeadline:
+    def test_night_headline_without_ukrainian_parses(self):
+        # msg 67567 — identical to the long-handled form but for the missing
+        # "украинских" between the count and the unit noun.
+        r = _parse(UNQUALIFIED_67567, mid=67567, posted_utc="2026-09-23T05:42:36+00:00")
+        assert r is not None
+        assert r.drones == 514
+        assert r.unit == "uav"               # still UAVs, not the air-target umbrella
+        assert r.window_kind == "night"
+        assert r.report_date == "2026-09-23"
+
+    def test_day_headline_without_ukrainian_parses(self):
+        # msg 67531 — the daytime counterpart, which also commas off its window.
+        r = _parse(
+            "⚡️ В течение дня, с 8.00 до 20.00 мск, дежурными силами ПВО перехвачены и "
+            "уничтожены 45 беспилотных летательных аппаратов самолетного типа над "
+            "территориями Белгородской, Брянской, Курской, Рязанской областей.",
+            mid=67531, posted_utc="2026-09-21T17:23:24+00:00")
+        assert r is not None
+        assert r.drones == 45 and r.unit == "uav" and r.report_date == "2026-09-21"
+
+    def test_qualified_headline_still_parses(self):
+        # msg 67556, posted the day before 67567 — the channel still mixes both
+        # forms, so the qualified pattern must not have been traded away.
+        r = _parse(
+            "⚡️ В течение дня в период с 8.00 мск до 20.00 мск дежурными силами ПВО "
+            "перехвачены и уничтожены 17 украинских беспилотных летательных аппаратов "
+            "самолетного типа над территориями Курской и Белгородской областей.",
+            mid=67556, posted_utc="2026-09-22T17:23:16+00:00")
+        assert r is not None and r.drones == 17 and r.unit == "uav"
+
+    def test_later_sentence_does_not_become_a_phantom_headline(self):
+        # Why the unqualified pattern is confined to the first sentence: without
+        # "украин\w+" its shape also fits a count further down the post. Here the
+        # headline is the air-target umbrella, which no UAV form matches, so a
+        # whole-text search would reach the breakdown sentence and store its 12
+        # as the window's UAV total. Confined to the headline, the UAV forms
+        # find nothing and the post falls through to the air-target reading.
+        r = _parse(
+            "В течение прошедшей ночи дежурными силами ПВО перехвачены и уничтожены 148 "
+            "воздушных целей над территориями Белгородской и Курской областей. Над "
+            "территорией Белгородской области уничтожено 12 беспилотных летательных "
+            "аппаратов.",
+            mid=5, posted_utc="2026-09-23T05:42:36+00:00")
+        assert r is not None
+        assert (r.drones, r.unit) == (148, "air_target")
+
+    def test_svodka_without_qualifier_is_still_not_an_ad_report(self):
+        # The Сводка gate runs before any count extraction; relaxing the
+        # qualifier must not open a second way past it.
+        text = (
+            "Сводка Министерства обороны Российской Федерации о ходе проведения "
+            "специальной военной операции. Средствами ПВО перехвачены и уничтожены "
+            "18 беспилотных летательных аппаратов самолетного типа."
+        )
+        assert ig.AD_GATE.search(text)
+        assert _parse(text) is None
+
+
+# ── the schedule itself breaking: reports due but absent ──────────────────────
+class TestOverdueReports:
+    """Both daily windows are scheduled, so a cluster of missing ones means the
+    parser or the scrape broke, not that the MoD went quiet."""
+
+    def _night(self, day: str, mid: int):
+        return _parse(
+            "В течение прошедшей ночи дежурными силами ПВО перехвачены и уничтожены 100 "
+            "украинских беспилотных летательных аппаратов самолетного типа над "
+            "территориями Курской области.",
+            mid=mid, posted_utc=f"{day}T05:31:00+00:00")
+
+    def _day(self, day: str, mid: int):
+        return _parse(
+            "В течение дня с 8.00 до 20.00 мск дежурными силами ПВО перехвачены и "
+            "уничтожены 39 украинских беспилотных летательных аппаратов самолетного типа "
+            "над территориями Белгородской области.",
+            mid=mid, posted_utc=f"{day}T17:26:11+00:00")
+
+    def _db(self, tmp_path, days, skip=()):
+        """A DB with both windows stored for each day except the (day, kind)
+        pairs in `skip`."""
+        db = tmp_path / "ad.db"
+        reports, mid = [], 1000
+        for d in days:
+            for kind, build in (("night", self._night), ("day", self._day)):
+                if (d, kind) in skip:
+                    continue
+                reports.append(build(d, mid))
+                mid += 1
+        ig.store(db, reports)
+        return db
+
+    # 23 Sep 2026, 21:30 MSK: both windows of the 23rd are past their posting
+    # hour, so the check sees 8 due windows back through the 19th.
+    NOW = datetime.fromisoformat("2026-09-23T21:30:00+03:00")
+    DAYS = ["2026-09-19", "2026-09-20", "2026-09-21", "2026-09-22", "2026-09-23"]
+
+    def test_the_september_2026_break_is_flagged(self, tmp_path, caplog):
+        # Exactly what the wording change left behind: 21 Sep lost both windows,
+        # 22 and 23 Sep lost their overnight one, 22 Sep day parsed fine.
+        db = self._db(tmp_path, self.DAYS, skip=[
+            ("2026-09-21", "night"), ("2026-09-21", "day"),
+            ("2026-09-22", "night"), ("2026-09-23", "night"),
+            ("2026-09-23", "day"),
+        ])
+        caplog.clear()
+        ig._warn_overdue_reports(db, now=self.NOW)
+        out = _warnings(caplog)
+        assert "scheduled AD reports are missing" in out
+        assert "2026-09-21 night" in out and "2026-09-22 night" in out
+
+    def test_interleaved_misses_still_count(self, tmp_path, caplog):
+        # The reason this counts within a window instead of tracking a run: a
+        # single good report in the middle must not reset the alarm.
+        db = self._db(tmp_path, self.DAYS, skip=[
+            ("2026-09-23", "night"), ("2026-09-22", "night"),
+            ("2026-09-21", "night"), ("2026-09-20", "night"),
+        ])
+        caplog.clear()
+        ig._warn_overdue_reports(db, now=self.NOW)
+        assert "scheduled AD reports are missing" in _warnings(caplog)
+
+    def test_full_coverage_is_silent(self, tmp_path, caplog):
+        db = self._db(tmp_path, self.DAYS)
+        caplog.clear()
+        ig._warn_overdue_reports(db, now=self.NOW)
+        assert _warnings(caplog) == ""
+
+    def test_three_missing_is_below_the_threshold(self, tmp_path, caplog):
+        # Single and double misses are routine for this channel (87 and 6
+        # occurrences in two years); the alarm starts at four.
+        db = self._db(tmp_path, self.DAYS, skip=[
+            ("2026-09-23", "night"), ("2026-09-22", "night"), ("2026-09-21", "night"),
+        ])
+        caplog.clear()
+        ig._warn_overdue_reports(db, now=self.NOW)
+        assert _warnings(caplog) == ""
+
+    def test_verified_silence_is_excused(self, tmp_path, caplog):
+        # A day confirmed silent via --mark-silent drops out of the count
+        # entirely, so a real ceasefire doesn't keep re-raising the alarm.
+        db = self._db(tmp_path, self.DAYS, skip=[
+            ("2026-09-21", "night"), ("2026-09-21", "day"),
+            ("2026-09-22", "night"), ("2026-09-23", "night"),
+            ("2026-09-23", "day"),
+        ])
+        ig.mark_silent_day(db, "2026-09-21", "ceasefire", window_kind="all")
+        ig.mark_silent_day(db, "2026-09-22", "ceasefire", window_kind="night")
+        caplog.clear()
+        ig._warn_overdue_reports(db, now=self.NOW)
+        assert _warnings(caplog) == ""
+
+    def test_todays_daytime_window_is_not_due_before_evening(self, tmp_path):
+        # At 13:00 MSK only the overnight report is expected; flagging the
+        # daytime one would fire every single midday CI run.
+        due = ig._due_windows(datetime.fromisoformat("2026-09-23T13:00:00+03:00"), 8)
+        assert ("2026-09-23", "night") in due
+        assert ("2026-09-23", "day") not in due
+
+    def test_todays_overnight_window_is_not_due_at_dawn(self, tmp_path):
+        # Before noon MSK the overnight report can still legitimately arrive.
+        due = ig._due_windows(datetime.fromisoformat("2026-09-23T06:00:00+03:00"), 8)
+        assert ("2026-09-23", "night") not in due
+        assert ("2026-09-22", "day") in due

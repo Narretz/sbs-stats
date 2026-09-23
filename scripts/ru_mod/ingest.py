@@ -78,7 +78,9 @@ MONTHS = {
 # A SINGULAR variant ("украинский <unit> уничтожен" — count=1, no numeral) is
 # also used for one-drone intercepts. The "украин\w+" anchor between count and
 # unit is what distinguishes a headline from a per-region bullet (bullets drop
-# the "украинских" modifier), so all three patterns keep it.
+# the "украинских" modifier), so all three patterns keep it. From 21 Sep 2026 the
+# channel also posts headlines WITHOUT the modifier — see
+# COUNT_VERB_FIRST_NO_UA_RE below for the restricted form that catches those.
 _AD_VERB = r"(?:уничтожен|сбит|перехвач)\w*"
 # Unit noun: either the short "БПЛА"/"БпЛА" or the full "беспилотн… летательн…
 # аппарат" noun phrase. The short form became common in late 2024 — its absence
@@ -108,6 +110,32 @@ COUNT_SINGULAR_VERB_FIRST_RE = re.compile(
     rf"{_AD_VERB}(?:\s+и\s+{_AD_VERB})?\s+украинский\s+{_UNIT_NOUN}",
     re.I,
 )
+# UNQUALIFIED headline: same verb-first shape, but WITHOUT the "украинских"
+# modifier — "…перехвачены и уничтожены 514 беспилотных летательных аппаратов
+# самолетного типа над территориями…" (msg 67567, night of 23 Sep 2026). The
+# channel began dropping the qualifier intermittently on 21 Sep 2026.
+#
+# Dropping "украин\w+" also drops the anchor that tells a headline from a
+# per-region bullet, so this pattern is NOT interchangeable with
+# COUNT_VERB_FIRST_RE: _extract_drones runs it last, and only across the post's
+# FIRST SENTENCE, where a bullet list cannot have started yet. Without that
+# restriction a region-first bullet ("над территорией X уничтожено 12 БПЛА")
+# matches it and becomes a phantom headline total.
+COUNT_VERB_FIRST_NO_UA_RE = re.compile(
+    rf"{_AD_VERB}(?:\s+и\s+{_AD_VERB})?\s+{_HEAD_NUM}\s+{_UNIT_NOUN}",
+    re.I,
+)
+# First sentence of a flattened post. A terminator only counts when whitespace
+# follows, so the "8.00 до 20.00 мск" window times (period + digit) don't split
+# the headline in half.
+_SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s")
+
+
+def _first_sentence(flat: str) -> str:
+    m = _SENTENCE_END_RE.search(flat)
+    return flat[:m.start()] if m else flat
+
+
 # Broader unit noun: "воздушных целей" — AIR TARGETS. The MoD occasionally
 # reports a whole window's intercepts under this umbrella term instead of naming
 # UAVs (msg 66758, night of 25 Aug 2026: "перехвачены и уничтожены 148 воздушных
@@ -342,10 +370,11 @@ def _ru_numeral(text: str) -> int | None:
 def _extract_drones(flat: str) -> tuple[int, str] | None:
     """Headline drone count + tag of which surface form matched.
 
-    Walks the three headline forms in order. finditer (not search) so a
-    first match whose count phrase _count_to_int can't resolve doesn't
-    drop the whole post — keep trying. The singular implicit form
-    contributes a fixed count of 1 (no numeral in the text).
+    Walks the qualified headline forms in order, then falls back to the
+    unqualified verb-first form over the first sentence only. finditer
+    (not search) so a first match whose count phrase _count_to_int can't
+    resolve doesn't drop the whole post — keep trying. The singular
+    implicit form contributes a fixed count of 1 (no numeral in the text).
 
     The tag ('verb_first' / 'noun_first' / 'singular') tells the caller
     whether the count came from a true headline or a noun-first phrase
@@ -362,6 +391,14 @@ def _extract_drones(flat: str) -> tuple[int, str] | None:
             return n, "noun_first"
     if COUNT_SINGULAR_RE.search(flat) or COUNT_SINGULAR_VERB_FIRST_RE.search(flat):
         return 1, "singular"
+    # Last resort: the unqualified verb-first headline, confined to the first
+    # sentence (see COUNT_VERB_FIRST_NO_UA_RE). Running it only after every
+    # qualified form has failed keeps it from changing how any post that
+    # already parses is read — it can only rescue one that would be dropped.
+    for m in COUNT_VERB_FIRST_NO_UA_RE.finditer(_first_sentence(flat)):
+        n = _count_to_int(m.group(1))
+        if n is not None and n <= MAX_PLAUSIBLE:
+            return n, "verb_first"
     return None
 
 
@@ -1446,6 +1483,7 @@ def main() -> int:
           f"summaries: {parsed_str} → {new_str}; "
           f"DB total {total} (latest {latest}) → {out}")
     _warn_gap_days(out, scan_min, scan_max)
+    _warn_overdue_reports(out)
     return 0
 
 
@@ -1531,6 +1569,95 @@ def _warn_gap_days(out: Path, scan_min: str | None, scan_max: str | None) -> Non
             f"`--mark-silent <date> <note> --window night|day`: {_list(partials)}",
             extra=ann(title="ru-mod: half-covered days"),
         )
+
+
+# A missing window is routine; several inside a few days is not.
+# 4 missing in 8 is a sweet spot based on report history. Lowering OVERDUE_MISSING
+# will surface more gaps, but not necessarily parser bugs.
+# The misses are NOT necessarily consecutive, which is why this counts within a
+# window instead of tracking a run.
+OVERDUE_WINDOW = 8
+OVERDUE_MISSING = 4
+# A window counts as DUE once the channel's posting habit says it should have
+# landed. Overnight reports cluster at 07:00–10:00 MSK (171 of 180 in the last
+# 180 days), so noon is ~2h past the tail; daytime ones run as late as 23:00,
+# so that window is only due once its date is over.
+NIGHT_DUE_HOUR_MSK = 12
+
+
+def _due_windows(now_msk: datetime, days: int) -> list[tuple[str, str]]:
+    """The (date, window_kind) slots that should already have been reported,
+    newest first, looking back `days` from now."""
+    due: list[tuple[str, str]] = []
+    today = now_msk.date()
+    d = today
+    for _ in range(days):
+        if d < today:
+            # The date is over, so both of its windows were due. Daytime first:
+            # it is the later of the two, and the caller walks newest → oldest.
+            due.append((d.isoformat(), "day"))
+            due.append((d.isoformat(), "night"))
+        elif now_msk.hour >= NIGHT_DUE_HOUR_MSK:
+            # Today: the daytime report can still legitimately be hours away.
+            due.append((d.isoformat(), "night"))
+        d -= timedelta(days=1)
+    return due
+
+
+def _warn_overdue_reports(out: Path, now: datetime | None = None) -> None:
+    """WARN when the two scheduled daily reports largely stop arriving.
+
+    _warn_gap_days covers dates INSIDE the span a run happened to scan, stops at
+    yesterday so an in-progress day isn't flagged, and reports each date on its
+    own — so a wording change reads there as a couple of unrelated quiet days.
+    This asks the different question the schedule allows: the MoD posts an
+    overnight AND a daytime report every day, so if most of the last few days'
+    windows are absent, the likely explanation is not silence but that the posts
+    are still being published and we no longer recognise them, or that the
+    scrape is broken. Counting from the clock rather than from the scanned span
+    also means the alarm doesn't wait for the next day to roll over.
+
+    `now` is injectable so tests can place themselves on the MSK clock.
+    """
+    now = now or datetime.now(MSK)
+    horizon = (now.date() - timedelta(days=OVERDUE_WINDOW)).isoformat()
+    with sqlite3.connect(out) as conn:
+        coverage = {
+            d: (bool(n), bool(dy))
+            for d, n, dy in conn.execute(
+                "SELECT report_date, SUM(window_kind = 'night'), SUM(window_kind <> 'night') "
+                "FROM ad_latest WHERE report_date >= ? GROUP BY report_date",
+                (horizon,),
+            )
+        }
+        silent: dict[str, set[str]] = {}
+        for d, kind in conn.execute(
+            "SELECT report_date, window_kind FROM silent_days WHERE report_date >= ?",
+            (horizon,),
+        ):
+            silent.setdefault(d, set()).add(kind or "all")
+    examined: list[tuple[str, str, bool]] = []
+    for day, kind in _due_windows(now, OVERDUE_WINDOW):
+        excused = silent.get(day, set())
+        if "all" in excused or kind in excused:
+            continue                         # verified silence is not a finding
+        has_night, has_day = coverage.get(day, (False, False))
+        examined.append((day, kind, has_night if kind == "night" else has_day))
+        if len(examined) == OVERDUE_WINDOW:
+            break
+    missing = [f"{day} {kind}" for day, kind, present in examined if not present]
+    if len(missing) < OVERDUE_MISSING:
+        return
+    log.warning(
+        f"{len(missing)} of the last {len(examined)} scheduled AD reports are missing "
+        f"(newest first): {', '.join(missing)}. The MoD posts an overnight AND a "
+        f"daytime report daily, so this is more likely a wording change the parser "
+        f"no longer matches — or a broken scrape — than genuine silence. Check the "
+        f"channel with `probe_gap.py --full`: if the posts are there, the parser "
+        f"needs a new pattern plus a re-scrape with a widened rumod_lookback_days; "
+        f"if they are genuinely absent, record them with --mark-silent.",
+        extra=ann(title="ru-mod: scheduled reports stopped arriving"),
+    )
 
 
 def mark_silent_day(db_path: Path, report_date: str, note: str, window_kind: str = "all") -> None:
