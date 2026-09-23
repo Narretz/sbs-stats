@@ -218,6 +218,11 @@ npm run test:e2e     # Playwright e2e (uses .env.e2e fixture DBs).
 # dev server; --zoom/--theme/--scope/--full, see the file's header comment):
 node scripts/screenshot_compare.mjs sbu-alfa:2026-07 sbu-alfa:2026-08
 
+# What CI reported lately — failed steps plus every ingest annotation, grouped
+# and deduped into one screenful. The daily triage routine's input; also the
+# fastest way to answer "did last night's scrapes find anything".
+python3 scripts/ci_digest.py --hours 48
+
 bash scripts/test_python.sh          # every ingest test suite (one pytest per dir)
 bash scripts/test_python.sh scripts/rubikon   # …or just one
 
