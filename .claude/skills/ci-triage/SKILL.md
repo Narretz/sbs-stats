@@ -120,12 +120,24 @@ report — widening the allowed domains is the user's call to make.
   body that you checked it does. A test that passes either way documents
   nothing. Put it in the tier `CLAUDE.md` prescribes — a parser or check change
   belongs in `scripts/<dataset>/test_*.py`.
-- **Validate before pushing:**
+- **Validate before pushing.** This Routine's environment runs no setup script:
+  the usual outcome is "nothing actionable", so paying for a full bootstrap on
+  every firing would be waste. Install only what the fix you are making needs.
+
+  For a Python or ingest change — `pytest` and `requests` are the complete set,
+  verified by running all ten suites with openpyxl, telethon, playwright and
+  python-dotenv blocked at import:
   ```sh
+  pip install "pytest>=8.0.0" "requests>=2.31.0"
   bash scripts/test_python.sh scripts/<dataset>   # or with no argument, for all
-  npm run lint && npm test                        # only if src/ changed
   ```
-  If `pytest` or `node_modules` is missing, `bash scripts/setup_env.sh`.
+  For a change under `src/`:
+  ```sh
+  npm ci && npm run lint && npm test
+  ```
+  `bash scripts/setup_env.sh` does both plus telethon and playwright — minutes
+  of downloading a browser that no tier you can run here uses. Reach for it only
+  if something actually turns out to need it.
 - **Put the fingerprint in the PR body** so tomorrow's run skips it:
   ```
   <!-- ci-triage-fingerprint: 642698a9 -->
