@@ -107,6 +107,16 @@ def check(conn: sqlite3.Connection, today: date) -> int:
             findings += 1
 
     # ── A closed month whose total moved materially ──────────────────────────
+    # The baseline is the first capture taken AFTER the month ended, not the
+    # first capture of that month. A month tracked while it was still running
+    # is first captured partway through it, so comparing that against the final
+    # figure measures the month filling up, not the source revising it: over one
+    # fortnight this fired on 9 units for the in-progress month and on no closed
+    # month at all, +4.4% to +11.5%, which is just September still accruing.
+    # Anchored on `captured_at` rather than `capture_bucket` because a bucket is
+    # the Monday of its ISO week and the week a month ends in straddles the
+    # boundary — that Monday would misfile the first settled capture as a
+    # mid-month one.
     for slug, date_, old, new in _rows(conn, """
         SELECT a.unit_slug, a.date, a.total_targets_hit, b.total_targets_hit
         FROM unit_monthly_stats a
@@ -115,7 +125,8 @@ def check(conn: sqlite3.Connection, today: date) -> int:
          AND b.capture_bucket = (SELECT MAX(capture_bucket) FROM unit_monthly_stats
                                   WHERE unit_slug = a.unit_slug AND date = a.date)
         WHERE a.capture_bucket = (SELECT MIN(capture_bucket) FROM unit_monthly_stats
-                                   WHERE unit_slug = a.unit_slug AND date = a.date)
+                                   WHERE unit_slug = a.unit_slug AND date = a.date
+                                     AND captured_at >= date(a.date, '+1 month'))
           AND a.total_targets_hit IS NOT NULL AND b.total_targets_hit IS NOT NULL
           AND a.total_targets_hit > 0
     """):
@@ -123,7 +134,7 @@ def check(conn: sqlite3.Connection, today: date) -> int:
         if abs(pct) >= REVISION_PCT:
             log.warning(
                 f"{slug} {date_[:7]}: targets hit revised {old} -> {new} "
-                f"({pct:+.1f}%) after first capture.",
+                f"({pct:+.1f}%) after the month closed.",
                 extra=ann(level="notice", title="sbs-units: large revision"),
             )
             findings += 1

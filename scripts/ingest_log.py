@@ -73,6 +73,36 @@ _ANNOTATION_LEVELS = ("notice", "warning", "error")
 # finding, and a backfill emits tens of thousands of lines of it.
 SINK_LEVEL = logging.WARNING
 
+# How much source text a finding may quote. Long enough for a sentence or a
+# short paragraph, short enough that a dozen findings still read as a list.
+EXCERPT_CHARS = 300
+
+
+def excerpt(text: str | None, limit: int = EXCERPT_CHARS) -> str:
+    """Quote source text for a finding that is *about* that text.
+
+    A check saying "the paragraph reports an assault and does contain a number"
+    is not actionable unless you can see the paragraph. The raw text lives in
+    the authoritative `<name>.db` on R2, which neither a person reading the
+    annotations panel nor the daily triage routine necessarily has — so the
+    evidence has to travel with the finding.
+
+    Whitespace is collapsed to single spaces: an annotation is parsed as ONE
+    line, and while `annotate_log.py` escapes the newlines rather than
+    truncating there, a multi-line quote is unreadable in the panel regardless.
+
+    Returns "" for empty input, so a call site can append it unconditionally.
+    """
+    if not text:
+        return ""
+    flat = " ".join(str(text).split())
+    if not flat:
+        return ""
+    if len(flat) > limit:
+        flat = flat[: limit - 1].rstrip() + "…"
+    return f"«{flat}»"
+
+
 
 def ann(
     *,

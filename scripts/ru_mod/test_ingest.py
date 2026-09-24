@@ -1650,3 +1650,76 @@ class TestOverdueReports:
         due = ig._due_windows(datetime.fromisoformat("2026-09-23T06:00:00+03:00"), 8)
         assert ("2026-09-23", "night") not in due
         assert ("2026-09-22", "day") in due
+
+
+# ─── probe_gap: the web backend ──────────────────────────────────────────────
+
+class TestProbeGapWebStream:
+    """`probe_gap.py --source web` reads the same t.me/s preview the scheduled
+    ingest does, so a suspected gap can be checked without a Telegram account.
+
+    The case that matters is the INCOMPLETE walk. The web preview can only page
+    backwards from the channel head, so running out of pages before reaching the
+    window looks identical to "the channel posted nothing" — and that mistake
+    is the expensive one, because acting on it means recording a silent day.
+    """
+
+    @staticmethod
+    def _posts(*specs):
+        """(msk_date, pid) → the (pid, utc_datetime, text) tuples iter_web yields."""
+        out = []
+        for msk_date, pid in specs:
+            # 12:00 MSK is 09:00 UTC — comfortably inside the same MSK date.
+            out.append((pid, datetime.fromisoformat(f"{msk_date}T09:00:00+00:00"),
+                        f"post {pid}"))
+        return out
+
+    def _run(self, monkeypatch, posts, argv):
+        import probe_gap as pg
+        monkeypatch.setattr(pg.ig, "iter_web", lambda *a, **k: iter(posts))
+        monkeypatch.setattr(pg.sys, "argv", ["probe_gap.py", *argv])
+        return pg
+
+    def test_a_window_inside_the_walk_is_complete(self, monkeypatch, capsys):
+        pg = self._run(
+            monkeypatch,
+            # One post older than --since, so the walk provably crossed the bound.
+            self._posts(("2026-09-22", 3), ("2026-09-21", 2), ("2026-09-19", 1)),
+            ["--since", "2026-09-21", "--until", "2026-09-22", "--db", "/nonexistent"],
+        )
+        assert pg.main() == 0
+        out = capsys.readouterr().out
+        assert "2 post(s)" in out          # the 19th is outside the window
+        assert "INCOMPLETE" not in out
+
+    def test_running_out_of_pages_is_reported_not_silently_empty(self, monkeypatch, capsys):
+        # Every post is NEWER than --since, so the walk ended without ever
+        # reaching the window's far side.
+        pg = self._run(
+            monkeypatch,
+            self._posts(("2026-09-22", 3), ("2026-09-21", 2)),
+            ["--since", "2026-09-10", "--until", "2026-09-22", "--db", "/nonexistent"],
+        )
+        assert pg.main() == 2              # non-zero: the answer is not trustworthy
+        out = capsys.readouterr().out
+        assert "INCOMPLETE" in out
+        assert "does NOT mean the channel was silent" in out
+
+    def test_dates_mode_keeps_only_the_dates_asked_for(self, monkeypatch, capsys):
+        pg = self._run(
+            monkeypatch,
+            self._posts(("2026-09-22", 4), ("2026-09-21", 3), ("2026-09-20", 2),
+                        ("2026-09-18", 1)),
+            ["--dates", "2026-09-22", "2026-09-20", "--db", "/nonexistent"],
+        )
+        assert pg.main() == 0
+        out = capsys.readouterr().out
+        assert "2 post(s)" in out
+        assert " 4 " in out and " 2 " in out
+        assert "post 3" not in out
+
+    def test_ids_refuses_the_web_backend(self, monkeypatch):
+        import pytest
+        pg = self._run(monkeypatch, [], ["--ids", "44509"])
+        with pytest.raises(SystemExit):
+            pg.main()

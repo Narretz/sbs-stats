@@ -193,28 +193,89 @@ def ensure_columns(conn: sqlite3.Connection, table: str, target_ids: list[int]) 
 
 # ─── HTTP fetch with retries ──────────────────────────────────────────────────
 
+# Statuses worth another attempt rather than an exception.
+#
+# 429 is the one that cost us data. The sub-units ingest fires ~60 requests per
+# run, and on 2026-09-16 it took a 429 partway through, raised, and died before
+# the upload step — so the whole run was discarded. That is not a cosmetic
+# failure: a sub-unit month that rolls out of the API's twelve monthly slots
+# before anyone captured it is unrecoverable (see scripts/sbs_units/README.md).
+#
+# 5xx and Cloudflare's 52x are the same bet: transient at the far end, and
+# cheaper to wait out than to lose a run over.
+RETRY_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524, 525})
+
+# A courteous cap. The source is a small public API and a `Retry-After` in
+# minutes is more likely a misconfiguration than a real instruction; waiting it
+# out would outlast the job anyway.
+MAX_RETRY_WAIT_S = 120
+
+
+def _retry_after_seconds(response) -> float | None:
+    """`Retry-After` in seconds, when the server sent a usable one.
+
+    Only the delta-seconds form is honoured. The HTTP-date form is legal but
+    this API has never sent one, and a misparsed date would sleep for hours.
+    """
+    if response is None:
+        return None
+    raw = response.headers.get("Retry-After")
+    if not raw:
+        return None
+    try:
+        return max(0.0, min(float(raw.strip()), MAX_RETRY_WAIT_S))
+    except (TypeError, ValueError):
+        return None
+
+
 def fetch_json(url: str, retries: int = 5, backoff: int = 5) -> dict:
     session = requests.Session()
     session.headers.update(REQUEST_HEADERS)
 
     for attempt in range(1, retries + 1):
-        now = datetime.now().strftime("[%d.%m.%Y %H:%M:%S]")
         try:
             response = session.get(url, timeout=15)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.HTTPError as e:
-            if "525" in str(e):
-                print(f"[WARN] {now} HTTP 525 (SSL Handshake Failed). Attempt {attempt}/{retries}...")
-                if attempt < retries:
-                    time.sleep(backoff * attempt)
-                    continue
+            # Read the status off the response, not out of the message string:
+            # the previous `"525" in str(e)` also matched a 525 anywhere in the
+            # URL, and matched nothing for a 429.
+            status = e.response.status_code if e.response is not None else None
+            if status in RETRY_STATUS and attempt < retries:
+                wait = _retry_after_seconds(e.response)
+                if wait is None:
+                    wait = min(backoff * attempt, MAX_RETRY_WAIT_S)
+                # INFO, not WARNING: a retry that then succeeds is the system
+                # working, and annotating it every run would bury the findings
+                # that need reading. The give-up below is the finding.
+                log.info(
+                    f"HTTP {status} from {url} — attempt {attempt}/{retries}, "
+                    f"retrying in {wait:g}s"
+                )
+                time.sleep(wait)
+                continue
+            if status in RETRY_STATUS:
+                log.warning(
+                    f"HTTP {status} from {url} after {retries} attempts — giving "
+                    "up. The run writes nothing, so anything it had not yet "
+                    "captured is simply missing until the next one.",
+                    extra=ann(title="sbs: upstream unavailable"),
+                )
             raise
         except requests.exceptions.RequestException as e:
-            print(f"[WARN] {now} Network error: {e}. Attempt {attempt}/{retries}...")
             if attempt < retries:
-                time.sleep(backoff * attempt)
+                wait = min(backoff * attempt, MAX_RETRY_WAIT_S)
+                log.info(
+                    f"Network error on {url}: {e} — attempt {attempt}/{retries}, "
+                    f"retrying in {wait:g}s"
+                )
+                time.sleep(wait)
                 continue
+            log.warning(
+                f"Network error on {url} after {retries} attempts: {e}",
+                extra=ann(title="sbs: upstream unavailable"),
+            )
             raise
 
     raise RuntimeError(f"Failed to fetch {url} after {retries} attempts")

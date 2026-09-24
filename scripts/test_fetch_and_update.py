@@ -163,3 +163,122 @@ def test_periods_url_asks_for_every_page():
     # periods the endpoint holds, and which ones land on page 1 is not ours
     # to decide.
     assert "limit=500" in fu.PERIODS_URL
+
+
+# ─── Retry on a throttling or transient upstream ─────────────────────────────
+
+class _Resp:
+    """Minimal stand-in for a requests Response."""
+
+    def __init__(self, status: int, payload: dict | None = None, retry_after=None):
+        self.status_code = status
+        self._payload = payload or {}
+        self.headers = {} if retry_after is None else {"Retry-After": retry_after}
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise fu.requests.exceptions.HTTPError(
+                f"{self.status_code} Client Error for url: http://x/{self.status_code}",
+                response=self,
+            )
+
+    def json(self):
+        return self._payload
+
+
+class _Session:
+    """Answers each get() with the next queued response."""
+
+    def __init__(self, *responses):
+        self.queue = list(responses)
+        self.headers = {}
+        self.calls = 0
+
+    def update(self, _):  # headers.update
+        pass
+
+    def get(self, url, timeout=None):
+        self.calls += 1
+        item = self.queue.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+
+@pytest.fixture
+def no_sleep(monkeypatch):
+    """Run the backoff without actually waiting, and record what it asked for."""
+    slept: list[float] = []
+    monkeypatch.setattr(fu.time, "sleep", lambda s: slept.append(s))
+    return slept
+
+
+def _session(monkeypatch, *responses) -> _Session:
+    s = _Session(*responses)
+    monkeypatch.setattr(fu.requests, "Session", lambda: s)
+    return s
+
+
+class TestFetchJsonRetries:
+    """The sub-units ingest fires ~60 requests a run. On 2026-09-16 one of them
+    came back 429, `fetch_json` raised, and the run died before its upload — so
+    everything it had captured was thrown away, for a dataset where a month
+    missed before it rolls out of the API's window is unrecoverable.
+    """
+
+    def test_a_429_is_retried_not_raised(self, monkeypatch, no_sleep):
+        s = _session(monkeypatch, _Resp(429), _Resp(200, {"data": {"ok": 1}}))
+        assert fu.fetch_json("http://x/stats") == {"data": {"ok": 1}}
+        assert s.calls == 2
+
+    def test_retry_after_is_honoured_over_the_backoff(self, monkeypatch, no_sleep):
+        _session(monkeypatch, _Resp(429, retry_after="7"), _Resp(200, {"data": {}}))
+        fu.fetch_json("http://x/stats", backoff=5)
+        assert no_sleep == [7.0]
+
+    def test_an_absurd_retry_after_is_capped(self, monkeypatch, no_sleep):
+        _session(monkeypatch, _Resp(429, retry_after="99999"), _Resp(200, {"data": {}}))
+        fu.fetch_json("http://x/stats")
+        assert no_sleep == [float(fu.MAX_RETRY_WAIT_S)]
+
+    def test_a_junk_retry_after_falls_back_to_the_backoff(self, monkeypatch, no_sleep):
+        _session(monkeypatch, _Resp(429, retry_after="soon"), _Resp(200, {"data": {}}))
+        fu.fetch_json("http://x/stats", backoff=3)
+        assert no_sleep == [3]
+
+    def test_a_5xx_is_retried(self, monkeypatch, no_sleep):
+        s = _session(monkeypatch, _Resp(503), _Resp(502), _Resp(200, {"data": {}}))
+        fu.fetch_json("http://x/stats")
+        assert s.calls == 3
+
+    def test_a_404_is_not_retried(self, monkeypatch, no_sleep):
+        # A missing period is a real answer, not congestion — retrying it four
+        # more times just makes the failure slower.
+        s = _session(monkeypatch, _Resp(404))
+        with pytest.raises(fu.requests.exceptions.HTTPError):
+            fu.fetch_json("http://x/stats")
+        assert s.calls == 1
+
+    def test_exhausting_the_retries_warns_before_raising(self, monkeypatch, no_sleep, caplog):
+        _session(monkeypatch, *[_Resp(429) for _ in range(3)])
+        with caplog.at_level("WARNING"):
+            with pytest.raises(fu.requests.exceptions.HTTPError):
+                fu.fetch_json("http://x/stats", retries=3)
+        assert any("giving up" in r.message for r in caplog.records)
+
+    def test_the_status_comes_from_the_response_not_the_message(self, monkeypatch, no_sleep):
+        # The old code matched `"525" in str(e)`, so a 404 on a URL that merely
+        # contained 525 was retried and a 429 never was.
+        s = _session(monkeypatch, _Resp(404))
+        with pytest.raises(fu.requests.exceptions.HTTPError):
+            fu.fetch_json("http://x/525/stats")
+        assert s.calls == 1
+
+    def test_a_network_error_is_still_retried(self, monkeypatch, no_sleep):
+        s = _session(
+            monkeypatch,
+            fu.requests.exceptions.ConnectionError("reset"),
+            _Resp(200, {"data": {}}),
+        )
+        fu.fetch_json("http://x/stats")
+        assert s.calls == 2

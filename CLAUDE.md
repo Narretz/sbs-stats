@@ -110,7 +110,13 @@ GitHub Actions in `.github/workflows/`:
 - `update-telegram-web-dbs.yml` — GSUA + RU MoD (two jobs, both scrape the
   public `t.me/s` web preview, no API account). Scheduled at 08:00 / 16:00 /
   22:00 **Europe/Kyiv** (IANA `timezone:` cron field) to land just after the GS
-  reports; a 2-day idempotent lookback covers GitHub's scheduler lag.
+  reports; a 2-day idempotent lookback covers GitHub's scheduler lag. When
+  RU MoD reports a gap day, `scripts/ru_mod/probe_gap.py` reports the difference
+  between "the MoD posted nothing" and "the parser rejected what it posted" —
+  `--source web` by default; it exits 2 when the preview
+  walk ran out of pages before reaching the dates, because absence you did not
+  actually look at is not evidence. `--source telethon` (and `--ids`) remain for
+  historical windows.
 - `update-missile-attacks-db.yml` — RU missile & UAV attacks. Daily (06:00 UTC);
   pulls piterfm's Kaggle dataset (needs `KAGGLE_USERNAME` / `KAGGLE_KEY`
   secrets), append-on-change so an unchanged ~weekly re-publish inserts nothing.
@@ -144,15 +150,32 @@ GitHub Actions in `.github/workflows/`:
   `openpyxl` (the source is xlsx), so the job pip-installs it — the only ingest
   workflow that isn't stdlib-only. Not yet a dedicated site; feeds the combined
   charts only.
-- `python-tests.yml` — the ingest test suites, on push to any branch when a
-  `.py` under `scripts/` changed (plus `workflow_dispatch`). Installs pytest and
-  `requests`, which is the whole of it — `fetch_and_update.py` imports requests
+- `python-tests.yml` — the ingest test suites, when a `.py` under `scripts/`
+  changed. On push to any branch AND on `pull_request` (plus
+  `workflow_dispatch`): a push matches its paths against that push alone, so a
+  PR whose last commit is docs-only would show no checks at all, while a
+  pull_request event matches the whole PR diff and runs against the merge
+  commit. Installs pytest and `requests`, which is the whole of it —
+  `fetch_and_update.py` imports requests
   at module level and six suites reach it transitively, so leaving it out fails
   collection rather than skipping a test; the rest of `scripts/requirements.txt`
   is lazily imported and stays out. Calls `scripts/test_python.sh`. The
   scheduled ingest workflows are not a substitute: they exercise whatever the
   source published today and stay green while a fixture case breaks.
+- `node-tests.yml` — eslint plus the vitest tier, on push to any branch and on
+  `pull_request` (same reasoning as above) when `src/` or the build config
+  changed. Deliberately not the Playwright tier, which is minutes per run for
+  the tier least likely to catch a helper or parser
+  regression.
 - `deploy.yml` — builds and publishes to GitHub Pages.
+
+Nothing in CI reads the annotations the ingests raise, so a daily Claude Code
+web Routine does: `.claude/skills/ci-triage/SKILL.md` is its operating manual
+and `routine-prompt.md` beside it is the scheduled message. It reads
+`scripts/ci_digest.py --hours 48`, fixes what it can establish from the repo
+alone, and files nothing it has already filed — fingerprints in PR bodies are
+its only memory between runs. What it must NOT do is the important half: no
+ingest, no reparse, no dataset mutation, no PR for a step that flaked once.
 
 The scrapers that only re-read a recent window expose that window as a
 `workflow_dispatch` input, so a manual run can widen it after a parser fix — a
@@ -212,6 +235,12 @@ npm run test:e2e     # Playwright e2e (uses .env.e2e fixture DBs).
 # dev server; --zoom/--theme/--scope/--full, see the file's header comment):
 node scripts/screenshot_compare.mjs sbu-alfa:2026-07 sbu-alfa:2026-08
 
+# What CI reported lately — failed steps plus every ingest annotation, grouped
+# and deduped into one screenful. The daily triage routine's input; also the
+# fastest way to answer "did last night's scrapes find anything". main only,
+# since that is where every scheduled ingest runs; --all-branches to widen.
+python3 scripts/ci_digest.py --hours 48
+
 bash scripts/test_python.sh          # every ingest test suite (one pytest per dir)
 bash scripts/test_python.sh scripts/rubikon   # …or just one
 
@@ -234,9 +263,11 @@ bash scripts/setup_env.sh                 # npm + pip bootstrap for a fresh cont
   annotations plus a job-summary table. So a finding is raised once, at the
   place that found it, and surfaces the same way for every dataset — never
   hand-roll a `print("::warning …")`. Use `ann(title=…)` to group a finding in
-  the UI and `ann(level="notice")` for advisory ones. Checks that need the
-  whole table rather than one record live in a `check_db.py` next to the
-  ingest, not as inline SQL in the workflow.
+  the UI and `ann(level="notice")` for advisory ones. A finding **about source
+  text** quotes it with `excerpt(text)` — so that it is potentially actionable
+  even if you don't have the raw text that only exists in the authoritative
+  `<name>.db` on R2. Checks that need the whole table rather than one record,
+  are in a `check_db.py` next to the ingest.
 - All DBs under `data/` are gitignored and pulled from R2 (see
   `scripts/fetch_prod_dbs.sh`, which reads URLs from `.env.production`). In
   dev, `data/*.db` is served by a vite middleware directly from the project

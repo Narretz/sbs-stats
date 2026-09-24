@@ -68,7 +68,7 @@ if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 import parse_digest  # noqa: E402
-from ingest_log import ann, get_logger  # noqa: E402
+from ingest_log import ann, excerpt, get_logger  # noqa: E402
 from parse import parse  # noqa: E402
 
 log = get_logger("rubikon")
@@ -427,9 +427,12 @@ def run_reparse(args: argparse.Namespace) -> int:
         for post_id, posted_at, body_text in rows:
             report = parse_any(body_text, datetime.fromisoformat(posted_at))
             if report.report_type == "unknown":
+                # The stored text is right here, and it is the whole evidence:
+                # a reparse regression is diagnosed by reading what stopped
+                # matching, not by being told a post id.
                 log.warning(
                     f"stored post {post_id} no longer parses as either monthly "
-                    f"series — leaving it untouched",
+                    f"series — leaving it untouched: {excerpt(body_text)}",
                     extra=ann(title="rubikon: stored post stopped parsing"),
                 )
                 continue
