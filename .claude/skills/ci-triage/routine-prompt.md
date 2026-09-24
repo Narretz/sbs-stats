@@ -14,6 +14,14 @@ Live as `trig_01CVbrB1ujC536cLgUkeyWK9` — Routine "RU UA Stats Daily CI triage
 `claude-opus-5-5`, email notifications. Change the prompt with
 `update_trigger` and edit this file in the same breath.
 
+**It also needs a repository source, and that is not something `create_trigger`
+can set** — it has no parameter for it, nor does `update_trigger`, so a Routine
+made through those tools starts with `config.sources: []` and fires into a
+session with an EMPTY `/home/user`: no checkout, no skill, no
+`scripts/ci_digest.py`. The first real run failed exactly this way. The
+repository is set on the Routine in the Claude Code web UI; after changing it,
+check a firing actually has a checkout before trusting a green report.
+
 Schedule: `30 7 * * *` UTC — after the 08:00 Europe/Kyiv Telegram-web
 scrape and the 06:00–08:00 UTC daily ingests have landed, so the window covers a
 full set of overnight runs.
