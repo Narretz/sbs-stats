@@ -150,17 +150,22 @@ GitHub Actions in `.github/workflows/`:
   `openpyxl` (the source is xlsx), so the job pip-installs it — the only ingest
   workflow that isn't stdlib-only. Not yet a dedicated site; feeds the combined
   charts only.
-- `python-tests.yml` — the ingest test suites, on push to any branch when a
-  `.py` under `scripts/` changed (plus `workflow_dispatch`). Installs pytest and
-  `requests`, which is the whole of it — `fetch_and_update.py` imports requests
+- `python-tests.yml` — the ingest test suites, when a `.py` under `scripts/`
+  changed. On push to any branch AND on `pull_request` (plus
+  `workflow_dispatch`): a push matches its paths against that push alone, so a
+  PR whose last commit is docs-only would show no checks at all, while a
+  pull_request event matches the whole PR diff and runs against the merge
+  commit. Installs pytest and `requests`, which is the whole of it —
+  `fetch_and_update.py` imports requests
   at module level and six suites reach it transitively, so leaving it out fails
   collection rather than skipping a test; the rest of `scripts/requirements.txt`
   is lazily imported and stays out. Calls `scripts/test_python.sh`. The
   scheduled ingest workflows are not a substitute: they exercise whatever the
   source published today and stay green while a fixture case breaks.
-- `node-tests.yml` — eslint plus the vitest tier, on push to any branch when
-  `src/` or the build config changed. Deliberately not the Playwright tier,
-  which is minutes per run for the tier least likely to catch a helper or parser
+- `node-tests.yml` — eslint plus the vitest tier, on push to any branch and on
+  `pull_request` (same reasoning as above) when `src/` or the build config
+  changed. Deliberately not the Playwright tier, which is minutes per run for
+  the tier least likely to catch a helper or parser
   regression.
 - `deploy.yml` — builds and publishes to GitHub Pages.
 
