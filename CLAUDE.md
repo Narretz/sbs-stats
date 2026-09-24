@@ -237,7 +237,8 @@ node scripts/screenshot_compare.mjs sbu-alfa:2026-07 sbu-alfa:2026-08
 
 # What CI reported lately — failed steps plus every ingest annotation, grouped
 # and deduped into one screenful. The daily triage routine's input; also the
-# fastest way to answer "did last night's scrapes find anything".
+# fastest way to answer "did last night's scrapes find anything". main only,
+# since that is where every scheduled ingest runs; --all-branches to widen.
 python3 scripts/ci_digest.py --hours 48
 
 bash scripts/test_python.sh          # every ingest test suite (one pytest per dir)

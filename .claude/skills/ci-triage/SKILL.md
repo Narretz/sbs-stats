@@ -31,6 +31,14 @@ python3 scripts/ci_digest.py --hours 48
 or a job still in flight when the routine fired. Duplicates are
 handled by step 1.
 
+It reports on **main only**, which is the whole scheduled data pipeline — every
+ingest workflow runs on `schedule` or `workflow_dispatch`, and deploy on push to
+main. A red test workflow on somebody's feature branch is that author's
+business, not yours, and a failure on a branch whose head has since gone green
+reads as live when it is not. `--all-branches` exists; if you use it, read the
+branch on every failure before acting on it. Your own PR's checks reach you
+through the PR, not through here.
+
 If `--check-auth` reports UNAUTHENTICATED, stop and say so — 60 requests/hour
 cannot cover the window.
 

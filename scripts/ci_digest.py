@@ -55,6 +55,9 @@ from datetime import datetime, timedelta, timezone
 API = "https://api.github.com"
 DEFAULT_REPO = "Narretz/sbs-stats"
 
+# See list_runs for why this is not "every branch".
+DEFAULT_BRANCH = "main"
+
 # Annotation levels GitHub uses, most severe first.
 LEVELS = ("failure", "warning", "notice")
 
@@ -107,15 +110,31 @@ def api(path: str, token: str | None) -> dict | list:
         return {}
 
 
-def list_runs(repo: str, since: datetime, token: str | None) -> list[dict]:
-    """Every run created at or after `since`, following pagination."""
+def list_runs(
+    repo: str, since: datetime, token: str | None, branch: str | None = DEFAULT_BRANCH
+) -> list[dict]:
+    """Every run created at or after `since`, following pagination.
+
+    Scoped to one branch by default, and `main` is the right default because the
+    subject of this digest is the scheduled data pipeline: every ingest workflow
+    runs on `schedule` or `workflow_dispatch`, and deploy on push to main, so
+    main carries 100% of that signal.
+
+    Sweeping every branch instead drags in the test workflows on everyone's
+    feature branches — including this routine's own. Worse than noise: a failure
+    on a branch whose head has since gone green still reads as a live failure.
+    Measured over one 48-hour window, 2 of 9 failures were exactly that, both
+    already fixed. A feature branch's red is its author's business; the routine's
+    own PR checks reach it through the PR.
+    """
     stamp = since.strftime("%Y-%m-%dT%H:%M:%SZ")
+    scope = f"&branch={urllib.parse.quote(branch)}" if branch else ""
     runs: list[dict] = []
     page = 1
     while True:
         d = api(
             f"/repos/{repo}/actions/runs?per_page=100&page={page}"
-            f"&created=%3E%3D{urllib.parse.quote(stamp)}",
+            f"&created=%3E%3D{urllib.parse.quote(stamp)}{scope}",
             token,
         )
         batch = d.get("workflow_runs", []) if isinstance(d, dict) else []
@@ -278,9 +297,11 @@ def untitled_summary(annotations: list[dict]) -> list[dict]:
     ]
 
 
-def build(repo: str, hours: int, token: str | None) -> dict:
+def build(
+    repo: str, hours: int, token: str | None, branch: str | None = DEFAULT_BRANCH
+) -> dict:
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
-    runs = list_runs(repo, since, token)
+    runs = list_runs(repo, since, token, branch)
     failures, annotations = collect(repo, runs, token)
 
     by_workflow = Counter(r["name"] for r in runs)
@@ -299,6 +320,7 @@ def build(repo: str, hours: int, token: str | None) -> dict:
     return {
         "repo": repo,
         "window_hours": hours,
+        "branch": branch or "(all branches)",
         "since": since.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "runs_total": len(runs),
@@ -315,7 +337,7 @@ def build(repo: str, hours: int, token: str | None) -> dict:
 
 def render(d: dict) -> str:
     L = [
-        f"CI digest — {d['repo']}, last {d['window_hours']}h "
+        f"CI digest — {d['repo']} [{d['branch']}], last {d['window_hours']}h "
         f"(since {d['since']}, generated {d['generated_at']})",
         f"{d['runs_total']} runs: "
         + ", ".join(f"{n} {k}" for k, n in d["runs_by_conclusion"].items()),
@@ -388,6 +410,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--hours", type=int, default=48,
                    help="Window size in hours (default 48 — one day's overlap, so "
                         "a skipped run or a job still in flight is seen next time).")
+    p.add_argument("--branch", default=DEFAULT_BRANCH,
+                   help=f"Branch to report on (default {DEFAULT_BRANCH}) — see "
+                        "list_runs for why that is not every branch.")
+    p.add_argument("--all-branches", action="store_true",
+                   help="Report on every branch. Includes feature branches whose "
+                        "head may since have gone green, so read the branch on "
+                        "each failure before acting.")
     p.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
     p.add_argument("--check-auth", action="store_true",
                    help="Report the API rate limit and exit.")
@@ -404,7 +433,7 @@ def main(argv: list[str] | None = None) -> int:
               f" token {'set' if token else 'unset'})")
         return 0 if limit > 60 else 1
 
-    d = build(args.repo, args.hours, token)
+    d = build(args.repo, args.hours, token, None if args.all_branches else args.branch)
     print(json.dumps(d, indent=1) if args.json else render(d))
     return 0
 
