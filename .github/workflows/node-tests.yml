@@ -11,10 +11,21 @@ name: Node tests
 # the pre-push hook is where that sweep belongs. What runs here is the tier
 # CLAUDE.md describes as "plain Node, no DOM, sub-second".
 #
-# On push for any branch, like python-tests.yml — the point is to catch it
-# before the merge, not after.
+# Both triggers, for the reasons python-tests.yml spells out: `push` for the
+# earliest signal on any branch, `pull_request` so the PR's own checks reflect
+# the whole diff rather than whatever its last commit happened to touch.
 on:
   push:
+    paths:
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "tsconfig*.json"
+      - ".eslintrc*"
+      - "eslint.config.*"
+      - ".github/workflows/node-tests.yml"
+  pull_request:
     paths:
       - "src/**"
       - "package.json"

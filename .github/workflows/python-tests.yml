@@ -8,10 +8,31 @@ name: Python tests
 # whatever the source published today and stay green while a fixture case
 # breaks.
 #
-# On push for any branch, not just main: the point is to catch it before the
-# merge, and these suites take seconds.
+# Both triggers, on purpose, because they answer different questions.
+#
+# `push` on ANY branch gives the earliest possible signal — before a PR exists,
+# and these suites take seconds.
+#
+# `pull_request` is what makes the PR itself trustworthy. A push-only workflow
+# matches its paths against THAT PUSH, so a PR whose last commit is docs-only
+# shows no checks at all even when its code was tested three commits ago — which
+# reads to a reviewer as "CI never ran", and leaves nothing for branch
+# protection to require. On a pull_request event the paths are matched against
+# the whole PR diff instead, so any PR touching a `.py` under scripts/ is
+# checked however its final commit happens to look. It also runs against the
+# merge commit, i.e. the code as it would land.
+#
+# The overlap costs a duplicate run of a ~40-second suite on a PR branch. Left
+# undeduplicated deliberately: two green checks read better than one green and
+# one cancelled.
 on:
   push:
+    paths:
+      - "scripts/**/*.py"
+      - "scripts/*.py"
+      - "scripts/test_python.sh"
+      - ".github/workflows/python-tests.yml"
+  pull_request:
     paths:
       - "scripts/**/*.py"
       - "scripts/*.py"
