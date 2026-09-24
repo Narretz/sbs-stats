@@ -111,9 +111,9 @@ GitHub Actions in `.github/workflows/`:
   public `t.me/s` web preview, no API account). Scheduled at 08:00 / 16:00 /
   22:00 **Europe/Kyiv** (IANA `timezone:` cron field) to land just after the GS
   reports; a 2-day idempotent lookback covers GitHub's scheduler lag. When
-  RU MoD reports a gap day, `scripts/ru_mod/probe_gap.py` tells "the MoD posted
-  nothing" apart from "a gate rejected what it posted" — `--source web` by
-  default, so it needs no Telegram account either; it exits 2 when the preview
+  RU MoD reports a gap day, `scripts/ru_mod/probe_gap.py` reports the difference
+  between "the MoD posted nothing" and "the parser rejected what it posted" —
+  `--source web` by default; it exits 2 when the preview
   walk ran out of pages before reaching the dates, because absence you did not
   actually look at is not evidence. `--source telethon` (and `--ids`) remain for
   historical windows.
@@ -159,11 +159,9 @@ GitHub Actions in `.github/workflows/`:
   scheduled ingest workflows are not a substitute: they exercise whatever the
   source published today and stay green while a fixture case breaks.
 - `node-tests.yml` — eslint plus the vitest tier, on push to any branch when
-  `src/` or the build config changed. Deliberately not the Playwright tier:
-  that needs a browser download and the `.env.e2e` fixture DBs, which is
-  minutes per run for the tier least likely to catch a helper or parser
-  regression — `.githooks/pre-push` is where the full sweep belongs. Node 20
-  and `cache: npm`, matching `deploy.yml`.
+  `src/` or the build config changed. Deliberately not the Playwright tier,
+  which is minutes per run for the tier least likely to catch a helper or parser
+  regression.
 - `deploy.yml` — builds and publishes to GitHub Pages.
 
 Nothing in CI reads the annotations the ingests raise, so a daily Claude Code
@@ -260,12 +258,10 @@ bash scripts/setup_env.sh                 # npm + pip bootstrap for a fresh cont
   place that found it, and surfaces the same way for every dataset — never
   hand-roll a `print("::warning …")`. Use `ann(title=…)` to group a finding in
   the UI and `ann(level="notice")` for advisory ones. A finding **about source
-  text** quotes it with `excerpt(text)` — a check that says "the paragraph
-  contains a number no branch read" is not actionable unless you can see the
-  paragraph, and the raw text only exists in the authoritative `<name>.db` on
-  R2, which a reader of the annotations panel does not have. Checks that need the
-  whole table rather than one record live in a `check_db.py` next to the
-  ingest, not as inline SQL in the workflow.
+  text** quotes it with `excerpt(text)` — so that it is potentially actionable
+  even if you don't have the raw text that only exists in the authoritative
+  `<name>.db` on R2. Checks that need the whole table rather than one record,
+  are in a `check_db.py` next to the ingest.
 - All DBs under `data/` are gitignored and pulled from R2 (see
   `scripts/fetch_prod_dbs.sh`, which reads URLs from `.env.production`). In
   dev, `data/*.db` is served by a vite middleware directly from the project

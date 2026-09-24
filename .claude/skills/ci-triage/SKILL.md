@@ -13,17 +13,13 @@ Deciding **not** to act is a real outcome here, and the common one. A routine
 that opens a PR every morning to keep busy is worse than one that says "nothing
 actionable" for a week.
 
-## 1. Dedup before anything else
+## 1. Deduplicate before anything else
 
-You have no memory of yesterday's run. **Before reading the digest**, list the
-open PRs and the last ~20 issues (open and closed) and collect every
+**Before reading the digest**, list the open PRs and the last ~10 issues
+(open and closed) and collect every
 `ci-triage-fingerprint:` marker in their bodies. Any finding class whose
 fingerprint is already filed is **done** — do not reopen it, do not open a
 second PR, do not comment. Skip it silently.
-
-Skipping this step is how this routine turns into a spam bot: the `sbs-units:
-large revision` class fired 36 times in a fortnight for one bug, and
-`gsua: missile-field asymmetry` 51 times for 7 dates.
 
 ## 2. Read the digest
 
@@ -31,32 +27,20 @@ large revision` class fired 36 times in a fortnight for one bug, and
 python3 scripts/ci_digest.py --hours 48
 ```
 
-48 hours, not 24: a day of overlap means a skipped run, or a job still in flight
-when the routine fired, is picked up next time instead of lost. Duplicates are
-handled by step 1, so overlap is free.
+48 hours, not 24: a day of overlap means the next run will pick up a skipped run,
+or a job still in flight when the routine fired. Duplicates are
+handled by step 1.
 
 If `--check-auth` reports UNAUTHENTICATED, stop and say so — 60 requests/hour
 cannot cover the window.
 
-## Reaching GitHub (reference, not a step)
+## Reaching GitHub
 
-**You do not have the `mcp__github__*` tools.** This was measured, not assumed:
-a session created in this Routine's environment reported `GitHub MCP not loaded`
-and its whole tool list was Bash / Write / Edit / Read / Glob / Grep / Agent /
-NotebookEdit / WebFetch / WebSearch / TaskStop / SearchMcpRegistry /
-SuggestConnectors / ListConnectors / Artifact. Do not go looking for those tools,
-and do not try to load them: it is not a deferred-tool situation.
-
-There is a documented workaround for MCP tools missing in a scheduled session —
-delegate the work to a subagent, which gets them initialised properly
-(anthropics/claude-code#43397, closed as duplicate; #51189 asks for the UI to
-fix it, closed as not planned; #95388 is the one still open). **It does not help
-here, and it was tested rather than assumed:** a subagent in this environment
-reported Claude Docs, Claude Code Remote and Baserow present — MCP servers its
-parent did not have, so the trick genuinely works — but still no
-`mcp__github__*`. GitHub in Claude Code web looks session-scoped rather than an
-account connector, so it does not propagate. Do not spend a turn on it. (If a
-future firing DOES have the tools, fine, use them; just never depend on it.)
+**In the Claude Code Web Routine, you do not have the `mcp__github__*` tools.**
+The server is a connector, and a Routine fires without connectors.
+Do not go looking for those tools, and do not try to load them —
+it is not a deferred-tool situation, the server is not attached.
+(If a future firing DOES have them, use them; just never depend on it.)
 
 Everything the triage needs works through plain `curl https://api.github.com/…`,
 which the environment's proxy authenticates for you: an installation token with
@@ -100,10 +84,8 @@ when a log would have settled a question you had to leave open.
 The digest names the **failing step** for each failed job and its failure rate
 within the window. Use the rate:
 
-- **One failure across many runs of the same workflow** — transient. The
-  `Upload DB to rolling latest release` step fails a few times per thousand runs
-  with assorted `HTTP 404` / `HTTP 500` from the GitHub release API. Leave it
-  alone. Do not "harden" a step because it flaked once.
+- **One failure across many runs of the same workflow** — transient.
+  Do not "harden" a step because it flaked once.
 - **The same step failing repeatedly, or a cluster in one morning** — real. Root
   cause it. Fetch the log with curl and grep for `##[error]` — see **Reading a
   failed job's log**; the tail of the file is cleanup, not the failure.
@@ -137,12 +119,9 @@ A finding is **not actionable** when:
   (1-cus) is what the source publishing nothing looks like; retirement is
   derived, never listed.
 - **It is the runner's own chatter.** The `ubuntu-latest` → Ubuntu 26 migration
-  notice was 456 of 650 annotations over a fortnight. Pinning the runner has
-  been considered and declined: `ubuntu-latest` auto-migrates, which is what we
-  want long-term, and pinning trades that for 15 lines to bump by hand plus an
-  all-at-once break when the pinned image retires. Do not re-propose it.
-  Untitled annotations are already bucketed as noise by the digest, so this
-  costs the panel nothing.
+  notice was 456 of 650 annotations over a fortnight. `ubuntu-latest` auto-migrates,
+  which is what we want long-term. Do not propose pinning the version.
+  Untitled annotations are already bucketed as noise by the digest.
 - **It only appears in `Reparse *` runs.** Those are manual backfills over
   years of history, human-initiated. The GSUA `combat_engagements` and
   `unfamiliar report hour` findings are real parser gaps, but they are not this
@@ -159,8 +138,7 @@ and doesn't. Neither can be judged from the repository alone.
 **Download only what the task in front of you needs.** Never run
 `scripts/fetch_prod_dbs.sh` — it pulls every DB in `.env.production`, both
 variants, including the full GSUA attacks DB that production range-fetches
-precisely because of its size. On a routine whose usual answer is "nothing
-actionable" that is a lot of bytes for nothing. Take the single URL for the one
+precisely because of its size. Take the single URL for the one
 dataset you are investigating, and only once you have a finding worth chasing.
 
 **Text a parser misread** — the authoritative `<name>.db` on R2 carries the raw
@@ -196,7 +174,7 @@ Finding a gate that wrongly rejected a real post is a fix worth making. Finding
 that the MoD was genuinely silent is NOT yours to record: `--mark-silent` writes
 to a published dataset. Report it and let a human mark it.
 
-**A post the scrape dropped entirely** is not fixable from here either. A
+**A post the scrape dropped entirely** is not fully fixable from here either. A
 reparse cannot recover it — it was never stored — and the only remedy is a
 widened-lookback re-scrape, which is a `workflow_dispatch` that writes to R2.
 Say what you found and leave the run to a human.
