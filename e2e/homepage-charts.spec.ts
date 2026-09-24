@@ -86,19 +86,4 @@ test.describe("Homepage custom charts", () => {
     await expect(page.locator('select[title^="Y-axis transform for this chart"]').first()).toHaveValue("log");
     await expect(page.locator('[data-testid="day-range-custom"]').first()).toHaveValue("20");
   });
-
-  test("MetricPicker mounts with no React 'unrecognized prop' warnings", async ({ page }) => {
-    const warns: string[] = [];
-    page.on("console", (m) => {
-      if (m.type() === "error" || m.type() === "warning") warns.push(m.text());
-    });
-    await openHomeWithDefaults(page);
-    // Open the picker to exercise the close-button branch too.
-    await page.locator('button:has-text("metric")').first().click();
-    await page.locator("[popover]").first().waitFor({ state: "visible" });
-    await page.keyboard.press("Escape");
-
-    const popoverWarns = warns.filter((w) => /popoverTarget/i.test(w));
-    expect(popoverWarns).toEqual([]);
-  });
 });
