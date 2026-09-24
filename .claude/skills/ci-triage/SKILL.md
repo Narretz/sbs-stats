@@ -44,11 +44,19 @@ cannot cover the window.
 a session created in this Routine's environment reported `GitHub MCP not loaded`
 and its whole tool list was Bash / Write / Edit / Read / Glob / Grep / Agent /
 NotebookEdit / WebFetch / WebSearch / TaskStop / SearchMcpRegistry /
-SuggestConnectors / ListConnectors / Artifact. The server is a connector, and a
-Routine fires without connectors. Do not go looking for those tools, and do not
-try to load them — it is not a deferred-tool situation, the server is not
-attached. (If a future firing DOES have them, fine, use them; just never depend
-on it.)
+SuggestConnectors / ListConnectors / Artifact. Do not go looking for those tools,
+and do not try to load them: it is not a deferred-tool situation.
+
+There is a documented workaround for MCP tools missing in a scheduled session —
+delegate the work to a subagent, which gets them initialised properly
+(anthropics/claude-code#43397, closed as duplicate; #51189 asks for the UI to
+fix it, closed as not planned; #95388 is the one still open). **It does not help
+here, and it was tested rather than assumed:** a subagent in this environment
+reported Claude Docs, Claude Code Remote and Baserow present — MCP servers its
+parent did not have, so the trick genuinely works — but still no
+`mcp__github__*`. GitHub in Claude Code web looks session-scoped rather than an
+account connector, so it does not propagate. Do not spend a turn on it. (If a
+future firing DOES have the tools, fine, use them; just never depend on it.)
 
 Everything the triage needs works through plain `curl https://api.github.com/…`,
 which the environment's proxy authenticates for you: an installation token with
