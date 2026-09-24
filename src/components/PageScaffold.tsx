@@ -37,7 +37,7 @@ interface PageScaffoldProps {
 
 const HEADER_STACK: React.CSSProperties = { display: "flex", gap: 8, flexDirection: "column", marginBottom: 16 };
 const HEADER_BLOCK: React.CSSProperties = { marginBottom: 16 };
-const CONTROLS_ROW: React.CSSProperties = { display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 20 };
+const CONTROLS_ROW: React.CSSProperties = { display: "flex", alignItems: "center", flexWrap: "wrap", marginBottom: 20 };
 
 // Shared chrome for a dataset page: header (title + description + data-window),
 // the sticky controls row, and the loading / error / ready gate. Pages supply

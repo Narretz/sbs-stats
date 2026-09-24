@@ -94,7 +94,7 @@ export function DayRangeSelect<T extends number>({
   };
   useEffect(() => cancelDebounce, []);
 
-  const inputStyle = { width: 52, cursor: "text" } as const;
+  const inputStyle = { width: 65, cursor: "text" } as const;
 
   // What the controls may offer, once the floor is taken into account. Near it
   // the longer presets are unreachable, so they are not listed.
@@ -131,7 +131,7 @@ export function DayRangeSelect<T extends number>({
   const canStartGoPrev = !!endDate && windowStartDate(endDate, value + 1) >= startMin;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: 'wrap' }}>
       {endDate && startField && (
         <DateNav
           label="Start"
@@ -147,45 +147,47 @@ export function DayRangeSelect<T extends number>({
           title="First day of the window — moving it sets the time window to match"
         />
       )}
-      <span className="ctl-label">
-        Time Window
-      </span>
-      <select
-        data-testid="day-range"
-        value={isPreset ? String(value) : "custom"}
-        onChange={(e) => onChange(bound(Number(e.target.value)))}
-        className="ctl"
-      >
-        {offered.map((d) => (
-          <option key={d} value={d}>{d}d</option>
-        ))}
-        {!isPreset && <option value="custom">{value}d</option>}
-      </select>
-      <input
-        ref={inputRef}
-        data-testid="day-range-custom"
-        type="number"
-        min={1}
-        max={maxDays}
-        step={1}
-        value={draft}
-        onChange={(e) => {
-          const v = e.target.value;
-          setDraft(v);
-          cancelDebounce();
-          debounceRef.current = setTimeout(() => commitIfValid(v), 350);
-        }}
-        onBlur={(e) => {
-          cancelDebounce();
-          commitOrRevert(e.target.value);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") inputRef.current?.blur();
-        }}
-        className="ctl"
-        style={inputStyle}
-        aria-label="Time window (days)"
-      />
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span className="ctl-label">
+          Time Window
+        </span>
+        <select
+          data-testid="day-range"
+          value={isPreset ? String(value) : "custom"}
+          onChange={(e) => onChange(bound(Number(e.target.value)))}
+          className="ctl"
+        >
+          {offered.map((d) => (
+            <option key={d} value={d}>{d}d</option>
+          ))}
+          {!isPreset && <option value="custom">{value}d</option>}
+        </select>
+        <input
+          ref={inputRef}
+          data-testid="day-range-custom"
+          type="number"
+          min={1}
+          max={maxDays}
+          step={1}
+          value={draft}
+          onChange={(e) => {
+            const v = e.target.value;
+            setDraft(v);
+            cancelDebounce();
+            debounceRef.current = setTimeout(() => commitIfValid(v), 350);
+          }}
+          onBlur={(e) => {
+            cancelDebounce();
+            commitOrRevert(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") inputRef.current?.blur();
+          }}
+          className="ctl"
+          style={inputStyle}
+          aria-label="Time window (days)"
+        />
+      </div>
     </div>
   );
 }

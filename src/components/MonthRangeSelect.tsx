@@ -51,7 +51,8 @@ export function MonthRangeSelect({ options, value, onChange }: Props) {
   const selectValue: string = isPreset ? String(value) : "custom";
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: 'wrap' }}>
+      <div>
       <span className="ctl-label">
         Time Window
       </span>
@@ -70,6 +71,7 @@ export function MonthRangeSelect({ options, value, onChange }: Props) {
         ))}
         {!isPreset && <option value="custom">{value} mo</option>}
       </select>
+      </div>
       <input
         ref={inputRef}
         type="number"
