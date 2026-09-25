@@ -3,6 +3,7 @@ import type { Database } from "sql.js";
 import type { DailyRow, MonthlyRow, StatKey, EodEstimate, GlobalStats } from "@/types";
 import { TARGET_IDS } from "@/types";
 import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
+import { projectMonthEnd, type IntradayReading } from "@/utils/monthProjection";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
@@ -209,14 +210,17 @@ export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
     if (!db) return [];
     const availableCols = getTableColumns(db, "monthly_stats");
     const statCols = buildStatColumns(availableCols);
-    const kyivDateStr = getKyivDateString();               // YYYY-MM-DD in Kyiv time
-    const currentMonth = kyivDateStr.slice(0, 7);          // YYYY-MM
-    const dayOfMonth = parseInt(kyivDateStr.slice(8, 10)); // DD
-    const [y, m] = currentMonth.split("-").map(Number);
-    const daysInMonth = new Date(y, m, 0).getDate();
+    const currentMonth = getKyivDateString().slice(0, 7);  // YYYY-MM in Kyiv time
+    const statKeys: StatKey[] = [
+      "personnel_killed", "personnel_wounded",
+      "total_targets_hit", "total_targets_destroyed",
+      "total_personnel_casualties",
+      "flights_strike", "flights_recon",
+      ...TARGET_IDS.flatMap((id) => [`hit_${id}` as StatKey, `destroyed_${id}` as StatKey]),
+    ];
 
     const sql = `
-      SELECT m.date, ${statCols}
+      SELECT m.date, m.data_collected_at, ${statCols}
       FROM monthly_stats m
       INNER JOIN (
         SELECT date, MAX(data_collected_at) AS latest
@@ -226,37 +230,50 @@ export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
       ORDER BY m.date ASC
     `;
 
-    return queryRows<Record<string, unknown>>(db, sql).map((row) => {
+    // The snapshot day's intraday running totals, so the projection can take
+    // that partial day back out (hour >= 24 rows are next-day corrections).
+    const dailyCols = getTableColumns(db, "daily_stats");
+    const readingsFor = (date: string): IntradayReading<StatKey>[] => {
+      const cols = statKeys.filter((k) => dailyCols.includes(k)).join(", ");
+      if (!cols) return [];
+      return queryRows<Record<string, unknown>>(
+        db,
+        `SELECT data_collected_at, ${cols} FROM daily_stats
+         WHERE date = '${date.replace(/'/g, "''")}' AND hour < 24 AND data_collected_at IS NOT NULL`,
+      ).map((r) => ({
+        collectedAt: String(r.data_collected_at),
+        values: r as Partial<Record<StatKey, number>>,
+      }));
+    };
+
+    return queryRows<Record<string, unknown>>(db, sql).map(({ data_collected_at: snapshotAt, ...row }) => {
       const dateStr = String(row["date"]).slice(0, 7);
       const isCurrentMonth = dateStr === currentMonth;
+      const projection = isCurrentMonth && snapshotAt
+        ? projectMonthEnd(
+            dateStr,
+            String(snapshotAt),
+            row as Partial<Record<StatKey, number>>,
+            readingsFor,
+            statKeys,
+          )
+        : null;
 
       // Spread stats first, then the explicit fields — otherwise the raw SQL
       // row's `date` ("YYYY-MM-01" because the column is typed DATE) clobbers
       // the sliced YYYY-MM and the homepage's combined chart can't merge SBS
       // months with other sources that already store dates as YYYY-MM.
+      // `projection_day` is the number of complete days the projection rests
+      // on — null on the 1st, when there are none and no estimate is shown.
       const typedRow: MonthlyRow = {
         ...(row as unknown as Record<StatKey, number>),
         date: dateStr,
         is_current_month: isCurrentMonth,
-        projection_day: isCurrentMonth ? dayOfMonth : null,
-        projection_days_in_month: isCurrentMonth ? daysInMonth : null,
+        projection_day: projection?.completedDays ?? null,
+        projection_days_in_month: projection?.daysInMonth ?? null,
       };
-
-      if (isCurrentMonth) {
-        const multiplier = daysInMonth / dayOfMonth;
-        const statKeys: StatKey[] = [
-          "personnel_killed", "personnel_wounded",
-          "total_targets_hit", "total_targets_destroyed",
-          "total_personnel_casualties",
-          "flights_strike", "flights_recon",
-          ...TARGET_IDS.flatMap((id) => [`hit_${id}` as StatKey, `destroyed_${id}` as StatKey]),
-        ];
-        for (const key of statKeys) {
-          const raw = row[key];
-          if (typeof raw === "number") {
-            typedRow[`${key}_projected`] = Math.round(raw * multiplier);
-          }
-        }
+      for (const [key, value] of Object.entries(projection?.projected ?? {})) {
+        typedRow[`${key as StatKey}_projected`] = value;
       }
       return typedRow;
     });
