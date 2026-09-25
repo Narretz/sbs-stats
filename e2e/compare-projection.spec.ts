@@ -3,8 +3,7 @@ import { test, expect, type Page } from "@playwright/test";
 // Compare — the current month read as a month-end projection.
 //
 // SBS (the grouping and every sub-unit) is the only source here that publishes
-// mid-month, so it is the only one whose hooks derive a pro-rata month-end
-// figure — the same number the monthly charts draw as the ghost segment. The
+// mid-month, so it is the only one whose hooks derive a month-end figure — the same number the monthly charts draw as the ghost segment. The
 // compare page offers it as an extra option under the month it projects.
 //
 // Only SBS columns carry real assertions: the fixture covers sbs.db and
@@ -21,16 +20,35 @@ function monthsBack(n: number): string {
   return new Date(Date.UTC(y, m - 1 - n, 1)).toISOString().slice(0, 7);
 }
 
-// Mirrors the hooks: days-in-month over day-of-month, in Kyiv time. Computed
-// rather than hardcoded because the answer changes every day the suite runs —
-// and on the last day of a month it is 1, which is why nothing below asserts
-// "projected is larger".
-function projected(reported: number): number {
+function kyivToday(): [number, number, number] {
   const [y, m, d] = new Date()
     .toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" })
     .split("-").map(Number);
+  return [y, m, d];
+}
+
+// Computed rather than hardcoded because the answer changes every day the
+// suite runs — which is also why nothing below asserts "projected is larger".
+// The arithmetic itself is covered in src/utils/monthProjection.test.ts; this
+// is only enough of it to know the right number reached the cell.
+//
+// The grouping extrapolates the days complete at snapshot time. The fixture's
+// snapshot is stamped 00:00Z today (03:00 Kyiv) and its daily rows carry no
+// data_collected_at, so there is no partial to subtract: d − 1 complete days.
+function groupingProjected(reported: number): number {
+  const [y, m, d] = kyivToday();
+  return Math.round((reported / (d - 1)) * new Date(y, m, 0).getDate());
+}
+
+// Sub-units still count today as a full day.
+function unitProjected(reported: number): number {
+  const [y, m, d] = kyivToday();
   return Math.round(reported * (new Date(y, m, 0).getDate() / d));
 }
+
+// On the 1st no day is complete, so the grouping offers no projection at all.
+const skipOnFirst = () =>
+  test.skip(kyivToday()[2] === 1, "no complete day yet on the 1st, so no grouping projection");
 
 // Fixture (e2e/build-fixtures.mjs): the grouping's current month reports
 // total_targets_hit 25,000; Alpha Unit's 510.
@@ -54,6 +72,7 @@ const monthSelect = (page: Page) => page.locator("thead th select").first();
 
 test.describe("Compare — month-end projection", () => {
   test("the option sits under the month it projects, and nowhere else", async ({ page }) => {
+    skipOnFirst();
     await gotoCompare(page, `sbs:${thisMonth()}`);
     await expect
       .poll(async () => (await monthSelect(page).locator("option").allTextContents()).map((o) => o.trim()))
@@ -76,6 +95,7 @@ test.describe("Compare — month-end projection", () => {
   });
 
   test("choosing it marks the column, the URL and every figure", async ({ page }) => {
+    skipOnFirst();
     await gotoCompare(page, `sbs:${thisMonth()}`);
     await expect.poll(async () => await engaged(page)).toContain(SBS_ENGAGED.toLocaleString());
 
@@ -88,7 +108,7 @@ test.describe("Compare — month-end projection", () => {
     // "~" on the value itself: the header says it once, but cells travel.
     await expect
       .poll(async () => await engaged(page))
-      .toBe(`~${projected(SBS_ENGAGED).toLocaleString()}`);
+      .toBe(`~${groupingProjected(SBS_ENGAGED).toLocaleString()}`);
   });
 
   test("a sub-unit projects its own figures, not the grouping's", async ({ page }) => {
@@ -97,10 +117,11 @@ test.describe("Compare — month-end projection", () => {
     await gotoCompare(page, `sbs:alpha-unit:${thisMonth()}:proj`);
     await expect
       .poll(async () => await engaged(page))
-      .toBe(`~${projected(ALPHA_ENGAGED).toLocaleString()}`);
+      .toBe(`~${unitProjected(ALPHA_ENGAGED).toLocaleString()}`);
   });
 
   test("moving the column to a settled month drops the projection", async ({ page }) => {
+    skipOnFirst();
     await gotoCompare(page, `sbs:${thisMonth()}:proj`);
     await expect.poll(async () => await engaged(page)).toContain("~");
 
