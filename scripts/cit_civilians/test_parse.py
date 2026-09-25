@@ -332,3 +332,32 @@ def test_window_dates_without_leading_zeros_or_with_two_digit_years() -> None:
     short_year = parse("Всего за прошедшие сутки (20:00 12.11.23-20:00 13.11.23):" + body, posted)
     assert short_year.report_date == "2023-11-13"
     assert short_year.window_start == "2023-11-12T17:00:00+00:00"
+
+
+def test_a_hyphenated_model_name_takes_its_slash_pair_with_it() -> None:
+    """"Shahed-131/136" (post 3556) read as 136 injured.
+
+    The hyphenated-designation rule matched "Shahed-131" and left "/136"
+    behind, which the slash-pair rule could no longer see — it needs digits on
+    both sides — so the 136 survived into the count.
+    """
+    from parse import _counts  # noqa: PLC0415
+    assert _counts("два человека пострадали в результате атаки дронов-камикадзе "
+                   "Shahed-131/136 по Павлоградскому району") == (0, 2, False)
+    # The space-separated spelling was already handled; both must stay handled.
+    assert _counts("налёта БПЛА Shahed 131/136 на г. Харьков пострадали два человека") \
+        == (0, 2, False)
+
+
+def test_a_subcount_span_stops_at_the_next_count_not_at_the_next_verb() -> None:
+    """"…включая трёх детей, 90 человек пострадало" lost the 90 (post 6619).
+
+    The span ran from "включая" to the next casualty verb, so it swallowed the
+    count sitting between the two — 79 people short on that post alone.
+    """
+    from parse import _counts  # noqa: PLC0415
+    assert _counts("погибли 12 человек, включая трёх детей, 90 человек пострадало, "
+                   "включая шестерых детей и беременную женщину.") == (12, 90, False)
+    # …while a sub-count that really does run to the verb still gets eaten.
+    assert _counts("четыре человека, включая ребёнка, погибли, и ещё 57 пострадали, "
+                   "в том числе двое детей") == (4, 57, False)

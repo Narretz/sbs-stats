@@ -88,12 +88,21 @@ line at all.
 The per-region rows in `casualties` are the secondary dimension, and they are
 better than the strict flag suggests:
 
-| Over 817 posts with a total line | |
+| Over 829 posts with a total line | |
 |---|---|
 | killed column matches the post's own total exactly | **82%** |
-| injured column within 3 people | **89%** |
+| injured column within 3 people | **90%** |
 | both exactly (`reports.reconciled`) | **50%** |
-| aggregate drift across the archive | killed **+0.9%**, injured **−1.0%** |
+| aggregate drift across the archive | killed **+0.9%**, injured **−1.2%** |
+
+It is NOT the old posts that parse worst, which is the intuitive guess and the
+wrong one. By year, killed-exact runs **93% (2024) → 81% (2025) → 69% (2026)**,
+and both-exact **74% → 36% → 37%**. The 2024 posts are short, with few regions
+and small numbers; the modern ones pack more regions, more clauses per region
+and bigger counts into a paragraph, and every extra clause is another chance to
+be one person out. The most recent month runs against that trend — 21 reports
+to 2026-09-24, killed exact on all 21 — so this is not a drift to chase but the
+shape of the source.
 
 So the breakdown is accurate in aggregate to about a percent, while rarely
 matching to the person on any given day — injured is the soft column, typically
@@ -118,6 +127,11 @@ reproduce a source typo.
 Watch the trend, not the level. A drop in the killed-exact rate, or aggregate
 drift beyond a couple of percent, means the format moved; a strict percentage
 on its own would hide both.
+
+The residual skews one way — among posts that miss, injured is under-counted
+289 times to 86 over. That is the long tail of prose the parser reads
+conservatively (a bare noun counts as one), not a single bug; the two that
+*were* single bugs are in `test_parse.py` under "counting traps".
 
 ## The three row kinds
 

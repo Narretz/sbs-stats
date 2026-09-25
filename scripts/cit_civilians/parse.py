@@ -245,6 +245,11 @@ _SUBCOUNT_RE = re.compile(
     r"среди которых|среди пострадавших|среди погибших|из них|из которых|в частности)\b"
     r".*?(?=(?:,?\s*(?:а\s+)?(?:ещё|еще)\b)"
     r"|(?:\s*[;.]\s*)"
+    # A comma followed by a fresh count ends the span too. Stopping only at the
+    # verb loses the count that precedes it: in "погибли 12 человек, включая
+    # трёх детей, 90 человек пострадало" the span would run to " пострадало"
+    # and swallow the 90 on the way.
+    r"|(?:,\s*(?:\d|" + _NUM_WORD.pattern + r"))"
     r"|(?:\s+(?:погиб|постра|ранен|получил|скончал))"
     r"|$)")
 
@@ -256,7 +261,11 @@ _NOISE_RES = [
     re.compile(r"\b\d{1,3}\s*-\s*летн\w*|\b\d{1,3}-летн\w*"),
     re.compile(r"\b\d{1,2}(?:\s*,\s*\d{1,2})*(?:\s+и\s+\d{1,2})?\s+лет\b"),
     re.compile(r"«[^»]*»"),                              # «Герань-5», «Кременском»
-    re.compile(r"\b[А-ЯЁA-Z][А-Яа-яЁёA-Za-z]*-\d+\b"),   # Су-24, С-300
+    # Су-24, С-300 — and "Shahed-131/136", where the trailing "/136" has to go
+    # with it. Without the optional tail this pattern eats "Shahed-131" and
+    # leaves "/136" behind, which the slash-pair rule below can no longer see
+    # (it needs digits on both sides) and which then reads as 136 casualties.
+    re.compile(r"\b[А-ЯЁA-Z][А-Яа-яЁёA-Za-z]*-\d+(?:\s*/\s*\d+)*\b"),
     # Weapon designations written with a space and a model pair — "Shahed
     # 131/136" read as 131 + 136 = 267 injured before this, which is the worst
     # shape a miscount can take: large, plausible, and silent.

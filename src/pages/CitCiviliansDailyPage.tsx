@@ -7,7 +7,9 @@ import { PageScaffold } from "@/components/PageScaffold";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
-import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam } from "@/utils/dayRange";
+import {
+  DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR,
+} from "@/utils/dayRange";
 import { fillDailyRange } from "@/utils/padTrailing";
 import {
   CIT_METRIC_KEYS,
@@ -23,7 +25,8 @@ function parseDate(raw: string | null): string {
 
 function getUrlParams() {
   const p = new URLSearchParams(window.location.search);
-  return { days: parseDaysParam(p.get("days")), date: parseDate(p.get("date")) };
+  const date = parseDate(p.get("date"));
+  return { days: parseDaysParam(p.get("days"), date || undefined), date };
 }
 
 function setUrlParams(params: Record<string, string>) {
@@ -63,7 +66,11 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
   const [globalStats, setGlobalStats] = useState<CitGlobalStats>({} as CitGlobalStats);
   const [hasData, setHasData] = useState(false);
 
-  const updateDays = (d: DayOption) => { setDays(d); setUrlParams({ days: String(d) }); };
+  const updateDays = (d: DayOption) => {
+    const clamped = clampDays(d, selectedDate || maxSelectableDate);
+    setDays(clamped);
+    setUrlParams({ days: String(clamped) });
+  };
   const updateDate = (d: string) => { setSelectedDate(d); setUrlParams({ date: d }); };
 
   useEffect(() => {
@@ -81,10 +88,12 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
   const shiftSelectedDate = (delta: number) => {
     const base = selectedDate || Temporal.Now.plainDateISO("Europe/Moscow").toString();
     const next = Temporal.PlainDate.from(base).add({ days: delta }).toString();
-    if (next > maxSelectableDate) return;
+    if (next > maxSelectableDate || next < WINDOW_FLOOR) return;
     updateDate(next);
   };
   const canGoNext = selectedDate !== "" && selectedDate < maxSelectableDate;
+  // "live" sits at today, so there is always a day behind it.
+  const canGoPrev = selectedDate === "" || selectedDate > WINDOW_FLOOR;
 
   const endDate = selectedDate || maxSelectableDate;
   const startDate = windowStartDate(endDate, days);
@@ -125,7 +134,9 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="cit" />}
       controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} />
-        <DateNav value={selectedDate} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} />
+        <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate}
+                 onChange={updateDate} onShift={shiftSelectedDate}
+                 canGoNext={canGoNext} canGoPrev={canGoPrev} />
         <StatScopeToggle />
       </>}
       loadState={loadState}

@@ -222,9 +222,10 @@ raw text, so `scripts/rubikon/ingest.py --reparse` (dry-run; `--apply` writes)
 re-reads the stored recaps locally after a parser fix, while `--max-pages` /
 the workflow's `pages` input widens the scrape for a recap that was dropped
 outright. `scripts/cit_civilians/ingest.py --reparse` works the same way, and
-matters more there: the 2023–2024 prose eras parse worse than the current
-format, so improving them later is a reparse over stored text, not a
-re-scrape.
+matters more there: its parser is still being sharpened against the archive, so
+a fix lands as a reparse over stored text rather than a re-scrape. (Which era
+reads worst is counter-intuitive — 2024 is the *best*, and 2026 the weakest;
+see scripts/cit_civilians/README.md.)
 
 SBU Alfa splits the same way GSUA does, into its own manual workflow:
 `reparse-sbu-alfa-db.yml` (input `dry_run`, on by default) pulls the DB from
