@@ -10,7 +10,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { TooltipSortSelect } from "@/components/TooltipSortSelect";
-import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR } from "@/utils/dayRange";
+import { DAY_OPTIONS, type DayOption, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows } from "@/utils/dayRange";
 import { resolvedEndDate } from "@/utils/padTrailing";
 import { buildMetrics } from "@/utils/metrics";
 import type { DailyRow, DailyDaySeries, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
@@ -128,14 +128,7 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
 
   const metrics = useMemo<Metric[]>(() => buildMetrics(), []);
 
-  const filteredRows = useMemo(() => {
-    if (selectedDate) {
-      const startDate = windowStartDate(selectedDate, days);
-      return rows.filter(row => row.date >= startDate && row.date <= selectedDate);
-    }
-    if (selectedWeekdays.length === 0) return rows;
-    return rows.filter(row => selectedWeekdays.includes(new Date(row.date + "T12:00:00").getDay()));
-  }, [rows, selectedWeekdays, selectedDate, days]);
+  const filteredRows = useMemo(() => filterDailyRows(rows, { selectedDate, days, weekdays: selectedWeekdays }), [rows, selectedWeekdays, selectedDate, days]);
 
   const makeDataset = (key: StatKey): DailyDaySeries[] => {
     const map = new Map<string, DailyDaySeries>();

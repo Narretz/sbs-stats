@@ -11,7 +11,7 @@ import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
-import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR } from "@/utils/dayRange";
+import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows, weekdayPredicate } from "@/utils/dayRange";
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
 import {
   GSUA_METRIC_KEYS,
@@ -157,46 +157,16 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   // "live" sits at today, so there is always a day behind it.
   const canGoPrev = selectedDate === "" || selectedDate > WINDOW_FLOOR;
 
-  const filteredRows = useMemo(() => {
-    let r = rows;
-    if (selectedDate) {
-      const startDate = windowStartDate(selectedDate, days);
-      r = r.filter((row) => row.date >= startDate && row.date <= selectedDate);
-    } else if (selectedWeekdays.length > 0) {
-      r = r.filter((row) => selectedWeekdays.includes(new Date(row.date + "T12:00:00").getDay()));
-    }
-    return r;
-  }, [rows, selectedDate, selectedWeekdays, days]);
+  const filteredRows = useMemo(() => filterDailyRows(rows, { selectedDate, days, weekdays: selectedWeekdays }), [rows, selectedDate, selectedWeekdays, days]);
 
-  const filteredCoverageRows = useMemo(() => {
-    let r = coverageRows;
-    if (selectedDate) {
-      const startDate = windowStartDate(selectedDate, days);
-      r = r.filter((row) => row.date >= startDate && row.date <= selectedDate);
-    }
-    if (selectedWeekdays.length > 0) {
-      r = r.filter((row) => selectedWeekdays.includes(new Date(row.date + "T12:00:00").getDay()));
-    }
-    return r;
-  }, [coverageRows, selectedDate, selectedWeekdays, days]);
+  const filteredCoverageRows = useMemo(() => filterDailyRows(coverageRows, { selectedDate, days, weekdays: selectedWeekdays }), [coverageRows, selectedDate, selectedWeekdays, days]);
 
-  const filteredDirectionRows = useMemo(() => {
-    let r = directionRows;
-    if (selectedDate) {
-      const startDate = windowStartDate(selectedDate, days);
-      r = r.filter((row) => row.date >= startDate && row.date <= selectedDate);
-    } else if (selectedWeekdays.length > 0) {
-      r = r.filter((row) => selectedWeekdays.includes(new Date(row.date + "T12:00:00").getDay()));
-    }
-    return r;
-  }, [directionRows, selectedDate, selectedWeekdays, days]);
+  const filteredDirectionRows = useMemo(() => filterDailyRows(directionRows, { selectedDate, days, weekdays: selectedWeekdays }), [directionRows, selectedDate, selectedWeekdays, days]);
 
   const endDate = resolvedEndDate(selectedDate);
   const startDate = windowStartDate(endDate, days);
   // Weekday filter is intentional — don't pad dates that the user filtered out.
-  const keepDate = selectedWeekdays.length === 0
-    ? undefined
-    : (iso: string) => selectedWeekdays.includes(new Date(iso + "T12:00:00").getDay());
+  const keepDate = weekdayPredicate(selectedWeekdays);
   const makeDataset = (key: GsuaMetricKey) =>
     fillDailyRange(
       filteredRows.map((d) => ({

@@ -9,7 +9,7 @@ import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
-import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR } from "@/utils/dayRange";
+import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows, weekdayPredicate } from "@/utils/dayRange";
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
 import {
   ATTACK_DB_CATEGORIES,
@@ -131,21 +131,12 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   // "live" sits at today, so there is always a day behind it.
   const canGoPrev = selectedDate === "" || selectedDate > WINDOW_FLOOR;
 
-  const filteredRows = useMemo(() => {
-    if (selectedDate) {
-      const startDate = windowStartDate(selectedDate, days);
-      return rows.filter((row) => row.date >= startDate && row.date <= selectedDate);
-    }
-    if (selectedWeekdays.length === 0) return rows;
-    return rows.filter((row) => selectedWeekdays.includes(new Date(row.date + "T12:00:00").getDay()));
-  }, [rows, selectedWeekdays, selectedDate, days]);
+  const filteredRows = useMemo(() => filterDailyRows(rows, { selectedDate, days, weekdays: selectedWeekdays }), [rows, selectedWeekdays, selectedDate, days]);
 
   const endDate = resolvedEndDate(selectedDate);
   const startDate = windowStartDate(endDate, days);
   // Weekday filter is intentional — don't pad dates that the user filtered out.
-  const keepDate = selectedWeekdays.length === 0
-    ? undefined
-    : (iso: string) => selectedWeekdays.includes(new Date(iso + "T12:00:00").getDay());
+  const keepDate = weekdayPredicate(selectedWeekdays);
   // A category UA withheld arrives as null and charts as a gap; "all" still
   // charts the sum of what *was* disclosed. Either way the point carries the
   // caveat, so the tooltip explains the gap (or the understated total) rather
@@ -169,11 +160,8 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
       { keepDate },
     );
 
-  const filterModelRows = (mrows: RuAirAttacksModelDailyRow[]) => {
-    if (selectedDate) return mrows; // SQL already bounded the window
-    if (selectedWeekdays.length === 0) return mrows;
-    return mrows.filter((r) => selectedWeekdays.includes(new Date(r.date + "T12:00:00").getDay()));
-  };
+  const filterModelRows = (mrows: RuAirAttacksModelDailyRow[]) =>
+    filterDailyRows(mrows, { selectedDate, days, weekdays: selectedWeekdays });
   const modelSeries = (model: string, metric: "launched" | "intercepted") =>
     fillDailyRange(
       filterModelRows(modelRows[model] ?? []).map((r) => ({

@@ -68,3 +68,32 @@ export function daysBetweenInclusive(startDate: string, endDate: string): number
   const days = Math.round((b.getTime() - a.getTime()) / 86_400_000) + 1;
   return days > 0 ? days : null;
 }
+
+// Day of week (0 = Sunday, as Date#getDay) of a YYYY-MM-DD date. Noon anchor,
+// as above, so no timezone offset can move it onto the neighbouring day.
+export function isoWeekday(date: string): number {
+  return new Date(`${date}T12:00:00`).getDay();
+}
+
+// The weekday picker as a date predicate; undefined when nothing is picked,
+// which every caller reads as "every day".
+export function weekdayPredicate(weekdays: number[]): ((date: string) => boolean) | undefined {
+  return weekdays.length === 0 ? undefined : (date) => weekdays.includes(isoWeekday(date));
+}
+
+// A daily view's rows narrowed to what its controls select: the window when
+// an end date is picked (live mode's query is already bounded by it), AND the
+// picked weekdays. Both, always — these used to be an if/else, so picking an
+// end date silently switched the weekday filter off.
+export function filterDailyRows<T extends { date: string }>(
+  rows: T[],
+  { selectedDate, days, weekdays }: { selectedDate: string; days: number; weekdays: number[] },
+): T[] {
+  let r = rows;
+  if (selectedDate) {
+    const startDate = windowStartDate(selectedDate, days);
+    r = r.filter((row) => row.date >= startDate && row.date <= selectedDate);
+  }
+  const keep = weekdayPredicate(weekdays);
+  return keep ? r.filter((row) => keep(row.date)) : r;
+}

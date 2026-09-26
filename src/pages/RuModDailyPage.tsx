@@ -10,7 +10,7 @@ import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
-import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR } from "@/utils/dayRange";
+import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows, weekdayPredicate } from "@/utils/dayRange";
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
 import type { RuAdDailyRow, RuAdGlobalStats } from "@/types";
 import { chartColors } from "@/chartColors";
@@ -108,22 +108,13 @@ export function RuModDailyPage({ refreshKey }: Props) {
   // "live" sits at today, so there is always a day behind it.
   const canGoPrev = selectedDate === "" || selectedDate > WINDOW_FLOOR;
 
-  const filteredRows = useMemo(() => {
-    if (selectedDate) {
-      const startDate = windowStartDate(selectedDate, days);
-      return rows.filter((row) => row.date >= startDate && row.date <= selectedDate);
-    }
-    if (selectedWeekdays.length === 0) return rows;
-    return rows.filter((row) => selectedWeekdays.includes(new Date(row.date + "T12:00:00").getDay()));
-  }, [rows, selectedWeekdays, selectedDate, days]);
+  const filteredRows = useMemo(() => filterDailyRows(rows, { selectedDate, days, weekdays: selectedWeekdays }), [rows, selectedWeekdays, selectedDate, days]);
 
   const endDate = resolvedEndDate(selectedDate, "Europe/Moscow");
   const startDate = windowStartDate(endDate, days);
   // When a weekday filter is on, the chart deliberately drops other weekdays;
   // the fill must respect that so padding doesn't reintroduce them as gap rows.
-  const keepDate = selectedWeekdays.length === 0
-    ? undefined
-    : (iso: string) => selectedWeekdays.includes(new Date(iso + "T12:00:00").getDay());
+  const keepDate = weekdayPredicate(selectedWeekdays);
   // Compose the tooltip note from the per-report DB caveats (already prefixed
   // with the report's HH:MM→HH:MM window in queryDaily) so the reader sees
   // exactly which window(s) are flagged, and why — a possible double-count from
