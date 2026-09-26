@@ -19,6 +19,7 @@ via sql.js / sql.js-httpvfs.
 | UA SBU ALFA — MONTHLY RECAP | `sbu-alfa` | SBU press releases (Centre of Special Operations «А» monthly TOP-1 recap) | [`scripts/sbu_alfa/`](scripts/sbu_alfa/README.md) → `sbu-alfa.db` |
 | RU RUBIKON — MONTHLY RECAP | `rubikon` | Центр «Рубикон» (RU UAV unit) monthly Telegram recap | [`scripts/rubikon/`](scripts/rubikon/README.md) → `rubikon.db` |
 | RU DEATHS — MEDIAZONA | `mediazona` | Mediazona + Meduza confirmed named deaths + probate-registry estimate (CSV exports) | [`scripts/mediazona/`](scripts/mediazona/README.md) → `mediazona.db` |
+| UA+RU CIVILIAN CASUALTIES — CIT | `cit-civilians` | Conflict Intelligence Team daily 20:00–20:00 MSK casualty summaries (Telegram) | [`scripts/cit_civilians/`](scripts/cit_civilians/README.md) → `cit-civilians.db` |
 
 [`DATASETS.md`](DATASETS.md) tracks source research, recency, and candidate
 datasets for future views.
@@ -150,6 +151,20 @@ GitHub Actions in `.github/workflows/`:
   `openpyxl` (the source is xlsx), so the job pip-installs it — the only ingest
   workflow that isn't stdlib-only. Not yet a dedicated site; feeds the combined
   charts only.
+- `update-cit-civilians-db.yml` — CIT civilian casualties. Twice daily (19:00
+  UTC, just after the ~20:00 MSK post, and 07:00 UTC for a late one or an
+  edit). Reads the public `t.me/s` preview, no API account. Two things make
+  this one different from the other Telegram ingests: a long summary overruns
+  Telegram's 4096-char limit and is **stitched** from consecutive posts
+  (`reports.part_ids`), and every post closes with its own casualty total, so
+  each one is **reconciled** against it (`reports.reconciled`). The chart
+  series is `reports.stated_*` — CIT's own headline, which parses on 100% of
+  posts from 2024 on (the 2023 era carries no total line); the per-region rows
+  are secondary, exact on the killed column for 82% of posts and within ~1% of
+  the headline in aggregate, but exact on both columns for only 50%. Weekend
+  days come as ONE 48-hour post (`window_days = 2`) and must never be plotted
+  as a single day. Publishes a stripped `cit-civilians.app.db` alongside the
+  authoritative DB (see below); the site is `cit-civilians`, daily + monthly.
 - `python-tests.yml` — the ingest test suites, when a `.py` under `scripts/`
   changed. On push to any branch AND on `pull_request` (plus
   `workflow_dispatch`): a push matches its paths against that push alone, so a
@@ -183,6 +198,7 @@ post the parser dropped was never stored, so `reparse.py` can't recover it and
 only a re-scrape can. `update-telegram-web-dbs.yml`: `gsua_lookback_days` /
 `rumod_lookback_days` (default 2). `update-sbu-alfa-db.yml`: `pages` (default
 3 listing pages). `update-rubikon-db.yml`: `pages` (default 3 t.me/s preview
+pages). `update-cit-civilians-db.yml`: `pages` (default 4 t.me/s preview
 pages). `update-db.yml`: `all_months` (bypass the SBS 10-day / 6-hour
 refresh thresholds). `update-sbs-units-db.yml`: `all` (re-read every sub-unit
 month and year the API still exposes) — the one that is genuinely urgent when
@@ -205,7 +221,11 @@ Rubikon has the same split without a workflow of its own: it stores each post's
 raw text, so `scripts/rubikon/ingest.py --reparse` (dry-run; `--apply` writes)
 re-reads the stored recaps locally after a parser fix, while `--max-pages` /
 the workflow's `pages` input widens the scrape for a recap that was dropped
-outright.
+outright. `scripts/cit_civilians/ingest.py --reparse` works the same way, and
+matters more there: its parser is still being sharpened against the archive, so
+a fix lands as a reparse over stored text rather than a re-scrape. (Which era
+reads worst is counter-intuitive — 2024 is the *best*, and 2026 the weakest;
+see scripts/cit_civilians/README.md.)
 
 SBU Alfa splits the same way GSUA does, into its own manual workflow:
 `reparse-sbu-alfa-db.yml` (input `dry_run`, on by default) pulls the DB from
@@ -274,13 +294,19 @@ bash scripts/setup_env.sh                 # npm + pip bootstrap for a fresh cont
   root; in production the frontend reads from R2 via `VITE_*_DB_URL` env
   vars. Small DBs are fetched whole via sql.js; larger ones (GSUA attacks)
   are range-fetched via sql.js-httpvfs.
-- **GSUA and RU MoD publish two objects each**: the authoritative `<name>.db`
-  carrying the raw post text, and a stripped `<name>.app.db` (`posts.text` /
-  `raw_text` blanked, ~3-5x smaller) that the frontend reads — in production
-  *and* in dev, so local range-fetch behaviour matches the deployed site.
+- **GSUA, RU MoD and CIT publish two objects each**: the authoritative
+  `<name>.db` carrying the raw post text, and a stripped `<name>.app.db`
+  (GSUA/RU MoD blank `posts.text` / `raw_text`, ~3-5x smaller; CIT blanks
+  `reports.body_text` plus the per-clause `casualties.raw_label` /
+  `region_raw`, 11 MB → ~2 MB) that the frontend reads in production.
   `fetch_prod_dbs.sh` downloads both; CI always uploads them together, built
-  from the same source, so they can't drift on R2. They drift **locally**:
-  a reparse or ingest rewrites `<name>.db` and leaves the app copy alone, so
-  dev keeps serving the old rows while the file they came from looks correct.
+  from the same source, so they can't drift on R2.
+  **GSUA and RU MoD read the app copy in dev too**, so local range-fetch
+  behaviour matches the deployed site — and there they drift **locally**: a
+  reparse or ingest rewrites `<name>.db` and leaves the app copy alone, so dev
+  keeps serving the old rows while the file they came from looks correct.
   Rebuild it with `scripts/build_app_db.py` — not by re-running the fetch,
-  which would overwrite the reparse with R2's copy.
+  which would overwrite the reparse with R2's copy. **CIT reads the full DB in
+  dev**, deliberately: it is a whole fetch, not a range fetch, so the app copy
+  changes only the download size and using it locally would buy that same
+  staleness trap for nothing.
