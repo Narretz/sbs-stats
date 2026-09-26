@@ -374,6 +374,11 @@ summary::marker {
   align-items: center;
   gap: 6px;
 }
+.chart-sheet-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .chart-sheet-label {
   font-size: 13px;
   font-weight: 700;

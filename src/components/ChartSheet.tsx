@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useChartPinContext, useSheetHost, useSheetOpen } from "@/hooks/ChartPinProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
+import type { SheetLink } from "@/hooks/useMonthDailyLink";
 
 const TITLE_ID = "chart-sheet-title";
 
@@ -111,6 +112,8 @@ interface ContentProps {
   canNext: boolean;
   onStep: (delta: number) => void;
   onClose: () => void;
+  /** Somewhere to go from the selected point — a month's daily breakdown. */
+  link?: SheetLink | null;
   children: ReactNode;
 }
 
@@ -120,7 +123,7 @@ interface ContentProps {
  * chart's own live data — no registry, no snapshot to go stale.
  */
 export function ChartSheetContent({
-  title, label, canPrev, canNext, onStep, onClose, children,
+  title, label, canPrev, canNext, onStep, onClose, link, children,
 }: ContentProps) {
   const { theme: t } = useTheme();
   const { stepRef } = useChartPinContext();
@@ -163,10 +166,26 @@ export function ChartSheetContent({
             aria-label="Next point" style={{ color: t.textMuted, height: 25 }}
           >&gt;</button>
         </div>
-        <button
-          className="ctl" onClick={onClose} aria-label="Close details"
-          style={{ color: t.textMuted, height: 25 }}
-        >✕</button>
+        <div className="chart-sheet-actions">
+          {link && (
+            <a
+              className="ctl ctl-dashed" href={link.href} title={link.title}
+              // No inline colour: .ctl-dashed's own hover has to win.
+              style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", height: 25, boxSizing: "border-box" }}
+              onClick={(e) => {
+                // Anything but a plain click (new tab, new window) is the
+                // browser's to handle, through the href.
+                if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                e.preventDefault();
+                link.follow();
+              }}
+            >{link.label}</a>
+          )}
+          <button
+            className="ctl" onClick={onClose} aria-label="Close details"
+            style={{ color: t.textMuted, height: 25 }}
+          >✕</button>
+        </div>
       </footer>
     </div>,
     host,

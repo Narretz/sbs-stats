@@ -211,6 +211,7 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
     data: flat,
     xOf: (r) => r.date,
     describe,
+    monthOf: granularity === "monthly" ? (r) => r.date.slice(0, 7) : undefined,
   });
 
   return (

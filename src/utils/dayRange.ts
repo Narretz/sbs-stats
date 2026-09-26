@@ -97,3 +97,20 @@ export function filterDailyRows<T extends { date: string }>(
   const keep = weekdayPredicate(weekdays);
   return keep ? r.filter((row) => keep(row.date)) : r;
 }
+
+// The daily view's window covering one calendar month: the month's last day
+// as the end date and its length as `days`. The month still in progress ends
+// at `today` in live mode (`date: ""`), so the link keeps following the month
+// instead of freezing on the day it was opened. A month that hasn't started
+// has nothing to show and gets null.
+export function monthDailyWindow(month: string, today: string): { date: string; days: number } | null {
+  if (!/^\d{4}-\d{2}/.test(month)) return null;
+  const ym = month.slice(0, 7);
+  const thisMonth = today.slice(0, 7);
+  if (ym > thisMonth) return null;
+  if (ym === thisMonth) return { date: "", days: Number(today.slice(8, 10)) };
+  const [y, m] = ym.split("-").map(Number);
+  // Day 0 of the next month is this month's last day.
+  const last = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+  return { date: last, days: Number(last.slice(8, 10)) };
+}

@@ -159,6 +159,7 @@ export function MonthlyTargetPairChart({
     describe: (d) => describeMonth({
       d, t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth, subsetLabel,
     }),
+    monthOf: (d) => d.date.slice(0, 7),
   });
 
   return (

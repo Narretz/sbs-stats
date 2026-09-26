@@ -125,5 +125,13 @@ export function useAppRoute() {
     setRouteState({ kind: "site", site: route.site, page: p });
   };
 
-  return { route, goHome, goSite, goSpecial, setSite, setPage, pagesFor };
+  // Navigate to a whole query string at once — a page plus the params it
+  // should open with — as one history entry. The page reads those params on
+  // mount, so they must be in the URL before the route changes.
+  const goSearch = (search: URLSearchParams, hash = "") => {
+    window.history.pushState(null, "", `${window.location.pathname}?${search.toString()}${hash}`);
+    setRouteState(readUrl());
+  };
+
+  return { route, goHome, goSite, goSpecial, goSearch, setSite, setPage, pagesFor };
 }

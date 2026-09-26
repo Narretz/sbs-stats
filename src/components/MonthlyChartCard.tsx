@@ -58,6 +58,7 @@ export function MonthlyChartCard<TData extends { date: string }>({
     xOf: (d) => d.date,
     describe: describe ?? (() => null),
     formatLabel,
+    monthOf: (d) => d.date.slice(0, 7),
   });
 
   return (
