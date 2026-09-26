@@ -4,7 +4,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useChartPin } from "@/hooks/ChartPinProvider";
 import { ChartSheetContent } from "@/components/ChartSheet";
 import { DescriptorBody, DescriptorCard, type TooltipDescriptor } from "@/components/TooltipTable";
-import { useMonthDailyLink } from "@/hooks/useMonthDailyLink";
+import { useDrillDownLink } from "@/hooks/useDrillDownLink";
 import { chartAnchor } from "@/utils/chartAnchor";
 
 // Everything a chart needs to take part in the pinned detail sheet, in one
@@ -50,9 +50,13 @@ interface Options<T> {
    *  On the wrapper rather than the card so recharts measures the real width
    *  when it decides which side of the cursor to hang it from. */
   fitToContent?: boolean;
-  /** A monthly chart's month (YYYY-MM) for a row. Gives the sheet a link to
-   *  that month on the site's daily view, where there is one. */
-  monthOf?: (row: T) => string;
+  /** The period a row covers — its month (YYYY-MM) on a monthly chart, its
+   *  day (YYYY-MM-DD) on a daily one. Gives the sheet a link to that period
+   *  on the site's next finer view, where there is one. */
+  periodOf?: (row: T) => string;
+  /** Where on the finer view the link lands, when that isn't this chart's
+   *  own anchor. */
+  drillAnchor?: string;
 }
 
 export interface PinnedChart {
@@ -80,10 +84,10 @@ export interface PinnedChart {
 
 export function usePinnedChart<T>({
   chartId, title, data, xOf, describe, formatLabel, cursor, cursorProps, showEmptyWrapper,
-  fitToContent, monthOf,
+  fitToContent, periodOf, drillAnchor,
 }: Options<T>): PinnedChart {
   const { theme: t } = useTheme();
-  const monthLink = useMonthDailyLink();
+  const drillDown = useDrillDownLink();
   // Recomputed per render rather than memoised: `xOf` is nearly always an
   // inline arrow, so a memo keyed on it would never hit, and these arrays top
   // out at a few hundred entries.
@@ -186,9 +190,9 @@ export function usePinnedChart<T>({
         canNext={pin.canNext}
         onStep={pin.step}
         onClose={pin.clear}
-        // Same title on the daily page, same anchor: the link lands on this
-        // chart's daily counterpart where there is one.
-        link={monthOf && monthLink ? monthLink(monthOf(pinnedRow), chartAnchor(title)) : null}
+        // Same title on the finer page, same anchor: the link lands on this
+        // chart's counterpart there, where it has one.
+        link={periodOf && drillDown ? drillDown(periodOf(pinnedRow), drillAnchor ?? chartAnchor(title)) : null}
       >
         <DescriptorBody d={describe(pinnedRow)} />
       </ChartSheetContent>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMetrics } from "@/utils/metrics";
+import { buildMetrics, unpairedLabel } from "@/utils/metrics";
 
 // The SBS pages render one chart per metric, so two entries that can't be told
 // apart become a React duplicate-key warning and, worse, two charts sharing one
@@ -47,5 +47,16 @@ describe("buildMetrics", () => {
 
   it("does not repeat a column in the unpaired view", () => {
     expect(dupes(buildMetrics().map((m) => m.key))).toEqual([]);
+  });
+});
+
+describe("unpairedLabel", () => {
+  it("names the primary series' own chart", () => {
+    expect(unpairedLabel("total_targets_hit")).toBe("Targets Hit");
+    expect(unpairedLabel("hit_1")).toBe("Tanks — Hit");
+  });
+
+  it("resolves every paired chart", () => {
+    for (const m of buildMetrics({ paired: true })) expect(unpairedLabel(m.key)).toBeDefined();
   });
 });

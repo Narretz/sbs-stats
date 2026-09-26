@@ -12,6 +12,7 @@ import type { Theme } from "@/theme";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { chartAnchor } from "@/utils/chartAnchor";
+import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { ChartPlaceholder, useNearViewport } from "@/components/LazyChartArea";
 import { usePinnedChart } from "@/components/usePinnedChart";
 import type { TooltipDescriptor } from "@/components/TooltipTable";
@@ -289,8 +290,9 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
   const isToday = !selectedDate || selectedDate === Temporal.Now.plainDateISO().toString();
 
   const dates = data.map((s) => s.date);
+  const anchor = chartAnchor(title);
   const pin = usePinnedChart({
-    chartId: chartAnchor(title) || title,
+    chartId: anchor || title,
     title,
     data: chartData,
     xOf: (r) => r.hour,
@@ -305,7 +307,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
   });
 
   return (
-    <div className="hourly-card" {...pin.cardProps} style={{
+    <div className="hourly-card" id={anchor || undefined} {...pin.cardProps} style={{
       background: t.surface,
       border: `1px solid ${t.surfaceBorder}`,
       borderRadius: 8,
@@ -315,9 +317,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
       cursor: "pointer",
     }}>
-      <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 12, color: t.textMuted, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 4 }}>
-        {title}
-      </div>
+      <ChartCardTitle title={title} anchor={anchor} marginBottom={4} />
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 10, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ color: c.maxReference }}>▲ MAX {max.toLocaleString()}</span>
         <span style={{ color: c.medReference }}>~ MED {median.toLocaleString()}</span>

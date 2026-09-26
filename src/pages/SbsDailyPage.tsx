@@ -11,7 +11,8 @@ import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows, weekdayPredicate } from "@/utils/dayRange";
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
-import { buildMetrics } from "@/utils/metrics";
+import { buildMetrics, unpairedLabel } from "@/utils/metrics";
+import { chartAnchor } from "@/utils/chartAnchor";
 import type { DailyRow, DailyDataPoint, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
 
 
@@ -172,6 +173,7 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
           pairMode={m.pairMode}
           eod={eod[m.key] ?? null}
           eod2={m.pairedKey ? (eod[m.pairedKey] ?? null) : undefined}
+          drillAnchor={m.pairedKey ? chartAnchor(unpairedLabel(m.key) ?? m.label) : undefined}
         />
       ))}
     />

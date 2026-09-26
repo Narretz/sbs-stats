@@ -58,6 +58,10 @@ interface Props {
   // to show "what models drove this day's number" (and by the aggregate "All"
   // chart to break the total into drone / cruise / ballistic categories).
   breakdownByDate?: Map<string, ModelBreakdownEntry[]>;
+  // The chart the sheet's drill-down link lands on, when the finer view
+  // titles it differently (SBS pairs hit / destroyed daily, splits them
+  // hourly). Defaults to this chart's own anchor.
+  drillAnchor?: string;
   // Subset-mode only: interpret `primaryLabel` as the label of the *difference*
   // (data − data2) rather than as the total. When true, the tooltip renders an
   // extra explicit "Total" row and shows the diff — not the raw `value` — under
@@ -299,7 +303,7 @@ function describePaired(ctx: DescribeCtx, d: PairedRow): TooltipDescriptor {
 export function DailyLineChart({
   title, data, globalMax, globalMedian, globalTotal, wfull,
   data2, primaryLabel, label2, globalMax2, globalMedian2, globalTotal2, pairMode = "subset",
-  eod, eod2, breakdownByDate, primaryIsDiff = false, subsetLabel,
+  eod, eod2, breakdownByDate, primaryIsDiff = false, subsetLabel, drillAnchor,
 }: Props) {
   const { theme: t } = useTheme();
   const anchor = chartAnchor(title);
@@ -398,6 +402,8 @@ export function DailyLineChart({
     xOf: (r) => r.date,
     describe: describeRow,
     formatLabel: (r) => formatDate(r.date),
+    periodOf: (r) => r.date,
+    drillAnchor,
     cursor: { stroke: t.textMuted, strokeWidth: 1 },
     // These charts carry gap notes, which recharts would otherwise hide along
     // with the empty-payload wrapper.

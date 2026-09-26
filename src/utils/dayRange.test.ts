@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterDailyRows, isoWeekday, monthDailyWindow, weekdayPredicate } from "@/utils/dayRange";
+import { dayHourlyDate, filterDailyRows, isoWeekday, monthDailyWindow, weekdayPredicate } from "@/utils/dayRange";
 
 // 2026-09-07 is a Monday; the fixture is two full weeks, Mon → Sun.
 const rows = Array.from({ length: 14 }, (_, i) => ({
@@ -70,5 +70,22 @@ describe("monthDailyWindow", () => {
   it("has nothing for a month that hasn't started, or for garbage", () => {
     expect(monthDailyWindow("2026-10", today)).toBeNull();
     expect(monthDailyWindow("Aug 2026", today)).toBeNull();
+  });
+});
+
+describe("dayHourlyDate", () => {
+  const today = "2026-09-26";
+
+  it("ends the hourly view on a past day", () => {
+    expect(dayHourlyDate("2026-09-01", today)).toBe("2026-09-01");
+  });
+
+  it("follows today live", () => {
+    expect(dayHourlyDate(today, today)).toBe("");
+  });
+
+  it("has nothing for a future day, or for a month", () => {
+    expect(dayHourlyDate("2026-09-27", today)).toBeNull();
+    expect(dayHourlyDate("2026-09", today)).toBeNull();
   });
 });

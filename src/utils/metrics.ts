@@ -64,3 +64,10 @@ export function buildMetrics(options?: { paired?: boolean }): Metric[] {
 
   return withIds([...base, ...targetMetrics]);
 }
+
+// The title of a metric's own chart in the unpaired list — where the hourly
+// view draws each column separately — for the paired daily chart it leads.
+// "Tanks — Hit / Destroyed" is "Tanks — Hit" there.
+export function unpairedLabel(key: Metric["key"]): string | undefined {
+  return buildMetrics().find((m) => m.key === key)?.label;
+}

@@ -114,3 +114,11 @@ export function monthDailyWindow(month: string, today: string): { date: string; 
   const last = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
   return { date: last, days: Number(last.slice(8, 10)) };
 }
+
+// The hourly view's end date for one day: the day itself, or live (`""`) for
+// today, so the link keeps the day's hours filling in. A day that hasn't
+// started, or garbage, gets null.
+export function dayHourlyDate(day: string, today: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day > today) return null;
+  return day === today ? "" : day;
+}

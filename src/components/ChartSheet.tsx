@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useChartPinContext, useSheetHost, useSheetOpen } from "@/hooks/ChartPinProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
-import type { SheetLink } from "@/hooks/useMonthDailyLink";
+import type { SheetLink } from "@/hooks/useDrillDownLink";
 
 const TITLE_ID = "chart-sheet-title";
 
@@ -112,7 +112,7 @@ interface ContentProps {
   canNext: boolean;
   onStep: (delta: number) => void;
   onClose: () => void;
-  /** Somewhere to go from the selected point — a month's daily breakdown. */
+  /** The selected point's breakdown on the next finer view. */
   link?: SheetLink | null;
   children: ReactNode;
 }
