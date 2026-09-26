@@ -5,12 +5,9 @@ on:
     inputs:
       pages:
         description: >-
-          t.me/s preview pages to scan (~20 posts each ≈ 1 day of this
-          channel). Raise it to reach further back after a parser fix dropped a
-          summary — a dropped post is never stored, so only a re-scrape can
-          recover it. For the whole history use `--backfill` locally instead.
+          t.me/s number of preview pages to scan (4 pages = approx ~20 posts = 1 day of CIT activity)
         required: false
-        default: "4"
+        default: "5"
   schedule:
     # CIT posts the summary just after 20:00 MSK (17:00 UTC). Run at 19:00 UTC
     # so the post is up, and again at 07:00 UTC to catch a late one plus any
