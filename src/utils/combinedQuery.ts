@@ -32,11 +32,13 @@ import type {
   UaLossesDailyRow,
   UaLossesGlobalStats,
   UaLossesMonthlyRow,
+  ZelenskyWeekRow,
 } from "@/types";
 import type { CombinedMetric, MetricSource } from "@/utils/combinedMetrics";
 import { windowStartDate } from "@/utils/dayRange";
 import { type MonthOption, monthOf, windowStartMonth } from "@/utils/monthRange";
 import { fillDailyRange, padTrailingMonthly, resolvedEndDate } from "@/utils/padTrailing";
+import { type WeekOption, aggregateWeekly, mondaysBetween, weeklyWindow } from "@/utils/weekRange";
 
 export interface CombinedQueries {
   sbs?: (days: number, endDate?: string) => DailyRow[];
@@ -260,6 +262,53 @@ export async function fetchCombinedDaily(
     // visible break rather than getting bridged by recharts' category axis.
     result[m.id] = fillDailyRange(result[m.id], startDateResolved, endDateResolved);
   }
+  return result;
+}
+
+// The weekly grain's queries: every daily query (the daily sources are summed
+// into weeks), plus the one source that is natively weekly.
+export interface CombinedWeeklyQueries extends CombinedQueries {
+  zelensky?: () => ZelenskyWeekRow[];
+}
+
+export async function fetchCombinedWeekly(
+  metrics: CombinedMetric[],
+  weeks: WeekOption,
+  endDate: string | undefined,
+  queries: CombinedWeeklyQueries,
+): Promise<Record<string, DailyDataPoint[]>> {
+  const end = resolvedEndDate(endDate);
+  const { firstMonday, lastMonday, days } = weeklyWindow(end, weeks);
+  const result: Record<string, DailyDataPoint[]> = {};
+
+  // Daily sources: fetch the window's days exactly as a daily chart would
+  // (gap-filled with nulls), then roll each series up into weeks.
+  const fromDaily = metrics.filter((m) => m.source !== "zelensky");
+  if (fromDaily.length) {
+    const daily = await fetchCombinedDaily(fromDaily, days, endDate, queries);
+    for (const m of fromDaily) result[m.id] = aggregateWeekly(daily[m.id] ?? [], firstMonday, end);
+  }
+
+  // The weekly tally: one row per ISO week already (the DB's `weekly` view),
+  // keyed by its Monday. A week without a tally — or whose post didn't name
+  // this weapon — is a gap, not 0. The week in progress never has a tally
+  // (it is posted at the week's end), so nothing here is `is_today`.
+  const zRows = metrics.some((m) => m.source === "zelensky") && queries.zelensky ? queries.zelensky() : null;
+  if (zRows) {
+    const byMonday = new Map(zRows.map((r) => [r.period_start, r]));
+    const mondays = mondaysBetween(firstMonday, lastMonday);
+    for (const m of metrics) {
+      if (m.source !== "zelensky") continue;
+      const key = m.key as "drones" | "bombs" | "missiles";
+      result[m.id] = mondays.map((date) => ({
+        date,
+        value: byMonday.get(date)?.[key] ?? null,
+        is_today: false,
+      }));
+    }
+  }
+
+  for (const m of metrics) result[m.id] ??= [];
   return result;
 }
 

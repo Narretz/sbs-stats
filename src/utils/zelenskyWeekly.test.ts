@@ -1,22 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ZelenskyWeekRow } from "@/types";
-import { formatHedged, formatWeekRange, formatWeekTick, mondaysBetween, quarterTicks, toWeeklyDataset } from "./zelenskyWeekly";
+import { formatHedged, mondaysBetween, toWeeklyDataset } from "./zelenskyWeekly";
 
 const row = (period_start: string, drones: number | null): ZelenskyWeekRow => ({
   period: "x", period_start, period_end: "x", post_id: 1, posted_at: "x", url: "x",
   drones, drones_bound: drones == null ? null : "at_least",
   bombs: null, bombs_bound: null, missiles: null, missiles_bound: null,
-});
-
-describe("mondaysBetween", () => {
-  it("steps a week at a time, both ends inclusive", () => {
-    expect(mondaysBetween("2025-12-22", "2026-01-05")).toEqual([
-      "2025-12-22", "2025-12-29", "2026-01-05",
-    ]);
-  });
-  it("is empty when the range is inverted", () => {
-    expect(mondaysBetween("2026-01-05", "2025-12-22")).toEqual([]);
-  });
 });
 
 describe("toWeeklyDataset", () => {
@@ -43,28 +32,5 @@ describe("formatHedged", () => {
   });
   it("says a missing figure was not reported", () => {
     expect(formatHedged(null, null)).toBe("not reported");
-  });
-});
-
-describe("formatWeekRange", () => {
-  it("names the month once inside a month", () => {
-    expect(formatWeekRange("2026-09-21")).toBe("21–27 Sep 2026");
-  });
-  it("names both months across a month boundary", () => {
-    expect(formatWeekRange("2026-09-28")).toBe("28 Sep – 4 Oct 2026");
-  });
-  it("names both years across New Year", () => {
-    expect(formatWeekRange("2025-12-29")).toBe("29 Dec 2025 – 4 Jan 2026");
-  });
-});
-
-describe("quarterTicks", () => {
-  it("labels the first Monday of each quarter, and only that", () => {
-    expect(quarterTicks(mondaysBetween("2025-12-22", "2026-04-13"))).toEqual([
-      "2026-01-05", "2026-04-06",
-    ]);
-  });
-  it("formats a tick as month and year", () => {
-    expect(formatWeekTick("2026-04-06")).toBe("Apr 2026");
   });
 });

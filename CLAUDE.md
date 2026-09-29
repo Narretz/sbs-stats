@@ -52,6 +52,16 @@ datasets for future views.
   on the page, so the difference is ~90 rows versus 1,335. `sbs-units.db` is
   loaded lazily everywhere: on first picker open, and only on the SBS monthly
   page.
+- **Combined charts have three grains**: daily, weekly, monthly (`charts=`
+  spec `d`/`w`/`m`). Weekly has no query of its own for the daily sources —
+  `fetchCombinedWeekly` asks each for the window's days and sums them into
+  Monday–Sunday weeks (`utils/weekRange.ts aggregateWeekly`), which is how all
+  of them except SBS build their monthly figure too (SBS's month is the API's
+  own period total, so an SBS week need not reconcile with it). A week with no
+  figure on any day is a gap, a week summed from fewer days than it has had
+  carries a "may be undercounted" note, and the week in progress is marked
+  partial. The President's tally (`zelensky.*`) is the one weekly-only source —
+  it is why the grain exists.
 - **Color**: `src/theme.ts` is the single source of truth — chrome tokens plus
   the chart-series tokens (`series1` blue = the main series of any chart,
   `series2` red = a second series drawn against it). `ThemeProvider` publishes
@@ -174,7 +184,8 @@ GitHub Actions in `.github/workflows/`:
   most runs upload nothing. The week is **derived** from when the post went up
   (the post only ever says "this/last week"), and every figure carries its
   hedge (`bound`: понад / майже / близько). Site `zelensky-weekly`, one
-  weekly page; the tooltip quotes each figure as hedged in the post.
+  weekly page; the tooltip quotes each figure as hedged in the post. Also a
+  weekly-only source in the combined charts.
 - `python-tests.yml` — the ingest test suites, when a `.py` under `scripts/`
   changed. On push to any branch AND on `pull_request` (plus
   `workflow_dispatch`): a push matches its paths against that push alone, so a

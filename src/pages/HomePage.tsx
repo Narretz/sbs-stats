@@ -11,6 +11,7 @@ import { useDatabaseRuAirAttacks } from "@/hooks/useDatabaseRuAirAttacks";
 import { useDatabaseSbuAlfa } from "@/hooks/useDatabaseSbuAlfa";
 import { useDatabaseRubikon } from "@/hooks/useDatabaseRubikon";
 import { useDatabaseMediazona } from "@/hooks/useDatabaseMediazona";
+import { useDatabaseZelenskyWeekly } from "@/hooks/useDatabaseZelenskyWeekly";
 import { DailyMultiLineChart, type LineSeries, type YAxisMode, type ChartGranularity } from "@/components/DailyMultiLineChart";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { MonthRangeSelect } from "@/components/MonthRangeSelect";
@@ -24,6 +25,7 @@ import {
 import { DAY_OPTIONS, type DayOption, WINDOW_FLOOR, clampDays } from "@/utils/dayRange";
 import { resolvedEndDate } from "@/utils/padTrailing";
 import { MONTH_OPTIONS, type MonthOption } from "@/utils/monthRange";
+import { WEEK_OPTIONS, type WeekOption } from "@/utils/weekRange";
 import { useStatScope, type StatScope } from "@/hooks/useStatScope";
 import {
   DEFAULT_CUMULATIVE, DEFAULT_DAYS, DEFAULT_SCOPE, DEFAULT_Y_MODE,
@@ -32,7 +34,7 @@ import {
 } from "@/home/charts";
 import { qualitativeColor } from "@/chartColors";
 import { findMetric, setSbsUnitNames, type CombinedMetric, type MetricSource } from "@/utils/combinedMetrics";
-import { fetchCombinedDaily, fetchCombinedMonthly, fetchCombinedGlobalStats, statsForMetric, type GlobalStatsBundle } from "@/utils/combinedQuery";
+import { fetchCombinedDaily, fetchCombinedMonthly, fetchCombinedWeekly, fetchCombinedGlobalStats, statsForMetric, type GlobalStatsBundle } from "@/utils/combinedQuery";
 import type { DailyDataPoint, SbsUnit, Site } from "@/types";
 import { sbsUnitLabel } from "@/types";
 import { FONTS } from "@/theme";
@@ -157,9 +159,10 @@ export function HomePage({ onGoToSite }: Props) {
   }, [allMetrics]);
 
   // Mount every source's hook (Rules of Hooks); each is inert until selected.
-  // The five daily-capable sources are usable in both granularities; SBU Alfa
-  // and Mediazona are monthly-only and only appear in the picker when a
-  // chart's granularity is "monthly".
+  // The daily-capable sources are usable at every grain (weekly sums their
+  // days); SBU Alfa, Rubikon and Mediazona are monthly-only, and the
+  // President's tally is weekly-only — each appears in the picker only for a
+  // chart of a grain it has.
   const sbs = useDatabaseSbs({ enabled: needed.has("sbs") });
   // Loaded when a unit metric is already selected (a shared link, a saved
   // chart) OR once someone opens a metric picker and could pick one. Not on
@@ -192,6 +195,7 @@ export function HomePage({ onGoToSite }: Props) {
   // Mediazona's two MetricSource values share one underlying DB hook.
   const mediazonaNeeded = needed.has("mediazona-roles") || needed.has("mediazona-estimate");
   const mediazona = useDatabaseMediazona({ enabled: mediazonaNeeded });
+  const zelensky = useDatabaseZelenskyWeekly({ enabled: needed.has("zelensky") });
 
   // Per-chart series data — each chart has its own window so they can't share
   // a fetch. Keyed by chartUid → { metricId → points[] }.
@@ -232,6 +236,7 @@ export function HomePage({ onGoToSite }: Props) {
       [needed.has("sbu-alfa"), sbuAlfa.loadState],
       [needed.has("rubikon"), rubikon.loadState],
       [mediazonaNeeded, mediazona.loadState],
+      [needed.has("zelensky"), zelensky.loadState],
     ].every(([n, s]) => !n || s === "ready");
     if (!allReady) return;
 
@@ -274,6 +279,20 @@ export function HomePage({ onGoToSite }: Props) {
             mediazonaRoles: needed.has("mediazona-roles") ? mediazona.queryRolesMonthly : undefined,
             mediazonaEstimate: needed.has("mediazona-estimate") ? mediazona.queryEstimateMonthly : undefined,
           })
+        : c.granularity === "weekly"
+        // Weekly: the daily queries over the window's whole weeks, summed per
+        // week, plus the natively weekly tally. weeklyWindow floors the start
+        // at the invasion's week, so "all" and a hand-edited `w99999` are
+        // bounded the same way a daily window is.
+        ? fetchCombinedWeekly(metrics, c.window as WeekOption, selectedDate || undefined, {
+            sbs: needed.has("sbs") ? sbs.queryDaily : undefined,
+            gsua: needed.has("gsua") ? gsua.queryDaily : undefined,
+            ruLosses: needed.has("ru-losses") ? ruLosses.queryDaily : undefined,
+            uaLosses: needed.has("ua-losses") ? uaLosses.queryDaily : undefined,
+            ruMod: needed.has("ru-airdef-mod") ? ruMod.queryDaily : undefined,
+            ruAir: needed.has("ru-air-attacks") ? ruAir.queryDaily : undefined,
+            zelensky: needed.has("zelensky") ? zelensky.queryWeeks : undefined,
+          })
         // Bounded like every other window here: a hand-edited `d99999` in the
         // spec, or a Date moved back toward the floor, must not fetch and pad
         // a chart for every day before the war.
@@ -302,7 +321,8 @@ export function HomePage({ onGoToSite }: Props) {
       ruAir.loadState, ruAir.queryDaily, ruAir.queryMonthly,
       sbuAlfa.loadState, sbuAlfa.queryCounters,
       rubikon.loadState, rubikon.queryCounters,
-      mediazona.loadState, mediazona.queryRolesMonthly, mediazona.queryEstimateMonthly]);
+      mediazona.loadState, mediazona.queryRolesMonthly, mediazona.queryEstimateMonthly,
+      zelensky.loadState, zelensky.queryWeeks]);
 
   // Refetch whole-dataset stats whenever the set of needed sources grows. The
   // bundle is keyed by source so adding a metric from an already-loaded source
@@ -322,6 +342,7 @@ export function HomePage({ onGoToSite }: Props) {
       "rubikon": false,
       "mediazona-roles": false,
       "mediazona-estimate": false,
+      "zelensky": false,
     };
     const readySet = new Set<MetricSource>(
       (Object.keys(sourcesReady) as MetricSource[]).filter((k) => sourcesReady[k]),
@@ -497,7 +518,7 @@ export function HomePage({ onGoToSite }: Props) {
             Combined Charts
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6, maxWidth: 720 }}>
-            {showingDefaults && "Currently showing the default charts. "}Pick any combination of metrics across the data sources. Each chart has its own granularity and time window — switch a chart to Monthly to compare longer trends.
+            {showingDefaults && "Currently showing the default charts. "}Pick any combination of metrics across the data sources. Each chart has its own granularity and time window — switch a chart to Weekly to set daily sources against weekly-only ones (the President's strike tally), or to Monthly for longer trends.
           </p>
         </div>
 
@@ -655,8 +676,9 @@ function ChartCard({
   );
   const series: LineSeries[] = useMemo(() => {
     return metrics.map((m, i) => {
-      // Whole-dataset stats only matter for daily charts (the monthly bundle
-      // isn't fetched). For monthly the chart falls back to window stats.
+      // Whole-dataset stats only matter for daily charts: the bundle is
+      // computed over single days, so its MAX/MED would be the wrong scale for
+      // a week or a month. Those charts fall back to window stats.
       const stat = config.granularity === "daily" ? statsForMetric(m, globalStats) : null;
       const raw = seriesData[m.id] ?? [];
       const data = cumulative ? toCumulative(raw) : raw;
@@ -697,9 +719,17 @@ function ChartCard({
           className="ctl"
         >
           <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
         </select>
-        {config.granularity === "monthly" ? (
+        {config.granularity === "weekly" ? (
+          <MonthRangeSelect
+            options={WEEK_OPTIONS}
+            value={config.window as WeekOption}
+            onChange={(w) => onWindowChange(w)}
+            unit="weeks"
+          />
+        ) : config.granularity === "monthly" ? (
           <MonthRangeSelect
             options={MONTH_OPTIONS}
             value={config.window as MonthOption}

@@ -11,6 +11,7 @@
 import type { YAxisMode, ChartGranularity } from "@/components/DailyMultiLineChart";
 import { type DayOption } from "@/utils/dayRange";
 import { type MonthOption } from "@/utils/monthRange";
+import { DEFAULT_WEEKS, type WeekOption } from "@/utils/weekRange";
 import { type StatScope } from "@/hooks/useStatScope";
 import { findMetric } from "@/utils/combinedMetrics";
 import defaultChartsConfig from "@/data/defaultCharts.json";
@@ -26,7 +27,7 @@ export interface DefaultChartSpec {
   metricIds: string[];
   // Resolved opening window; falls back to the global per-granularity default
   // when the JSON entry omits `window`.
-  window: DayOption | MonthOption;
+  window: DayOption | WeekOption | MonthOption;
   // Per-chart Y-axis override. undefined = inherit the global yMode.
   yMode?: YAxisMode;
 }
@@ -40,8 +41,8 @@ interface DefaultsFile {
     name: string;
     granularity?: ChartGranularity;
     metricIds: string[];
-    // Optional per-chart opening window: a positive integer, or "all" (monthly
-    // only). Omit to inherit the global `days` / `months` default.
+    // Optional per-chart opening window: a positive integer, or "all" (weekly
+    // and monthly only). Omit to inherit the global default for the grain.
     window?: number | "all";
     // Optional per-chart Y-axis transform. Omit to inherit the global `yMode`.
     yMode?: YAxisMode;
@@ -61,11 +62,11 @@ export const DEFAULT_CUMULATIVE = RAW_DEFAULTS.cumulative === true;
 function resolveSpecWindow(
   g: ChartGranularity,
   raw: number | "all" | undefined,
-): DayOption | MonthOption {
-  if (g === "monthly") {
+): DayOption | WeekOption | MonthOption {
+  if (g === "monthly" || g === "weekly") {
     if (raw === "all") return "all";
-    if (typeof raw === "number" && raw > 0) return raw as MonthOption;
-    return DEFAULT_MONTHS;
+    if (typeof raw === "number" && raw > 0) return raw;
+    return g === "monthly" ? DEFAULT_MONTHS : DEFAULT_WEEKS;
   }
   if (typeof raw === "number" && raw > 0) return raw as DayOption;
   return DEFAULT_DAYS;
@@ -75,8 +76,12 @@ function resolveSpecYMode(raw: unknown): YAxisMode | undefined {
   return raw === "linear" || raw === "log" || raw === "normalized" ? raw : undefined;
 }
 
+function asGranularity(raw: unknown): ChartGranularity {
+  return raw === "monthly" || raw === "weekly" ? raw : "daily";
+}
+
 export const DEFAULT_CHART_SPECS: DefaultChartSpec[] = RAW_DEFAULTS.charts.map((c) => {
-  const granularity: ChartGranularity = c.granularity === "monthly" ? "monthly" : "daily";
+  const granularity = asGranularity(c.granularity);
   const window = resolveSpecWindow(granularity, c.window);
   return {
     name: c.name,
@@ -91,9 +96,9 @@ export const DEFAULT_CHART_SPECS: DefaultChartSpec[] = RAW_DEFAULTS.charts.map((
 });
 
 // Per-chart defaults derive from the global JSON. New chart defaults to daily
-// + DEFAULT_DAYS; switching to monthly resets to DEFAULT_MONTHS.
-export function defaultWindowFor(g: ChartGranularity): DayOption | MonthOption {
-  return g === "monthly" ? DEFAULT_MONTHS : DEFAULT_DAYS;
+// + DEFAULT_DAYS; switching grain resets to that grain's default window.
+export function defaultWindowFor(g: ChartGranularity): DayOption | WeekOption | MonthOption {
+  return g === "monthly" ? DEFAULT_MONTHS : g === "weekly" ? DEFAULT_WEEKS : DEFAULT_DAYS;
 }
 
 // Metrics are assigned colors by selection order within a chart, from the app's
@@ -104,11 +109,11 @@ export interface ChartConfig {
   uid: string;
   name: string;
   granularity: ChartGranularity;
-  // Days when granularity === "daily"; months ("all" sentinel allowed) when
-  // granularity === "monthly". Single field so it round-trips through URL +
-  // JSON without a discriminated-union dance — the granularity is the
-  // discriminator.
-  window: DayOption | MonthOption;
+  // Days when granularity === "daily"; weeks or months ("all" sentinel
+  // allowed) when it is "weekly" / "monthly". Single field so it round-trips
+  // through URL + JSON without a discriminated-union dance — the granularity
+  // is the discriminator.
+  window: DayOption | WeekOption | MonthOption;
   // Per-chart Y-axis transform. undefined = inherit the homepage-global yMode.
   yMode?: YAxisMode;
   metricIds: string[];
@@ -136,14 +141,17 @@ export function makeDefaultCharts(): ChartConfig[] {
 //   URLSearchParams handles the rest (spaces → +, unicode, etc) with its own
 //   single encode/decode pass, so encoding the full name with encodeURIComponent
 //   on top would double-encode common chars (e.g. " " → "%20" → "%2520").
-// - spec is `d<days>` or `m<months|all>` (e.g. `d60`, `m12`, `mall`), with an
+// - spec is `d<days>`, `w<weeks|all>` or `m<months|all>` (e.g. `d60`, `w26`,
+//   `m12`, `mall`), with an
 //   optional `y<lin|log|norm>` suffix carrying a per-chart Y-axis override
 //   (e.g. `d60ylog`, `mallynorm`). No suffix = inherit the global yMode.
 // - when omitted (legacy URL shape), defaults to daily + DEFAULT_DAYS
 // - spec is also omitted on output when the chart matches the per-granularity
 //   default window AND has no yMode override (so default URLs stay short)
 // - empty metric list is allowed (chart created but no metrics yet)
-const SPEC_RE = /^([dm])(\d+|all)(?:y(lin|log|norm))?$/;
+const SPEC_RE = /^([dwm])(\d+|all)(?:y(lin|log|norm))?$/;
+const GRAIN_OF: Record<string, ChartGranularity> = { d: "daily", w: "weekly", m: "monthly" };
+const LETTER_OF: Record<ChartGranularity, string> = { daily: "d", weekly: "w", monthly: "m" };
 const YMODE_TO_TOKEN: Record<YAxisMode, string> = { linear: "lin", log: "log", normalized: "norm" };
 const TOKEN_TO_YMODE: Record<string, YAxisMode> = { lin: "linear", log: "log", norm: "normalized" };
 
@@ -162,13 +170,13 @@ export function decodeChartName(s: string): string {
 
 export function parseSpec(
   raw: string,
-): { granularity: ChartGranularity; window: DayOption | MonthOption; yMode?: YAxisMode } | null {
+): { granularity: ChartGranularity; window: DayOption | WeekOption | MonthOption; yMode?: YAxisMode } | null {
   const m = SPEC_RE.exec(raw);
   if (!m) return null;
-  const granularity: ChartGranularity = m[1] === "m" ? "monthly" : "daily";
+  const granularity = GRAIN_OF[m[1]];
   const yMode = m[3] ? TOKEN_TO_YMODE[m[3]] : undefined;
   if (m[2] === "all") {
-    return granularity === "monthly" ? { granularity, window: "all", yMode } : null;
+    return granularity === "daily" ? null : { granularity, window: "all", yMode };
   }
   const n = Number(m[2]);
   if (!Number.isInteger(n) || n <= 0) return null;
@@ -176,9 +184,7 @@ export function parseSpec(
 }
 
 export function formatSpec(c: ChartConfig): string {
-  const base = c.granularity === "monthly"
-    ? `m${c.window === "all" ? "all" : c.window}`
-    : `d${c.window}`;
+  const base = `${LETTER_OF[c.granularity]}${c.window}`;
   return c.yMode ? `${base}y${YMODE_TO_TOKEN[c.yMode]}` : base;
 }
 
@@ -206,7 +212,7 @@ export function parseCharts(raw: string | null, legacyMetrics: string[]): ChartC
     const parts = chunk.split(":");
     const nameRaw = parts[0] ?? "";
     let granularity: ChartGranularity = "daily";
-    let windowVal: DayOption | MonthOption = DEFAULT_DAYS;
+    let windowVal: DayOption | WeekOption | MonthOption = DEFAULT_DAYS;
     let yModeVal: YAxisMode | undefined;
     let idsRaw = "";
     if (parts.length >= 3) {

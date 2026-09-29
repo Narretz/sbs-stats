@@ -5,12 +5,15 @@ interface Props {
   options: readonly MonthOption[];
   value: MonthOption;
   onChange: (months: MonthOption) => void;
+  // What one step of the window is. The homepage's weekly grain reuses this
+  // control as-is — same preset + custom + "all" shape — counting weeks.
+  unit?: "months" | "weeks";
 }
 
 // Sibling of DayRangeSelect for the homepage's per-chart monthly mode. Same
 // shape (preset select + custom number input + "all" sentinel) so the layout
 // inside a chart card doesn't shift when you toggle granularity.
-export function MonthRangeSelect({ options, value, onChange }: Props) {
+export function MonthRangeSelect({ options, value, onChange, unit = "months" }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(value === "all" ? "" : String(value));
 
@@ -42,10 +45,12 @@ export function MonthRangeSelect({ options, value, onChange }: Props) {
   };
   useEffect(() => cancelDebounce, []);
 
+  const perYear = unit === "weeks" ? 52 : 12;
+  const short = unit === "weeks" ? "wk" : "mo";
   const labelFor = (opt: MonthOption): string => {
     if (opt === "all") return "All";
-    if (opt >= 12 && opt % 12 === 0) return `${opt / 12}y`;
-    return `${opt} mo`;
+    if (opt >= perYear && opt % perYear === 0) return `${opt / perYear}y`;
+    return `${opt} ${short}`;
   };
 
   const selectValue: string = isPreset ? String(value) : "custom";
@@ -69,7 +74,7 @@ export function MonthRangeSelect({ options, value, onChange }: Props) {
         {options.map((opt) => (
           <option key={String(opt)} value={String(opt)}>{labelFor(opt)}</option>
         ))}
-        {!isPreset && <option value="custom">{value} mo</option>}
+        {!isPreset && <option value="custom">{value} {short}</option>}
       </select>
       </div>
       <input
@@ -93,7 +98,7 @@ export function MonthRangeSelect({ options, value, onChange }: Props) {
         }}
         className="ctl"
         style={{ width: 52, cursor: "text" }}
-        aria-label="Time window (months)"
+        aria-label={`Time window (${unit})`}
       />
     </div>
   );

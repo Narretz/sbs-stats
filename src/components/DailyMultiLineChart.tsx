@@ -12,6 +12,7 @@ import { chartAnchor } from "@/utils/chartAnchor";
 import { usePinnedChart } from "@/components/usePinnedChart";
 import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 import { chartColors } from "@/chartColors";
+import { formatWeekRange } from "@/utils/weekRange";
 
 export interface LineSeries {
   key: string;
@@ -27,7 +28,7 @@ export interface LineSeries {
 
 export type YAxisMode = "linear" | "log" | "normalized";
 
-export type ChartGranularity = "daily" | "monthly";
+export type ChartGranularity = "daily" | "weekly" | "monthly";
 
 interface Props {
   title: string;
@@ -42,9 +43,10 @@ interface Props {
   // informative). The transform itself happens upstream; this only affects
   // how the legend is rendered.
   cumulative?: boolean;
-  // X-axis grain. "daily" expects YYYY-MM-DD `date` keys; "monthly" expects
-  // YYYY-MM and switches the tick + tooltip formatters accordingly. Both modes
-  // share the same `DailyDataPoint` shape — only the date string differs.
+  // X-axis grain. "daily" expects YYYY-MM-DD `date` keys; "weekly" expects the
+  // week's Monday as YYYY-MM-DD; "monthly" expects YYYY-MM. Each switches the
+  // tick + tooltip formatters. All share the same `DailyDataPoint` shape —
+  // only the date string differs.
   granularity?: ChartGranularity;
 }
 
@@ -64,6 +66,17 @@ function formatMonthTick(v: string): string {
   const [y, m] = v.split("-");
   const idx = Number(m) - 1;
   return `${MONTH_NAMES[idx] ?? m} ${y.slice(2)}`;
+}
+// A weekly tick is the Monday with a two-digit year — weekly windows run to
+// years, where the daily "DD/MM" would repeat.
+function formatWeekTick(v: string): string {
+  const [y, m, d] = v.split("-");
+  return `${d}/${m}/${y.slice(2)}`;
+}
+function formatX(granularity: ChartGranularity, v: string): string {
+  if (granularity === "monthly") return formatMonth(v);
+  if (granularity === "weekly") return formatWeekRange(v);
+  return formatDate(v);
 }
 function median(vals: number[]): number {
   const s = [...vals].sort((a, b) => a - b);
@@ -121,7 +134,7 @@ function describeMulti({
     </>
   ) : null;
   return {
-    header: granularity === "monthly" ? formatMonth(row.date) : formatDate(row.date),
+    header: formatX(granularity, row.date),
     rows,
     footer,
     minWidth: 170,
@@ -202,7 +215,7 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
     data: rows,
     xOf: (r) => r.date,
     describe: (row) => describeMulti({ row, t, series, granularity }),
-    formatLabel: (r) => granularity === "monthly" ? formatMonth(r.date) : formatDate(r.date),
+    formatLabel: (r) => formatX(granularity, r.date),
     cursor: { stroke: t.textMuted, strokeWidth: 1 },
   });
 
@@ -238,7 +251,12 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
               tickLine={false} axisLine={false}
               tickFormatter={granularity === "monthly"
                 ? formatMonthTick
-                : (v: string) => { const p = v.slice(5).split("-"); return `${p[1]}/${p[0]}`; }}
+                : granularity === "weekly"
+                  ? formatWeekTick
+                  : (v: string) => { const p = v.slice(5).split("-"); return `${p[1]}/${p[0]}`; }}
+              // A 2-year weekly window is ~100 ticks of "DD/MM/YY"; recharts'
+              // default gap (5px) lets them run together at this width.
+              minTickGap={granularity === "weekly" ? 24 : undefined}
             />
             {yMode === "log" ? (
               <YAxis

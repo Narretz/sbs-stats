@@ -18,6 +18,8 @@ import {
 // that rule needs both sides to be real to mean anything.
 const DAILY_ID = "sbs.personnel_killed";
 const MONTHLY_ONLY_ID = "rubikon.personnel";
+// The President's tally, which exists only per week.
+const WEEKLY_ONLY_ID = "zelensky.bombs";
 
 // Everything about a chart except its uid, which is a render key counted up
 // per call and deliberately not part of the URL — comparing whole objects
@@ -65,6 +67,8 @@ describe("parseSpec", () => {
     expect(parseSpec("m12")).toEqual({ granularity: "monthly", window: 12, yMode: undefined });
     expect(parseSpec("d60ylog")).toEqual({ granularity: "daily", window: 60, yMode: "log" });
     expect(parseSpec("mallynorm")).toEqual({ granularity: "monthly", window: "all", yMode: "normalized" });
+    expect(parseSpec("w26")).toEqual({ granularity: "weekly", window: 26, yMode: undefined });
+    expect(parseSpec("wallylog")).toEqual({ granularity: "weekly", window: "all", yMode: "log" });
   });
 
   it("rejects `all` on a daily chart", () => {
@@ -75,7 +79,8 @@ describe("parseSpec", () => {
   it("rejects windows that are not a positive count", () => {
     expect(parseSpec("d0")).toBeNull();
     expect(parseSpec("d-5")).toBeNull();
-    expect(parseSpec("w30")).toBeNull();
+    expect(parseSpec("w0")).toBeNull();
+    expect(parseSpec("x30")).toBeNull();
     expect(parseSpec("d30yrainbow")).toBeNull();
     expect(parseSpec("")).toBeNull();
   });
@@ -93,6 +98,7 @@ describe("parseCharts", () => {
     const charts = [
       chart({ name: "First", window: 45 }),
       chart({ name: "Second", granularity: "monthly", window: "all", yMode: "log", metricIds: [MONTHLY_ONLY_ID] }),
+      chart({ name: "Third", granularity: "weekly", window: 52, metricIds: [DAILY_ID, WEEKLY_ONLY_ID] }),
     ];
     const back = parseCharts(serializeCharts(charts), []);
     expect(back.map((c) => [c.name, c.granularity, c.window, c.yMode, c.metricIds]))
@@ -111,6 +117,11 @@ describe("parseCharts", () => {
     expect(daily[0].metricIds).toEqual([DAILY_ID]);
     const monthly = parseCharts(`X:m12:${DAILY_ID},${MONTHLY_ONLY_ID}`, []);
     expect(monthly[0].metricIds).toEqual([DAILY_ID, MONTHLY_ONLY_ID]);
+    // Weekly takes the daily sources (summed into weeks) and the weekly-only
+    // tally, but not a monthly-only recap — and the tally is weekly-only.
+    const weekly = parseCharts(`X:w26:${DAILY_ID},${MONTHLY_ONLY_ID},${WEEKLY_ONLY_ID}`, []);
+    expect(weekly[0].metricIds).toEqual([DAILY_ID, WEEKLY_ONLY_ID]);
+    expect(parseCharts(`X:d30:${WEEKLY_ONLY_ID}`, [])[0].metricIds).toEqual([]);
   });
 
   it("drops ids the registry does not know", () => {
@@ -156,6 +167,7 @@ describe("serializeCharts", () => {
   it("writes the spec as soon as anything is off-default", () => {
     expect(serializeCharts([chart({ name: "A", window: 45 })])).toBe(`A:d45:${DAILY_ID}`);
     expect(serializeCharts([chart({ name: "A", yMode: "log" })])).toBe(`A:d${DEFAULT_DAYS}ylog:${DAILY_ID}`);
+    expect(serializeCharts([chart({ name: "A", granularity: "weekly", window: "all" })])).toBe(`A:wall:${DAILY_ID}`);
   });
 });
 

@@ -21,6 +21,7 @@ import {
   RUBIKON_CATEGORY_KEYS,
   RUBIKON_CATEGORY_LABELS,
   TARGET_IDS,
+  ZELENSKY_CATEGORIES,
   TARGET_LABELS,
 } from "@/types";
 
@@ -43,7 +44,11 @@ export type MetricSource =
   // update (so it lags ~6 months). They're split here so the MetricPicker
   // groups them separately, making the gap visible in the UI.
   | "mediazona-roles"
-  | "mediazona-estimate";
+  | "mediazona-estimate"
+  // The President's weekly strike tally — the one source that exists ONLY
+  // per week, and the reason the weekly grain exists: it can only be set
+  // against the daily sources once they are summed into the same weeks.
+  | "zelensky";
 
 // Which underlying DB hook each source talks to. Two MetricSource values can
 // share the same hook (Mediazona today). Used by HomePage to decide which
@@ -58,7 +63,8 @@ export type MetricDbHook =
   | "ru-air-attacks"
   | "sbu-alfa"
   | "rubikon"
-  | "mediazona";
+  | "mediazona"
+  | "zelensky";
 
 export const SOURCE_TO_DB: Record<MetricSource, MetricDbHook> = {
   "sbs": "sbs",
@@ -72,9 +78,15 @@ export const SOURCE_TO_DB: Record<MetricSource, MetricDbHook> = {
   "rubikon": "rubikon",
   "mediazona-roles": "mediazona",
   "mediazona-estimate": "mediazona",
+  "zelensky": "zelensky",
 };
 
-export type MetricView = "daily" | "monthly";
+// Weekly is not a query of its own for the daily sources: their daily rows are
+// summed into Monday–Sunday weeks (utils/weekRange.ts aggregateWeekly), which
+// is how every one of them except SBS builds its monthly figure too. SBS's
+// monthly figure is the API's own period total, so an SBS week summed from
+// days need not reconcile exactly with SBS's month.
+export type MetricView = "daily" | "weekly" | "monthly";
 
 export interface CombinedMetric {
   id: string;
@@ -105,6 +117,7 @@ export const SOURCE_LABELS: Record<MetricSource, string> = {
   "rubikon": "Rubikon",
   "mediazona-roles": "Mediazona — Roles",
   "mediazona-estimate": "Mediazona — Estimate",
+  "zelensky": "President UA",
 };
 
 function make(
@@ -125,8 +138,10 @@ function make(
   };
 }
 
-const BOTH: MetricView[] = ["daily", "monthly"];
+// Every daily source can be shown at all three grains.
+const ALL_GRAINS: MetricView[] = ["daily", "weekly", "monthly"];
 const MONTHLY_ONLY: MetricView[] = ["monthly"];
+const WEEKLY_ONLY: MetricView[] = ["weekly"];
 
 // SBS — 7 base metrics + 16 targets × {hit, destroyed}.
 const SBS_BASE: Array<[string, string]> = [
@@ -140,37 +155,37 @@ const SBS_BASE: Array<[string, string]> = [
 ];
 
 const SBS_METRICS: CombinedMetric[] = [
-  ...SBS_BASE.map(([k, l]) => make("sbs", k, l, BOTH)),
+  ...SBS_BASE.map(([k, l]) => make("sbs", k, l, ALL_GRAINS)),
   ...TARGET_IDS.flatMap((id) => [
-    make("sbs", `hit_${id}`, `${TARGET_LABELS[id]} — Hit`, BOTH),
-    make("sbs", `destroyed_${id}`, `${TARGET_LABELS[id]} — Destroyed`, BOTH),
+    make("sbs", `hit_${id}`, `${TARGET_LABELS[id]} — Hit`, ALL_GRAINS),
+    make("sbs", `destroyed_${id}`, `${TARGET_LABELS[id]} — Destroyed`, ALL_GRAINS),
   ]),
 ];
 
 const GSUA_METRICS: CombinedMetric[] = GSUA_METRIC_KEYS.map((k) =>
-  make("gsua", k, GSUA_METRIC_LABELS[k], BOTH),
+  make("gsua", k, GSUA_METRIC_LABELS[k], ALL_GRAINS),
 );
 
 const RU_LOSSES_METRICS: CombinedMetric[] = RU_LOSSES_METRIC_KEYS.map((k) =>
-  make("ru-losses", k, RU_LOSSES_METRIC_LABELS[k], BOTH),
+  make("ru-losses", k, RU_LOSSES_METRIC_LABELS[k], ALL_GRAINS),
 );
 
 // UA losses (ualosses.org) — daily-capable like RU losses.
 const UA_LOSSES_METRICS: CombinedMetric[] = UA_LOSSES_METRIC_KEYS.map((k) =>
-  make("ua-losses", k, UA_LOSSES_METRIC_LABELS[k], BOTH),
+  make("ua-losses", k, UA_LOSSES_METRIC_LABELS[k], ALL_GRAINS),
 );
 
 // RU MoD has no exported label map — three fixed metrics.
 const RU_MOD_METRICS: CombinedMetric[] = [
-  make("ru-airdef-mod", "total", "UAVs Downed (Total)", BOTH),
-  make("ru-airdef-mod", "night", "UAVs Downed (Overnight)", BOTH),
-  make("ru-airdef-mod", "day", "UAVs Downed (Daytime)", BOTH),
+  make("ru-airdef-mod", "total", "UAVs Downed (Total)", ALL_GRAINS),
+  make("ru-airdef-mod", "night", "UAVs Downed (Overnight)", ALL_GRAINS),
+  make("ru-airdef-mod", "day", "UAVs Downed (Daytime)", ALL_GRAINS),
 ];
 
 // RU air attacks: 4 categories × {launched, intercepted}.
 const RU_AIR_ATTACKS_METRICS: CombinedMetric[] = ATTACK_CATEGORY_KEYS.flatMap((c) => [
-  make("ru-air-attacks", `${c}_launched`, `${ATTACK_CATEGORY_LABELS[c]} — Launched`, BOTH),
-  make("ru-air-attacks", `${c}_intercepted`, `${ATTACK_CATEGORY_LABELS[c]} — Intercepted`, BOTH),
+  make("ru-air-attacks", `${c}_launched`, `${ATTACK_CATEGORY_LABELS[c]} — Launched`, ALL_GRAINS),
+  make("ru-air-attacks", `${c}_intercepted`, `${ATTACK_CATEGORY_LABELS[c]} — Intercepted`, ALL_GRAINS),
 ]);
 
 // SBU Alfa — monthly only.
@@ -197,6 +212,18 @@ const MEDIAZONA_METRICS: CombinedMetric[] = [
   make("mediazona-estimate", "estimate", "Personnel Probate-Registry Deaths Estimate", MONTHLY_ONLY),
 ];
 
+// President's weekly tally — weekly only. The figures are rounded and hedged
+// in the source («понад 3170»); the label says so, since the combined chart has
+// no room for the per-week hedge the dataset page's tooltip shows.
+const ZELENSKY_METRIC_LABELS: Record<(typeof ZELENSKY_CATEGORIES)[number], string> = {
+  drones: "Strike Drones Launched (rounded)",
+  bombs: "Guided Aerial Bombs (KAB) (rounded)",
+  missiles: "Missiles Launched (rounded)",
+};
+const ZELENSKY_METRICS: CombinedMetric[] = ZELENSKY_CATEGORIES.map((k) =>
+  make("zelensky", k, ZELENSKY_METRIC_LABELS[k], WEEKLY_ONLY),
+);
+
 export const COMBINED_METRICS: CombinedMetric[] = [
   ...SBS_METRICS,
   ...GSUA_METRICS,
@@ -207,6 +234,7 @@ export const COMBINED_METRICS: CombinedMetric[] = [
   ...SBU_ALFA_METRICS,
   ...RUBIKON_METRICS,
   ...MEDIAZONA_METRICS,
+  ...ZELENSKY_METRICS,
 ];
 
 // ─── SBS sub-units ───────────────────────────────────────────────────────────
@@ -246,7 +274,7 @@ export function sbsUnitMetricId(unit: string, key: string): string {
 // Monthly only for now. The per-unit daily series exists in the DB but starts
 // from the day the ingest was switched on (only `daily`/`prev_day` are
 // addressable — there is no backfill), so charting it today would draw a
-// near-empty line. Flip to BOTH once it has history.
+// near-empty line. Flip to ALL_GRAINS once it has history.
 export function makeUnitMetric(unit: string, key: string): CombinedMetric | undefined {
   const metricLabel = UNIT_METRIC_LABELS.get(key);
   if (!metricLabel) return undefined;
