@@ -165,6 +165,14 @@ GitHub Actions in `.github/workflows/`:
   days come as ONE 48-hour post (`window_days = 2`) and must never be plotted
   as a single day. Publishes a stripped `cit-civilians.app.db` alongside the
   authoritative DB (see below); the site is `cit-civilians`, daily + monthly.
+- `update-zelensky-weekly-db.yml` — the President's weekly strike tally
+  ([`scripts/zelensky_weekly/`](scripts/zelensky_weekly/README.md)): strike
+  drones / guided bombs (КАБ) / missiles per week, read from one sentence of the
+  Sunday post on the public `t.me/s/V_Zelenskiy_official` preview. Sat/Sun/Mon
+  20:00 **Europe/Kyiv**; the incremental walk stops at the previous tally, so
+  most runs upload nothing. The week is **derived** from when the post went up
+  (the post only ever says "this/last week"), and every figure carries its
+  hedge (`bound`: понад / майже / близько). No site yet.
 - `python-tests.yml` — the ingest test suites, when a `.py` under `scripts/`
   changed. On push to any branch AND on `pull_request` (plus
   `workflow_dispatch`): a push matches its paths against that push alone, so a

@@ -114,6 +114,19 @@ upload) if < 365 days parsed or fewer dates than already stored.
   so a cross-midnight overnight strike counts to its start date). Build aborts (skipping upload) on a
   row-count floor (1000), a shrinking key set, or CSV header drift.
 
+### President's weekly strike tally (@V_Zelenskiy_official) — LIVE — ✅ INGESTED (DB + CI; no site yet)
+- https://t.me/s/V_Zelenskiy_official. Most Sundays one sentence gives the week's Russian
+  **strike drones / guided aerial bombs (КАБ) / missiles**, rounded and hedged («понад 3170 ударних
+  дронів, більше 1300 КАБів і 74 ракети»).
+- **Why:** the only regular official **КАБ** figure (piterfm/Air Force above has no bombs), plus a
+  second official drone/missile figure to set against the Air Force's daily counts summed by week.
+- Weekly from mid-2024 (one March 2024 outlier), early posts often bombs only. **Gaps Apr–Sep 2025**
+  where the tally went **month-to-date** («Лише від початку квітня …») — not parsed (a candidate
+  second series).
+- **Pipeline:** scripts/zelensky_weekly/ingest.py → zelensky-weekly.db → R2
+  (update-zelensky-weekly-db.yml, Sat/Sun/Mon 20:00 Kyiv). The week is DERIVED from the post
+  time (the post never dates it) — see the README.
+
 ### Stale / not machine-readable
 - CSIS Russian Firepower Strike Tracker — STALE (only through 2024-11-30); just re-publishes piterfm.
 - ISIS Shahed analysis — current but PDF only (cross-validation, not ingestion).
