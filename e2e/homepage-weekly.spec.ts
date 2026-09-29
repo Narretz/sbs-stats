@@ -49,4 +49,25 @@ test.describe("Homepage weekly grain", () => {
     // The daily source is kept — it has a weekly view.
     await expect(page.getByText(AIR).first()).toBeVisible();
   });
+
+  test("the tally is pickable in the metric picker on a weekly chart, and only there", async ({ page }) => {
+    // Through the picker itself, not a URL: the tally was once in the metric
+    // registry but missing from the picker's group list, which a URL-built
+    // chart can't notice.
+    await page.goto(`/?charts=${encodeURIComponent("A:w26:")}`);
+    await page.locator('button:has-text("metric")').first().click();
+    const popover = page.locator("[popover]").first();
+    await popover.waitFor({ state: "visible" });
+    const tally = popover.locator("label", { hasText: "Strike Drones Launched (rounded)" });
+    await expect(tally).toBeVisible();
+    await tally.locator('input[type="checkbox"]').check();
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => decodeURIComponent(location.search).includes("zelensky.drones"));
+
+    // A daily chart can't render a weekly-only series, so doesn't offer it.
+    await page.goto(`/?charts=${encodeURIComponent("B:d30:")}`);
+    await page.locator('button:has-text("metric")').first().click();
+    await page.locator("[popover]").first().waitFor({ state: "visible" });
+    await expect(page.locator("[popover]").first().locator("label", { hasText: "Strike Drones Launched (rounded)" })).toHaveCount(0);
+  });
 });

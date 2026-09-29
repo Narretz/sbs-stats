@@ -25,18 +25,28 @@ interface Props {
   onOpen?: () => void;
 }
 
-const SOURCE_ORDER: MetricSource[] = [
+// The picker renders a source's group ONLY if it is listed here, so a source
+// left out is silently unpickable (the President's tally was, at first — it
+// was reachable only through a URL). Hence the exhaustiveness check below.
+// `sbs-unit` is the one deliberate omission: it renders as its own group
+// under SBS (see unitGroup).
+type ListedSource = Exclude<MetricSource, "sbs-unit">;
+const SOURCE_ORDER = [
   "sbs",
   "gsua",
   "ru-losses",
   "ua-losses",
   "ru-airdef-mod",
   "ru-air-attacks",
+  "zelensky",
   "sbu-alfa",
   "rubikon",
   "mediazona-roles",
   "mediazona-estimate",
-];
+] as const satisfies readonly ListedSource[];
+// Fails to compile, naming the source, when a MetricSource is missing above.
+const ALL_SOURCES_LISTED: Exclude<ListedSource, (typeof SOURCE_ORDER)[number]> extends never ? true : never = true;
+void ALL_SOURCES_LISTED;
 
 // Minimal local types — React 18's JSX types don't include the popover
 // attributes yet. We pass them through as data on the element and rely on the
