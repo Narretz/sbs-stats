@@ -1,5 +1,5 @@
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, type DotProps,
+  ComposedChart, Line, Bar, Cell, XAxis, YAxis, CartesianGrid, ResponsiveContainer, type DotProps,
 } from "recharts";
 import { useMemo } from "react";
 import type { DailyDataPoint } from "@/types";
@@ -30,6 +30,9 @@ export type YAxisMode = "linear" | "log" | "normalized";
 
 export type ChartGranularity = "daily" | "weekly" | "monthly";
 
+// How each series is drawn: a line, or a bar (grouped side by side per period).
+export type ChartStyle = "line" | "bar";
+
 interface Props {
   title: string;
   series: LineSeries[];
@@ -48,7 +51,14 @@ interface Props {
   // tick + tooltip formatters. All share the same `DailyDataPoint` shape —
   // only the date string differs.
   granularity?: ChartGranularity;
+  // "bar" draws each series as bars, grouped side by side per period — reads
+  // better than lines at the weekly and monthly grains, where each point is a
+  // total for a span rather than a sample on a trend. Default "line".
+  style?: ChartStyle;
 }
+
+// Cap so a short window (3 months, 4 weeks) doesn't draw slabs.
+const MAX_BAR_SIZE = 36;
 
 type Row = { date: string; is_today: boolean } & Record<string, number | null | string | boolean>;
 
@@ -141,7 +151,9 @@ function describeMulti({
   };
 }
 
-export function DailyMultiLineChart({ title, series, wfull = false, yMode = "linear", cumulative = false, granularity = "daily" }: Props) {
+export function DailyMultiLineChart({
+  title, series, wfull = false, yMode = "linear", cumulative = false, granularity = "daily", style = "line",
+}: Props) {
   const { theme: t } = useTheme();
   const anchor = chartAnchor(title);
   const { scope } = useStatScope();
@@ -244,7 +256,7 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
       </div>
       <LazyChartArea height={220}>
         <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={rows} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
+          <ComposedChart data={rows} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} barGap={1} {...pin.chartProps}>
             <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
             <XAxis dataKey="date"
               tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
@@ -283,7 +295,26 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
               />
             )}
             {pin.tooltip}
-            {series.map((s) => (
+            {series.map((s) => style === "bar" ? (
+              // The line's dot markers, carried over to the bar itself: a
+              // caveat note (e.g. a week summed from missing days) gets the
+              // dashed outline MonthlyBarChart uses, and the period still in
+              // progress is drawn faded rather than with a bigger dot.
+              <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color}
+                maxBarSize={MAX_BAR_SIZE} isAnimationActive={false}>
+                {rows.map((r) => {
+                  const noted = !!r[`${s.key}__note`];
+                  return (
+                    <Cell key={r.date}
+                      fillOpacity={r.is_today ? 0.4 : 0.85}
+                      stroke={noted ? chartColors(t).noteText : undefined}
+                      strokeWidth={noted ? 1.5 : undefined}
+                      strokeDasharray={noted ? "3 2" : undefined}
+                    />
+                  );
+                })}
+              </Bar>
+            ) : (
               <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2}
                 dot={({ key, ...props }) => <Dot key={key} {...props} color={s.color} bg={t.surface} noteKey={`${s.key}__note`} noteColor={chartColors(t).noteText} />}
                 activeDot={{ r: 5, fill: s.color }} connectNulls={yMode === "log"} isAnimationActive={false}
@@ -292,7 +323,7 @@ export function DailyMultiLineChart({ title, series, wfull = false, yMode = "lin
             {/* Painted last so it reads as a crosshair over the series,
                 not a stub buried under a bar. */}
             {pin.cursor}
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </LazyChartArea>
       {pin.sheet}

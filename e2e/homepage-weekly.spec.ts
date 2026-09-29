@@ -70,4 +70,22 @@ test.describe("Homepage weekly grain", () => {
     await page.locator("[popover]").first().waitFor({ state: "visible" });
     await expect(page.locator("[popover]").first().locator("label", { hasText: "Strike Drones Launched (rounded)" })).toHaveCount(0);
   });
+
+  test("a chart switched to Bars draws bars and keeps the choice in the URL", async ({ page }) => {
+    const charts = `W:w4:zelensky.drones`;
+    await page.goto(`/?charts=${encodeURIComponent(charts)}&date=2026-01-25`);
+    await expect(page.getByText(TALLY).first()).toBeVisible();
+    const chartSvg = card(page).locator("svg.recharts-surface").first();
+    await expect(chartSvg.locator(".recharts-bar-rectangle")).toHaveCount(0);
+
+    await page.locator('select[title="Draw this chart\'s series as lines or as bars"]').first().selectOption("bar");
+    await page.waitForFunction(() => decodeURIComponent(location.search).includes("W:w4b:"));
+    // Two of the fixture's four weeks carry a drone figure.
+    await expect(chartSvg.locator(".recharts-bar-rectangle path")).toHaveCount(2);
+
+    // …and a reload restores it from the URL.
+    await page.reload();
+    await expect(card(page).locator("svg.recharts-surface").first().locator(".recharts-bar-rectangle path")).toHaveCount(2);
+  });
 });
+

@@ -8,7 +8,7 @@
 // and malformed-input cases that are impractical to reach through a browser.
 // HomePage keeps the parts that genuinely touch the URL (reading
 // `window.location`, writing history entries).
-import type { YAxisMode, ChartGranularity } from "@/components/DailyMultiLineChart";
+import type { YAxisMode, ChartGranularity, ChartStyle } from "@/components/DailyMultiLineChart";
 import { type DayOption } from "@/utils/dayRange";
 import { type MonthOption } from "@/utils/monthRange";
 import { DEFAULT_WEEKS, type WeekOption } from "@/utils/weekRange";
@@ -30,6 +30,8 @@ export interface DefaultChartSpec {
   window: DayOption | WeekOption | MonthOption;
   // Per-chart Y-axis override. undefined = inherit the global yMode.
   yMode?: YAxisMode;
+  // "bar" draws grouped bars; undefined = lines.
+  style?: ChartStyle;
 }
 interface DefaultsFile {
   days?: number;
@@ -46,6 +48,8 @@ interface DefaultsFile {
     window?: number | "all";
     // Optional per-chart Y-axis transform. Omit to inherit the global `yMode`.
     yMode?: YAxisMode;
+    // Optional "bar" to draw the chart as grouped bars. Omit for lines.
+    style?: ChartStyle;
   }>;
 }
 const RAW_DEFAULTS = defaultChartsConfig as DefaultsFile;
@@ -92,6 +96,7 @@ export const DEFAULT_CHART_SPECS: DefaultChartSpec[] = RAW_DEFAULTS.charts.map((
     }),
     window,
     yMode: resolveSpecYMode(c.yMode),
+    style: c.style === "bar" ? "bar" : undefined,
   };
 });
 
@@ -116,6 +121,9 @@ export interface ChartConfig {
   window: DayOption | WeekOption | MonthOption;
   // Per-chart Y-axis transform. undefined = inherit the homepage-global yMode.
   yMode?: YAxisMode;
+  // "bar" draws grouped bars instead of lines. undefined = lines, the
+  // original look, so every link from before the option keeps it.
+  style?: ChartStyle;
   metricIds: string[];
 }
 
@@ -130,6 +138,7 @@ export function makeDefaultCharts(): ChartConfig[] {
     granularity: c.granularity,
     window: c.window,
     yMode: c.yMode,
+    style: c.style,
     metricIds: [...c.metricIds],
   }));
 }
@@ -142,14 +151,15 @@ export function makeDefaultCharts(): ChartConfig[] {
 //   single encode/decode pass, so encoding the full name with encodeURIComponent
 //   on top would double-encode common chars (e.g. " " → "%20" → "%2520").
 // - spec is `d<days>`, `w<weeks|all>` or `m<months|all>` (e.g. `d60`, `w26`,
-//   `m12`, `mall`), with an
-//   optional `y<lin|log|norm>` suffix carrying a per-chart Y-axis override
-//   (e.g. `d60ylog`, `mallynorm`). No suffix = inherit the global yMode.
+//   `m12`, `mall`), with an optional `y<lin|log|norm>` suffix carrying a
+//   per-chart Y-axis override (e.g. `d60ylog`, `mallynorm`; none = inherit
+//   the global yMode), then an optional `b` drawing the chart as bars (`w26b`,
+//   `m12ylogb`; none = lines).
 // - when omitted (legacy URL shape), defaults to daily + DEFAULT_DAYS
 // - spec is also omitted on output when the chart matches the per-granularity
 //   default window AND has no yMode override (so default URLs stay short)
 // - empty metric list is allowed (chart created but no metrics yet)
-const SPEC_RE = /^([dwm])(\d+|all)(?:y(lin|log|norm))?$/;
+const SPEC_RE = /^([dwm])(\d+|all)(?:y(lin|log|norm))?(b)?$/;
 const GRAIN_OF: Record<string, ChartGranularity> = { d: "daily", w: "weekly", m: "monthly" };
 const LETTER_OF: Record<ChartGranularity, string> = { daily: "d", weekly: "w", monthly: "m" };
 const YMODE_TO_TOKEN: Record<YAxisMode, string> = { linear: "lin", log: "log", normalized: "norm" };
@@ -170,22 +180,31 @@ export function decodeChartName(s: string): string {
 
 export function parseSpec(
   raw: string,
-): { granularity: ChartGranularity; window: DayOption | WeekOption | MonthOption; yMode?: YAxisMode } | null {
+): {
+  granularity: ChartGranularity;
+  window: DayOption | WeekOption | MonthOption;
+  yMode?: YAxisMode;
+  style?: ChartStyle;
+} | null {
   const m = SPEC_RE.exec(raw);
   if (!m) return null;
   const granularity = GRAIN_OF[m[1]];
   const yMode = m[3] ? TOKEN_TO_YMODE[m[3]] : undefined;
+  // Only set when present, so a line chart's parse result carries no `style`
+  // key at all — the same shape it had before bars existed.
+  const style: { style?: ChartStyle } = m[4] ? { style: "bar" } : {};
   if (m[2] === "all") {
-    return granularity === "daily" ? null : { granularity, window: "all", yMode };
+    return granularity === "daily" ? null : { granularity, window: "all", yMode, ...style };
   }
   const n = Number(m[2]);
   if (!Number.isInteger(n) || n <= 0) return null;
-  return { granularity, window: n, yMode };
+  return { granularity, window: n, yMode, ...style };
 }
 
 export function formatSpec(c: ChartConfig): string {
   const base = `${LETTER_OF[c.granularity]}${c.window}`;
-  return c.yMode ? `${base}y${YMODE_TO_TOKEN[c.yMode]}` : base;
+  const withY = c.yMode ? `${base}y${YMODE_TO_TOKEN[c.yMode]}` : base;
+  return c.style === "bar" ? `${withY}b` : withY;
 }
 
 export function parseCharts(raw: string | null, legacyMetrics: string[]): ChartConfig[] {
@@ -214,6 +233,7 @@ export function parseCharts(raw: string | null, legacyMetrics: string[]): ChartC
     let granularity: ChartGranularity = "daily";
     let windowVal: DayOption | WeekOption | MonthOption = DEFAULT_DAYS;
     let yModeVal: YAxisMode | undefined;
+    let styleVal: ChartStyle | undefined;
     let idsRaw = "";
     if (parts.length >= 3) {
       const maybeSpec = parseSpec(parts[1]);
@@ -221,6 +241,7 @@ export function parseCharts(raw: string | null, legacyMetrics: string[]): ChartC
         granularity = maybeSpec.granularity;
         windowVal = maybeSpec.window;
         yModeVal = maybeSpec.yMode;
+        styleVal = maybeSpec.style;
         idsRaw = parts.slice(2).join(":");
       } else {
         // Spec field doesn't match — treat as legacy (entire tail is IDs).
@@ -244,7 +265,11 @@ export function parseCharts(raw: string | null, legacyMetrics: string[]): ChartC
         const m = findMetric(s);
         return m != null && m.views.includes(granularity);
       });
-    return { uid: newChartUid(), name, granularity, window: windowVal, yMode: yModeVal, metricIds };
+    return {
+      uid: newChartUid(), name, granularity, window: windowVal, yMode: yModeVal,
+      ...(styleVal ? { style: styleVal } : {}),
+      metricIds,
+    };
   });
 }
 
@@ -253,7 +278,8 @@ export function serializeCharts(charts: ChartConfig[]): string {
     .map((c) => {
       // Omit the spec when this chart is daily + default-window + no yMode
       // override — matches the legacy shape so unchanged links stay unchanged.
-      const isLegacyShape = c.granularity === "daily" && c.window === DEFAULT_DAYS && c.yMode == null;
+      const isLegacyShape = c.granularity === "daily" && c.window === DEFAULT_DAYS
+        && c.yMode == null && c.style == null;
       const head = isLegacyShape
         ? encodeChartName(c.name)
         : `${encodeChartName(c.name)}:${formatSpec(c)}`;
@@ -274,6 +300,7 @@ export function isDefaultCharts(charts: ChartConfig[]): boolean {
     if (c.granularity !== spec.granularity) return false;
     if (c.window !== spec.window) return false;
     if ((c.yMode ?? undefined) !== (spec.yMode ?? undefined)) return false;
+    if ((c.style ?? undefined) !== (spec.style ?? undefined)) return false;
     if (c.metricIds.length !== spec.metricIds.length) return false;
     for (let j = 0; j < spec.metricIds.length; j++) {
       if (c.metricIds[j] !== spec.metricIds[j]) return false;

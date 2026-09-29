@@ -71,6 +71,13 @@ describe("parseSpec", () => {
     expect(parseSpec("wallylog")).toEqual({ granularity: "weekly", window: "all", yMode: "log" });
   });
 
+  it("reads the bar suffix, after any Y override", () => {
+    expect(parseSpec("w26b")).toEqual({ granularity: "weekly", window: 26, yMode: undefined, style: "bar" });
+    expect(parseSpec("m12ylogb")).toEqual({ granularity: "monthly", window: 12, yMode: "log", style: "bar" });
+    // Order is fixed: the Y override comes first.
+    expect(parseSpec("m12bylog")).toBeNull();
+  });
+
   it("rejects `all` on a daily chart", () => {
     // The sentinel means "every month there is" — a day axis has no such thing.
     expect(parseSpec("dall")).toBeNull();
@@ -99,10 +106,11 @@ describe("parseCharts", () => {
       chart({ name: "First", window: 45 }),
       chart({ name: "Second", granularity: "monthly", window: "all", yMode: "log", metricIds: [MONTHLY_ONLY_ID] }),
       chart({ name: "Third", granularity: "weekly", window: 52, metricIds: [DAILY_ID, WEEKLY_ONLY_ID] }),
+      chart({ name: "Fourth", granularity: "weekly", window: 26, yMode: "normalized", style: "bar" }),
     ];
     const back = parseCharts(serializeCharts(charts), []);
-    expect(back.map((c) => [c.name, c.granularity, c.window, c.yMode, c.metricIds]))
-      .toEqual(charts.map((c) => [c.name, c.granularity, c.window, c.yMode, c.metricIds]));
+    expect(back.map((c) => [c.name, c.granularity, c.window, c.yMode, c.style, c.metricIds]))
+      .toEqual(charts.map((c) => [c.name, c.granularity, c.window, c.yMode, c.style, c.metricIds]));
   });
 
   it("round-trips a name carrying both delimiters", () => {
@@ -168,6 +176,8 @@ describe("serializeCharts", () => {
     expect(serializeCharts([chart({ name: "A", window: 45 })])).toBe(`A:d45:${DAILY_ID}`);
     expect(serializeCharts([chart({ name: "A", yMode: "log" })])).toBe(`A:d${DEFAULT_DAYS}ylog:${DAILY_ID}`);
     expect(serializeCharts([chart({ name: "A", granularity: "weekly", window: "all" })])).toBe(`A:wall:${DAILY_ID}`);
+    // Bars alone are off-default too — a daily bar chart must keep its spec.
+    expect(serializeCharts([chart({ name: "A", style: "bar" })])).toBe(`A:d${DEFAULT_DAYS}b:${DAILY_ID}`);
   });
 });
 

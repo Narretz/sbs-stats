@@ -12,7 +12,7 @@ import { useDatabaseSbuAlfa } from "@/hooks/useDatabaseSbuAlfa";
 import { useDatabaseRubikon } from "@/hooks/useDatabaseRubikon";
 import { useDatabaseMediazona } from "@/hooks/useDatabaseMediazona";
 import { useDatabaseZelenskyWeekly } from "@/hooks/useDatabaseZelenskyWeekly";
-import { DailyMultiLineChart, type LineSeries, type YAxisMode, type ChartGranularity } from "@/components/DailyMultiLineChart";
+import { DailyMultiLineChart, type LineSeries, type YAxisMode, type ChartGranularity, type ChartStyle } from "@/components/DailyMultiLineChart";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { MonthRangeSelect } from "@/components/MonthRangeSelect";
 import { DateNav } from "@/components/DateNav";
@@ -570,6 +570,7 @@ export function HomePage({ onGoToSite }: Props) {
               onGranularityChange={(g) => changeChartGranularity(c.uid, g)}
               onWindowChange={(w) => updateChart(c.uid, { window: w })}
               onYModeChange={(y) => updateChart(c.uid, { yMode: y })}
+              onStyleChange={(st) => updateChart(c.uid, { style: st })}
               onRemove={() => removeChart(c.uid)}
             />
           ))}
@@ -607,6 +608,8 @@ interface ChartCardProps {
   onGranularityChange: (g: ChartGranularity) => void;
   onWindowChange: (w: DayOption | MonthOption) => void;
   onYModeChange: (y: YAxisMode | undefined) => void;
+  // undefined = lines (the default, kept out of the URL).
+  onStyleChange: (s: ChartStyle | undefined) => void;
   onRemove: () => void;
 }
 
@@ -630,7 +633,7 @@ function toCumulative(points: DailyDataPoint[]): DailyDataPoint[] {
 function ChartCard({
   config, isOnlyChart, indexLabel, yMode, cumulative, seriesData, globalStats, sbsUnits, endDate,
   onPickerOpen,
-  onRename, onMetricsChange, onGranularityChange, onWindowChange, onYModeChange, onRemove,
+  onRename, onMetricsChange, onGranularityChange, onWindowChange, onYModeChange, onStyleChange, onRemove,
 }: ChartCardProps) {
   const { theme: t } = useTheme();
   // Per-chart override wins over the homepage-global yMode.
@@ -758,6 +761,15 @@ function ChartCard({
           <option value="log">Y: log</option>
           <option value="normalized">Y: normalized</option>
         </select>
+        <select
+          value={config.style ?? "line"}
+          onChange={(e) => onStyleChange(e.target.value === "bar" ? "bar" : undefined)}
+          title="Draw this chart's series as lines or as bars"
+          className="ctl"
+        >
+          <option value="line">Lines</option>
+          <option value="bar">Bars</option>
+        </select>
         <MetricPicker
           selected={config.metricIds}
           onChange={onMetricsChange}
@@ -805,6 +817,7 @@ function ChartCard({
           yMode={effectiveYMode}
           cumulative={cumulative}
           granularity={config.granularity}
+          style={config.style ?? "line"}
         />
       )}
     </div>
