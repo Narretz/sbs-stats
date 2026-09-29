@@ -37,6 +37,15 @@ interface Props<TData extends { date: string }> {
   describe?: (row: TData) => TooltipDescriptor | null;
   // Human label for the pinned sheet's header. Defaults to the raw date.
   formatLabel?: (row: TData) => ReactNode;
+  // X-axis tick text. Defaults to "YYYY/MM"; a weekly series passes its own,
+  // since sliced to the month every week of a month would read the same.
+  tickFormatter?: (date: string) => string;
+  // Explicit x values to label (all of them — no thinning). For a long axis
+  // whose automatic thinning still collides, e.g. ~130 weekly bars.
+  ticks?: string[];
+  // Show the hover card over an empty (null) bar too — for series whose gaps
+  // mean something the tooltip explains. See usePinnedChart.
+  showEmptyWrapper?: boolean;
   // Optional extra content rendered between the title/legend and the chart.
   // Used to show MAX/MED/TOTAL stat labels in the same row-style as
   // DailyLineChart, kept opt-in so consumers without window stats don't pay.
@@ -45,8 +54,10 @@ interface Props<TData extends { date: string }> {
   children: ReactNode;
 }
 
+const monthTick = (v: string) => v.slice(0, 7).replace("-", "/");
+
 export function MonthlyChartCard<TData extends { date: string }>({
-  title, data, legend, wfull, describe, formatLabel, subheader, children,
+  title, data, legend, wfull, describe, formatLabel, tickFormatter = monthTick, ticks, showEmptyWrapper, subheader, children,
 }: Props<TData>) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
@@ -59,6 +70,7 @@ export function MonthlyChartCard<TData extends { date: string }>({
     describe: describe ?? (() => null),
     formatLabel,
     periodOf: (d) => d.date.slice(0, 7),
+    showEmptyWrapper,
   });
 
   return (
@@ -89,7 +101,9 @@ export function MonthlyChartCard<TData extends { date: string }>({
               dataKey="date"
               tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
               tickLine={false} axisLine={false}
-              tickFormatter={(v: string) => v.slice(0, 7).replace("-", "/")}
+              tickFormatter={tickFormatter}
+              ticks={ticks}
+              interval={ticks ? 0 : undefined}
             />
             <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
             {describe && pin.tooltip}

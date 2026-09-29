@@ -114,7 +114,7 @@ upload) if < 365 days parsed or fewer dates than already stored.
   so a cross-midnight overnight strike counts to its start date). Build aborts (skipping upload) on a
   row-count floor (1000), a shrinking key set, or CSV header drift.
 
-### President's weekly strike tally (@V_Zelenskiy_official) — LIVE — ✅ INGESTED (DB + CI; no site yet)
+### President's weekly strike tally (@V_Zelenskiy_official) — LIVE — ✅ INTEGRATED (site "zelensky-weekly", weekly page)
 - https://t.me/s/V_Zelenskiy_official. Most Sundays one sentence gives the week's Russian
   **strike drones / guided aerial bombs (КАБ) / missiles**, rounded and hedged («понад 3170 ударних
   дронів, більше 1300 КАБів і 74 ракети»).

@@ -20,6 +20,7 @@ via sql.js / sql.js-httpvfs.
 | RU RUBIKON — MONTHLY RECAP | `rubikon` | Центр «Рубикон» (RU UAV unit) monthly Telegram recap | [`scripts/rubikon/`](scripts/rubikon/README.md) → `rubikon.db` |
 | RU DEATHS — MEDIAZONA | `mediazona` | Mediazona + Meduza confirmed named deaths + probate-registry estimate (CSV exports) | [`scripts/mediazona/`](scripts/mediazona/README.md) → `mediazona.db` |
 | UA+RU CIVILIAN CASUALTIES — CIT | `cit-civilians` | Conflict Intelligence Team daily 20:00–20:00 MSK casualty summaries (Telegram) | [`scripts/cit_civilians/`](scripts/cit_civilians/README.md) → `cit-civilians.db` |
+| RU WEEKLY STRIKES — PRESIDENT UA | `zelensky-weekly` | President of Ukraine's weekly strike tally (Telegram): drones / guided bombs (KAB) / missiles | [`scripts/zelensky_weekly/`](scripts/zelensky_weekly/README.md) → `zelensky-weekly.db` |
 
 [`DATASETS.md`](DATASETS.md) tracks source research, recency, and candidate
 datasets for future views.
@@ -172,7 +173,8 @@ GitHub Actions in `.github/workflows/`:
   20:00 **Europe/Kyiv**; the incremental walk stops at the previous tally, so
   most runs upload nothing. The week is **derived** from when the post went up
   (the post only ever says "this/last week"), and every figure carries its
-  hedge (`bound`: понад / майже / близько). No site yet.
+  hedge (`bound`: понад / майже / близько). Site `zelensky-weekly`, one
+  weekly page; the tooltip quotes each figure as hedged in the post.
 - `python-tests.yml` — the ingest test suites, when a `.py` under `scripts/`
   changed. On push to any branch AND on `pull_request` (plus
   `workflow_dispatch`): a push matches its paths against that push alone, so a

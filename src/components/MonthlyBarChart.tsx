@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Bar, Cell, ReferenceLine } from "recharts";
 import type { ModelBreakdownEntry, MonthlyDataPoint } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -27,6 +27,16 @@ interface Props {
    *  breakdown rows (`interc` on RU air-attacks). See TooltipTable for
    *  the two-column derivation. */
   subsetLabel?: string;
+  /** X-axis tick text (default "YYYY/MM") — see MonthlyChartCard. */
+  formatTick?: (date: string) => string;
+  /** Explicit x values to label — see MonthlyChartCard `ticks`. */
+  xTicks?: string[];
+  /** Tooltip / pinned-sheet header for one bar. Defaults to the raw date;
+   *  the weekly tally names the week and quotes the source's hedge here. */
+  formatHeader?: (d: MonthlyDataPoint) => ReactNode;
+  /** Keep the tooltip over a null bar, for series whose gaps the header
+   *  explains (the weekly tally's "no tally posted"). */
+  explainGaps?: boolean;
 }
 
 // Cap bar width so a chart with few data points (e.g. SBU Alfa's 3 months)
@@ -36,7 +46,7 @@ const MAX_BAR_SIZE = 70;
 
 export function MonthlyBarChart({
   title, data, wfull, breakdownByMonth,
-  globalMax, globalMedian, globalTotal, subsetLabel,
+  globalMax, globalMedian, globalTotal, subsetLabel, formatTick, xTicks, formatHeader, explainGaps,
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
@@ -70,7 +80,7 @@ export function MonthlyBarChart({
           Day {d.projection_day} of {d.projection_days_in_month}
         </span>
       </div>
-    ) : d.date;
+    ) : (formatHeader ? formatHeader(d) : d.date);
     const rows: TooltipTableRow[] = [
       { label: "Actual", color: c.barDefault, value: d.value ?? null, projected: d.projected ?? null },
       ...breakdownToRows(entries, t.textMuted, { totalForShare: d.value ?? undefined }),
@@ -92,7 +102,10 @@ export function MonthlyBarChart({
   );
 
   return (
-    <MonthlyChartCard title={title} data={data} wfull={wfull} describe={describe} subheader={statsHeader}>
+    <MonthlyChartCard
+      title={title} data={data} wfull={wfull} describe={describe} subheader={statsHeader}
+      tickFormatter={formatTick} ticks={xTicks} formatLabel={formatHeader} showEmptyWrapper={explainGaps}
+    >
       <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
         label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
       <Bar dataKey="value" stackId="a" name="Actual" maxBarSize={MAX_BAR_SIZE}>

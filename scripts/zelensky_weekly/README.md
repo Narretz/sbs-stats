@@ -1,8 +1,9 @@
 # President's weekly strike tally (`scripts/zelensky_weekly/`)
 
 Builds **`data/zelensky-weekly.db`** from the President of Ukraine's Telegram
-channel, [@V_Zelenskiy_official](https://t.me/V_Zelenskiy_official). Not yet a
-site; the frontend is still to be decided.
+channel, [@V_Zelenskiy_official](https://t.me/V_Zelenskiy_official), read by
+the site `zelensky-weekly` (`src/pages/ZelenskyWeeklyPage.tsx`) off the
+`weekly` view.
 
 Most Sundays one post closes with the week's Russian strikes on Ukraine:
 

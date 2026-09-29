@@ -212,7 +212,7 @@ export interface Metric {
 
 // ─── App state ────────────────────────────────────────────────────────────────
 export type Page = "daily" | "hourly" | "monthly" | "weekly";
-export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa" | "rubikon" | "mediazona" | "ru-missiles-hur" | "ua-losses" | "cit-civilians";
+export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa" | "rubikon" | "mediazona" | "ru-missiles-hur" | "ua-losses" | "cit-civilians" | "zelensky-weekly";
 export const SITE_LABELS: Record<Site, string> = {
   sbs: "UA SBS STATISTICS - SBS",
   "ru-attacks-gsua": "COMBAT STATS - GSUA",
@@ -225,6 +225,7 @@ export const SITE_LABELS: Record<Site, string> = {
   "ru-missiles-hur": "RU MISSILE STOCKS - HUR",
   "ua-losses": "UA PERSONNEL LOSSES - UALOSSES.ORG",
   "cit-civilians": "CIVILIAN CASUALTIES - CIT",
+  "zelensky-weekly": "RU WEEKLY STRIKES - PRESIDENT UA",
 };
 export const SITES: Site[] = Object.keys(SITE_LABELS) as Site[];
 export type LoadState = "idle" | "loading" | "ready" | "error";
@@ -738,6 +739,35 @@ export interface SbuAlfaCounterRow {
   published_at: string | null;
   derived: boolean;
   derivation_note?: string;
+}
+
+// ─── President's weekly strike tally (zelensky-weekly.db) ─────────────────────
+// One row of the DB's `weekly` view (scripts/zelensky_weekly/schema.sql): the
+// tally chosen for an ISO week. A weapon the post didn't name is null. Every
+// figure is rounded by the source; `*_bound` is its hedge.
+export const ZELENSKY_CATEGORIES = ["drones", "bombs", "missiles"] as const;
+export type ZelenskyCategory = (typeof ZELENSKY_CATEGORIES)[number];
+export type ZelenskyBound = "exact" | "at_least" | "at_most" | "approx";
+
+export const ZELENSKY_CATEGORY_LABELS: Record<ZelenskyCategory, string> = {
+  drones: "RU Strike Drones Launched",
+  bombs: "RU Guided Aerial Bombs (KAB)",
+  missiles: "RU Missiles Launched",
+};
+
+export interface ZelenskyWeekRow {
+  period: string;        // ISO week, 'YYYY-Www'
+  period_start: string;  // Monday
+  period_end: string;    // Sunday
+  post_id: number;
+  posted_at: string;     // UTC ISO8601
+  url: string;
+  drones: number | null;
+  drones_bound: ZelenskyBound | null;
+  bombs: number | null;
+  bombs_bound: ZelenskyBound | null;
+  missiles: number | null;
+  missiles_bound: ZelenskyBound | null;
 }
 
 // ─── Rubikon (Telegram monthly recap → rubikon.db) ────────────────────────────

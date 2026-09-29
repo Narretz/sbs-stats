@@ -11,6 +11,7 @@ import {
   UaLossesDatabaseProvider, useUaLossesDatabaseContext,
   MediazonaDatabaseProvider, useMediazonaDatabaseContext,
   CitCiviliansDatabaseProvider, useCitCiviliansDatabaseContext,
+  ZelenskyWeeklyDatabaseProvider, useZelenskyWeeklyDatabaseContext,
 } from "@/context/databases";
 import { SbsProviders } from "@/sites/SbsProviders";
 import { SbsDailyPage } from "@/pages/SbsDailyPage";
@@ -32,6 +33,7 @@ import { MediazonaWeeklyPage } from "@/pages/MediazonaWeeklyPage";
 import { MediazonaMonthlyPage } from "@/pages/MediazonaMonthlyPage";
 import { CitCiviliansDailyPage } from "@/pages/CitCiviliansDailyPage";
 import { CitCiviliansMonthlyPage } from "@/pages/CitCiviliansMonthlyPage";
+import { ZelenskyWeeklyPage } from "@/pages/ZelenskyWeeklyPage";
 
 // Every dataset page takes the same prop.
 type PageComponent = ComponentType<{ refreshKey: number }>;
@@ -116,5 +118,10 @@ export const SITE_REGISTRY: Partial<Record<Site, SiteConfig>> = {
     provider: CitCiviliansDatabaseProvider,
     useDbContext: useCitCiviliansDatabaseContext,
     pages: { daily: CitCiviliansDailyPage, monthly: CitCiviliansMonthlyPage },
+  },
+  "zelensky-weekly": {
+    provider: ZelenskyWeeklyDatabaseProvider,
+    useDbContext: useZelenskyWeeklyDatabaseContext,
+    pages: { weekly: ZelenskyWeeklyPage },
   },
 };

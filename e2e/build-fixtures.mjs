@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 //   - SBS units → scripts/sbs_units/schema.sql (units, unit_*_stats)
 //   - Rubikon   → scripts/rubikon/schema.sql   (reports, counters)
 //   - GSUA      → scripts/gsua/schema.sql      (posts)
+//   - Zelensky  → scripts/zelensky_weekly/schema.sql (reports, counters)
 //
 // Freshness matters only for the end-of-day projection, which keys off the real
 // "today": so we anchor the synthetic days to the current Kyiv date and stop
@@ -378,6 +379,48 @@ function buildRuAirAttacks(SQL) {
   db.close();
 }
 
+// ── Zelensky weekly tally: reports + counters behind the `weekly` view ───────
+// Three weeks on fixed dates (nothing here keys off "today"): a full tally
+// with a hedged drone count, a week with NO post (must chart as a gap, not a
+// zero), and a single-weapon week (bombs/missiles NULL, not 0).
+export const ZELENSKY_WEEKS = {
+  full: "2026-01-05",
+  none: "2026-01-12",
+  dronesOnly: "2026-01-19",
+};
+
+function buildZelenskyWeekly(SQL) {
+  const db = new SQL.Database();
+  db.run(fs.readFileSync(path.join(ROOT, "scripts/zelensky_weekly/schema.sql"), "utf8"));
+  const insR = db.prepare(
+    `INSERT INTO reports (post_id, scraped_at, posted_at, report_type, lang, week_ref, period,
+                          period_start, period_end, url, tally_text, body_text, text_hash)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
+  );
+  const insC = db.prepare(
+    `INSERT INTO counters (post_id, scraped_at, category, value, bound, qualifier, raw_label)
+     VALUES (?,?,?,?,?,?,?)`
+  );
+  const weeks = [
+    [1, ZELENSKY_WEEKS.full, "2026-W02", "2026-01-11",
+      [["drones", 1000, "at_least", "понад"], ["bombs", 900, "approx", "близько"], ["missiles", 40, "exact", ""]]],
+    [2, ZELENSKY_WEEKS.dronesOnly, "2026-W04", "2026-01-25",
+      [["drones", 1200, "at_most", "майже"]]],
+  ];
+  for (const [postId, monday, period, sunday, counters] of weeks) {
+    insR.run([postId, `${FIXED_TODAY}T00:00:00Z`, `${sunday}T08:00:00Z`, "weekly", "uk", "this",
+      period, monday, sunday, `https://t.me/V_Zelenskiy_official/${postId}`,
+      "synthetic", "synthetic", `hash-${postId}`]);
+    for (const [category, value, bound, qualifier] of counters) {
+      insC.run([postId, `${FIXED_TODAY}T00:00:00Z`, category, value, bound, qualifier, `${qualifier} ${value}`]);
+    }
+  }
+  insR.free();
+  insC.free();
+  fs.writeFileSync(path.join(FIX_DIR, "zelensky-weekly.db"), Buffer.from(db.export()));
+  db.close();
+}
+
 export async function buildFixtures() {
   fs.mkdirSync(FIX_DIR, { recursive: true });
   const SQL = await initSqlJs({ locateFile: (f) => path.join(ROOT, "node_modules/sql.js/dist", f) });
@@ -386,6 +429,7 @@ export async function buildFixtures() {
   buildRubikon(SQL);
   buildGsua(SQL);
   buildRuAirAttacks(SQL);
+  buildZelenskyWeekly(SQL);
 }
 
 // Run the build when invoked directly (`node e2e/build-fixtures.mjs`).
