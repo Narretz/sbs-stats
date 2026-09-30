@@ -174,7 +174,7 @@ function monthlySnapshot(rows: MonthlyRow[], mode: "reported" | "projected"): En
         value: v,
         bound: "approx",
         derived: false,
-        note: `Month-end projection · day ${row.projection_day} of ${row.projection_days_in_month}`,
+        note: `Month-end projection · ${row.projection_day} of ${row.projection_days_in_month} days complete`,
       };
     },
   };

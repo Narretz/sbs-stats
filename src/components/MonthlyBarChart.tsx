@@ -68,7 +68,7 @@ export function MonthlyBarChart({
 
   const describe = (d: MonthlyDataPoint): TooltipDescriptor => {
     const entries = breakdownByMonth?.get(d.date.slice(0, 7)) ?? [];
-    // "Day X of Y" pushed to the right of the header — smaller (fontSize 10)
+    // "X of Y days complete" pushed to the right of the header — smaller (fontSize 10)
     // suffix aligned to the tooltip's trailing edge. See the sibling
     // MonthlyTargetPairChart comment for why width:100% is required (recharts
     // wraps tooltips in a shrink-to-fit container so space-between needs an
@@ -77,7 +77,7 @@ export function MonthlyBarChart({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", width: "100%" }}>
         <span>{d.date}</span>
         <span style={{ fontSize: 10 }}>
-          Day {d.projection_day} of {d.projection_days_in_month}
+          {d.projection_day} of {d.projection_days_in_month} days complete
         </span>
       </div>
     ) : (formatHeader ? formatHeader(d) : d.date);
