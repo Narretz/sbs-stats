@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Page, Site } from "@/types";
-import { SITES } from "@/types";
+import { isSite } from "@/types";
 import { SITE_REGISTRY } from "@/sites/registry";
 
 // HUR missile-stock disclosures: a JSON-backed prototype with its own
@@ -40,7 +40,7 @@ function readUrl(): Route {
   }
   const rawSite = p.get("site");
   if (rawSite === null) return { kind: "home" };
-  const site: Site = (SITES as string[]).includes(rawSite) ? (rawSite as Site) : "sbs";
+  const site: Site = isSite(rawSite) ? rawSite : "sbs";
   const rawPage = p.get("page");
   const pages = pagesFor(site);
   const page: Page = pages.includes(rawPage as Page) ? (rawPage as Page) : pages[0];

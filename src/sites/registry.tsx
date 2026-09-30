@@ -62,8 +62,8 @@ export interface SiteConfig {
 // The single place that wires a DB-backed site into the app: its provider, its
 // consumer hook, and its pages. App.tsx renders any entry through one generic
 // <SiteRoot>, and useAppRoute derives each site's page list from `pages`. Adding
-// a site is one entry here (plus its hook, its page(s), and the Site union +
-// SITE_LABELS in src/types). Sites NOT listed here (the JSON-backed
+// a site is one entry here (plus its hook, its page(s), and its SITES entry in
+// src/types). Sites NOT listed here (the JSON-backed
 // `ru-missiles-hur` prototype) are handled as explicit special cases in App.tsx.
 export const SITE_REGISTRY: Partial<Record<Site, SiteConfig>> = {
   sbs: {

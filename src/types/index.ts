@@ -214,22 +214,30 @@ export interface Metric {
 
 // ─── App state ────────────────────────────────────────────────────────────────
 export type Page = "daily" | "hourly" | "monthly" | "weekly";
-export type Site = "sbs" | "ru-attacks-gsua" | "ru-losses-gsua" | "ru-airdef-mod" | "ru-air-attacks-gsua" | "sbu-alfa" | "rubikon" | "mediazona" | "ru-missiles-hur" | "ua-losses" | "cit-civilians" | "zelensky-weekly";
-export const SITE_LABELS: Record<Site, string> = {
-  sbs: "UA SBS STATISTICS - SBS",
-  "ru-attacks-gsua": "COMBAT STATS - GSUA",
-  "ru-losses-gsua": "RU LOSSES - GSUA",
-  "ru-air-attacks-gsua": "RU MISSILE & UAV ATTACKS - GSUA",
-  "sbu-alfa": "UA SBU ALFA MONTHLY RECAP - SBU",
-  rubikon: "RU RUBIKON MONTHLY RECAP - RUBIKON",
-  "ru-airdef-mod": "UA UAV ATTACKS - RU MoD",
-  mediazona: "RU DEATHS - MEDIAZONA",
-  "ru-missiles-hur": "RU MISSILE STOCKS - HUR",
-  "ua-losses": "UA PERSONNEL LOSSES - UALOSSES.ORG",
-  "cit-civilians": "CIVILIAN CASUALTIES - CIT",
-  "zelensky-weekly": "RU WEEKLY STRIKES - PRESIDENT UA",
-};
-export const SITES: Site[] = Object.keys(SITE_LABELS) as Site[];
+// Every site, in picker order. `tier` groups the picker: the primary datasets
+// are the ones the dashboard is built around, the secondary ones follow below.
+export type SiteTier = "primary" | "secondary";
+export interface SiteInfo {
+  key: string;
+  label: string;
+  tier: SiteTier;
+}
+export const SITES = [
+  { key: "sbs", label: "UA SBS STATISTICS - SBS", tier: "primary" },
+  { key: "ru-attacks-gsua", label: "COMBAT STATS - GSUA", tier: "primary" },
+  { key: "ru-losses-gsua", label: "RU LOSSES - GSUA", tier: "primary" },
+  { key: "ru-air-attacks-gsua", label: "RU MISSILE & UAV ATTACKS - GSUA", tier: "primary" },
+  { key: "ru-airdef-mod", label: "UA UAV ATTACKS - RU MoD", tier: "primary" },
+  { key: "sbu-alfa", label: "UA SBU ALFA MONTHLY RECAP - SBU", tier: "primary" },
+  { key: "rubikon", label: "RU RUBIKON MONTHLY RECAP - RUBIKON", tier: "primary" },
+  { key: "mediazona", label: "RU DEATHS - MEDIAZONA", tier: "primary" },
+  { key: "cit-civilians", label: "CIVILIAN CASUALTIES - CIT", tier: "primary" },
+  { key: "ru-missiles-hur", label: "RU MISSILE STOCKS - HUR", tier: "secondary" },
+  { key: "ua-losses", label: "UA PERSONNEL LOSSES - UALOSSES.ORG", tier: "secondary" },
+  { key: "zelensky-weekly", label: "RU WEEKLY STRIKES - PRESIDENT UA", tier: "secondary" },
+] as const satisfies readonly SiteInfo[];
+export type Site = (typeof SITES)[number]["key"];
+export const isSite = (s: string): s is Site => SITES.some((x) => x.key === s);
 export type LoadState = "idle" | "loading" | "ready" | "error";
 
 // ─── Global stats (max + median + total across all data) ─────────────────────

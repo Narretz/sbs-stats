@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useRoute } from "@/hooks/RouteContext";
 import { FONTS } from "@/theme";
-import { SITES, SITE_LABELS, type Site } from "@/types";
+import { SITES, type Site, type SiteTier } from "@/types";
 
 // The pieces every app header is built from. They live here rather than in
 // SiteHeader because the homepage and the unlisted compare view need the same
@@ -65,6 +65,12 @@ export function Brand({ onHome }: { onHome?: () => void }) {
   );
 }
 
+// The picker's groups, in order; SITES carries each site's tier.
+const SITE_GROUPS: [SiteTier, string][] = [
+  ["primary", "Main Datasets"],
+  ["secondary", "Other Datasets"],
+];
+
 // Site switcher. `value` is the site you are on, or null on views that aren't
 // a site — the homepage and the compare view — where it becomes a "browse by
 // site…" jump menu instead of showing an arbitrary site as if it were current.
@@ -80,8 +86,12 @@ export function SitePicker({
       style={{ maxWidth: "100%" }}
     >
       {value === null && <option value="">browse by site…</option>}
-      {SITES.map((s) => (
-        <option key={s} value={s}>{SITE_LABELS[s]}</option>
+      {SITE_GROUPS.map(([tier, label]) => (
+        <optgroup key={tier} label={label}>
+          {SITES.filter((s) => s.tier === tier).map((s) => (
+            <option key={s.key} value={s.key}>{s.label}</option>
+          ))}
+        </optgroup>
       ))}
     </select>
   );
