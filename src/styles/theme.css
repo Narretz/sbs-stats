@@ -273,10 +273,13 @@ body {
   .page-controls-sticky { position: static; gap: 8px; }
 }
 
-/* Chart-tooltip caveat text. Capped to a readable measure in the floating
-   card; `.chart-sheet-body` overrides the cap to the sheet's full column. */
+/* Chart-tooltip caveat text. Spans whatever width the card's header and table
+   give it, but adds none of its own: `width: 0` takes it out of the card's
+   shrink-to-fit sizing, `min-width: 100%` stretches it back to the card. In the
+   pinned sheet the same rule fills the sheet's column. */
 .tooltip-note {
-  max-width: var(--tooltip-note-max, 280px);
+  width: 0;
+  min-width: 100%;
 }
 
 /* The native <details>/<summary> triangle is too small at the page's 11px
@@ -403,11 +406,6 @@ summary::marker {
   overflow-x: auto;
   padding: 8px var(--sheet-gutter) 10px;
   font-size: 12px;
-  /* A caveat is capped to a readable measure inside a floating tooltip, which
-     is only as wide as its table. The sheet already has a content column of
-     its own, so the note should use it rather than wrap early at a width it
-     inherited from a different container. */
-  --tooltip-note-max: 100%;
 }
 @media (max-width: 560px) {
   .chart-sheet-body {
