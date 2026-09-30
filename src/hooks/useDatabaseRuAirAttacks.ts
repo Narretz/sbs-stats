@@ -17,6 +17,7 @@ import {
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
+import { projectFromDays } from "@/utils/monthProjection";
 
 // Small DB (~2 MB) → fetch whole via sql.js, like the RU-losses loader (no httpvfs).
 const DB_URL =
@@ -452,26 +453,43 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
       }
     }
 
-    const kyivDateStr = getKyivDateString();
-    const currentMonth = kyivDateStr.slice(0, 7);
-    const dayOfMonth = parseInt(kyivDateStr.slice(8, 10), 10);
-    const [y, m] = currentMonth.split("-").map(Number);
-    const daysInMonth = new Date(y, m, 0).getDate();
+    // The month's days, pivoted into the same keys as the monthly row, so the
+    // projection can tell the complete days from today's partial.
+    const today = getKyivDateString();
+    const currentMonth = today.slice(0, 7);
+    const projKeys = ATTACK_CATEGORY_KEYS.flatMap((c) => [c, `${c}_intercepted`] as const);
+    const byDay = new Map<string, Record<string, number>>();
+    for (const r of queryRows<{ date: string; category: string; launched: number | null; destroyed: number | null }>(
+      db,
+      `SELECT date, category, launched, destroyed FROM daily_by_category
+       WHERE date >= '${currentMonth}-01'`,
+    )) {
+      const v = byDay.get(r.date) ?? Object.fromEntries(projKeys.map((k) => [k, 0]));
+      v.all += num(r.launched);
+      v.all_intercepted += num(r.destroyed);
+      if ((ATTACK_DB_CATEGORIES as readonly string[]).includes(r.category)) {
+        v[r.category] += num(r.launched);
+        v[`${r.category}_intercepted`] += num(r.destroyed);
+      }
+      byDay.set(r.date, v);
+    }
+    const projection = projectFromDays(
+      currentMonth,
+      today,
+      [...byDay].map(([date, values]) => ({ date, values })),
+      projKeys,
+    );
 
     return [...byMonth.values()]
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((row) => {
         const isCurrent = row.date === currentMonth;
+        const p = isCurrent ? projection : null;
         row.is_current_month = isCurrent;
-        row.projection_day = isCurrent ? dayOfMonth : null;
-        row.projection_days_in_month = isCurrent ? daysInMonth : null;
-        if (isCurrent && dayOfMonth > 0) {
-          const mult = daysInMonth / dayOfMonth;
-          for (const c of ATTACK_CATEGORY_KEYS) {
-            row[`${c}_projected` as `${AttackCategoryKey}_projected`] = Math.round((row[c] as number) * mult);
-            row[`${c}_intercepted_projected` as `${AttackCategoryKey}_intercepted_projected`] =
-              Math.round((row[`${c}_intercepted`] as number) * mult);
-          }
+        row.projection_day = p?.completedDays ?? null;
+        row.projection_days_in_month = p?.daysInMonth ?? null;
+        for (const [k, v] of Object.entries(p?.projected ?? {})) {
+          row[`${k}_projected` as `${AttackCategoryKey}_projected`] = v;
         }
         return row;
       });
@@ -534,29 +552,38 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
          ORDER BY month ASC`
       );
 
-      const kyivDateStr = getKyivDateString();
-      const currentMonth = kyivDateStr.slice(0, 7);
-      const dayOfMonth = parseInt(kyivDateStr.slice(8, 10), 10);
-      const [y, m] = currentMonth.split("-").map(Number);
-      const daysInMonth = new Date(y, m, 0).getDate();
+      const today = getKyivDateString();
+      const currentMonth = today.slice(0, 7);
+      const projection = projectFromDays(
+        currentMonth,
+        today,
+        queryRows<{ date: string; launched: number | null; intercepted: number | null }>(
+          db,
+          `SELECT date, SUM(launched) AS launched, SUM(destroyed) AS intercepted
+           FROM daily_by_model
+           WHERE model = '${safeModel}' AND date >= '${currentMonth}-01'
+           GROUP BY date`,
+        ).map(({ date, ...values }) => ({ date, values })),
+        ["launched", "intercepted"] as const,
+      );
 
       return raw.map((r) => {
         const month = String(r.month);
         const launched = num(r.launched);
         const intercepted = num(r.destroyed);
         const isCurrent = month === currentMonth;
+        const p = isCurrent ? projection : null;
         const row: RuAirAttacksModelMonthlyRow = {
           date: month,
           is_current_month: isCurrent,
-          projection_day: isCurrent ? dayOfMonth : null,
-          projection_days_in_month: isCurrent ? daysInMonth : null,
+          projection_day: p?.completedDays ?? null,
+          projection_days_in_month: p?.daysInMonth ?? null,
           launched,
           intercepted,
         };
-        if (isCurrent && dayOfMonth > 0) {
-          const mult = daysInMonth / dayOfMonth;
-          row.launched_projected = Math.round(launched * mult);
-          row.intercepted_projected = Math.round(intercepted * mult);
+        if (p) {
+          row.launched_projected = p.projected.launched;
+          row.intercepted_projected = p.projected.intercepted;
         }
         return row;
       });

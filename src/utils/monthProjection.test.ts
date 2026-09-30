@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { projectMonthEnd, type IntradayReading } from "@/utils/monthProjection";
+import { projectFromDays, projectMonthEnd, type IntradayReading } from "@/utils/monthProjection";
 
 type K = "hits";
 
@@ -26,8 +26,8 @@ describe("projectMonthEnd", () => {
   it("counts the snapshot's day, not today's, as the incomplete one", () => {
     // Taken 23:31 Kyiv on the 23rd and still the latest after midnight: the
     // 23rd is the partial day, so there are 22 complete days, not 23.
-    const p = project("2026-09-23T20:31:00Z", 2200 + 900, {
-      "2026-09-23": [["2026-09-23T19:51:00Z", 900]],
+    const p = project("2026-09-23T20:31:00Z", 2200 + 90, {
+      "2026-09-23": [["2026-09-23T19:51:00Z", 90]],
       "2026-09-24": [["2026-09-23T21:51:00Z", 20]],
     })!;
     expect(p.completedDays).toBe(22);
@@ -53,6 +53,50 @@ describe("projectMonthEnd", () => {
 
   it("skips keys the snapshot doesn't carry", () => {
     const p = projectMonthEnd<K>("2026-09", "2026-09-11T09:31:00Z", { hits: null }, () => [], ["hits"])!;
+    expect(p.projected).toEqual({});
+  });
+});
+
+describe("projectFromDays", () => {
+  const day = (date: string, hits: number | null) => ({ date, values: { hits } });
+
+  it("extrapolates the days before today and leaves today's partial out", () => {
+    const days = [day("2026-09-01", 100), day("2026-09-02", 100), day("2026-09-03", 40)];
+    const p = projectFromDays<K>("2026-09", "2026-09-03", days, ["hits"])!;
+    expect(p.completedDays).toBe(2);
+    expect(p.daysInMonth).toBe(30);
+    expect(p.projected.hits).toBe(3000);
+  });
+
+  it("counts up to the latest day with data when the source lags", () => {
+    // Data runs to the 25th; it's the 30th. 25 days complete, not 30 or 29.
+    const days = Array.from({ length: 25 }, (_, i) => day(`2026-09-${String(i + 1).padStart(2, "0")}`, 10));
+    const p = projectFromDays<K>("2026-09", "2026-09-30", days, ["hits"])!;
+    expect(p.completedDays).toBe(25);
+    expect(p.projected.hits).toBe(300);
+  });
+
+  it("reads a missing day inside the span as zero, as the month total does", () => {
+    const days = [day("2026-09-01", 30), day("2026-09-03", 30)];
+    const p = projectFromDays<K>("2026-09", "2026-09-10", days, ["hits"])!;
+    expect(p.completedDays).toBe(3);
+    expect(p.projected.hits).toBe(600);
+  });
+
+  it("never projects below what the month already holds", () => {
+    // Last day, and today's partial is already far above the average.
+    const days = [day("2026-09-01", 10), day("2026-09-02", 500)];
+    const p = projectFromDays<K>("2026-09", "2026-09-02", days, ["hits"])!;
+    expect(p.projected.hits).toBe(510);
+  });
+
+  it("gives no estimate before any day of the month is complete", () => {
+    expect(projectFromDays<K>("2026-09", "2026-09-01", [day("2026-09-01", 50)], ["hits"])).toBeNull();
+    expect(projectFromDays<K>("2026-09", "2026-09-05", [day("2026-08-31", 50)], ["hits"])).toBeNull();
+  });
+
+  it("skips keys no day carries", () => {
+    const p = projectFromDays<K>("2026-09", "2026-09-05", [day("2026-09-01", null)], ["hits"])!;
     expect(p.projected).toEqual({});
   });
 });

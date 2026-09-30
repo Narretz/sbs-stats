@@ -4,6 +4,7 @@ import type { RuAdDailyRow, RuAdGlobalStats, RuAdMonthlyRow, RuAdStat } from "@/
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
+import { projectFromDays } from "@/utils/monthProjection";
 
 // Tiny DB → fetch whole via sql.js, like the SBS / RU-losses loaders (no httpvfs).
 // Dev default is the `.app.db` copy for the same reason as GSUA — see
@@ -177,21 +178,34 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
        ORDER BY month ASC`
     );
 
-    const mskDateStr = getMskDateString();
-    const currentMonth = mskDateStr.slice(0, 7);
-    const dayOfMonth = parseInt(mskDateStr.slice(8, 10), 10);
-    const [y, m] = currentMonth.split("-").map(Number);
-    const daysInMonth = new Date(y, m, 0).getDate();
+    const today = getMskDateString();
+    const currentMonth = today.slice(0, 7);
+    const projection = projectFromDays(
+      currentMonth,
+      today,
+      queryRows<{ report_date: string; total: number; night: number; day: number }>(
+        db,
+        `SELECT report_date,
+                SUM(drones) AS total,
+                SUM(CASE WHEN window_kind = 'night' THEN drones ELSE 0 END) AS night,
+                SUM(CASE WHEN window_kind = 'night' THEN 0 ELSE drones END) AS day
+         FROM ${LATEST_PER_POST}
+         WHERE report_date >= '${currentMonth}-01'
+         GROUP BY report_date`,
+      ).map(({ report_date, ...values }) => ({ date: String(report_date), values })),
+      ["total", "night", "day"] as const,
+    );
 
     return rows.map((r) => {
       const month = String(r.month);
       const isCurrent = month === currentMonth;
+      const p = isCurrent ? projection : null;
       const num = (k: string) => (typeof r[k] === "number" ? (r[k] as number) : 0);
       const out: RuAdMonthlyRow = {
         date: month,
         is_current_month: isCurrent,
-        projection_day: isCurrent ? dayOfMonth : null,
-        projection_days_in_month: isCurrent ? daysInMonth : null,
+        projection_day: p?.completedDays ?? null,
+        projection_days_in_month: p?.daysInMonth ?? null,
         total: num("total"),
         night: num("night"),
         day: num("day"),
@@ -199,11 +213,10 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
         air_target_reports: num("air_target_reports"),
         air_target_drones: num("air_target_drones"),
       };
-      if (isCurrent && dayOfMonth > 0) {
-        const mult = daysInMonth / dayOfMonth;
-        out.total_projected = Math.round(out.total * mult);
-        out.night_projected = Math.round(out.night * mult);
-        out.day_projected = Math.round(out.day * mult);
+      if (p) {
+        out.total_projected = p.projected.total;
+        out.night_projected = p.projected.night;
+        out.day_projected = p.projected.day;
       }
       return out;
     });

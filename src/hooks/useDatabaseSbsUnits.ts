@@ -4,6 +4,7 @@ import type { MonthlyRow, SbsUnit, StatKey } from "@/types";
 import { TARGET_IDS } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
+import { projectMonthEnd, type IntradayReading } from "@/utils/monthProjection";
 
 // Separate DB from sbs.db on purpose: that one is fetched whole by every SBS
 // page including the hourly one, and this is read only by the monthly view
@@ -112,43 +113,60 @@ export function useDatabaseSbsUnits({ enabled = true }: { enabled?: boolean } = 
   const queryMonthly = useCallback((unitSlug: string): MonthlyRow[] => {
     if (!db || !unitSlug) return [];
     const statCols = buildStatColumns(getTableColumns(db, "unit_monthly_stats"));
-    const kyivDateStr = getKyivDateString();
-    const currentMonth = kyivDateStr.slice(0, 7);
-    const dayOfMonth = parseInt(kyivDateStr.slice(8, 10));
-    const [y, m] = currentMonth.split("-").map(Number);
-    const daysInMonth = new Date(y, m, 0).getDate();
+    const currentMonth = getKyivDateString().slice(0, 7);
+    const statKeys: StatKey[] = [
+      ...BASE_COLS,
+      ...TARGET_IDS.flatMap((id) => [`hit_${id}` as StatKey, `destroyed_${id}` as StatKey]),
+    ];
 
     const safeSlug = unitSlug.replace(/'/g, "''");
     const rows = queryRows<Record<string, unknown>>(
       db,
-      latestPerBucket("unit_monthly_stats", statCols, `t.unit_slug = '${safeSlug}'`),
+      latestPerBucket("unit_monthly_stats", `t.data_collected_at, ${statCols}`, `t.unit_slug = '${safeSlug}'`),
     );
 
-    return rows.map((row) => {
+    // The same projection as the grouping's: the month snapshot and the unit's
+    // daily row come from one capture, so that day's partial is the daily
+    // reading stamped at or before the snapshot.
+    const dailyCols = getTableColumns(db, "unit_daily_stats");
+    const readingsFor = (date: string): IntradayReading<StatKey>[] => {
+      const cols = statKeys.filter((k) => dailyCols.includes(k)).join(", ");
+      if (!cols) return [];
+      return queryRows<Record<string, unknown>>(
+        db,
+        `SELECT data_collected_at, ${cols} FROM unit_daily_stats
+         WHERE unit_slug = '${safeSlug}' AND date = '${date.replace(/'/g, "''")}'
+           AND data_collected_at IS NOT NULL`,
+      ).map((r) => ({
+        collectedAt: String(r.data_collected_at),
+        values: r as Partial<Record<StatKey, number>>,
+      }));
+    };
+
+    return rows.map(({ data_collected_at: snapshotAt, ...row }) => {
       // The stored date is "YYYY-MM-01" (the column is typed DATE); the app's
       // monthly contract is "YYYY-MM". Spread first so the raw `date` can't
       // clobber the sliced one — the same trap the SBS hook documents.
       const dateStr = String(row["date"]).slice(0, 7);
       const isCurrentMonth = dateStr === currentMonth;
+      const projection = isCurrentMonth && snapshotAt
+        ? projectMonthEnd(
+            dateStr,
+            String(snapshotAt),
+            row as Partial<Record<StatKey, number>>,
+            readingsFor,
+            statKeys,
+          )
+        : null;
       const typedRow: MonthlyRow = {
         ...(row as unknown as Record<StatKey, number>),
         date: dateStr,
         is_current_month: isCurrentMonth,
-        projection_day: isCurrentMonth ? dayOfMonth : null,
-        projection_days_in_month: isCurrentMonth ? daysInMonth : null,
+        projection_day: projection?.completedDays ?? null,
+        projection_days_in_month: projection?.daysInMonth ?? null,
       };
-      if (isCurrentMonth) {
-        const multiplier = daysInMonth / dayOfMonth;
-        const keys: StatKey[] = [
-          ...BASE_COLS,
-          ...TARGET_IDS.flatMap((id) => [`hit_${id}` as StatKey, `destroyed_${id}` as StatKey]),
-        ];
-        for (const key of keys) {
-          const raw = row[key];
-          if (typeof raw === "number") {
-            typedRow[`${key}_projected`] = Math.round(raw * multiplier);
-          }
-        }
+      for (const [key, value] of Object.entries(projection?.projected ?? {})) {
+        typedRow[`${key as StatKey}_projected`] = value;
       }
       return typedRow;
     });

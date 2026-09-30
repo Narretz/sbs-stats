@@ -54,7 +54,54 @@ export function projectMonthEnd<K extends string>(
     if (typeof total !== "number") continue;
     const today = partial?.values[k];
     const complete = Math.max(0, total - (typeof today === "number" ? today : 0));
-    projected[k] = Math.round((complete / completedDays) * daysInMonth);
+    // Late on the last day, a busy partial can outrun the average it replaces;
+    // the month can't end below what it already holds.
+    projected[k] = Math.max(total, Math.round((complete / completedDays) * daysInMonth));
+  }
+  return { completedDays, daysInMonth, projected };
+}
+
+// One day of a source whose month is the sum of its days.
+export interface DayTotals<K extends string> {
+  date: string; // YYYY-MM-DD, in the source's own time zone
+  values: Partial<Record<K, number | null>>;
+}
+
+// End-of-month projection for the sources whose month is a sum of dated days.
+// Only the days before `today` count as complete — today's row, where there is
+// one, is still filling in — and of those only up to the latest that has data,
+// since a source can lag by days (the Kaggle republish runs ~a week behind).
+// Days in between with no row are read as zero, as the month total reads them.
+// `days` is the month's rows, today's included: the projection never falls
+// below what the month already holds. Null when no day before today has data.
+export function projectFromDays<K extends string>(
+  month: string,
+  today: string,
+  days: readonly DayTotals<K>[],
+  keys: readonly K[],
+): MonthEndProjection<K> | null {
+  const inMonth = days.filter((d) => d.date.slice(0, 7) === month);
+  const complete = inMonth.filter((d) => d.date < today);
+  if (complete.length === 0) return null;
+  const basis = complete.reduce((a, d) => (d.date > a ? d.date : a), complete[0].date);
+  const [y, m] = month.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const completedDays = Number(basis.slice(8, 10));
+
+  const sum = (rows: readonly DayTotals<K>[], k: K) => {
+    let s = 0, any = false;
+    for (const r of rows) {
+      const v = r.values[k];
+      if (typeof v === "number") { s += v; any = true; }
+    }
+    return any ? s : null;
+  };
+  const projected: Partial<Record<K, number>> = {};
+  for (const k of keys) {
+    const actual = sum(inMonth, k);
+    if (actual == null) continue;
+    const done = sum(complete, k) ?? 0;
+    projected[k] = Math.max(actual, Math.round((done / completedDays) * daysInMonth));
   }
   return { completedDays, daysInMonth, projected };
 }

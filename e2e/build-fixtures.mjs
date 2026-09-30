@@ -191,6 +191,9 @@ function buildSbsUnits(SQL) {
   insUnit.free();
   insMonthly.free();
   insDaily.free();
+  // Stamped like the grouping's month rows: the projection rests on the days
+  // complete at the snapshot's own time, and a row without one has none.
+  db.run("UPDATE unit_monthly_stats SET data_collected_at = captured_at");
   fs.writeFileSync(path.join(FIX_DIR, "sbs-units.db"), Buffer.from(db.export()));
   db.close();
 }

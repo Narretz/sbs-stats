@@ -32,23 +32,18 @@ function kyivToday(): [number, number, number] {
 // The arithmetic itself is covered in src/utils/monthProjection.test.ts; this
 // is only enough of it to know the right number reached the cell.
 //
-// The grouping extrapolates the days complete at snapshot time. The fixture's
-// snapshot is stamped 00:00Z today (03:00 Kyiv) and its daily rows carry no
-// data_collected_at, so there is no partial to subtract: d − 1 complete days.
-function groupingProjected(reported: number): number {
+// The grouping and its sub-units extrapolate the days complete at snapshot
+// time. The fixture's snapshots are stamped 00:00Z today (03:00 Kyiv) and the
+// daily rows carry no data_collected_at, so there is no partial to subtract:
+// d − 1 complete days.
+function projected(reported: number): number {
   const [y, m, d] = kyivToday();
   return Math.round((reported / (d - 1)) * new Date(y, m, 0).getDate());
 }
 
-// Sub-units still count today as a full day.
-function unitProjected(reported: number): number {
-  const [y, m, d] = kyivToday();
-  return Math.round(reported * (new Date(y, m, 0).getDate() / d));
-}
-
-// On the 1st no day is complete, so the grouping offers no projection at all.
+// On the 1st no day is complete, so there is no projection at all.
 const skipOnFirst = () =>
-  test.skip(kyivToday()[2] === 1, "no complete day yet on the 1st, so no grouping projection");
+  test.skip(kyivToday()[2] === 1, "no complete day yet on the 1st, so no projection");
 
 // Fixture (e2e/build-fixtures.mjs): the grouping's current month reports
 // total_targets_hit 25,000; Alpha Unit's 510.
@@ -108,16 +103,17 @@ test.describe("Compare — month-end projection", () => {
     // "~" on the value itself: the header says it once, but cells travel.
     await expect
       .poll(async () => await engaged(page))
-      .toBe(`~${groupingProjected(SBS_ENGAGED).toLocaleString()}`);
+      .toBe(`~${projected(SBS_ENGAGED).toLocaleString()}`);
   });
 
   test("a sub-unit projects its own figures, not the grouping's", async ({ page }) => {
+    skipOnFirst();
     // The same trap every sub-unit feature has: read through the column's own
     // snapshot or the unit silently shows the whole branch's number.
     await gotoCompare(page, `sbs:alpha-unit:${thisMonth()}:proj`);
     await expect
       .poll(async () => await engaged(page))
-      .toBe(`~${unitProjected(ALPHA_ENGAGED).toLocaleString()}`);
+      .toBe(`~${projected(ALPHA_ENGAGED).toLocaleString()}`);
   });
 
   test("moving the column to a settled month drops the projection", async ({ page }) => {

@@ -10,6 +10,7 @@ import { RU_LOSSES_METRIC_KEYS } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
+import { projectFromDays } from "@/utils/monthProjection";
 
 // Tiny DB (~100 KB) → fetch whole via sql.js, like the SBS loader (no httpvfs).
 const DB_URL =
@@ -103,30 +104,34 @@ export function useDatabaseRuLosses({ enabled = true }: { enabled?: boolean } = 
        ORDER BY month ASC`
     );
 
-    const kyivDateStr = getKyivDateString();
-    const currentMonth = kyivDateStr.slice(0, 7);
-    const dayOfMonth = parseInt(kyivDateStr.slice(8, 10), 10);
-    const [y, m] = currentMonth.split("-").map(Number);
-    const daysInMonth = new Date(y, m, 0).getDate();
+    const today = getKyivDateString();
+    const currentMonth = today.slice(0, 7);
+    const projection = projectFromDays(
+      currentMonth,
+      today,
+      queryRows<Record<string, number | null>>(
+        db,
+        `SELECT date, ${METRIC_COLS} FROM ${LATEST_PER_DATE} WHERE date >= '${currentMonth}-01'`,
+      ).map((r) => ({ date: String(r.date), values: r as Partial<Record<RuLossesMetricKey, number | null>> })),
+      RU_LOSSES_METRIC_KEYS,
+    );
 
     return rows.map((row) => {
       const month = String(row.month);
       const isCurrent = month === currentMonth;
+      const p = isCurrent ? projection : null;
       const out: RuLossesMonthlyRow = {
         date: month,
         is_current_month: isCurrent,
-        projection_day: isCurrent ? dayOfMonth : null,
-        projection_days_in_month: isCurrent ? daysInMonth : null,
+        projection_day: p?.completedDays ?? null,
+        projection_days_in_month: p?.daysInMonth ?? null,
         ...(RU_LOSSES_METRIC_KEYS.reduce((acc, k) => {
           acc[k] = typeof row[k] === "number" ? row[k] : 0;
           return acc;
         }, {} as Record<RuLossesMetricKey, number>)),
       } as RuLossesMonthlyRow;
-      if (isCurrent && dayOfMonth > 0) {
-        const mult = daysInMonth / dayOfMonth;
-        for (const k of RU_LOSSES_METRIC_KEYS) {
-          out[`${k}_projected`] = Math.round((out[k] as number) * mult);
-        }
+      for (const [k, v] of Object.entries(p?.projected ?? {})) {
+        out[`${k as RuLossesMetricKey}_projected`] = v;
       }
       return out;
     });

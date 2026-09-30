@@ -11,6 +11,7 @@ import type {
 } from "@/types";
 import { GSUA_METRIC_KEYS, directionAxis } from "@/types";
 import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
+import { projectFromDays } from "@/utils/monthProjection";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
@@ -278,28 +279,29 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
       byMonth.set(month, bucket);
     }
 
-    const kyivDateStr = getKyivDateString();
-    const currentMonth = kyivDateStr.slice(0, 7);
-    const dayOfMonth = parseInt(kyivDateStr.slice(8, 10), 10);
-    const [y, m] = currentMonth.split("-").map(Number);
-    const daysInMonth = new Date(y, m, 0).getDate();
+    const today = getKyivDateString();
+    const currentMonth = today.slice(0, 7);
+    const projection = projectFromDays(
+      currentMonth,
+      today,
+      daily.map((row) => ({ date: String(row["date"]), values: row as Partial<Record<GsuaMetricKey, number | null>> })),
+      GSUA_METRIC_KEYS,
+    );
 
     return Array.from(byMonth.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, sums]) => {
         const isCurrent = month === currentMonth;
+        const p = isCurrent ? projection : null;
         const row: GsuaMonthlyRow = {
           date: month,
           is_current_month: isCurrent,
-          projection_day: isCurrent ? dayOfMonth : null,
-          projection_days_in_month: isCurrent ? daysInMonth : null,
+          projection_day: p?.completedDays ?? null,
+          projection_days_in_month: p?.daysInMonth ?? null,
           ...sums,
         } as GsuaMonthlyRow;
-        if (isCurrent && dayOfMonth > 0) {
-          const mult = daysInMonth / dayOfMonth;
-          for (const k of GSUA_METRIC_KEYS) {
-            row[`${k}_projected`] = Math.round(sums[k] * mult);
-          }
+        for (const [k, v] of Object.entries(p?.projected ?? {})) {
+          row[`${k as GsuaMetricKey}_projected`] = v;
         }
         return row;
       });
