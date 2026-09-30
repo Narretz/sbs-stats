@@ -43,6 +43,7 @@ import type {
   SbuAlfaCounterRow,
 } from "@/types";
 import { sbsUnitLabel } from "@/types";
+import { projectionBasis } from "@/utils/monthProjection";
 
 interface Props {
   // `?view=sbs-vs-sbu-alfa` is the old hardcoded page's URL. It still resolves,
@@ -174,7 +175,9 @@ function monthlySnapshot(rows: MonthlyRow[], mode: "reported" | "projected"): En
         value: v,
         bound: "approx",
         derived: false,
-        note: `Month-end projection · ${row.projection_day} of ${row.projection_days_in_month} days complete`,
+        note: row.projection_day != null && row.projection_days_in_month != null
+          ? `Month-end projection · ${projectionBasis(row.projection_day, row.projection_days_in_month, row.projection_partial_day)}`
+          : "Month-end projection",
       };
     },
   };

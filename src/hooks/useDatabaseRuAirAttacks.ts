@@ -488,6 +488,7 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
         row.is_current_month = isCurrent;
         row.projection_day = p?.completedDays ?? null;
         row.projection_days_in_month = p?.daysInMonth ?? null;
+        row.projection_partial_day = p?.partialDay;
         for (const [k, v] of Object.entries(p?.projected ?? {})) {
           row[`${k}_projected` as `${AttackCategoryKey}_projected`] = v;
         }
@@ -578,6 +579,7 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
           is_current_month: isCurrent,
           projection_day: p?.completedDays ?? null,
           projection_days_in_month: p?.daysInMonth ?? null,
+          projection_partial_day: p?.partialDay,
           launched,
           intercepted,
         };

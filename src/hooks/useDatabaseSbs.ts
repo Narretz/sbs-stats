@@ -271,6 +271,7 @@ export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
         is_current_month: isCurrentMonth,
         projection_day: projection?.completedDays ?? null,
         projection_days_in_month: projection?.daysInMonth ?? null,
+        projection_partial_day: projection?.partialDay,
       };
       for (const [key, value] of Object.entries(projection?.projected ?? {})) {
         typedRow[`${key as StatKey}_projected`] = value;

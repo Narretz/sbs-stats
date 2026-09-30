@@ -14,6 +14,7 @@ import { chartColors } from "@/chartColors";
 import { breakdownToRows, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
 import { usePinnedChart } from "@/components/usePinnedChart";
 import type { ModelBreakdownEntry } from "@/types";
+import { projectionBasis } from "@/utils/monthProjection";
 
 export interface MonthlyTargetPairDataPoint {
   date: string;
@@ -25,6 +26,7 @@ export interface MonthlyTargetPairDataPoint {
   destroyed_projected?: number;
   projection_day?: number;
   projection_days_in_month?: number;
+  projection_partial_day?: boolean;
   /** Optional caveat (e.g. this month contains attacks reported without
    *  figures). Outlines the bar and shows the text under the tooltip rows —
    *  same treatment MonthlyBarChart gives its notes. */
@@ -106,7 +108,7 @@ function describeMonth({
       <div style={{display: 'flex', justifyContent: 'space-between'}}>
       <span>{d.date}</span>
       <span style={{ fontSize: 10, marginLeft: 6 }}>
-        {d.projection_day} of {d.projection_days_in_month} days complete
+        {projectionBasis(d.projection_day, d.projection_days_in_month, d.projection_partial_day)}
       </span>
     </div>
     </>

@@ -123,6 +123,7 @@ export function useDatabaseUaLosses({ enabled = true }: { enabled?: boolean } = 
         is_current_month: isCurrent,
         projection_day: p?.completedDays ?? null,
         projection_days_in_month: p?.daysInMonth ?? null,
+        projection_partial_day: p?.partialDay,
         ...(UA_LOSSES_METRIC_KEYS.reduce((acc, k) => {
           acc[k] = typeof row[k] === "number" ? row[k] : 0;
           return acc;

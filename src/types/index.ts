@@ -110,6 +110,7 @@ export type MonthlyRow = {
   is_current_month: boolean;
   projection_day: number | null;
   projection_days_in_month: number | null;
+  projection_partial_day?: boolean;
 } & Record<StatKey, number> & Partial<Record<ProjectedKey, number>>;
 
 // ─── SBS sub-units ───────────────────────────────────────────────────────────
@@ -187,6 +188,7 @@ export interface MonthlyDataPoint {
   projected?: number;
   projection_day?: number;
   projection_days_in_month?: number;
+  projection_partial_day?: boolean;
   note?: string; // optional caveat (e.g. possible double-count); shown in tooltip + flags the bar
 }
 
@@ -354,6 +356,7 @@ export type GsuaMonthlyRow = {
   is_current_month: boolean;
   projection_day: number | null;
   projection_days_in_month: number | null;
+  projection_partial_day?: boolean;
 } & Record<GsuaMetricKey, number> & Partial<Record<`${GsuaMetricKey}_projected`, number>>;
 
 // ─── RU Losses (PetroIvaniuk dataset → ru-losses-gsua-petroivaniuk.db) ─────────
@@ -410,6 +413,7 @@ export type RuLossesMonthlyRow = {
   is_current_month: boolean;
   projection_day: number | null;
   projection_days_in_month: number | null;
+  projection_partial_day?: boolean;
 } & Record<RuLossesMetricKey, number> & Partial<Record<`${RuLossesMetricKey}_projected`, number>>;
 
 // ─── UA Losses (ualosses.org daily personnel losses → ua-losses.db) ───────────
@@ -446,6 +450,7 @@ export type UaLossesMonthlyRow = {
   is_current_month: boolean;
   projection_day: number | null;
   projection_days_in_month: number | null;
+  projection_partial_day?: boolean;
 } & Record<UaLossesMetricKey, number> & Partial<Record<`${UaLossesMetricKey}_projected`, number>>;
 
 // ─── RU Air Attacks (piterfm Kaggle → ru-air-attacks-gsua.db) ─────────────────
@@ -561,6 +566,7 @@ export type RuAirAttacksModelMonthlyRow = {
   is_current_month: boolean;
   projection_day: number | null;
   projection_days_in_month: number | null;
+  projection_partial_day?: boolean;
   launched: number;
   intercepted: number;
   launched_projected?: number;
@@ -590,6 +596,7 @@ export type RuAirAttacksMonthlyRow = {
   is_current_month: boolean;
   projection_day: number | null;
   projection_days_in_month: number | null;
+  projection_partial_day?: boolean;
   // Categories with at least one withheld day this month. Unlike the daily
   // row these stay numbers: a month with some days disclosed still has a real
   // partial sum, which this flags as a lower bound rather than blanking.
@@ -640,6 +647,7 @@ export type RuAdMonthlyRow = {
   is_current_month: boolean;
   projection_day: number | null;
   projection_days_in_month: number | null;
+  projection_partial_day?: boolean;
   total: number;
   night: number;
   day: number;
@@ -1145,6 +1153,7 @@ export type CitMonthlyRow = {
   is_current_month: boolean;
   projection_day: number | null;
   projection_days_in_month: number | null;
+  projection_partial_day?: boolean;
   // Days in the month actually covered by a report, so a partial month is
   // visible as such rather than reading as a quiet one.
   covered_days: number;

@@ -298,6 +298,7 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
           is_current_month: isCurrent,
           projection_day: p?.completedDays ?? null,
           projection_days_in_month: p?.daysInMonth ?? null,
+          projection_partial_day: p?.partialDay,
           ...sums,
         } as GsuaMonthlyRow;
         for (const [k, v] of Object.entries(p?.projected ?? {})) {

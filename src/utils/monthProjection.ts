@@ -16,8 +16,15 @@ export interface IntradayReading<K extends string> {
 export interface MonthEndProjection<K extends string> {
   completedDays: number;
   daysInMonth: number;
+  // The month's actual also holds a day still filling in (today's, as a rule),
+  // which the projection sets aside rather than averages.
+  partialDay: boolean;
   projected: Partial<Record<K, number>>;
 }
+
+// The tooltip / compare caption for a projection's basis.
+export const projectionBasis = (completedDays: number, daysInMonth: number, partialDay?: boolean) =>
+  `${completedDays} of ${daysInMonth} days complete${partialDay ? ", one day partial" : ""}`;
 
 const kyivDate = (iso: string) =>
   new Date(iso).toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
@@ -58,7 +65,7 @@ export function projectMonthEnd<K extends string>(
     // the month can't end below what it already holds.
     projected[k] = Math.max(total, Math.round((complete / completedDays) * daysInMonth));
   }
-  return { completedDays, daysInMonth, projected };
+  return { completedDays, daysInMonth, partialDay: partial !== undefined, projected };
 }
 
 // One day of a source whose month is the sum of its days.
@@ -68,20 +75,22 @@ export interface DayTotals<K extends string> {
 }
 
 // End-of-month projection for the sources whose month is a sum of dated days.
-// Only the days before `today` count as complete — today's row, where there is
-// one, is still filling in — and of those only up to the latest that has data,
-// since a source can lag by days (the Kaggle republish runs ~a week behind).
-// Days in between with no row are read as zero, as the month total reads them.
-// `days` is the month's rows, today's included: the projection never falls
-// below what the month already holds. Null when no day before today has data.
+// Only the days before `incompleteFrom` count as complete — normally today,
+// whose row, where there is one, is still filling in — and of those only up to
+// the latest that has data, since a source can lag by days (the Kaggle
+// republish runs ~a week behind). Days in between with no row are read as
+// zero, as the month total reads them. `days` is the month's rows, today's
+// included: the projection never falls below what the month already holds,
+// and a row from `incompleteFrom` on is the partial day. Null when no day
+// before `incompleteFrom` has data.
 export function projectFromDays<K extends string>(
   month: string,
-  today: string,
+  incompleteFrom: string,
   days: readonly DayTotals<K>[],
   keys: readonly K[],
 ): MonthEndProjection<K> | null {
   const inMonth = days.filter((d) => d.date.slice(0, 7) === month);
-  const complete = inMonth.filter((d) => d.date < today);
+  const complete = inMonth.filter((d) => d.date < incompleteFrom);
   if (complete.length === 0) return null;
   const basis = complete.reduce((a, d) => (d.date > a ? d.date : a), complete[0].date);
   const [y, m] = month.split("-").map(Number);
@@ -103,5 +112,40 @@ export function projectFromDays<K extends string>(
     const done = sum(complete, k) ?? 0;
     projected[k] = Math.max(actual, Math.round((done / completedDays) * daysInMonth));
   }
-  return { completedDays, daysInMonth, projected };
+  return { completedDays, daysInMonth, partialDay: inMonth.some((d) => d.date >= incompleteFrom), projected };
+}
+
+// One report date of RU MoD's air-defense claims, split by window.
+export interface NightDayTotals {
+  date: string; // report_date, MSK
+  night: number; // 20:00 the evening before → 07:00/08:00
+  day: number; // everything else, the daytime windows
+  nightDone: boolean; // a night report ending on `date` is in
+}
+
+// RU MoD's projection, per window, since the two halves of a day settle apart:
+// the night is complete once its morning report is in, so today's night counts
+// in full and only the daytime is set aside — much as SBS subtracts just the
+// part of today still filling in. A night split into 20–23 / 23–07 reports is
+// complete only with the part ending on the day itself. The daytime is the
+// series that lags, so it names the days complete.
+export function projectNightDay(
+  month: string,
+  today: string,
+  days: readonly NightDayTotals[],
+): (Omit<MonthEndProjection<never>, "projected"> & { night: number; day: number }) | null {
+  const tonightDone = days.some((d) => d.date === today && d.nightDone);
+  const tomorrow = new Date(Date.parse(`${today}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  const series = (key: "night" | "day", incompleteFrom: string) =>
+    projectFromDays(month, incompleteFrom, days.map((d) => ({ date: d.date, values: { [key]: d[key] } })), [key]);
+  const night = series("night", tonightDone ? tomorrow : today);
+  const day = series("day", today);
+  if (!night || !day) return null;
+  return {
+    completedDays: day.completedDays,
+    daysInMonth: day.daysInMonth,
+    partialDay: day.partialDay,
+    night: night.projected.night ?? 0,
+    day: day.projected.day ?? 0,
+  };
 }

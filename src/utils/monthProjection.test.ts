@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { projectFromDays, projectMonthEnd, type IntradayReading } from "@/utils/monthProjection";
+import { projectFromDays, projectionBasis, projectMonthEnd, projectNightDay, type IntradayReading } from "@/utils/monthProjection";
 
 type K = "hits";
 
@@ -19,6 +19,7 @@ describe("projectMonthEnd", () => {
     })!;
     expect(p.completedDays).toBe(22);
     expect(p.daysInMonth).toBe(30);
+    expect(p.partialDay).toBe(true);
     // The 16:51 reading postdates the snapshot, so it isn't what was subtracted.
     expect(p.projected.hits).toBe(3000);
   });
@@ -39,6 +40,7 @@ describe("projectMonthEnd", () => {
       "2026-09-24": [["2026-09-23T21:51:00Z", 20]],
     })!;
     expect(p.completedDays).toBe(23);
+    expect(p.partialDay).toBe(false);
     expect(p.projected.hits).toBe(3000);
   });
 
@@ -65,6 +67,7 @@ describe("projectFromDays", () => {
     const p = projectFromDays<K>("2026-09", "2026-09-03", days, ["hits"])!;
     expect(p.completedDays).toBe(2);
     expect(p.daysInMonth).toBe(30);
+    expect(p.partialDay).toBe(true);
     expect(p.projected.hits).toBe(3000);
   });
 
@@ -73,6 +76,8 @@ describe("projectFromDays", () => {
     const days = Array.from({ length: 25 }, (_, i) => day(`2026-09-${String(i + 1).padStart(2, "0")}`, 10));
     const p = projectFromDays<K>("2026-09", "2026-09-30", days, ["hits"])!;
     expect(p.completedDays).toBe(25);
+    // The days after the 25th are missing, not filling in.
+    expect(p.partialDay).toBe(false);
     expect(p.projected.hits).toBe(300);
   });
 
@@ -98,5 +103,47 @@ describe("projectFromDays", () => {
   it("skips keys no day carries", () => {
     const p = projectFromDays<K>("2026-09", "2026-09-05", [day("2026-09-01", null)], ["hits"])!;
     expect(p.projected).toEqual({});
+  });
+});
+
+describe("projectionBasis", () => {
+  it("says how many days the projection rests on", () => {
+    expect(projectionBasis(25, 30)).toBe("25 of 30 days complete");
+    expect(projectionBasis(25, 30, false)).toBe("25 of 30 days complete");
+  });
+
+  it("owns up to the day still filling in", () => {
+    expect(projectionBasis(29, 30, true)).toBe("29 of 30 days complete, one day partial");
+  });
+});
+
+describe("projectNightDay", () => {
+  const d = (date: string, night: number, day: number, nightDone = true) => ({ date, night, day, nightDone });
+  const month = [d("2026-09-01", 100, 10), d("2026-09-02", 100, 10)];
+
+  it("counts tonight's finished night in full and sets aside only the daytime", () => {
+    const p = projectNightDay("2026-09", "2026-09-03", [...month, d("2026-09-03", 400, 0)])!;
+    expect(p.completedDays).toBe(2);
+    expect(p.partialDay).toBe(true);
+    // Nights: 600 over 3 complete → 6,000. Days: 20 over 2 → 300.
+    expect(p.night).toBe(6000);
+    expect(p.day).toBe(300);
+  });
+
+  it("holds a night back while only its 20–23 part is in", () => {
+    const p = projectNightDay("2026-09", "2026-09-03", [...month, d("2026-09-03", 40, 0, false)])!;
+    // 200 over 2 complete nights → 3,000; the 40 is kept, not averaged.
+    expect(p.night).toBe(3000);
+  });
+
+  it("on the last day, a finished night leaves only the daytime to project", () => {
+    const p = projectNightDay("2026-09", "2026-09-30", [d("2026-09-29", 30, 3), d("2026-09-30", 30, 0)])!;
+    expect(p.completedDays).toBe(29);
+    expect(p.night).toBe(60);
+    expect(p.day).toBe(3);
+  });
+
+  it("gives no estimate before a daytime is complete", () => {
+    expect(projectNightDay("2026-09", "2026-09-01", [d("2026-09-01", 100, 0)])).toBeNull();
   });
 });

@@ -4,7 +4,7 @@ import type { RuAdDailyRow, RuAdGlobalStats, RuAdMonthlyRow, RuAdStat } from "@/
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
-import { projectFromDays } from "@/utils/monthProjection";
+import { projectNightDay } from "@/utils/monthProjection";
 
 // Tiny DB → fetch whole via sql.js, like the SBS / RU-losses loaders (no httpvfs).
 // Dev default is the `.app.db` copy for the same reason as GSUA — see
@@ -178,22 +178,22 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
        ORDER BY month ASC`
     );
 
+    // Per report date, split by window: see projectNightDay.
     const today = getMskDateString();
     const currentMonth = today.slice(0, 7);
-    const projection = projectFromDays(
+    const projection = projectNightDay(
       currentMonth,
       today,
-      queryRows<{ report_date: string; total: number; night: number; day: number }>(
+      queryRows<{ report_date: string; night: number; day: number; night_done: number }>(
         db,
         `SELECT report_date,
-                SUM(drones) AS total,
                 SUM(CASE WHEN window_kind = 'night' THEN drones ELSE 0 END) AS night,
-                SUM(CASE WHEN window_kind = 'night' THEN 0 ELSE drones END) AS day
+                SUM(CASE WHEN window_kind = 'night' THEN 0 ELSE drones END) AS day,
+                MAX(window_kind = 'night' AND substr(window_end, 1, 10) = report_date) AS night_done
          FROM ${LATEST_PER_POST}
          WHERE report_date >= '${currentMonth}-01'
          GROUP BY report_date`,
-      ).map(({ report_date, ...values }) => ({ date: String(report_date), values })),
-      ["total", "night", "day"] as const,
+      ).map((d) => ({ date: String(d.report_date), night: d.night, day: d.day, nightDone: d.night_done === 1 })),
     );
 
     return rows.map((r) => {
@@ -206,6 +206,7 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
         is_current_month: isCurrent,
         projection_day: p?.completedDays ?? null,
         projection_days_in_month: p?.daysInMonth ?? null,
+        projection_partial_day: p?.partialDay,
         total: num("total"),
         night: num("night"),
         day: num("day"),
@@ -214,9 +215,9 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
         air_target_drones: num("air_target_drones"),
       };
       if (p) {
-        out.total_projected = p.projected.total;
-        out.night_projected = p.projected.night;
-        out.day_projected = p.projected.day;
+        out.night_projected = p.night;
+        out.day_projected = p.day;
+        out.total_projected = p.night + p.day;
       }
       return out;
     });

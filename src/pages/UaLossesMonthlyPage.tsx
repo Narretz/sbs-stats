@@ -38,6 +38,7 @@ export function UaLossesMonthlyPage({ refreshKey }: Props) {
           projected,
           projection_day: d.projection_day ?? undefined,
           projection_days_in_month: d.projection_days_in_month ?? undefined,
+          projection_partial_day: d.projection_partial_day,
         };
       }),
       endMonth,

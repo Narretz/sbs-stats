@@ -8,6 +8,7 @@ import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { MonthlyChartCard } from "@/components/MonthlyChartCard";
 import { breakdownToRows, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
+import { projectionBasis } from "@/utils/monthProjection";
 
 interface Props {
   title: string;
@@ -76,8 +77,8 @@ export function MonthlyBarChart({
     const header = d.projected != null && d.projection_day != null && d.projection_days_in_month != null ? (
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", width: "100%" }}>
         <span>{d.date}</span>
-        <span style={{ fontSize: 10 }}>
-          {d.projection_day} of {d.projection_days_in_month} days complete
+        <span style={{ fontSize: 10, marginLeft: 15 }}>
+          {projectionBasis(d.projection_day, d.projection_days_in_month, d.projection_partial_day)}
         </span>
       </div>
     ) : (formatHeader ? formatHeader(d) : d.date);
