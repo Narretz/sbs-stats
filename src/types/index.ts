@@ -460,7 +460,7 @@ export const UA_LOSSES_RU_MOD_METRIC_LABELS: Record<UaLossesRuModMetricKey, stri
   aircraft: "Aircraft",
   helicopters: "Helicopters",
   uav: "UAV",
-  vehicles: "Special Vehicles",
+  vehicles: "Military Motor Vehicles",
   captured: "POW (Captured)",
 };
 
