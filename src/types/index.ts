@@ -477,12 +477,6 @@ export const UA_LOSSES_RU_MOD_METRIC_LABELS: Record<UaLossesRuModMetricKey, stri
   intercepted_guided_bombs: "Guided Bombs Shot Down",
 };
 
-// The munitions the MoD claims its air defence shot down — Ukrainian fire, not
-// Ukrainian losses, so kept out of the loss totals.
-export const UA_LOSSES_RU_MOD_INTERCEPT_KEYS: readonly UaLossesRuModMetricKey[] = [
-  "intercepted_cruise", "intercepted_ballistic", "intercepted_mlrs_rockets", "intercepted_guided_bombs",
-];
-
 // The itemised armour subgroups, in the order the sheet lists them.
 export const UA_LOSSES_RU_MOD_ARMOUR_KEYS = [
   "armour_tanks", "armour_ifv", "armour_apc", "armour_acv", "armour_other",
