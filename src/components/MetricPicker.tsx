@@ -36,6 +36,7 @@ const SOURCE_ORDER = [
   "gsua",
   "ru-losses",
   "ua-losses",
+  "ua-losses-ru-mod",
   "ru-airdef-mod",
   "ru-air-attacks",
   "zelensky",

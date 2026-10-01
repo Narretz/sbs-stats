@@ -12,8 +12,10 @@ export. stdlib only.
 The sheet carries no licence, and the maintainer hasn't answered yet. Until he
 does, nothing here is published: no CI workflow, no R2 object, no
 `VITE_UA_LOSSES_RU_MOD_DB_URL` in `.env.production`, and the site is listed
-only in dev builds (`localOnly` in `SITES`, `src/types/index.ts`). Publishing
-it later means adding those three things and dropping the flag.
+only in dev builds (`localOnly` in `SITES`, `src/types/index.ts`) — as are its
+metrics in the homepage's combined charts (`UA_LOSSES_RU_MOD_METRICS`,
+`src/utils/combinedMetrics.ts`). Publishing it later means adding those three
+things and dropping both dev-only gates.
 
 ```sh
 python3 scripts/ua_losses_ru_mod/ingest.py --out data/ua-losses-ru-mod-john-felix.db

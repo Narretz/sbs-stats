@@ -32,6 +32,9 @@ import type {
   UaLossesDailyRow,
   UaLossesGlobalStats,
   UaLossesMonthlyRow,
+  UaLossesRuModDailyRow,
+  UaLossesRuModGlobalStats,
+  UaLossesRuModMonthlyRow,
   ZelenskyWeekRow,
 } from "@/types";
 import type { CombinedMetric, MetricSource } from "@/utils/combinedMetrics";
@@ -45,6 +48,7 @@ export interface CombinedQueries {
   gsua?: (days: number, endDate?: string) => Promise<GsuaDailyRow[]>;
   ruLosses?: (days: number, endDate?: string) => RuLossesDailyRow[];
   uaLosses?: (days: number, endDate?: string) => UaLossesDailyRow[];
+  uaLossesRuMod?: (days: number, endDate?: string) => UaLossesRuModDailyRow[];
   ruMod?: (days: number, endDate?: string) => RuAdDailyRow[];
   ruAir?: (days: number, endDate?: string) => RuAirAttacksDailyRow[];
 }
@@ -54,6 +58,7 @@ export interface CombinedGlobalQueries {
   gsua?: () => Promise<GsuaGlobalStats>;
   ruLosses?: () => RuLossesGlobalStats;
   uaLosses?: () => UaLossesGlobalStats;
+  uaLossesRuMod?: () => UaLossesRuModGlobalStats;
   ruMod?: () => RuAdGlobalStats;
   ruAir?: () => RuAirAttacksGlobalStats;
 }
@@ -63,6 +68,7 @@ export interface GlobalStatsBundle {
   gsua?: GsuaGlobalStats;
   ruLosses?: RuLossesGlobalStats;
   uaLosses?: UaLossesGlobalStats;
+  uaLossesRuMod?: UaLossesRuModGlobalStats;
   ruMod?: RuAdGlobalStats;
   ruAir?: RuAirAttacksGlobalStats;
 }
@@ -90,6 +96,7 @@ export interface CombinedMonthlyQueries {
   gsua?: () => Promise<GsuaMonthlyRow[]>;
   ruLosses?: () => RuLossesMonthlyRow[];
   uaLosses?: () => UaLossesMonthlyRow[];
+  uaLossesRuMod?: () => UaLossesRuModMonthlyRow[];
   ruMod?: () => RuAdMonthlyRow[];
   ruAir?: () => RuAirAttacksMonthlyRow[];
   sbuAlfa?: () => SbuAlfaCounterRow[];
@@ -196,6 +203,7 @@ export async function fetchCombinedMonthly(
 
   const ruLossesRows = sources.has("ru-losses") && queries.ruLosses ? queries.ruLosses() : null;
   const uaLossesRows = sources.has("ua-losses") && queries.uaLosses ? queries.uaLosses() : null;
+  const uaLossesRuModRows = sources.has("ua-losses-ru-mod") && queries.uaLossesRuMod ? queries.uaLossesRuMod() : null;
   const ruModRows = sources.has("ru-airdef-mod") && queries.ruMod ? queries.ruMod() : null;
   const ruAirRows = sources.has("ru-air-attacks") && queries.ruAir ? queries.ruAir() : null;
   const sbuAlfaRows = sources.has("sbu-alfa") && queries.sbuAlfa ? queries.sbuAlfa() : null;
@@ -211,6 +219,7 @@ export async function fetchCombinedMonthly(
     else if (m.source === "gsua" && gsuaRows) result[m.id] = projectMonthly(gsuaRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "ru-losses" && ruLossesRows) result[m.id] = projectMonthly(ruLossesRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "ua-losses" && uaLossesRows) result[m.id] = projectMonthly(uaLossesRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
+    else if (m.source === "ua-losses-ru-mod" && uaLossesRuModRows) result[m.id] = projectMonthly(uaLossesRuModRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "ru-airdef-mod" && ruModRows) result[m.id] = projectMonthly(ruModRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "ru-air-attacks" && ruAirRows) result[m.id] = projectMonthly(ruAirRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "sbu-alfa" && sbuAlfaRows) result[m.id] = pivotCounters(sbuAlfaRows, m.key, startMonth, endMonth);
@@ -243,6 +252,7 @@ export async function fetchCombinedDaily(
   const sbsRows = sources.has("sbs") && queries.sbs ? queries.sbs(days, endDate) : null;
   const ruLossesRows = sources.has("ru-losses") && queries.ruLosses ? queries.ruLosses(days, endDate) : null;
   const uaLossesRows = sources.has("ua-losses") && queries.uaLosses ? queries.uaLosses(days, endDate) : null;
+  const uaLossesRuModRows = sources.has("ua-losses-ru-mod") && queries.uaLossesRuMod ? queries.uaLossesRuMod(days, endDate) : null;
   const ruModRows = sources.has("ru-airdef-mod") && queries.ruMod ? queries.ruMod(days, endDate) : null;
   const ruAirRows = sources.has("ru-air-attacks") && queries.ruAir ? queries.ruAir(days, endDate) : null;
   const gsuaRows = sources.has("gsua") && queries.gsua ? await queries.gsua(days, endDate) : null;
@@ -254,6 +264,7 @@ export async function fetchCombinedDaily(
     else if (m.source === "gsua" && gsuaRows) result[m.id] = project(gsuaRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
     else if (m.source === "ru-losses" && ruLossesRows) result[m.id] = project(ruLossesRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
     else if (m.source === "ua-losses" && uaLossesRows) result[m.id] = project(uaLossesRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
+    else if (m.source === "ua-losses-ru-mod" && uaLossesRuModRows) result[m.id] = project(uaLossesRuModRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
     else if (m.source === "ru-airdef-mod" && ruModRows) result[m.id] = project(ruModRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
     else if (m.source === "ru-air-attacks" && ruAirRows) result[m.id] = project(ruAirRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
     else result[m.id] = [];
@@ -320,6 +331,7 @@ export async function fetchCombinedGlobalStats(
   if (needed.has("sbs") && queries.sbs) bundle.sbs = queries.sbs();
   if (needed.has("ru-losses") && queries.ruLosses) bundle.ruLosses = queries.ruLosses();
   if (needed.has("ua-losses") && queries.uaLosses) bundle.uaLosses = queries.uaLosses();
+  if (needed.has("ua-losses-ru-mod") && queries.uaLossesRuMod) bundle.uaLossesRuMod = queries.uaLossesRuMod();
   if (needed.has("ru-airdef-mod") && queries.ruMod) bundle.ruMod = queries.ruMod();
   if (needed.has("ru-air-attacks") && queries.ruAir) bundle.ruAir = queries.ruAir();
   if (needed.has("gsua") && queries.gsua) bundle.gsua = await queries.gsua();
@@ -342,6 +354,8 @@ export function statsForMetric(
       return bundle.ruLosses?.[m.key as keyof RuLossesGlobalStats] ?? null;
     case "ua-losses":
       return bundle.uaLosses?.[m.key as keyof UaLossesGlobalStats] ?? null;
+    case "ua-losses-ru-mod":
+      return bundle.uaLossesRuMod?.[m.key as keyof UaLossesRuModGlobalStats] ?? null;
     case "ru-airdef-mod":
       return (bundle.ruMod as Record<string, Stat> | undefined)?.[m.key] ?? null;
     case "ru-air-attacks": {
