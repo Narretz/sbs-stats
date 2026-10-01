@@ -8,6 +8,7 @@ import { useDatabaseSbs } from "@/hooks/useDatabaseSbs";
 import { useDatabaseSbsUnits } from "@/hooks/useDatabaseSbsUnits";
 import { useDatabaseGsua } from "@/hooks/useDatabaseGsua";
 import { useDatabaseRuLosses } from "@/hooks/useDatabaseRuLosses";
+import { useDatabaseUaLossesRuMod } from "@/hooks/useDatabaseUaLossesRuMod";
 import { useDatabaseRuMod } from "@/hooks/useDatabaseRuMod";
 import { useDatabaseRuAirAttacks } from "@/hooks/useDatabaseRuAirAttacks";
 import { useDatabaseSbuAlfa } from "@/hooks/useDatabaseSbuAlfa";
@@ -31,6 +32,9 @@ export const { Provider: GsuaDatabaseProvider, useDbContext: useGsuaDatabaseCont
 
 export const { Provider: RuLossesDatabaseProvider, useDbContext: useRuLossesDatabaseContext } =
   makeDatabaseContext(useDatabaseRuLosses, "RU losses");
+
+export const { Provider: UaLossesRuModDatabaseProvider, useDbContext: useUaLossesRuModDatabaseContext } =
+  makeDatabaseContext(useDatabaseUaLossesRuMod, "UA losses (RU MoD)");
 
 export const { Provider: RuModDatabaseProvider, useDbContext: useRuModDatabaseContext } =
   makeDatabaseContext(useDatabaseRuMod, "RU air-defense");

@@ -3,7 +3,7 @@ import { useTheme } from "@/hooks/useTheme";
 
 // One per dataset — drives the freshness wording + the timezone "today" is read
 // in (RU MoD reconciles to Moscow time; everything else to Kyiv).
-export type DataWindowMode = "sbs" | "gsua" | "ru-losses" | "ru-mod" | "ru-air-attacks" | "mediazona" | "ua-losses" | "cit";
+export type DataWindowMode = "sbs" | "gsua" | "ru-losses" | "ua-losses-ru-mod" | "ru-mod" | "ru-air-attacks" | "mediazona" | "ua-losses" | "cit";
 
 const TZ: Record<DataWindowMode, string> = {
   sbs: "Europe/Kyiv",
@@ -11,6 +11,7 @@ const TZ: Record<DataWindowMode, string> = {
   "ru-losses": "Europe/Kyiv",
   "ru-air-attacks": "Europe/Kyiv",
   "ru-mod": "Europe/Moscow",
+  "ua-losses-ru-mod": "Europe/Moscow",
   mediazona: "Europe/Kyiv",
   "ua-losses": "Europe/Kyiv",
   cit: "Europe/Moscow",
@@ -63,6 +64,10 @@ function freshness(
       // Each day's losses are published the next morning, so the newest day is normally yesterday.
       if (behind <= 1) return { note: "up to date — the latest day is reported the next morning", stale: false };
       return { note: behindNote(behind - 1), stale: true };
+    case "ua-losses-ru-mod":
+      // Copied by hand from the MoD's reports, normally within a day or two.
+      if (behind <= 2) return { note: "up to date — compiled by hand, usually a day or two behind", stale: false };
+      return { note: behindNote(behind), stale: true };
     case "ru-air-attacks":
       // The real Air Force data exists daily; this Kaggle mirror just re-publishes
       // ~weekly. Always show the explicit lag, but only flag it once it exceeds

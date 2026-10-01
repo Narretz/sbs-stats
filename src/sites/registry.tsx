@@ -4,6 +4,7 @@ import {
   useSbsDatabaseContext,
   GsuaDatabaseProvider, useGsuaDatabaseContext,
   RuLossesDatabaseProvider, useRuLossesDatabaseContext,
+  UaLossesRuModDatabaseProvider, useUaLossesRuModDatabaseContext,
   RuModDatabaseProvider, useRuModDatabaseContext,
   RuAirAttacksDatabaseProvider, useRuAirAttacksDatabaseContext,
   SbuAlfaDatabaseProvider, useSbuAlfaDatabaseContext,
@@ -22,6 +23,8 @@ import { GsuaHourlyPage } from "@/pages/GsuaHourlyPage";
 import { GsuaMonthlyPage } from "@/pages/GsuaMonthlyPage";
 import { RuLossesDailyPage } from "@/pages/RuLossesDailyPage";
 import { RuLossesMonthlyPage } from "@/pages/RuLossesMonthlyPage";
+import { UaLossesRuModDailyPage } from "@/pages/UaLossesRuModDailyPage";
+import { UaLossesRuModMonthlyPage } from "@/pages/UaLossesRuModMonthlyPage";
 import { RuModDailyPage } from "@/pages/RuModDailyPage";
 import { RuModMonthlyPage } from "@/pages/RuModMonthlyPage";
 import { RuAirAttacksDailyPage } from "@/pages/RuAirAttacksDailyPage";
@@ -83,6 +86,11 @@ export const SITE_REGISTRY: Partial<Record<Site, SiteConfig>> = {
     provider: RuLossesDatabaseProvider,
     useDbContext: useRuLossesDatabaseContext,
     pages: { daily: RuLossesDailyPage, monthly: RuLossesMonthlyPage },
+  },
+  "ua-losses-ru-mod-john-felix": {
+    provider: UaLossesRuModDatabaseProvider,
+    useDbContext: useUaLossesRuModDatabaseContext,
+    pages: { daily: UaLossesRuModDailyPage, monthly: UaLossesRuModMonthlyPage },
   },
   "ru-airdef-mod": {
     provider: RuModDatabaseProvider,

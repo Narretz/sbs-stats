@@ -221,11 +221,15 @@ export interface SiteInfo {
   key: string;
   label: string;
   tier: SiteTier;
+  // A dataset we may not redistribute (no licence yet): its DB is never
+  // published, so the site only exists in dev, reading data/ directly.
+  localOnly?: boolean;
 }
 export const SITES = [
   { key: "sbs", label: "UA SBS STATISTICS - SBS", tier: "primary" },
   { key: "ru-attacks-gsua", label: "COMBAT STATS - GSUA", tier: "primary" },
   { key: "ru-losses-gsua", label: "RU LOSSES - GSUA", tier: "primary" },
+  { key: "ua-losses-ru-mod-john-felix", label: "UA LOSSES - RU MoD", tier: "primary", localOnly: true },
   { key: "ru-air-attacks-gsua", label: "RU MISSILE & UAV ATTACKS - GSUA", tier: "primary" },
   { key: "ru-airdef-mod", label: "UA UAV ATTACKS - RU MoD", tier: "primary" },
   { key: "sbu-alfa", label: "UA SBU ALFA MONTHLY RECAP - SBU", tier: "primary" },
@@ -237,7 +241,10 @@ export const SITES = [
   { key: "zelensky-weekly", label: "RU WEEKLY STRIKES - PRESIDENT UA", tier: "secondary" },
 ] as const satisfies readonly SiteInfo[];
 export type Site = (typeof SITES)[number]["key"];
-export const isSite = (s: string): s is Site => SITES.some((x) => x.key === s);
+const listed = (s: SiteInfo) => !s.localOnly || import.meta.env.DEV;
+// The sites this build offers; a local-only one is a Site but not a page here.
+export const LISTED_SITES: readonly SiteInfo[] = SITES.filter(listed);
+export const isSite = (s: string): s is Site => LISTED_SITES.some((x) => x.key === s);
 export type LoadState = "idle" | "loading" | "ready" | "error";
 
 // ─── Global stats (max + median + total across all data) ─────────────────────
@@ -424,6 +431,69 @@ export type RuLossesMonthlyRow = {
   projection_partial_day?: boolean;
 } & Record<RuLossesMetricKey, number> & Partial<Record<`${RuLossesMetricKey}_projected`, number>>;
 
+// ─── UA Losses claimed by the RU MoD (John Felix's sheet → ua-losses-ru-mod-john-felix.db) ─
+// The categories are the MoD's own "since the start" tally, read off the
+// `daily` view (scripts/ua_losses_ru_mod), which diffs those running totals
+// into one row per report day. The MoD does not split tanks from other
+// armoured vehicles; Felix's itemisation of the report text does, but only
+// completely from 2025, so the split is a breakdown of `armour`, not a chart.
+export const UA_LOSSES_RU_MOD_METRIC_KEYS = [
+  "personnel",
+  "armour",
+  "artillery",
+  "mlrs",
+  "air_defense",
+  "aircraft",
+  "helicopters",
+  "uav",
+  "vehicles",
+  "captured",
+] as const;
+export type UaLossesRuModMetricKey = (typeof UA_LOSSES_RU_MOD_METRIC_KEYS)[number];
+
+export const UA_LOSSES_RU_MOD_METRIC_LABELS: Record<UaLossesRuModMetricKey, string> = {
+  personnel: "Personnel (Killed & Wounded)",
+  armour: "Tanks & Armoured Vehicles",
+  artillery: "Artillery & Mortars",
+  mlrs: "MLRS",
+  air_defense: "Anti-Aircraft Systems",
+  aircraft: "Aircraft",
+  helicopters: "Helicopters",
+  uav: "UAV",
+  vehicles: "Special Vehicles",
+  captured: "POW (Captured)",
+};
+
+// The itemised armour subgroups, in the order the sheet lists them.
+export const UA_LOSSES_RU_MOD_ARMOUR_KEYS = [
+  "armour_tanks", "armour_ifv", "armour_apc", "armour_acv", "armour_other",
+] as const;
+export type UaLossesRuModArmourKey = (typeof UA_LOSSES_RU_MOD_ARMOUR_KEYS)[number];
+
+export const UA_LOSSES_RU_MOD_ARMOUR_LABELS: Record<UaLossesRuModArmourKey, string> = {
+  armour_tanks: "Tanks",
+  armour_ifv: "IFVs",
+  armour_apc: "APCs",
+  armour_acv: "ACVs (MRAPs, armoured cars)",
+  armour_other: "Other",
+};
+
+export type UaLossesRuModDailyRow = {
+  date: string;        // YYYY-MM-DD, the MoD report day
+  is_today: boolean;
+} & Record<UaLossesRuModMetricKey | UaLossesRuModArmourKey, number | null>;
+
+export type UaLossesRuModGlobalStats = Record<UaLossesRuModMetricKey, Stat>;
+
+export type UaLossesRuModMonthlyRow = {
+  date: string; // "YYYY-MM"
+  is_current_month: boolean;
+  projection_day: number | null;
+  projection_days_in_month: number | null;
+  projection_partial_day?: boolean;
+} & Record<UaLossesRuModMetricKey | UaLossesRuModArmourKey, number>
+  & Partial<Record<`${UaLossesRuModMetricKey}_projected`, number>>;
+
 // ─── UA Losses (ualosses.org daily personnel losses → ua-losses.db) ───────────
 // Confirmed, named Ukrainian military losses aggregated per day, broken out by
 // status. The raw daily total (`number`) is stored in the DB but deliberately
@@ -521,8 +591,10 @@ export type ModelBreakdownEntry = {
   launched: number;
   // null when the count exists but upstream didn't itemize it — a sub-type
   // entry naming how many were launched without saying how many were shot
-  // down (see ATTACK_SUBTYPE_LABELS). Rendered "—", not 0.
-  intercepted: number | null;
+  // down (see ATTACK_SUBTYPE_LABELS). Rendered "—", not 0. Absent for a
+  // breakdown with no second count at all (the RU MoD claims' armour split),
+  // which then renders no subset cell.
+  intercepted?: number | null;
   // True when every row behind this entry was flagged `status_data='hidden'`
   // upstream — the attack was reported but its counts were withheld, so
   // `launched`/`intercepted` are placeholders. Rendered as "not disclosed"

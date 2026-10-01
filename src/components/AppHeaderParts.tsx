@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useRoute } from "@/hooks/RouteContext";
 import { FONTS } from "@/theme";
-import { SITES, type Site, type SiteTier } from "@/types";
+import { LISTED_SITES, type Site, type SiteTier } from "@/types";
 
 // The pieces every app header is built from. They live here rather than in
 // SiteHeader because the homepage and the unlisted compare view need the same
@@ -88,7 +88,7 @@ export function SitePicker({
       {value === null && <option value="">browse by site…</option>}
       {SITE_GROUPS.map(([tier, label]) => (
         <optgroup key={tier} label={label}>
-          {SITES.filter((s) => s.tier === tier).map((s) => (
+          {LISTED_SITES.filter((s) => s.tier === tier).map((s) => (
             <option key={s.key} value={s.key}>{s.label}</option>
           ))}
         </optgroup>

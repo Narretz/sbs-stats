@@ -261,8 +261,8 @@ export function breakdownToRows(
       // Upstream named the launch count but not the intercepts: an em dash, and
       // — being a node rather than a number — it skips the derived rate cell,
       // which over an unpublished count would be fiction.
-      subset: e.intercepted == null
-        ? <span style={{ opacity: 0.75 }}>—</span>
+      subset: e.intercepted === undefined ? undefined
+        : e.intercepted === null ? <span style={{ opacity: 0.75 }}>—</span>
         : e.intercepted,
       // Share is part-of-total, and a nested row is part of the row above it.
       // A share cell here would sit in the same column as its siblings' and

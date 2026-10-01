@@ -43,6 +43,8 @@ data/ua-losses.db
 data/cit-civilians.db
 data/cit-civilians.app.db
 data/zelensky-weekly.db
+# Local only — the sheet carries no licence, so this one is never published
+data/ua-losses-ru-mod-john-felix.db
 
 sources/
 
@@ -68,6 +70,8 @@ scripts/wartears/output/
 scripts/mediazona/output/
 # UA losses ingest local artifacts
 scripts/ua_losses/output/
+# UA losses (RU MoD claims) ingest local artifacts
+scripts/ua_losses_ru_mod/output/
 .pytest_cache/
 
 # SBU Alfa: the article HTMLs here ARE the parser's test fixtures — every
