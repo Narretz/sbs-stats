@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Locator } from "@playwright/test";
+import { FIXED_TODAY } from "./build-fixtures.mjs";
 
 // The pin sheet is wired once in usePinnedChart, but each chart family reaches
 // it differently: bar charts resolve a click to a category band, the hourly
@@ -40,12 +41,26 @@ test("monthly bar chart pins and marks the bar", async ({ page }) => {
   await expect(page.locator(".chart-sheet-title")).toHaveText("Combat Engagements");
   expect(await hasCursor(card)).toBe(true);
 
-  // The monthly fixtures hold a single month (the seven-day source window sits
-  // inside one), so this is the degenerate end of the "never wraps" rule:
-  // a lone point has nowhere to step in either direction. Multi-point stepping
-  // for this code path is covered on the daily chart.
-  await expect(page.getByLabel("Previous point")).toBeDisabled();
-  await expect(page.getByLabel("Next point")).toBeDisabled();
+  // The fixture is today and the seven days before it: one month, or two in a
+  // month's first week. Either way stepping stops at the ends rather than
+  // wrapping, whichever bar the click landed on.
+  const months = [...new Set(Array.from({ length: 8 }, (_, i) => {
+    const d = new Date(`${FIXED_TODAY}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - i);
+    return d.toISOString().slice(0, 7);
+  }))].sort();
+  const pinned = months.indexOf(((await label(page).textContent()) ?? "").trim());
+  expect(pinned, `pinned label is one of ${months.join(", ")}`).toBeGreaterThanOrEqual(0);
+  const ends = async (i: number) => {
+    await expect(page.getByLabel("Previous point")).toBeEnabled({ enabled: i > 0 });
+    await expect(page.getByLabel("Next point")).toBeEnabled({ enabled: i < months.length - 1 });
+  };
+  await ends(pinned);
+  if (months.length > 1) {
+    await page.getByLabel(pinned === 0 ? "Next point" : "Previous point").click();
+    await expect(label(page)).toHaveText(months[pinned === 0 ? 1 : 0]);
+    await ends(pinned === 0 ? 1 : 0);
+  }
   await expect(sheet(page)).toContainText("Actual");
 });
 
