@@ -1,0 +1,74 @@
+name: Update UA Losses (RU MoD claims) Database
+
+# John Felix's hand-compiled sheet of the Ukrainian losses the Russian MoD
+# claims (scripts/ua_losses_ru_mod). The sheet has no licence, so this is a
+# BACKUP only: the DB lands on R2, but the site that would display it is built
+# only where SHOW_UA_LOSSES_RU_MOD=true, which production is not.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Felix copies each MoD report in by hand, usually within a day; twice a
+    # day catches an update without waiting a whole day for the next run.
+    - cron: "15 8 * * *"
+    - cron: "15 20 * * *"
+
+env:
+  R2_BUCKET: russia-ukraine-war
+  DB_NAME: ua-losses-ru-mod-john-felix.db
+
+jobs:
+  update-ua-losses-ru-mod-db:
+    runs-on: ubuntu-latest
+
+    env:
+      # See update-ru-losses-db.yml / scripts/ingest_log.py.
+      INGEST_LOG: ${{ github.workspace }}/ingest-diagnostics.jsonl
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # Append into the current DB: the store is per-cell versioned, and a
+      # fresh DB would lose every earlier version of an edited cell. The first
+      # run has nothing to download, hence continue-on-error.
+      - name: Download current DB from R2
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          mkdir -p scripts/ua_losses_ru_mod/output
+          npx --yes wrangler@4 r2 object get \
+            "$R2_BUCKET/$DB_NAME" \
+            --file "scripts/ua_losses_ru_mod/output/$DB_NAME" \
+            --remote
+
+      # stdlib only. Aborts without writing on a partial or shrinking sheet,
+      # or one whose blocks were restructured (a missing anchor column), which
+      # skips the upload and leaves R2 as it was. Writes changed=true|false.
+      - name: Build DB
+        id: ingest
+        run: |
+          python3 scripts/ua_losses_ru_mod/ingest.py \
+            --out "scripts/ua_losses_ru_mod/output/$DB_NAME"
+
+      - name: Upload DB to R2
+        if: steps.ingest.outputs.changed == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/$DB_NAME" \
+            --file "scripts/ua_losses_ru_mod/output/$DB_NAME" \
+            --content-type application/vnd.sqlite3 \
+            --remote
+
+      - name: Annotate ingest diagnostics
+        if: always()
+        run: python3 scripts/annotate_log.py

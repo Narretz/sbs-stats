@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Page, Site } from "@/types";
-import { isSite } from "@/types";
 import { SITE_REGISTRY } from "@/sites/registry";
+import { isSite } from "@/sites/listed";
 
 // HUR missile-stock disclosures: a JSON-backed prototype with its own
 // Production/Stockpile toggle, so no daily/monthly nav (App hides the page

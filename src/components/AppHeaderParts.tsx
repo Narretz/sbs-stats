@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useRoute } from "@/hooks/RouteContext";
 import { FONTS } from "@/theme";
-import { LISTED_SITES, type Site, type SiteTier } from "@/types";
+import type { Site, SiteTier } from "@/types";
+import { LISTED_SITES } from "@/sites/listed";
 
 // The pieces every app header is built from. They live here rather than in
 // SiteHeader because the homepage and the unlisted compare view need the same

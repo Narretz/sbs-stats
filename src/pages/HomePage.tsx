@@ -6,7 +6,7 @@ import { useDatabaseSbsUnits } from "@/hooks/useDatabaseSbsUnits";
 import { useDatabaseGsua } from "@/hooks/useDatabaseGsua";
 import { useDatabaseRuLosses } from "@/hooks/useDatabaseRuLosses";
 import { useDatabaseUaLosses } from "@/hooks/useDatabaseUaLosses";
-import { useDatabaseUaLossesRuMod } from "@/hooks/useDatabaseUaLossesRuMod";
+import { useUaLossesRuModDb } from "@/sites/uaLossesRuMod";
 import { useDatabaseRuMod } from "@/hooks/useDatabaseRuMod";
 import { useDatabaseRuAirAttacks } from "@/hooks/useDatabaseRuAirAttacks";
 import { useDatabaseSbuAlfa } from "@/hooks/useDatabaseSbuAlfa";
@@ -189,7 +189,8 @@ export function HomePage({ onGoToSite }: Props) {
   const gsua = useDatabaseGsua({ enabled: needed.has("gsua") });
   const ruLosses = useDatabaseRuLosses({ enabled: needed.has("ru-losses") });
   const uaLosses = useDatabaseUaLosses({ enabled: needed.has("ua-losses") });
-  const uaLossesRuMod = useDatabaseUaLossesRuMod({ enabled: needed.has("ua-losses-ru-mod") });
+  // Gated: an idle stub in builds without the dataset (src/sites/uaLossesRuMod).
+  const uaLossesRuMod = useUaLossesRuModDb({ enabled: needed.has("ua-losses-ru-mod") });
   const ruMod = useDatabaseRuMod({ enabled: needed.has("ru-airdef-mod") });
   const ruAir = useDatabaseRuAirAttacks({ enabled: needed.has("ru-air-attacks") });
   const sbuAlfa = useDatabaseSbuAlfa({ enabled: needed.has("sbu-alfa") });

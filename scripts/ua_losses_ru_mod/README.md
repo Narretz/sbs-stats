@@ -7,15 +7,28 @@ Builds **`ua-losses-ru-mod-john-felix.db`** — the **UA LOSSES - RU MoD** view
 of the Ukrainian losses the Russian MoD claims, first tab, via its public CSV
 export. stdlib only.
 
-## Local only
+## Backed up, not displayed
 
-The sheet carries no licence, and the maintainer hasn't answered yet. Until he
-does, nothing here is published: no CI workflow, no R2 object, no
-`VITE_UA_LOSSES_RU_MOD_DB_URL` in `.env.production`, and the site is listed
-only in dev builds (`localOnly` in `SITES`, `src/types/index.ts`) — as are its
-metrics in the homepage's combined charts (`UA_LOSSES_RU_MOD_METRICS`,
-`src/utils/combinedMetrics.ts`). Publishing it later means adding those three
-things and dropping both dev-only gates.
+The sheet carries no licence, and the maintainer hasn't answered yet. Two
+things are kept apart:
+
+- **Ingest — public backup.** `update-ua-losses-ru-mod-db.yml` runs the ingest
+  twice a day and uploads the DB to R2 when anything changed, so the sheet's
+  history survives whatever happens to the sheet. Its URL is in
+  `.env.production` as `VITE_UA_LOSSES_RU_MOD_DB_URL`, which is what
+  `scripts/fetch_prod_dbs.sh` downloads from — but no production code reads it.
+- **Display — a build-time switch.** Everything the app needs to show the data
+  (pages, hook, context, combined-chart metrics) is reached through one import,
+  `@/sites/uaLossesRuMod`. `vite.config.ts` resolves it to the real module only
+  when `SHOW_UA_LOSSES_RU_MOD=true` — set in `.env.development` — and otherwise
+  to `src/sites/uaLossesRuMod/off.ts`, the same exports, empty. So the
+  production build doesn't hide the dataset, it doesn't contain it: what's left
+  is the site's name in `SITES` (flagged `gated`) and the combined charts'
+  source label. Not the DB URL deciding it: that would tie display to whether a
+  backup exists.
+
+Showing it publicly later means setting `SHOW_UA_LOSSES_RU_MOD=true` for the
+production build (the deploy workflow's env, or `.env.production`).
 
 ```sh
 python3 scripts/ua_losses_ru_mod/ingest.py --out data/ua-losses-ru-mod-john-felix.db

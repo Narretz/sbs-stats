@@ -14,7 +14,7 @@ via sql.js / sql.js-httpvfs.
 | SBS SUB-UNITS | (SBS monthly filter · compare column · `sbs-unit.*` metrics) | sbs-group.army public API, per subdivision | [`scripts/sbs_units/`](scripts/sbs_units/README.md) → `sbs-units.db` |
 | RU ATTACKS — GSUA | `ru-attacks-gsua` | Ukrainian General Staff operational reports (Telegram) | [`scripts/gsua/`](scripts/gsua/README.md) → `ru-attacks-gsua.db` |
 | RU LOSSES — GSUA | `ru-losses-gsua` | Ukrainian General Staff national totals (PetroIvaniuk dataset) | [`scripts/ru_losses/`](scripts/ru_losses/README.md) → `ru-losses-gsua-petroivaniuk.db` |
-| UA LOSSES — RU MoD (**local only**) | `ua-losses-ru-mod-john-felix` | RU MoD claimed Ukrainian losses, John Felix's hand-compiled Google Sheet | [`scripts/ua_losses_ru_mod/`](scripts/ua_losses_ru_mod/README.md) → `ua-losses-ru-mod-john-felix.db` |
+| UA LOSSES — RU MoD (**not in production**) | `ua-losses-ru-mod-john-felix` | RU MoD claimed Ukrainian losses, John Felix's hand-compiled Google Sheet | [`scripts/ua_losses_ru_mod/`](scripts/ua_losses_ru_mod/README.md) → `ua-losses-ru-mod-john-felix.db` |
 | RU AIR DEFENSE — RU MoD | `ru-airdef-mod` | Russian MoD air-defense claims (Telegram) | [`scripts/ru_mod/`](scripts/ru_mod/README.md) → `ru-mod-ad.db` |
 | RU MISSILE & UAV ATTACKS — GSUA | `ru-air-attacks-gsua` | UA Air Force Command + General Staff strike reports (piterfm / Kaggle) | [`scripts/missile_attacks/`](scripts/missile_attacks/README.md) → `ru-air-attacks-gsua.db` |
 | UA SBU ALFA — MONTHLY RECAP | `sbu-alfa` | SBU press releases (Centre of Special Operations «А» monthly TOP-1 recap) | [`scripts/sbu_alfa/`](scripts/sbu_alfa/README.md) → `sbu-alfa.db` |
@@ -23,9 +23,12 @@ via sql.js / sql.js-httpvfs.
 | UA+RU CIVILIAN CASUALTIES — CIT | `cit-civilians` | Conflict Intelligence Team daily 20:00–20:00 MSK casualty summaries (Telegram) | [`scripts/cit_civilians/`](scripts/cit_civilians/README.md) → `cit-civilians.db` |
 | RU WEEKLY STRIKES — PRESIDENT UA | `zelensky-weekly` | President of Ukraine's weekly strike tally (Telegram): drones / guided bombs (KAB) / missiles | [`scripts/zelensky_weekly/`](scripts/zelensky_weekly/README.md) → `zelensky-weekly.db` |
 
-The sheet behind UA LOSSES — RU MoD has no licence, so that site is dev-only
-(`localOnly` in `SITES`): no CI workflow, no R2 object, no production URL.
-Build its DB by hand with the ingest script.
+The sheet behind UA LOSSES — RU MoD has no licence. CI backs it up to R2, but
+displaying it is a build-time switch, `SHOW_UA_LOSSES_RU_MOD` (on in
+`.env.development`, off in production and e2e): without it the dataset's one
+import, `@/sites/uaLossesRuMod`, resolves to an empty stub and its code is not
+in the bundle. Import its code only through there, or it leaks back in. See
+[`scripts/ua_losses_ru_mod/`](scripts/ua_losses_ru_mod/README.md).
 
 [`DATASETS.md`](DATASETS.md) tracks source research, recency, and candidate
 datasets for future views.
@@ -181,6 +184,10 @@ GitHub Actions in `.github/workflows/`:
   days come as ONE 48-hour post (`window_days = 2`) and must never be plotted
   as a single day. Publishes a stripped `cit-civilians.app.db` alongside the
   authoritative DB (see below); the site is `cit-civilians`, daily + monthly.
+- `update-ua-losses-ru-mod-db.yml` — John Felix's sheet of the RU MoD's claimed
+  Ukrainian losses, via its public CSV export. 08:15 / 20:15 UTC; uploads only
+  when a cell or note changed (`changed=true`). A **backup**: the site that
+  displays it is left out of the production build (see Datasets above).
 - `update-zelensky-weekly-db.yml` — the President's weekly strike tally
   ([`scripts/zelensky_weekly/`](scripts/zelensky_weekly/README.md)): strike
   drones / guided bombs (КАБ) / missiles per week, read from one sentence of the

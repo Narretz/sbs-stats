@@ -214,9 +214,10 @@ The MoD's cumulative Ukrainian-loss reporting has *thinned out over time*:
   equipment from those; (c) pin down exactly when personnel reporting stopped (looks pre-2025 already);
   (d) compare equipment trend against the GSUA RU-LOSSES series. Deep history needs the telethon backend.
 
-### NedSnow2019 (John Felix) Google Sheet — LIVE — ✅ INTEGRATED, LOCAL ONLY (site "ua-losses-ru-mod-john-felix")
-- **Integrated 2026-10-01** as a dev-only site — no licence on the sheet; the maintainer was
-  contacted and hasn't answered, so nothing is published (no CI, no R2). See
+### NedSnow2019 (John Felix) Google Sheet — LIVE — ✅ INTEGRATED, NOT DISPLAYED IN PRODUCTION (site "ua-losses-ru-mod-john-felix")
+- **Integrated 2026-10-01.** No licence on the sheet; the maintainer was contacted and hasn't
+  answered. CI backs the DB up to R2 twice a day, but the site is built only with
+  `SHOW_UA_LOSSES_RU_MOD=true` (dev), so production doesn't show it. See
   `scripts/ua_losses_ru_mod/README.md` for the sheet's structure and how it's stored. The
   analysis below predates it and still holds.
 - https://docs.google.com/spreadsheets/d/1U1kZiRglakIO_rfyYaR2cNaD2DUNCGKWv60iDPspgFs/
@@ -609,7 +610,8 @@ Done (each is a live R2 SQLite + a site-picker entry):
 - **RU missile/UAV attacks (piterfm)** — `ru-air-attacks-gsua.db` (§2)
 - **SBU Alfa monthly recap** — `sbu-alfa.db`
 - **UA losses claimed by the RU MoD** — `ua-losses-ru-mod-john-felix.db` from John Felix's
-  sheet (§3). **Local only**: no licence, so no CI / R2, and the site is listed in dev only.
+  sheet (§3). No licence: backed up to R2 by CI, but the site is built only with
+  `SHOW_UA_LOSSES_RU_MOD=true`, which production isn't.
 - **Rubikon monthly recap** — `rubikon.db`; Центр «Рубикон» (RU UAV unit) posts one
   fixed-shape recap of the previous month on the 3rd–4th to @icpbtrubicon, scraped from
   the public `t.me/s` preview (no API account). Self-reported claims, «Поражены»

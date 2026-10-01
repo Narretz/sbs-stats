@@ -6,8 +6,9 @@ Source: John Felix's (@NedSnow2019) hand-compiled Google Sheet of the Ukrainian
 losses the Russian MoD claims, first tab, read through the public CSV export:
 https://docs.google.com/spreadsheets/d/1U1kZiRglakIO_rfyYaR2cNaD2DUNCGKWv60iDPspgFs
 
-There is no licence on it, so this DB is LOCAL ONLY for now — no CI workflow,
-no R2 upload, and the site is only listed in dev (see README.md).
+There is no licence on it. CI still ingests it daily into R2, as a public
+backup of the sheet; DISPLAYING it is a separate, build-time switch
+(SHOW_UA_LOSSES_RU_MOD, see README.md), off in production.
 
 THE SHEET'S SHAPE. One row per MoD report day, ~290 columns. Header text, not
 position, identifies a column: Felix inserts a model column wherever it belongs
@@ -545,6 +546,12 @@ def main() -> int:
         per_section[c.section] = per_section.get(c.section, 0) + 1
     print(f"==> {result['days']} days (latest {latest}); inserted {result['cells']} cell versions, "
           f"{result['notes']} notes → {args.out}")
+    # CI uploads only on a change: most runs find the sheet as it was, and a
+    # needless upload busts the CDN cache for nothing.
+    out = os.environ.get("GITHUB_OUTPUT")
+    if out:
+        with open(out, "a", encoding="utf-8") as fh:
+            fh.write(f"changed={'true' if result['cells'] or result['notes'] else 'false'}\n")
     print("    columns per section: " + ", ".join(f"{s} {n}" for s, n in per_section.items()))
     return 0
 

@@ -12,8 +12,9 @@ import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { projectFromDays } from "@/utils/monthProjection";
 
-// ~1 MB → fetched whole via sql.js. Local only: no production URL exists (the
-// sheet has no licence), so this resolves to the dev server's data/ copy.
+// ~1 MB → fetched whole via sql.js. Only ever built with SHOW_UA_LOSSES_RU_MOD
+// (see src/sites/uaLossesRuMod): in dev that's data/, in a build that sets the
+// flag, the R2 backup named in .env.production.
 const DB_URL =
   import.meta.env.VITE_UA_LOSSES_RU_MOD_DB_URL ??
   `${import.meta.env.BASE_URL}data/ua-losses-ru-mod-john-felix.db`;

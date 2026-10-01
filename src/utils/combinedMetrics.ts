@@ -16,8 +16,6 @@ import {
   RU_LOSSES_METRIC_LABELS,
   UA_LOSSES_METRIC_KEYS,
   UA_LOSSES_METRIC_LABELS,
-  UA_LOSSES_RU_MOD_METRIC_KEYS,
-  UA_LOSSES_RU_MOD_METRIC_LABELS,
   SBU_ALFA_CATEGORY_KEYS,
   SBU_ALFA_CATEGORY_LABELS,
   RUBIKON_CATEGORY_KEYS,
@@ -26,6 +24,7 @@ import {
   ZELENSKY_CATEGORIES,
   TARGET_LABELS,
 } from "@/types";
+import { uaLossesRuModMetrics } from "@/sites/uaLossesRuMod";
 
 export type MetricSource =
   | "sbs"
@@ -36,8 +35,8 @@ export type MetricSource =
   | "gsua"
   | "ru-losses"
   | "ua-losses"
-  // The RU MoD's claimed Ukrainian losses (John Felix's sheet). Local only —
-  // see UA_LOSSES_RU_MOD_METRICS.
+  // The RU MoD's claimed Ukrainian losses (John Felix's sheet). Only in builds
+  // that include it — see UA_LOSSES_RU_MOD_METRICS.
   | "ua-losses-ru-mod"
   | "ru-airdef-mod"
   | "ru-air-attacks"
@@ -183,13 +182,13 @@ const UA_LOSSES_METRICS: CombinedMetric[] = UA_LOSSES_METRIC_KEYS.map((k) =>
   make("ua-losses", k, UA_LOSSES_METRIC_LABELS[k], ALL_GRAINS),
 );
 
-// The RU MoD's claimed Ukrainian losses — daily-capable. The sheet has no
-// licence, so like its site these exist in dev builds only: in production the
-// DB isn't published, and an id from a shared link resolves to nothing rather
-// than to a chart that can never load.
-const UA_LOSSES_RU_MOD_METRICS: CombinedMetric[] = import.meta.env.DEV
-  ? UA_LOSSES_RU_MOD_METRIC_KEYS.map((k) => make("ua-losses-ru-mod", k, UA_LOSSES_RU_MOD_METRIC_LABELS[k], ALL_GRAINS))
-  : [];
+// The RU MoD's claimed Ukrainian losses — daily-capable, and only in a build
+// that includes the dataset (SHOW_UA_LOSSES_RU_MOD, see src/sites/uaLossesRuMod).
+// Elsewhere the list is empty, so a shared link's id resolves to nothing rather
+// than to a chart whose DB this build can't read.
+const UA_LOSSES_RU_MOD_METRICS: CombinedMetric[] = uaLossesRuModMetrics.map(([k, label]) =>
+  make("ua-losses-ru-mod", k, label, ALL_GRAINS),
+);
 
 // RU MoD has no exported label map — three fixed metrics.
 const RU_MOD_METRICS: CombinedMetric[] = [

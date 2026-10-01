@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 import { createReadStream, statSync } from "node:fs";
@@ -9,12 +9,26 @@ const projectRoot = dirname(fileURLToPath(import.meta.url));
 // Update to match your GitHub repo name
 const REPO_NAME = "sbs-stats";
 
+// Build-time switch for a dataset we back up but may not redistribute
+// (src/sites/uaLossesRuMod): without SHOW_UA_LOSSES_RU_MOD=true its import
+// resolves to an empty stub, so the build leaves its code out entirely rather
+// than hiding it. Not a VITE_ variable — it decides what gets built, and the
+// app has no business reading it. Set in .env.development; unset in
+// production, e2e and the vitest run.
+const gatedDataset = (env: Record<string, string>) =>
+  fileURLToPath(new URL(
+    env.SHOW_UA_LOSSES_RU_MOD === "true" ? "./src/sites/uaLossesRuMod/index.tsx" : "./src/sites/uaLossesRuMod/off.ts",
+    import.meta.url,
+  ));
+
 export default defineConfig(({ mode }) => ({
   base: mode === "production" ? `/${REPO_NAME}/` : "/",
   resolve: {
-    alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
-    },
+    // Ordered: the exact gated import before the general `@` prefix.
+    alias: [
+      { find: /^@\/sites\/uaLossesRuMod$/, replacement: gatedDataset(loadEnv(mode, projectRoot, "")) },
+      { find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) },
+    ],
   },
   optimizeDeps: {
     exclude: ["sql.js"],

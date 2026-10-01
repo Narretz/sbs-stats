@@ -221,15 +221,15 @@ export interface SiteInfo {
   key: string;
   label: string;
   tier: SiteTier;
-  // A dataset we may not redistribute (no licence yet): its DB is never
-  // published, so the site only exists in dev, reading data/ directly.
-  localOnly?: boolean;
+  // A site only some builds include (a dataset we back up but may not
+  // redistribute): listed only where its build flag put it in SITE_REGISTRY.
+  gated?: boolean;
 }
 export const SITES = [
   { key: "sbs", label: "UA SBS STATISTICS - SBS", tier: "primary" },
   { key: "ru-attacks-gsua", label: "COMBAT STATS - GSUA", tier: "primary" },
   { key: "ru-losses-gsua", label: "RU LOSSES - GSUA", tier: "primary" },
-  { key: "ua-losses-ru-mod-john-felix", label: "UA LOSSES - RU MoD", tier: "primary", localOnly: true },
+  { key: "ua-losses-ru-mod-john-felix", label: "UA LOSSES - RU MoD", tier: "primary", gated: true },
   { key: "ru-air-attacks-gsua", label: "RU MISSILE & UAV ATTACKS - GSUA", tier: "primary" },
   { key: "ru-airdef-mod", label: "UA UAV ATTACKS - RU MoD", tier: "primary" },
   { key: "sbu-alfa", label: "UA SBU ALFA MONTHLY RECAP - SBU", tier: "primary" },
@@ -241,10 +241,6 @@ export const SITES = [
   { key: "zelensky-weekly", label: "RU WEEKLY STRIKES - PRESIDENT UA", tier: "secondary" },
 ] as const satisfies readonly SiteInfo[];
 export type Site = (typeof SITES)[number]["key"];
-const listed = (s: SiteInfo) => !s.localOnly || import.meta.env.DEV;
-// The sites this build offers; a local-only one is a Site but not a page here.
-export const LISTED_SITES: readonly SiteInfo[] = SITES.filter(listed);
-export const isSite = (s: string): s is Site => LISTED_SITES.some((x) => x.key === s);
 export type LoadState = "idle" | "loading" | "ready" | "error";
 
 // ─── Global stats (max + median + total across all data) ─────────────────────
