@@ -142,7 +142,7 @@ export function UaLossesRuModDailyPage({ refreshKey }: Props) {
     <PageScaffold
       headerVariant="block"
       title="Daily Ukrainian Losses - RU MoD claims"
-      description={<>Ukrainian losses claimed by the Russian Ministry of Defence, by report day · the MoD's own running totals, diffed · compiled by John Felix (<a href="https://x.com/NedSnow2019" rel="nofollow external" target="_blank">@NedSnow2019</a>) from the MoD's reports · Russian claims, unverified</>}
+      description={<>Ukrainian losses claimed by the Russian Ministry of Defence · the MoD's own running totals, diffed, each report dated to the day before (it covers the 24 hours to its morning) · compiled by John Felix (<a href="https://x.com/NedSnow2019" rel="nofollow external" target="_blank">@NedSnow2019</a>) from the MoD's reports · Russian claims, unverified</>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ua-losses-ru-mod" />}
       controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />

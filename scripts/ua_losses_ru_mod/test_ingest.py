@@ -189,9 +189,11 @@ def ingest_text(conn, text: str, at: str) -> dict:
 
 
 def daily(conn) -> dict[str, dict]:
-    cur = conn.execute("SELECT * FROM daily ORDER BY report_date")
+    """The view's rows keyed by report day — the dates the fixtures are written in."""
+    cur = conn.execute("SELECT * FROM daily ORDER BY loss_date")
     names = [d[0] for d in cur.description]
-    return {r[0]: dict(zip(names, r)) for r in cur.fetchall()}
+    rows = [dict(zip(names, r)) for r in cur.fetchall()]
+    return {r["report_date"]: r for r in rows}
 
 
 def test_daily_view_diffs_the_totals_and_sums_armour_subgroups(tmp_path, no_floor):
@@ -257,6 +259,19 @@ def test_intercepted_munitions_are_summed_per_group(tmp_path, no_floor):
             one["intercepted_mlrs_rockets"], one["intercepted_guided_bombs"]) == (3, 3, 7, 5)
     assert one["mlrs"] == 0  # the intercepted rocket isn't the MLRS launcher total
     assert d["2025-01-02"]["intercepted_cruise"] == 0
+
+
+def test_rows_are_dated_by_the_day_their_losses_mostly_fall_on(tmp_path, no_floor):
+    conn = ingest.connect(tmp_path / "f.db")
+    ingest_text(conn, sheet(
+        day("24/02/2022", {"Aircraft": 4}),
+        day("25/02/2022", {"Aircraft": 6}),
+        day("26/02/2022", {"Aircraft": 9}),
+    ), "2026-10-01T00:00:00+00:00")
+    rows = conn.execute("SELECT loss_date, report_date, aircraft FROM daily ORDER BY loss_date").fetchall()
+    # The war's first two reports both describe the 24th; after that, a
+    # report covers the 24 hours to its own morning, i.e. the day before.
+    assert rows == [("2022-02-24", "2022-02-25", 6), ("2022-02-25", "2022-02-26", 3)]
 
 
 def test_a_day_missing_one_total_does_not_dump_the_war_into_the_next(tmp_path, no_floor):

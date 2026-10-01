@@ -434,8 +434,9 @@ export type RuLossesMonthlyRow = {
 // ─── UA Losses claimed by the RU MoD (John Felix's sheet → ua-losses-ru-mod-john-felix.db) ─
 // The categories are the MoD's own "since the start" tally — plus radars, EW
 // stations and the munitions it claims to have shot down, which it never
-// totals and are summed from the itemisation — read off the `daily` view (scripts/ua_losses_ru_mod), which diffs those running totals
-// into one row per report day. The MoD does not split tanks from other
+// totals and are summed from the itemisation — read off the `daily` view
+// (scripts/ua_losses_ru_mod), which diffs those running totals into one row
+// per loss day (report day − 1, like the GSUA series). The MoD does not split tanks from other
 // armoured vehicles; Felix's itemisation of the report text does, but only
 // completely from 2025, so the split is a breakdown of `armour`, not a chart.
 export const UA_LOSSES_RU_MOD_METRIC_KEYS = [
@@ -492,7 +493,7 @@ export const UA_LOSSES_RU_MOD_ARMOUR_LABELS: Record<UaLossesRuModArmourKey, stri
 };
 
 export type UaLossesRuModDailyRow = {
-  date: string;        // YYYY-MM-DD, the MoD report day
+  date: string;        // YYYY-MM-DD, the loss day (report day − 1)
   is_today: boolean;
 } & Record<UaLossesRuModMetricKey | UaLossesRuModArmourKey, number | null>;
 

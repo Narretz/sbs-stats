@@ -117,10 +117,18 @@ writing.
 ## Dates
 
 `report_date` is the date the sheet gives the row — the day the MoD published
-the claim. The `daily` view adds `loss_date` (report day − 1), the GSUA losses
-convention, for lining the two up later; it is an inference — the first row,
-24/02/2022, already carries that day's claims. The site charts by report day,
-in Moscow time.
+the claims. Those cover the 24 hours to that morning: the sheet's long-range UAV
+figure equals the MoD's own daytime drone claim of D−1 plus its overnight claim
+into D (from the `ru-mod-ad` DB, which keeps each claim's window) **exactly** on
+227 of 1,003 days in 2024–26, against 23 for D's overnight alone and 46 for D's
+overnight + daytime.
+
+So the `daily` view is keyed by **`loss_date` = report day − 1**, with the
+report date kept alongside. That is also how the GSUA losses series is dated
+(the General Staff's morning report covers the 24 hours before it), so the two
+line up in the combined charts. The exception is the war's start: the MoD
+briefed through 24/02/2022 about that same day, so the first two reports (24th
+and 25th) both land on 24/02 — as GSUA's series starts too. Days are Moscow's.
 
 ## Tests
 

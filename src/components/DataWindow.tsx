@@ -65,9 +65,10 @@ function freshness(
       if (behind <= 1) return { note: "up to date — the latest day is reported the next morning", stale: false };
       return { note: behindNote(behind - 1), stale: true };
     case "ua-losses-ru-mod":
-      // Copied by hand from the MoD's reports, normally within a day or two.
-      if (behind <= 2) return { note: "up to date — compiled by hand, usually a day or two behind", stale: false };
-      return { note: behindNote(behind), stale: true };
+      // A day's claims come out the next morning, and are copied in by hand a
+      // day or so after that.
+      if (behind <= 3) return { note: "up to date — a day's claims come out the next morning and are compiled by hand", stale: false };
+      return { note: behindNote(behind - 1), stale: true };
     case "ru-air-attacks":
       // The real Air Force data exists daily; this Kaggle mirror just re-publishes
       // ~weekly. Always show the explicit lag, but only flag it once it exceeds

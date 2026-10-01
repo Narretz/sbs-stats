@@ -38,9 +38,9 @@ day — the running totals diffed, the armour items summed per subgroup, and
 the radar and EW-station items summed (the MoD keeps no total for either).
 
 DATES. `report_date` is the date the sheet gives the row: the day the MoD
-published the claims. The view adds `loss_date` (report day − 1, the GSUA
-losses convention) for lining up with that series, but the war's first row,
-24/02/2022, already carries that day's claims, so the shift is an inference.
+published the claims, which cover the 24 hours to that morning. The `daily`
+view is keyed by `loss_date`, the day before — the GSUA series' dating, so the
+two line up (evidence and the war's-first-day exception at WAR_START).
 """
 
 from __future__ import annotations
@@ -101,6 +101,14 @@ ANCHORS: dict[str, tuple[str, str]] = {
     # The trailing block: an old mortar breakdown, then the weekly columns.
     "mortars (82mm/120mm)": ("_tail", "skip"),
 }
+
+# The report of day D covers the 24 hours to the morning of D: the sheet's
+# long-range UAV figure equals the MoD's own daytime claim of D-1 plus its
+# overnight claim into D on 227 of 1,003 days in 2024-26 (the same day's
+# windows: 23 and 46). So D's losses are dated D-1, like the GSUA series —
+# except the war's first reports, briefed through 24/02 about 24/02 itself.
+WAR_START = "2022-02-24"
+FIRST_REPORTS_THROUGH = "2022-02-25"
 
 # Sections whose anchor is the MoD's running total — the `daily` view diffs them.
 TOTAL_SECTIONS = [s for s, role in ANCHORS.values() if role == "total"]
@@ -415,8 +423,12 @@ days AS (SELECT DISTINCT report_date FROM latest_claims WHERE section = 'armour'
 long AS (SELECT * FROM inc UNION ALL SELECT * FROM direct UNION ALL SELECT * FROM armour
              UNION ALL SELECT * FROM lr_owa UNION ALL SELECT * FROM untotalled)
 SELECT
-  d.report_date,
-  date(d.report_date, '-1 day') AS loss_date,
+  -- One row per loss day: the report of day D covers the 24 hours to the
+  -- morning of D, so its losses are D-1's. The war's first two reports both
+  -- land on 24/02 — the MoD briefed through the 24th about the 24th itself.
+  CASE WHEN d.report_date <= '{FIRST_REPORTS_THROUGH}' THEN '{WAR_START}'
+       ELSE date(d.report_date, '-1 day') END AS loss_date,
+  MAX(d.report_date) AS report_date,
   {pivot},
   SUM(CASE WHEN section = 'personnel' THEN v END) AS personnel,
   SUM(CASE WHEN section = 'captured' THEN v END) AS captured,
@@ -427,7 +439,7 @@ SELECT
   {munitions}
 FROM days d
 LEFT JOIN long l ON l.report_date = d.report_date
-GROUP BY d.report_date;
+GROUP BY 1;
 """
 
 

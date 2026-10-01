@@ -32,8 +32,9 @@ const getMskDateString = () => new Date().toLocaleDateString("sv-SE", { timeZone
 export const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 
 // Rows come off the ingest's `daily` view: the MoD's running totals already
-// diffed into one row per report day, latest version of every cell. Dates are
-// the report day (`report_date`), not the derived `loss_date`.
+// diffed, latest version of every cell, one row per `loss_date` — the day
+// before the report, since a report covers the 24 hours to its own morning.
+// The same dating as the GSUA losses series, so the two line up.
 export function useDatabaseUaLossesRuMod({ enabled = true }: { enabled?: boolean } = {}) {
   const { resource: db, loadState, error, lastRefreshed, refresh, refreshCount, refreshIntervalMs } =
     useRefreshableResource({
@@ -50,10 +51,10 @@ export function useDatabaseUaLossesRuMod({ enabled = true }: { enabled?: boolean
       const end = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
       return queryRows<Record<string, unknown>>(
         db,
-        `SELECT report_date AS date, ${COLS}
+        `SELECT loss_date AS date, ${COLS}
          FROM daily
-         WHERE report_date >= ${windowStartSql(end, days)} AND report_date <= date('${end}')
-         ORDER BY report_date ASC`,
+         WHERE loss_date >= ${windowStartSql(end, days)} AND loss_date <= date('${end}')
+         ORDER BY loss_date ASC`,
       ).map((row) => {
         const out = { date: String(row.date), is_today: row.date === todayStr } as UaLossesRuModDailyRow;
         for (const k of KEYS) out[k] = typeof row[k] === "number" ? (row[k] as number) : null;
@@ -82,7 +83,7 @@ export function useDatabaseUaLossesRuMod({ enabled = true }: { enabled?: boolean
     if (!db) return [];
     const rows = queryRows<Record<string, number>>(
       db,
-      `SELECT substr(report_date, 1, 7) AS month, ${KEYS.map((k) => `SUM(${k}) AS ${k}`).join(", ")}
+      `SELECT substr(loss_date, 1, 7) AS month, ${KEYS.map((k) => `SUM(${k}) AS ${k}`).join(", ")}
        FROM daily GROUP BY month ORDER BY month ASC`,
     );
     const today = getMskDateString();
@@ -92,8 +93,8 @@ export function useDatabaseUaLossesRuMod({ enabled = true }: { enabled?: boolean
       today,
       queryRows<Record<string, number | null>>(
         db,
-        `SELECT report_date AS date, ${UA_LOSSES_RU_MOD_METRIC_KEYS.join(", ")}
-         FROM daily WHERE report_date >= '${currentMonth}-01'`,
+        `SELECT loss_date AS date, ${UA_LOSSES_RU_MOD_METRIC_KEYS.join(", ")}
+         FROM daily WHERE loss_date >= '${currentMonth}-01'`,
       ).map((r) => ({ date: String(r.date), values: r as Partial<Record<UaLossesRuModMetricKey, number | null>> })),
       UA_LOSSES_RU_MOD_METRIC_KEYS,
     );
@@ -120,7 +121,7 @@ export function useDatabaseUaLossesRuMod({ enabled = true }: { enabled?: boolean
     if (!db) return { minDate: null, maxDate: null };
     const rows = queryRows<{ minDate: string | null; maxDate: string | null }>(
       db,
-      "SELECT MIN(report_date) AS minDate, MAX(report_date) AS maxDate FROM daily",
+      "SELECT MIN(loss_date) AS minDate, MAX(loss_date) AS maxDate FROM daily",
     );
     return rows[0] ?? { minDate: null, maxDate: null };
   }, [db]);
