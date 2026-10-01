@@ -16,6 +16,7 @@ mkdir -p data
 # tr -d '\r' strips Windows line endings if the file was checked out as CRLF.
 urls=$(grep -E '^VITE_[A-Z_]*DB_URL=' .env.production | sed 's/^[^=]*=//' | tr -d '\r')
 
+failed=()
 for url in $urls; do
   # GSUA / ru-mod-ad publish two objects: the authoritative `<name>.db` with
   # the raw post text, and a stripped `<name>.app.db` the frontend reads. Pull
@@ -29,9 +30,24 @@ for url in $urls; do
   for variant in $variants; do
     name=$(basename "$variant")
     echo "→ $name"
-    curl --fail --location --show-error --silent --output "data/$name" "$variant"
+    # Keep going past a failure — one missing object (a new dataset whose
+    # first CI upload hasn't run yet, say) shouldn't cost every DB after it —
+    # and report them all at the end. Download beside the target and move it
+    # into place only on success, so a failed or cut-off transfer leaves the
+    # local copy as it was rather than truncated.
+    if curl --fail --location --show-error --silent --output "data/$name.part" "$variant"; then
+      mv "data/$name.part" "data/$name"
+    else
+      rm -f "data/$name.part"
+      failed+=("$name")
+    fi
   done
 done
 
 echo "done — files in data/:"
 ls -lh data/*.db
+
+if [ "${#failed[@]}" -gt 0 ]; then
+  echo "FAILED to download ${#failed[@]}: ${failed[*]} (any local copy left as it was)" >&2
+  exit 1
+fi
