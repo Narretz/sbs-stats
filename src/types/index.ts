@@ -432,9 +432,9 @@ export type RuLossesMonthlyRow = {
 } & Record<RuLossesMetricKey, number> & Partial<Record<`${RuLossesMetricKey}_projected`, number>>;
 
 // ─── UA Losses claimed by the RU MoD (John Felix's sheet → ua-losses-ru-mod-john-felix.db) ─
-// The categories are the MoD's own "since the start" tally — plus radars and EW
-// stations, which it never totals and are summed from the itemisation — read
-// off the `daily` view (scripts/ua_losses_ru_mod), which diffs those running totals
+// The categories are the MoD's own "since the start" tally — plus radars, EW
+// stations and the munitions it claims to have shot down, which it never
+// totals and are summed from the itemisation — read off the `daily` view (scripts/ua_losses_ru_mod), which diffs those running totals
 // into one row per report day. The MoD does not split tanks from other
 // armoured vehicles; Felix's itemisation of the report text does, but only
 // completely from 2025, so the split is a breakdown of `armour`, not a chart.
@@ -451,6 +451,10 @@ export const UA_LOSSES_RU_MOD_METRIC_KEYS = [
   "radars",
   "ew",
   "captured",
+  "intercepted_cruise",
+  "intercepted_ballistic",
+  "intercepted_mlrs_rockets",
+  "intercepted_guided_bombs",
 ] as const;
 export type UaLossesRuModMetricKey = (typeof UA_LOSSES_RU_MOD_METRIC_KEYS)[number];
 
@@ -467,7 +471,17 @@ export const UA_LOSSES_RU_MOD_METRIC_LABELS: Record<UaLossesRuModMetricKey, stri
   radars: "Radars",
   ew: "EW Stations",
   captured: "POW (Captured)",
+  intercepted_cruise: "Cruise Missiles Shot Down",
+  intercepted_ballistic: "Ballistic Missiles Shot Down",
+  intercepted_mlrs_rockets: "MLRS Rockets Shot Down",
+  intercepted_guided_bombs: "Guided Bombs Shot Down",
 };
+
+// The munitions the MoD claims its air defence shot down — Ukrainian fire, not
+// Ukrainian losses, so kept out of the loss totals.
+export const UA_LOSSES_RU_MOD_INTERCEPT_KEYS: readonly UaLossesRuModMetricKey[] = [
+  "intercepted_cruise", "intercepted_ballistic", "intercepted_mlrs_rockets", "intercepted_guided_bombs",
+];
 
 // The itemised armour subgroups, in the order the sheet lists them.
 export const UA_LOSSES_RU_MOD_ARMOUR_KEYS = [

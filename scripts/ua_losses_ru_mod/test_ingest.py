@@ -38,7 +38,8 @@ HEADER = [
     "Special Motor Vehicles", "Special Motor Vehciles (Daily)",
     "Servicemen (daily) Killed and Wounder", "",
     "Servicemen captured",
-    "Unknown Rocket (probably Grad)", "HIMARS", "Tochka-U Launcher",
+    "Unknown Rocket (probably Grad)", "HIMARS", "Storm Shadow", "Flamingo (FP-5)",
+    "ATACMS", "Guided Aerial Bomb", "JDAM", "S-200", "Tochka-U Launcher",
     "Unknown Radar", "AN/TPQ-36",
     "RERS", "Unknown EWS",
     "Mortars (82mm/120mm)", "Mortars", "Weekly field artillery guns",
@@ -222,6 +223,40 @@ def test_radars_and_ew_stations_are_summed_from_their_items(tmp_path, no_floor):
     d = daily(conn)
     assert (d["2025-01-01"]["radars"], d["2025-01-01"]["ew"]) == (3, 4)
     assert (d["2025-01-02"]["radars"], d["2025-01-02"]["ew"]) == (0, 0)
+
+
+def test_munitions_are_grouped_by_kind():
+    groups = {c.label: c.subgroup for c in ingest.map_columns(HEADER) if c.section == "munitions"}
+    assert groups == {
+        "Unknown Rocket (probably Grad)": "mlrs_rockets", "HIMARS": "mlrs_rockets",
+        "Storm Shadow": "cruise", "Flamingo (FP-5)": "cruise", "ATACMS": "ballistic",
+        "Guided Aerial Bomb": "guided_bombs", "JDAM": "guided_bombs",
+        # Fired at ground targets: neither cruise nor ballistic, so in no group.
+        "S-200": None,
+    }
+
+
+def test_a_new_munition_is_stored_but_flagged(caplog):
+    header = HEADER[:]
+    header.insert(header.index("ATACMS") + 1, "Taurus")
+    cols = {c.label: c for c in ingest.map_columns(header) if c.section == "munitions"}
+    assert cols["Taurus"].role == "item" and cols["Taurus"].subgroup is None
+    assert "Taurus" in caplog.text and "MUNITION_GROUPS" in caplog.text
+
+
+def test_intercepted_munitions_are_summed_per_group(tmp_path, no_floor):
+    conn = ingest.connect(tmp_path / "f.db")
+    # "HIMARS" here is the intercepted rocket, not the launcher under MLRS.
+    r = day("01/01/2025", **{"Storm Shadow": 2, "Flamingo (FP-5)": 1, "ATACMS": 3,
+                             "Guided Aerial Bomb": 4, "JDAM": 1, "S-200": 5})
+    r[HEADER.index("HIMARS", COL["Unknown Rocket (probably Grad)"])] = "7"
+    ingest_text(conn, sheet(r, day("02/01/2025")), "2026-10-01T00:00:00+00:00")
+    d = daily(conn)
+    one = d["2025-01-01"]
+    assert (one["intercepted_cruise"], one["intercepted_ballistic"],
+            one["intercepted_mlrs_rockets"], one["intercepted_guided_bombs"]) == (3, 3, 7, 5)
+    assert one["mlrs"] == 0  # the intercepted rocket isn't the MLRS launcher total
+    assert d["2025-01-02"]["intercepted_cruise"] == 0
 
 
 def test_a_day_missing_one_total_does_not_dump_the_war_into_the_next(tmp_path, no_floor):

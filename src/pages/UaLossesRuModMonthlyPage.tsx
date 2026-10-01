@@ -10,6 +10,7 @@ import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import { armourBreakdown } from "@/utils/armourBreakdown";
 import {
+  UA_LOSSES_RU_MOD_INTERCEPT_KEYS,
   UA_LOSSES_RU_MOD_METRIC_KEYS,
   UA_LOSSES_RU_MOD_METRIC_LABELS,
   type ModelBreakdownEntry,
@@ -21,9 +22,12 @@ interface Props {
   refreshKey?: number;
 }
 
-// Synthetic "all targets" total, as on the GSUA losses page: every category
-// except POWs.
-const TARGETS_KEYS: UaLossesRuModMetricKey[] = UA_LOSSES_RU_MOD_METRIC_KEYS.filter((k) => k !== "captured");
+// Synthetic "all targets" total, as on the GSUA losses page: every loss
+// category except POWs — and not the munitions shot down, which are Ukraine's
+// fire rather than its losses.
+const TARGETS_KEYS: UaLossesRuModMetricKey[] = UA_LOSSES_RU_MOD_METRIC_KEYS.filter(
+  (k) => k !== "captured" && !UA_LOSSES_RU_MOD_INTERCEPT_KEYS.includes(k),
+);
 const sumTargets = (r: Partial<Record<UaLossesRuModMetricKey, number>>): number =>
   TARGETS_KEYS.reduce((s, k) => s + (typeof r[k] === "number" ? (r[k] as number) : 0), 0);
 

@@ -53,7 +53,7 @@ import re
 import sqlite3
 import sys
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -112,6 +112,45 @@ ARMOUR_SUBGROUPS = {
     "unknown apcs": "apc",
     "unknown acvs": "acv",
     "engineering vehicles": "other",
+}
+
+# Munitions the MoD claims its air defence shot down, by kind. Grouped because
+# the MoD's naming drifts — it stopped naming JDAM / Hammer around 06/2025 and
+# says "guided aerial bomb" since — so a model's series starts and stops where
+# the group's carries on. `None`: stored, in no group (S-200 fired at ground
+# targets is neither cruise nor ballistic; "Patriot" is likely interceptors;
+# jet drones are drones). A munitions column missing here is flagged.
+MUNITION_GROUPS: dict[str, str | None] = {
+    "storm shadow": "cruise",
+    "scalp-eg": "cruise",
+    "neptune anti-ship missile": "cruise",
+    "neptune-md (long-range?)": "cruise",
+    "flamingo (fp-5)": "cruise",
+    "unspecified cruise missiles": "cruise",
+    "long-range cruise missile": "cruise",
+    "atacms": "ballistic",
+    "tochka-u": "ballistic",
+    "hrim-2 grom-2": "ballistic",
+    "long-range operational-tactical missile": "ballistic",
+    "unknown rocket (probably grad)": "mlrs_rockets",
+    "grad": "mlrs_rockets",
+    "vampire": "mlrs_rockets",
+    "uragan": "mlrs_rockets",
+    "smerch": "mlrs_rockets",
+    "olkha": "mlrs_rockets",
+    "himars": "mlrs_rockets",
+    "unsp. mlrs": "mlrs_rockets",
+    "guided aerial bomb": "guided_bombs",
+    "jdam": "guided_bombs",
+    "gbu-39 sdb": "guided_bombs",
+    "aasm hammer": "guided_bombs",
+    "glsdb": "guided_bombs",
+    "harm": "air_launched",
+    "unknown agm": "air_launched",
+    "mald": "air_launched",
+    "s-200": None,
+    "patriot": None,
+    "jet lr uavs": None,
 }
 
 # (section, header) → (section, role, item key), for the columns position alone
@@ -205,7 +244,20 @@ def map_columns(header: list[str]) -> list[Column]:
             col = Column(col.index, col.label, col.section, f"{col.item}_{n}", col.role, col.subgroup)
         seen.add((col.section, col.item))
         columns.append(col)
-    return columns
+    return [_munition_group(c) for c in columns]
+
+
+def _munition_group(c: Column) -> Column:
+    if c.section != "munitions":
+        return c
+    h = norm(c.label)
+    if h not in MUNITION_GROUPS:
+        log.warning(
+            f"munitions column {c.label!r} has no group — stored, but in no chart until "
+            f"it's added to MUNITION_GROUPS",
+            extra=ann(title="ua-losses-ru-mod: unclassified munition", level="notice"),
+        )
+    return replace(c, subgroup=MUNITION_GROUPS.get(h))
 
 
 DATE_RE = re.compile(r"^(\d{2})/(\d{2})/(\d{4})$")
@@ -271,7 +323,7 @@ CREATE TABLE IF NOT EXISTS items (
   item       TEXT NOT NULL,      -- '_total' for a section's MoD figure
   label      TEXT NOT NULL,      -- the sheet's header text
   role       TEXT NOT NULL,      -- total (MoD running total) | daily | item | sub (subset of another column)
-  subgroup   TEXT,               -- armour only: tanks | ifv | apc | acv | other
+  subgroup   TEXT,               -- armour: tanks | ifv | apc | acv | other; munitions: cruise | ballistic | mlrs_rockets | guided_bombs | air_launched
   first_seen TEXT NOT NULL,
   UNIQUE (section, item)
 );
@@ -318,6 +370,10 @@ def _daily_view_sql() -> str:
         f"SUM(CASE WHEN section = 'armour_{g}' THEN v END) AS armour_{g}"
         for g in dict.fromkeys(ARMOUR_SUBGROUPS.values())
     )
+    munitions = ",\n  ".join(
+        f"COALESCE(SUM(CASE WHEN section = 'munitions_{g}' THEN v END), 0) AS intercepted_{g}"
+        for g in dict.fromkeys(g for g in MUNITION_GROUPS.values() if g)
+    )
     return f"""
 DROP VIEW IF EXISTS daily;
 CREATE VIEW daily AS
@@ -342,13 +398,18 @@ lr_owa AS (
   SELECT report_date, 'uav_lr_owa' AS section, value AS v
   FROM latest_claims WHERE section = 'uav' AND item = 'lr_owa'
 ),
--- Radars and EW stations have no MoD total: the itemisation is all there is,
--- so a day without one is 0 claimed, not unknown.
+-- Radars, EW stations and intercepted munitions have no MoD total: the
+-- itemisation is all there is, so a day without one is 0 claimed, not unknown.
 untotalled AS (
   SELECT report_date, section, SUM(value) AS v
   FROM latest_claims
   WHERE section IN ('radars', 'ew') AND role = 'item'
   GROUP BY report_date, section
+  UNION ALL
+  SELECT report_date, 'munitions_' || subgroup, SUM(value)
+  FROM latest_claims
+  WHERE section = 'munitions' AND role = 'item' AND subgroup IS NOT NULL
+  GROUP BY report_date, subgroup
 ),
 days AS (SELECT DISTINCT report_date FROM latest_claims WHERE section = 'armour' AND item = '_total'),
 long AS (SELECT * FROM inc UNION ALL SELECT * FROM direct UNION ALL SELECT * FROM armour
@@ -362,7 +423,8 @@ SELECT
   {subgroups},
   SUM(CASE WHEN section = 'uav_lr_owa' THEN v END) AS uav_lr_owa,
   COALESCE(SUM(CASE WHEN section = 'radars' THEN v END), 0) AS radars,
-  COALESCE(SUM(CASE WHEN section = 'ew' THEN v END), 0) AS ew
+  COALESCE(SUM(CASE WHEN section = 'ew' THEN v END), 0) AS ew,
+  {munitions}
 FROM days d
 LEFT JOIN long l ON l.report_date = d.report_date
 GROUP BY d.report_date;

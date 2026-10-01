@@ -73,6 +73,17 @@ need an override (`OVERRIDES`):
 - "Mortars (82mm/120mm)" (2022–24) is a subset of the mortar column above.
 - "Tochka-U Launcher" sits among the munitions it fires.
 
+### Intercepted munitions, by kind
+
+What the MoD claims its air defence shot down — Ukrainian fire, not Ukrainian
+losses. `MUNITION_GROUPS` files each column under cruise / ballistic /
+mlrs_rockets / guided_bombs / air_launched, because the MoD's naming drifts
+(it stopped naming JDAM / Hammer around 06/2025 and says "guided aerial bomb"
+since), so a model's series starts and stops where its group's carries on.
+S-200 (fired at ground targets — neither cruise nor ballistic), "Patriot"
+(likely interceptors) and jet drones are stored in no group. A new munitions
+column not in the map is stored and flagged as a notice, so it gets classified.
+
 A new model column inside a known block is picked up as an item. A missing
 anchor aborts the run rather than filing whole blocks under the wrong category.
 
@@ -93,8 +104,8 @@ Append-only, long format, versioned per cell:
 - View **`daily`** — one row per report day: the eight running totals diffed
   (in long format, so a day missing one total doesn't dump the war-to-date into
   the next day's diff), personnel, captured, the armour subgroup sums, and
-  `uav_lr_owa`, and `radars` / `ew` — the sum of those blocks' items, since
-  the MoD keeps no total for either (a day without one is 0, not unknown). The
+  `uav_lr_owa`, `radars` / `ew` and `intercepted_<group>` — the sum of those
+  blocks' items, since the MoD keeps no total for any of them (a day without one is 0, not unknown). The
   MoD doesn't fold radars into its air-defence total either: on 118 of 128 days
   with an S-300/Patriot/NASAMS radar claimed, the air-defence figure is the
   launchers alone. A correction passes through as that day's value (05/04/2025:
