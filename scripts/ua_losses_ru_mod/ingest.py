@@ -34,7 +34,8 @@ under a newer snapshot (`snapshots.scraped_at`), a cleared one a NULL, and
 nothing is ever updated or deleted. `items` names each (section, item) and records its role
 (`total` | `daily` | `item` | `sub`) and, for the armour block, its subgroup
 (tanks / ifv / apc / acv / other). The `daily` view turns it into one row per
-day — the running totals diffed, the armour items summed per subgroup.
+day — the running totals diffed, the armour items summed per subgroup, and
+the radar and EW-station items summed (the MoD keeps no total for either).
 
 DATES. `report_date` is the date the sheet gives the row: the day the MoD
 published the claims. The view adds `loss_date` (report day − 1, the GSUA
@@ -341,8 +342,17 @@ lr_owa AS (
   SELECT report_date, 'uav_lr_owa' AS section, value AS v
   FROM latest_claims WHERE section = 'uav' AND item = 'lr_owa'
 ),
+-- Radars and EW stations have no MoD total: the itemisation is all there is,
+-- so a day without one is 0 claimed, not unknown.
+untotalled AS (
+  SELECT report_date, section, SUM(value) AS v
+  FROM latest_claims
+  WHERE section IN ('radars', 'ew') AND role = 'item'
+  GROUP BY report_date, section
+),
 days AS (SELECT DISTINCT report_date FROM latest_claims WHERE section = 'armour' AND item = '_total'),
-long AS (SELECT * FROM inc UNION ALL SELECT * FROM direct UNION ALL SELECT * FROM armour UNION ALL SELECT * FROM lr_owa)
+long AS (SELECT * FROM inc UNION ALL SELECT * FROM direct UNION ALL SELECT * FROM armour
+             UNION ALL SELECT * FROM lr_owa UNION ALL SELECT * FROM untotalled)
 SELECT
   d.report_date,
   date(d.report_date, '-1 day') AS loss_date,
@@ -350,7 +360,9 @@ SELECT
   SUM(CASE WHEN section = 'personnel' THEN v END) AS personnel,
   SUM(CASE WHEN section = 'captured' THEN v END) AS captured,
   {subgroups},
-  SUM(CASE WHEN section = 'uav_lr_owa' THEN v END) AS uav_lr_owa
+  SUM(CASE WHEN section = 'uav_lr_owa' THEN v END) AS uav_lr_owa,
+  COALESCE(SUM(CASE WHEN section = 'radars' THEN v END), 0) AS radars,
+  COALESCE(SUM(CASE WHEN section = 'ew' THEN v END), 0) AS ew
 FROM days d
 LEFT JOIN long l ON l.report_date = d.report_date
 GROUP BY d.report_date;

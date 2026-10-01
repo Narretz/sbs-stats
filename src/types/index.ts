@@ -432,8 +432,9 @@ export type RuLossesMonthlyRow = {
 } & Record<RuLossesMetricKey, number> & Partial<Record<`${RuLossesMetricKey}_projected`, number>>;
 
 // ─── UA Losses claimed by the RU MoD (John Felix's sheet → ua-losses-ru-mod-john-felix.db) ─
-// The categories are the MoD's own "since the start" tally, read off the
-// `daily` view (scripts/ua_losses_ru_mod), which diffs those running totals
+// The categories are the MoD's own "since the start" tally — plus radars and EW
+// stations, which it never totals and are summed from the itemisation — read
+// off the `daily` view (scripts/ua_losses_ru_mod), which diffs those running totals
 // into one row per report day. The MoD does not split tanks from other
 // armoured vehicles; Felix's itemisation of the report text does, but only
 // completely from 2025, so the split is a breakdown of `armour`, not a chart.
@@ -447,6 +448,8 @@ export const UA_LOSSES_RU_MOD_METRIC_KEYS = [
   "helicopters",
   "uav",
   "vehicles",
+  "radars",
+  "ew",
   "captured",
 ] as const;
 export type UaLossesRuModMetricKey = (typeof UA_LOSSES_RU_MOD_METRIC_KEYS)[number];
@@ -461,6 +464,8 @@ export const UA_LOSSES_RU_MOD_METRIC_LABELS: Record<UaLossesRuModMetricKey, stri
   helicopters: "Helicopters",
   uav: "UAV",
   vehicles: "Military Motor Vehicles",
+  radars: "Radars",
+  ew: "EW Stations",
   captured: "POW (Captured)",
 };
 

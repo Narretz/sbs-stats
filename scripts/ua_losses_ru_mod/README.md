@@ -93,7 +93,11 @@ Append-only, long format, versioned per cell:
 - View **`daily`** — one row per report day: the eight running totals diffed
   (in long format, so a day missing one total doesn't dump the war-to-date into
   the next day's diff), personnel, captured, the armour subgroup sums, and
-  `uav_lr_owa`. A correction passes through as that day's value (05/04/2025:
+  `uav_lr_owa`, and `radars` / `ew` — the sum of those blocks' items, since
+  the MoD keeps no total for either (a day without one is 0, not unknown). The
+  MoD doesn't fold radars into its air-defence total either: on 118 of 128 days
+  with an S-300/Patriot/NASAMS radar claimed, the air-defence figure is the
+  launchers alone. A correction passes through as that day's value (05/04/2025:
   armour −6, vehicles −11).
 
 Guards: fewer than 365 days, or fewer days than already stored, aborts without

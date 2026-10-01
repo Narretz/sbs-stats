@@ -211,6 +211,19 @@ def test_daily_view_diffs_the_totals_and_sums_armour_subgroups(tmp_path, no_floo
     assert d["loss_date"] == "2025-03-06"
 
 
+def test_radars_and_ew_stations_are_summed_from_their_items(tmp_path, no_floor):
+    # The MoD keeps no running total for either, so the items are the figure,
+    # and a day without any is a claimed 0.
+    conn = ingest.connect(tmp_path / "f.db")
+    ingest_text(conn, sheet(
+        day("01/01/2025", **{"Unknown Radar": 1, "AN/TPQ-36": 2, "RERS": 1, "Unknown EWS": 3}),
+        day("02/01/2025"),
+    ), "2026-10-01T00:00:00+00:00")
+    d = daily(conn)
+    assert (d["2025-01-01"]["radars"], d["2025-01-01"]["ew"]) == (3, 4)
+    assert (d["2025-01-02"]["radars"], d["2025-01-02"]["ew"]) == (0, 0)
+
+
 def test_a_day_missing_one_total_does_not_dump_the_war_into_the_next(tmp_path, no_floor):
     conn = ingest.connect(tmp_path / "f.db")
     gap = day("02/01/2025", {"MRLs": 1000})
