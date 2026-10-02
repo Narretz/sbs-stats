@@ -237,6 +237,22 @@ class TestGate:
         assert _parse("🔹 Канал Минобороны России в MAКС – боевая работа 24/7.") is None
         assert _parse("Героям слава!") is None
 
+    def test_silami_pvo_day_report(self):
+        # msg 67751 (29 Sep 2026) — "дежурными СИЛАМИ ПВО", not "средствами".
+        # AD_GATE only knew "средствами ПВО", so the day's only daytime report
+        # was dropped and 2026-09-29 surfaced as a half-covered day.
+        r = _parse(
+            "⚡️ В течение дня, с 8.00 до 20.00 мск, дежурными силами ПВО уничтожен 21 "
+            "украинский беспилотный летательный аппарат самолетного типа над территориями "
+            "Белгородской, Курской областей и над акваторией Черного моря. "
+            "🔹 Минобороны России",
+            mid=67751, posted_utc="2026-09-29T15:02:00+00:00",
+        )
+        assert r is not None
+        assert r.drones == 21
+        assert r.window_kind == "day"
+        assert r.report_date == "2026-09-29"
+
     def test_implausible_count_rejected(self):
         text = (
             "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены "

@@ -153,8 +153,10 @@ COUNT_AIR_NOUN_FIRST_RE = re.compile(
     rf"{_HEAD_NUM}\s+(?:украин\w+\s+)?{_UNIT_NOUN_AIR}(?:\s+\w+){{0,3}}\s+{_AD_VERB}",
     re.I,
 )
-# Is this an air-defense intercept post at all?
-AD_GATE = re.compile(r"(противовоздушн|средствами\s+пво|перехвач\w+\s+и\s+уничтож)", re.I)
+# Is this an air-defense intercept post at all? "силами ПВО" alongside the usual
+# "средствами ПВО": msg 67751 (29 Sep 2026, "дежурными силами ПВО уничтожен 21
+# …") was the day's only daytime report and the gate dropped it.
+AD_GATE = re.compile(r"(противовоздушн|(?:средствами|силами)\s+пво|перехвач\w+\s+и\s+уничтож)", re.I)
 # Explicit night range with dates: "с 20.00 мск 22 мая до 7.00 мск 23 мая".
 # "мск" after each time is OPTIONAL — the channel often omits it on the dated
 # form, e.g. "с 23.00 12 марта до 7.00 13 марта". Without this the report falls
