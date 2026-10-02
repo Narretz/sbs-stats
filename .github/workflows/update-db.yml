@@ -11,6 +11,23 @@ on:
         type: boolean
         required: false
         default: false
+      backfill_from_foosint:
+        description: >-
+          Fill hourly rows this DB is missing (a run that didn't happen —
+          e.g. an expired Cloudflare token) from foosint/sbs-stats, which
+          scrapes the same API. Only hours absent here are added, never
+          overwritten; foosint lacks flights_strike / flights_recon, so those
+          stay NULL for the filled hours.
+        type: boolean
+        required: false
+        default: false
+
+# One run at a time. Every run downloads sbs.db, adds to it and uploads it
+# whole, so two overlapping runs (a manual dispatch and the hourly one) would
+# each upload a copy missing the other's changes.
+concurrency:
+  group: sbs-db
+  cancel-in-progress: false
 
 jobs:
   update-db:
@@ -45,6 +62,19 @@ jobs:
             russia-ukraine-war/sbs.db \
             --file data/sbs.db \
             --remote
+
+      # Opt-in. Inserts missing (date, hour) rows only — ON CONFLICT DO NOTHING
+      # — so it can't touch an hour this DB already has, including the one the
+      # fetcher below is about to write.
+      - name: Backfill missing hours from foosint
+        if: inputs.backfill_from_foosint
+        run: |
+          python3 scripts/download_foosint_db.py
+          python3 scripts/generate_hourly_backfill_sql.py \
+            --target-db data/sbs.db --source-db data/sbs-foosint.db \
+            --start-date 2022-01-01 --output /tmp/backfill.sql \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          python3 -c "import sqlite3; c = sqlite3.connect('data/sbs.db'); c.executescript(open('/tmp/backfill.sql').read()); c.close()"
 
       - name: Run data fetcher
         env:

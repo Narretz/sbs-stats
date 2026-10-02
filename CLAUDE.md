@@ -115,7 +115,12 @@ datasets for future views.
 
 GitHub Actions in `.github/workflows/`:
 - `update-db.yml` — SBS grouping total. No `schedule:`; an external cron
-  dispatches it roughly hourly.
+  dispatches it roughly hourly. One run at a time (`concurrency: sbs-db`):
+  each run uploads the whole DB, so overlapping runs would drop each other's
+  hours. Hours a run never happened for (an expired Cloudflare token, say)
+  come back with the manual `backfill_from_foosint` input, which inserts only
+  the (date, hour) rows missing here from foosint/sbs-stats — same API, no
+  flight counts.
 - `update-sbs-units-db.yml` — the 15 tracked SBS sub-units
   ([`scripts/sbs_units/`](scripts/sbs_units/README.md)). Its own workflow
   precisely because it must NOT run hourly: the capture-bucket key means extra
@@ -296,6 +301,8 @@ python3 scripts/ci_digest.py --hours 48
 
 bash scripts/test_python.sh          # every ingest test suite (one pytest per dir)
 bash scripts/test_python.sh scripts/rubikon   # …or just one
+
+bash scripts/fetch_prod_dbs.sh sbs rubikon   # just these DBs (exact names)
 
 # Python ingest scripts: see each scripts/<x>/README.md
 pip install -r scripts/requirements.txt   # the devcontainer does this on create
