@@ -74,16 +74,31 @@ def check_missile_field_asymmetry(conn: sqlite3.Connection, since: str) -> int:
     # omission needs the wording, and the wording only exists in the
     # authoritative `<name>.db` — the `.app.db` the frontend reads has
     # `posts.text` blanked, and nobody reading the annotations panel has either.
-    # MAX() over the group is arbitrary-but-deterministic in SQLite; one post
-    # per date is the normal case, and any of them shows the phrasing.
-    rows = conn.execute(
+    # The day's figure is the MAX over its posts, so the quote must come from
+    # the post that supplied it: a date normally has an evening interim AND a
+    # morning final, which can disagree (2026-09-30: interim "двох ракетних
+    # ударів", final "22 ракетних та 78 авіаційних ударів"), and quoting the
+    # other one makes a correct parse read as a misparse.
+    posts = conn.execute(
         _LATEST_POSTS
         + """
-        SELECT date, MAX(missile_strikes), MAX(missiles_used), MAX(text)
-        FROM lp GROUP BY date ORDER BY date
+        SELECT date, missile_strikes, missiles_used, text
+        FROM lp ORDER BY date, snapshot_at DESC, message_date DESC
         """,
         (since,),
     ).fetchall()
+    by_date: dict[str, list[tuple]] = {}
+    for post in posts:
+        by_date.setdefault(post[0], []).append(post)
+    rows = []
+    for date, day in by_date.items():
+        strikes = max((p[1] for p in day if p[1] is not None), default=None)
+        used = max((p[2] for p in day if p[2] is not None), default=None)
+        # First post (latest snapshot) carrying the day's value of the field
+        # that IS set; any post's text when neither or both are.
+        col, val = (1, strikes) if strikes is not None else (2, used)
+        text = next((p[3] for p in day if p[col] == val), day[0][3])
+        rows.append((date, strikes, used, text))
     hits = 0
     for date, strikes, used, text in rows:
         if (strikes is None) != (used is None):

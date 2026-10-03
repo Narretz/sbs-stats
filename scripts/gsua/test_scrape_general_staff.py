@@ -2989,6 +2989,32 @@ class TestCheckDb:
         assert "Обстановка" not in msg
         assert "Втрати живої сили" not in msg
 
+    def test_quotes_the_post_that_supplied_the_figure(self, tmp_path, caplog):
+        # 2026-09-30 as published: the evening interim said two strikes, the
+        # morning final 22. The day's figure is the final's 22, so the quote
+        # must be the final's — quoting the interim's "двох" beside "=22" made a
+        # correct parse read as a misparse in the annotations panel.
+        conn = self._db(tmp_path, [
+            ("2026-09-30", "42429", 2, None),
+            ("2026-09-30", "42433", 22, None),
+        ])
+        for sid, snap, text in (
+            ("42429", "2026-09-30T22:00:00",
+             "Противник завдав двох ракетних ударів, здійснив 54 авіаційні удари."),
+            ("42433", "2026-10-01T08:00:00",
+             "Вчора противник завдав 22 ракетних та 78 авіаційних ударів."),
+        ):
+            conn.execute("UPDATE posts SET snapshot_at = ?, text = ? "
+                         "WHERE source_id = ?", (snap, text, sid))
+        conn.commit()
+        with caplog.at_level(logging.WARNING, logger=check_db.log.name):
+            assert check_db.check_missile_field_asymmetry(conn, "2026-01-01") == 1
+        conn.close()
+        msg = self._notices(caplog)[0].message
+        assert "missile_strikes=22, missiles_used=∅" in msg
+        assert "22 ракетних та 78" in msg
+        assert "двох" not in msg
+
     def test_a_stripped_text_column_leaves_the_message_alone(self, tmp_path, caplog):
         # The normal case against an `.app.db`, whose posts.text is blanked. The
         # finding must read as it did before rather than claim the source was
