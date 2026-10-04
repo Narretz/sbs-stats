@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { maxMedian } from "@/utils/windowStats";
+import { maxMedian, pooledRate } from "@/utils/windowStats";
 
 describe("maxMedian", () => {
   it("is zeroed for an empty window", () => {
@@ -23,5 +23,21 @@ describe("maxMedian", () => {
 
   it("does not care what order the values arrive in", () => {
     expect(maxMedian([5, 1, 4, 2, 3])).toEqual(maxMedian([1, 2, 3, 4, 5]));
+  });
+});
+
+describe("pooledRate", () => {
+  it("weights by volume rather than averaging the per-day rates", () => {
+    // 2/2 (100%) and 20/100 (20%): the mean of rates would be 60%.
+    expect(pooledRate([2, 100], [2, 20])).toBeCloseTo((22 / 102) * 100);
+  });
+
+  it("drops a position where either side is missing", () => {
+    expect(pooledRate([10, 50, null], [5, null, 3])).toBe(50);
+  });
+
+  it("is null when nothing was hit", () => {
+    expect(pooledRate([], [])).toBeNull();
+    expect(pooledRate([0, null], [0, 4])).toBeNull();
   });
 });

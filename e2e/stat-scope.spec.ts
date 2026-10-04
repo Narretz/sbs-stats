@@ -64,3 +64,15 @@ for (const view of ["daily", "hourly"] as const) {
     });
   });
 }
+
+// The paired hit/destroyed charts carry an average destroyed / killed share in
+// their summary row, next to MAX / MED / TOTAL.
+for (const view of ["daily", "monthly"] as const) {
+  test(`SBS ${view} — paired charts show the average subset rate`, async ({ page }) => {
+    await page.goto(`/?site=sbs&page=${view}`);
+    await page.waitForSelector(".recharts-surface");
+    const body = await page.locator("body").innerText();
+    expect(body).toMatch(/⌀ DEST \d+\.\d%/);
+    expect(body).toMatch(/⌀ KILLED \d+\.\d%/);
+  });
+}
