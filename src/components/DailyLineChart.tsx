@@ -8,7 +8,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { LazyChartArea } from "@/components/LazyChartArea";
 import { usePinnedChart } from "@/components/usePinnedChart";
-import { maxMedian } from "@/utils/windowStats";
+import { maxMedian, pooledRate } from "@/utils/windowStats";
 import { FONTS, type Theme } from "@/theme";
 import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { chartAnchor } from "@/utils/chartAnchor";
@@ -320,6 +320,17 @@ export function DailyLineChart({
   const total = win ? primaryWin.total : (globalTotal ?? 0);
   const total2 = win ? secondaryWin.total : (globalTotal2 ?? 0);
   const hasPair = !!data2;
+  // Average subset rate (destroyed / killed / intercepted % of hit) over the
+  // same scope as the other stats. Only for the hit/destroyed-style pairs —
+  // the ones whose tooltip already carries a per-day "<subsetLabel> %".
+  const showAvgRate = hasPair && pairMode === "subset" && !primaryIsDiff && subsetLabel !== undefined;
+  const windowRate = useMemo(
+    () => (data2 ? pooledRate(data.map((d) => d.value), data2.map((d) => d.value)) : null),
+    [data, data2],
+  );
+  const avgRate = !showAvgRate ? null
+    : win ? windowRate
+    : (globalTotal && globalTotal2 != null ? (globalTotal2 / globalTotal) * 100 : null);
   const c = chartColors(t);
   // House rule: the main series is blue, whether the chart is single-line or
   // the "Hit" half of a pair; the second series ("Destroyed") is red.
@@ -443,6 +454,11 @@ export function DailyLineChart({
             <span style={{ color: secondaryColor }}>▲ MAX {max2.toLocaleString()}</span>
             <span style={{ color: secondaryColor, opacity: 0.7 }}>~ MED {median2.toLocaleString()}</span>
             <span style={{ color: secondaryColor, opacity: 0.7 }}>Σ TOTAL {total2.toLocaleString()}</span>
+            {avgRate != null && (
+              <span style={{ color: secondaryColor }} title={`${resolvedSecondaryLabel} as a share of ${resolvedPrimaryLabel}, Σ${resolvedSecondaryLabel} / Σ${resolvedPrimaryLabel}`}>
+                ⌀ {subsetLabel!.toUpperCase()} {avgRate.toFixed(1)}%
+              </span>
+            )}
           </>
         )}
       </div>

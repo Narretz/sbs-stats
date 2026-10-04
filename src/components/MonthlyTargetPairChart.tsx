@@ -5,7 +5,7 @@ import {
 } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
-import { maxMedian } from "@/utils/windowStats";
+import { maxMedian, pooledRate } from "@/utils/windowStats";
 import { FONTS } from "@/theme";
 import { LazyChartArea } from "@/components/LazyChartArea";
 import { ChartCardTitle } from "@/components/ChartCardTitle";
@@ -148,6 +148,16 @@ export function MonthlyTargetPairChart({
   const max2 = win ? secondaryWin.max : (globalMax2 ?? secondaryWin.max);
   const median2 = win ? secondaryWin.median : (globalMedian2 ?? secondaryWin.median);
   const total2 = win ? secondaryWin.total : (globalTotal2 ?? secondaryWin.total);
+  // Average subset rate (destroyed / killed / intercepted % of hit) over the
+  // same scope as the other stats; shown wherever the tooltip carries the
+  // per-month rate.
+  const windowRate = useMemo(
+    () => pooledRate(data.map((d) => d.hit_value), data.map((d) => d.destroyed_value)),
+    [data],
+  );
+  const avgRate = !(showRatio && subsetLabel !== undefined) ? null
+    : win || globalTotal == null || globalTotal2 == null ? windowRate
+    : (globalTotal > 0 ? (globalTotal2 / globalTotal) * 100 : null);
   // Both halves route through c.damaged / c.destroyed, the app-wide
   // blue-main / red-second pair — see chartColors.ts.
   const hitProjectedFill = c.damagedProjected;
@@ -185,6 +195,11 @@ export function MonthlyTargetPairChart({
         <span style={{ color: c.destroyed }}>▲ MAX {max2.toLocaleString()}</span>
         <span style={{ color: c.destroyed, opacity: 0.7 }}>~ MED {median2.toLocaleString()}</span>
         <span style={{ color: c.destroyed, opacity: 0.7 }}>Σ TOTAL {total2.toLocaleString()}</span>
+        {avgRate != null && (
+          <span style={{ color: c.destroyed }} title={`${secondaryLabel} as a share of ${primaryLabel}, Σ${secondaryLabel} / Σ${primaryLabel}`}>
+            ⌀ {subsetLabel!.toUpperCase()} {avgRate.toFixed(1)}%
+          </span>
+        )}
       </div>
       <LazyChartArea height={220}>
         <ResponsiveContainer width="100%" height={220}>
