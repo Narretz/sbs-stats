@@ -221,6 +221,13 @@ GitHub Actions in `.github/workflows/`:
   the tier least likely to catch a helper or parser
   regression.
 - `deploy.yml` — builds and publishes to GitHub Pages.
+- `deploy-cron-worker.yml` — deploys `cloudflare/`, the `sbs-stats-cron`
+  Worker whose cron trigger (`wrangler.toml`) is the "external cron" that
+  dispatches `update-db.yml`. On push to main touching `cloudflare/`, or
+  manually; a PR only bundles it (`--dry-run`). Needs the
+  `CLOUDFLARE_WORKERS_API_TOKEN` secret (Workers Scripts: Edit), kept apart
+  from the R2-only `CLOUDFLARE_API_TOKEN`. The Worker's `GH_TOKEN` is a
+  Worker secret that survives deploys — still set with `wrangler secret put`.
 
 Nothing in CI reads the annotations the ingests raise, so a daily Claude Code
 web Routine does: `.claude/skills/ci-triage/SKILL.md` is its operating manual
