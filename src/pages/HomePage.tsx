@@ -228,7 +228,11 @@ export function HomePage({ onGoToSite }: Props) {
   // can differ; the per-source `enabled` gating means the hook still loads
   // each DB at most once.
   useEffect(() => {
-    const allReady = [
+    // Settled, not ready: a source that failed to load answers its queries
+    // with nothing, which is what its series should show. Waiting on "ready"
+    // instead left every chart on the page empty whenever any one DB was
+    // unreachable.
+    const allSettled = [
       [needed.has("sbs"), sbs.loadState],
       [needed.has("gsua"), gsua.loadState],
       [needed.has("ru-losses"), ruLosses.loadState],
@@ -241,8 +245,8 @@ export function HomePage({ onGoToSite }: Props) {
       [needed.has("rubikon"), rubikon.loadState],
       [mediazonaNeeded, mediazona.loadState],
       [needed.has("zelensky"), zelensky.loadState],
-    ].every(([n, s]) => !n || s === "ready");
-    if (!allReady) return;
+    ].every(([n, s]) => !n || s === "ready" || s === "error");
+    if (!allSettled) return;
 
     let cancelled = false;
     const liveUids = new Set(charts.map((c) => c.uid));
