@@ -5,7 +5,7 @@ import {
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DailyDaySeries, EodEstimate } from "@/types";
 import { getKyivDateString } from "@/hooks/sqlLoader";
-import { eodAtHour, hourBaseline } from "@/utils/hourlyTooltip";
+import { baselineOf, eodAtHour, hourBaseline, type HourHistory } from "@/utils/hourlyTooltip";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
@@ -32,6 +32,11 @@ interface Props {
   // End-of-day estimates for today's (in-progress) series, one per reading so
   // far — the tooltip shows the one made at the hovered hour.
   eodSteps?: EodEstimate[] | null;
+  // Every reading in the dataset per hour (0–23), for the tooltip's median /
+  // max when the stats are scoped to all data — as the MAX/MED lines are. A
+  // getter, so it is only built for a chart somebody hovers. Without it the
+  // tooltip uses the window in both scopes.
+  allHours?: () => Map<number, HourHistory>;
   // Optional sibling data used to extend the Y-axis upper bound so paired
   // charts (e.g. destroyed alongside hit) share a visual scale. The chart's
   // own MAX/MED labels and reference lines are unaffected.
@@ -160,7 +165,7 @@ function DateGrid({ children }: { children: React.ReactNode[] }) {
 // Entries come from the pivoted row rather than recharts' tooltip payload,
 // which is what lets the pinned sheet render the identical grid.
 function describeHour({
-  row, dates, currentDate, today, t, sortMode, eod,
+  row, dates, currentDate, today, t, sortMode, eod, allHours,
 }: {
   row: HourRow;
   dates: string[];
@@ -169,6 +174,7 @@ function describeHour({
   t: Theme;
   sortMode: TooltipSortMode;
   eod: EodEstimate | null;
+  allHours: (() => Map<number, HourHistory>) | null;
 }): TooltipDescriptor {
   const label = row.hour;
 
@@ -184,27 +190,37 @@ function describeHour({
     return b.dataKey.localeCompare(a.dataKey);
   });
   const currentEntry = currentDate ? sorted.find((e) => e.dataKey === currentDate) : undefined;
-  const base = hourBaseline(sorted.map((e) => ({ date: e.dataKey, value: e.value })), currentDate);
+  // Row 0 is the day-start anchor every day is pinned to, not a reading.
+  const base = label === 0
+    ? null
+    : allHours
+      ? baselineOf(allHours().get(label - 1), currentDate, currentEntry?.value)
+      : hourBaseline(sorted.map((e) => ({ date: e.dataKey, value: e.value })), currentDate);
 
   const multipleYears = new Set(sorted.map(p => p.dataKey.slice(0, 4))).size > 1;
   const dayLabel = (date: string) => {
     const [y, m, d] = date.split("-");
     return multipleYears ? `${y}-${m}-${d}` : `${m}-${d}`;
   };
+  // Under "All data" the max can come from a day outside the window, and so
+  // from a year the window doesn't show.
+  const maxDayLabel = (date: string) =>
+    date.slice(0, 4) !== (currentDate ?? today).slice(0, 4) ? date : dayLabel(date);
 
   const header = (
     <div style={{marginBottom: 4}}>
       <div style={{ color: t.accent, marginBottom: 5, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
         {currentDate === today ? 'TODAY' : currentDate} {formatHour(label)}: {currentEntry ? currentEntry.value.toLocaleString() : 'n/a'}{eod && `, EoD est ~${eod.projected.toLocaleString()} (${Math.round(eod.fraction * 100)}% in by ${eod.asOf})`}
       </div>
-      {base.days > 0 ? (
+      {base == null ? null : base.days > 0 ? (
         <div>
-          {`median ${base.median!.toLocaleString()} · max ${base.max!.toLocaleString()} (${dayLabel(base.maxDate!)})`}
-          {` of ${base.days} other ${base.days === 1 ? "day" : "days"}`}
+          {`median ${base.median!.toLocaleString()}` }
           {` · current ${base.deltaPct == null ? "n/a" : `${base.deltaPct >= 0 ? "+" : ""}${base.deltaPct.toFixed(1)}%`} vs median`}
+          {`· max ${base.max!.toLocaleString()} (${maxDayLabel(base.maxDate!)})`}
+          {` of ${base.days} other ${base.days === 1 ? "day" : "days"}`}
         </div>
       ) : (
-        <div>no other day in the window has a value at this hour</div>
+        <div>no other day has a value at this hour</div>
       )}
     </div>
   );
@@ -245,7 +261,7 @@ function describeHour({
   );
   return { header, rows: [], content, minWidth: 200 };
 }
-export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTotal, wfull, tooltipSort = "date", highlight = false, selectedDate, eodSteps, pairedData, pairedGlobalMax }: Props) {
+export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTotal, wfull, tooltipSort = "date", highlight = false, selectedDate, eodSteps, allHours, pairedData, pairedGlobalMax }: Props) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
   const { scope } = useStatScope();
@@ -307,6 +323,7 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
     describe: (row) => describeHour({
       row, dates, currentDate: primarySeries?.date, today, t,
       sortMode: tooltipSort,
+      allHours: win ? null : (allHours ?? null),
       // Row 0 is the chart's day-start anchor, not a reading.
       eod: row.hour > 0 ? eodAtHour(eodSteps, todaySeries, row.hour - 1) : null,
     }),

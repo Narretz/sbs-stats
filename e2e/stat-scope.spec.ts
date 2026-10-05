@@ -76,3 +76,31 @@ for (const view of ["daily", "monthly"] as const) {
     expect(body).toMatch(/⌀ KILLED \d+\.\d%/);
   });
 }
+
+test.describe("SBS hourly — the tooltip's per-hour stats follow the scope", () => {
+  test("'All data' takes the hour's median / max from every day, 'Window data' from the window", async ({ page }) => {
+    // The sentinel is read at hour 23, so it is the 23:00 max under "All data"
+    // and nowhere under "Window data".
+    await page.goto("/?site=sbs&page=hourly");
+    await page.waitForSelector(".hourly-card");
+    await page.getByTestId("stat-scope-select").selectOption("all");
+    const card = page.locator(".hourly-card#personnel-casualties");
+    await card.scrollIntoViewIfNeeded();
+    const svg = card.locator("svg.recharts-surface").first();
+    const box = (await svg.boundingBox())!;
+    // Near the right edge; the loop below steps the last hour or two.
+    await svg.click({ position: { x: box.width * 0.9, y: box.height * 0.5 } });
+    const sheet = page.locator(".chart-sheet[data-open]");
+    await expect(sheet).toBeVisible();
+    const label = page.locator(".chart-sheet-label");
+    for (let i = 0; i < 5 && !(await label.textContent())?.startsWith("23:00"); i++) {
+      await page.getByLabel("Next point").click();
+    }
+    await expect(label).toHaveText("23:00–23:59");
+    await expect(sheet).toContainText(`max ${SENTINEL} (2020-01-01) of`);
+
+    await page.getByTestId("stat-scope-select").selectOption("window");
+    await expect(sheet).toContainText(/max [\d,]+ \(.+\) of \d+ other days?/);
+    await expect(sheet).not.toContainText(SENTINEL);
+  });
+});

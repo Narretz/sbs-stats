@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { hourHistories, type HourHistory } from "@/utils/hourlyTooltip";
 import { Temporal } from "temporal-polyfill";
 import { useSbsDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
@@ -61,11 +62,12 @@ interface HourlyPageProps {
 
 export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryHourly, queryGlobalStats, queryEodSteps, queryDataWindow } = useSbsDatabaseContext();
+  const { loadState, error, queryHourly, queryHourlyAll, queryGlobalStats, queryEodSteps, queryDataWindow } = useSbsDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
   const [rows, setRows] = useState<DailyRow[]>([]);
+  const [allRows, setAllRows] = useState<DailyRow[]>([]);
   const [globalStats, setGlobalStats] = useState<GlobalStats>({} as GlobalStats);
   const [eod, setEod] = useState<Partial<Record<StatKey, EodEstimate[]>>>({});
   const [hasData, setHasData] = useState(false);
@@ -111,9 +113,26 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
   useEffect(() => {
     if (loadState === "ready") {
       setGlobalStats(queryGlobalStats());
+      setAllRows(queryHourlyAll());
       setEod(queryEodSteps());
     }
-  }, [loadState, queryGlobalStats, queryEodSteps, refreshKey]);
+  }, [loadState, queryGlobalStats, queryHourlyAll, queryEodSteps, refreshKey]);
+
+  // Per metric, every reading per hour — built on the first hover that asks
+  // for it, since most of the ~60 charts are never hovered.
+  const allHoursFor = useMemo(() => {
+    const cache = new Map<StatKey, Map<number, HourHistory>>();
+    return (key: StatKey) => {
+      let h = cache.get(key);
+      if (!h) {
+        h = hourHistories(allRows.map((r) => ({
+          date: r.date, hour: r.hour, value: typeof r[key] === "number" ? (r[key] as number) : null,
+        })));
+        cache.set(key, h);
+      }
+      return h;
+    };
+  }, [allRows]);
 
   useEffect(() => {
     if (loadState === "ready") {
@@ -186,6 +205,7 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
             highlight={!!selectedDate}
             selectedDate={selectedDate}
             eodSteps={eod[m.key] ?? null}
+            allHours={() => allHoursFor(m.key)}
             pairedData={srcKey ? makeDataset(srcKey) : undefined}
             pairedGlobalMax={srcKey ? globalStats[srcKey]?.max ?? 0 : undefined}
           />

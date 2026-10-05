@@ -123,6 +123,20 @@ export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
     [db]
   );
 
+  // Every intraday reading in the dataset — the hourly tooltip's per-hour
+  // median / max when the stats are scoped to all data. Same columns and hours
+  // as queryHourly, no window and no is_today.
+  const queryHourlyAll = useCallback((): DailyRow[] => {
+    if (!db) return [];
+    const statCols = buildStatColumns(getTableColumns(db, "daily_stats"));
+    return queryRows<DailyRow>(db, `
+      SELECT date, hour, ${statCols}
+      FROM daily_stats
+      WHERE hour < 24
+      ORDER BY date ASC, hour ASC
+    `);
+  }, [db]);
+
   // ── Global stats: max + median across ALL daily_stats (ignores day range) ────
   const queryGlobalStats = useCallback((): GlobalStats => {
     if (!db) return {} as GlobalStats;
@@ -309,7 +323,7 @@ export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
 
   return {
     loadState, error,
-    queryDaily, queryHourly, queryMonthly, queryGlobalStats, queryEodProjection, queryEodSteps, queryDataWindow,
+    queryDaily, queryHourly, queryHourlyAll, queryMonthly, queryGlobalStats, queryEodProjection, queryEodSteps, queryDataWindow,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs,
   };

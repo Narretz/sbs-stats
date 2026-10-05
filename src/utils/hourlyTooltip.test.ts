@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eodAtHour, hourBaseline } from "@/utils/hourlyTooltip";
+import { baselineOf, eodAtHour, hourBaseline, hourHistories } from "@/utils/hourlyTooltip";
 import type { DailyDaySeries, EodEstimate } from "@/types";
 
 describe("hourBaseline", () => {
@@ -40,6 +40,41 @@ describe("hourBaseline", () => {
     const b = hourBaseline([{ date: "2026-09-01", value: 0 }, { date: "2026-09-05", value: 3 }], "2026-09-05");
     expect(b.median).toBe(0);
     expect(b.deltaPct).toBeNull();
+  });
+});
+
+describe("baselineOf", () => {
+  // Hour 9 on five days, hour 10 on one; a null is no reading.
+  const all = hourHistories([
+    { date: "2026-01-01", hour: 9, value: 30 },
+    { date: "2026-01-02", hour: 9, value: 10 },
+    { date: "2026-01-03", hour: 9, value: 50 },
+    { date: "2026-01-04", hour: 9, value: 20 },
+    { date: "2026-01-05", hour: 9, value: 40 },
+    { date: "2026-01-06", hour: 9, value: null },
+    { date: "2026-01-01", hour: 10, value: 7 },
+  ]);
+
+  it("groups by hour and drops days without a reading", () => {
+    expect(all.get(9)!.values).toEqual([10, 20, 30, 40, 50]);
+    expect(all.get(10)!.values).toEqual([7]);
+  });
+
+  it("leaves the highlighted day out wherever it sorts", () => {
+    // Out of the bottom, the middle and the top: the others are what remains.
+    expect(baselineOf(all.get(9), "2026-01-02", 10)).toMatchObject({ days: 4, median: 40, max: 50 });
+    expect(baselineOf(all.get(9), "2026-01-01", 30)).toMatchObject({ days: 4, median: 40, max: 50 });
+    expect(baselineOf(all.get(9), "2026-01-03", 50)).toMatchObject({ days: 4, median: 30, max: 40, maxDate: "2026-01-05" });
+  });
+
+  it("compares a day the history doesn't hold against all of it", () => {
+    // Today's reading, say, when the history was loaded before it landed.
+    expect(baselineOf(all.get(9), "2026-02-01", 60)).toMatchObject({ days: 5, median: 30, max: 50, deltaPct: 100 });
+  });
+
+  it("is empty for an hour nothing else was read at", () => {
+    expect(baselineOf(all.get(10), "2026-01-01", 7).days).toBe(0);
+    expect(baselineOf(undefined, undefined, undefined).days).toBe(0);
   });
 });
 

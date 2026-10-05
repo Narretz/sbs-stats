@@ -16,24 +16,59 @@ export interface HourBaseline {
   deltaPct: number | null;
 }
 
+// One hour's readings across a set of days, sorted ascending by value (ties by
+// date), so a baseline that leaves one day out is an index walk rather than a
+// re-sort — the whole-dataset version is built once and read on every hover.
+export interface HourHistory {
+  values: number[];
+  dates: string[];
+}
+
+export function toHourHistory(entries: { date: string; value: number }[]): HourHistory {
+  const sorted = [...entries].sort((a, b) => a.value - b.value || a.date.localeCompare(b.date));
+  return { values: sorted.map((e) => e.value), dates: sorted.map((e) => e.date) };
+}
+
+// Every reading per hour (0–23), from rows of the whole dataset.
+export function hourHistories(points: { date: string; hour: number; value: number | null }[]): Map<number, HourHistory> {
+  const byHour = new Map<number, { date: string; value: number }[]>();
+  for (const p of points) {
+    if (typeof p.value !== "number") continue;
+    let list = byHour.get(p.hour);
+    if (!list) byHour.set(p.hour, (list = []));
+    list.push({ date: p.date, value: p.value });
+  }
+  return new Map([...byHour].map(([h, list]) => [h, toHourHistory(list)]));
+}
+
+// The baseline from a history, leaving `currentDate` out; `currentValue` is the
+// highlighted day's own reading, compared against the median.
+export function baselineOf(
+  history: HourHistory | undefined,
+  currentDate: string | undefined,
+  currentValue: number | undefined,
+): HourBaseline {
+  const { values = [], dates = [] } = history ?? {};
+  const skip = currentDate ? dates.indexOf(currentDate) : -1;
+  const n = values.length - (skip >= 0 ? 1 : 0);
+  if (n <= 0) return { days: 0, median: null, max: null, maxDate: null, deltaPct: null };
+  // The i-th of the other days, in sorted order.
+  const nth = (i: number) => (skip >= 0 && i >= skip ? i + 1 : i);
+  // Upper-middle for an even count, like every other median on the site
+  // (utils/windowStats.ts).
+  const median = values[nth(Math.floor(n / 2))];
+  // Last in sort order is the max, and among equal maxima the most recent day.
+  const top = nth(n - 1);
+  const deltaPct = currentValue != null && median !== 0 ? ((currentValue - median) / median) * 100 : null;
+  return { days: n, median, max: values[top], maxDate: dates[top], deltaPct };
+}
+
 export function hourBaseline(
   entries: { date: string; value: number }[],
   currentDate: string | undefined,
 ): HourBaseline {
   const current = entries.find((e) => e.date === currentDate);
-  const others = entries.filter((e) => e.date !== currentDate);
-  if (!others.length) return { days: 0, median: null, max: null, maxDate: null, deltaPct: null };
-
-  // Upper-middle for an even count, like every other median on the site
-  // (utils/windowStats.ts).
-  const sorted = others.map((e) => e.value).sort((a, b) => a - b);
-  const median = sorted[Math.floor(sorted.length / 2)];
-  let top = others[0];
-  for (const e of others) {
-    if (e.value > top.value || (e.value === top.value && e.date > top.date)) top = e;
-  }
-  const deltaPct = current && median !== 0 ? ((current.value - median) / median) * 100 : null;
-  return { days: others.length, median, max: top.value, maxDate: top.date, deltaPct };
+  return baselineOf(toHourHistory(entries), currentDate, current?.value);
 }
 
 // The end-of-day estimate to show at a hovered hour of today's series. `hour`

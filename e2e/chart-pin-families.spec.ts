@@ -96,7 +96,7 @@ test("the hourly sheet keeps the header's stats, which only the card had room fo
   const box = (await svg.boundingBox())!;
   // The fixture's days only have readings at a few hours; an hour nobody has
   // a reading at has no stats to show, so sweep until the cursor lands on one.
-  const stats = /median [\d,]+ · max [\d,]+ \(.+\) of \d+ other days? · current .* vs median/;
+  const stats = /(?=.*median [\d,]+)(?=.*max [\d,]+ \(.+\) of \d+ other days?)(?=.*current .* vs median)/;
   let hover = "";
   let frac = 0.5;
   for (; frac < 0.75 && !stats.test(hover); frac += 0.02) {
