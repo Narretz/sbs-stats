@@ -99,7 +99,12 @@ datasets for future views.
     a settled day) cost a line each. A new pure helper belongs here.
   - `e2e/` (Playwright, `npm run test:e2e`): everything that needs the real
     thing — a DB loading, recharts sizing itself, an IntersectionObserver, the
-    history stack. Uses synthetic fixtures, never `data/*.db`. Reach for it
+    history stack. Uses synthetic fixtures, never `data/*.db`. Runs against
+    an `e2e`-mode **build** served by `vite preview` (fixture DBs via a preview
+    middleware in `vite.config.ts`), not the dev server — every test opens a
+    fresh browser context, and re-fetching ~136 unbundled modules per page load
+    took the suite 413 s against 243 s on the build. A dataset with no fixture fails to load there
+    rather than quietly reading `data/`. Reach for it
     when the question is "does this reach the screen", not "is this the right
     number".
   - `scripts/*/test_ingest.py`: ingest tests for scripts that parse data from

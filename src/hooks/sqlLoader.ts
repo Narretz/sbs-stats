@@ -8,8 +8,12 @@ import type { Database } from "sql.js";
 // were copy-pasted into each hook; they live here once now.
 
 const SQL_JS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0";
-const SQL_WASM_URL = import.meta.env.DEV ? "/vendor/sql-wasm.wasm" : `${SQL_JS_CDN}/sql-wasm.wasm`;
-const SQL_JS_URL = import.meta.env.DEV ? "/vendor/sql-wasm.js" : `${SQL_JS_CDN}/sql-wasm.js`;
+// The local copy (public/vendor, from `npm install`) everywhere but the
+// production build — including the e2e build, which would otherwise make every
+// test depend on reaching the CDN.
+const LOCAL_SQL_JS = import.meta.env.MODE !== "production";
+const SQL_WASM_URL = LOCAL_SQL_JS ? "/vendor/sql-wasm.wasm" : `${SQL_JS_CDN}/sql-wasm.wasm`;
+const SQL_JS_URL = LOCAL_SQL_JS ? "/vendor/sql-wasm.js" : `${SQL_JS_CDN}/sql-wasm.js`;
 
 // Returns today's date string (YYYY-MM-DD) in Kyiv local time. The GSUA/SBS
 // datasets reconcile to Kyiv time; the RU MoD hook uses its own MSK variant.

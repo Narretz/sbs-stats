@@ -91,7 +91,8 @@ test("a paired SBS day lands on the hourly chart of its primary series", async (
 });
 
 test("a daily page without an hourly one has no hourly link", async ({ page }) => {
-  await page.goto("/?site=ru-airdef-mod&page=daily");
+  // GSUA: its hourly view was dropped (the GS stopped intraday reporting).
+  await page.goto("/?site=ru-attacks-gsua&page=daily");
   await page.waitForSelector(".chart-card");
   await pin(page, page.locator(".chart-card").first(), 0.5);
   await expect(byHour(page)).toHaveCount(0);

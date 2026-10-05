@@ -25,10 +25,18 @@ export default defineConfig({
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
   ],
-  // Build the synthetic fixtures, then serve in `e2e` mode (.env.e2e points the
-  // app at those fixtures). Both run before the URL is polled, so ordering holds.
+  // Build the synthetic fixtures, then BUILD the app in `e2e` mode (.env.e2e
+  // points it at those fixtures) and serve that with `vite preview`. A build
+  // rather than the dev server: every test opens a fresh browser context, so
+  // on the dev server each page load re-fetched ~136 unbundled modules, against
+  // ~10 bundled ones here — 413s for the suite on the dev server. It also puts
+  // the production build under test. All three steps finish before the URL is
+  // polled, so ordering holds.
   webServer: {
-    command: `node e2e/build-fixtures.mjs && npx vite --mode e2e --port ${PORT} --strictPort`,
+    command:
+      `node e2e/build-fixtures.mjs` +
+      ` && npx vite build --mode e2e --outDir dist-e2e --emptyOutDir --logLevel warn` +
+      ` && npx vite preview --mode e2e --outDir dist-e2e --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: false,
     timeout: 120_000,
