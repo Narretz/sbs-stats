@@ -9,32 +9,12 @@ import { useStatScope } from "@/hooks/useStatScope";
 import { LazyChartArea } from "@/components/LazyChartArea";
 import { usePinnedChart } from "@/components/usePinnedChart";
 import { maxMedian, pooledRate } from "@/utils/windowStats";
+import { linearTrend } from "@/utils/trend";
 import { FONTS, type Theme } from "@/theme";
 import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { chartAnchor } from "@/utils/chartAnchor";
 import { AREA_FILL_OPACITY, chartColors } from "@/chartColors";
 import { breakdownToRows, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
-
-function linearRegression(data: DailyDataPoint[]): Array<number | null> {
-  const points = data
-    .map((d, i) => ({ x: i, y: d.value }))
-    .filter((p): p is { x: number; y: number } => typeof p.y === "number");
-  const n = points.length;
-  if (n < 2) return data.map(d => d.value);
-  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
-  for (let i = 0; i < n; i++) {
-    const p = points[i];
-    sumX += p.x;
-    sumY += p.y;
-    sumXY += p.x * p.y;
-    sumXX += p.x * p.x;
-  }
-  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-  const intercept = (sumY - slope * sumX) / n;
-  return data.map((d, i) =>
-    d.value == null ? null : Math.max(0, Math.round(slope * i + intercept))
-  );
-}
 
 interface Props {
   title: string;
@@ -349,8 +329,8 @@ export function DailyLineChart({
   }, [data, data2]);
 
   const chartData = useMemo(() => {
-    const trend1 = linearRegression(data);
-    const trend2 = data2 ? linearRegression(data2) : null;
+    const trend1 = linearTrend(data, eod);
+    const trend2 = data2 ? linearTrend(data2, eod2) : null;
     // Fold the diff into its own series so we can regress on it. Only used
     // when `primaryIsDiff` — otherwise the tooltip's "primary trend" IS
     // just trend1 (SBS-style "Hit" is the total, so its trend is trend1).
@@ -364,7 +344,11 @@ export function DailyLineChart({
           : null,
       };
     });
-    const trendDiff = data2 && pairMode === "subset" ? linearRegression(diffSeries) : null;
+    // Today's diff estimate is the difference of the two estimates — only when
+    // both series have one, since half an estimate against half a day is no
+    // better than the partial.
+    const eodDiff = eod && eod2 ? { ...eod, projected: Math.max(0, eod.projected - eod2.projected) } : null;
+    const trendDiff = data2 && pairMode === "subset" ? linearTrend(diffSeries, eodDiff) : null;
     return data.map<PairedRow>((d, i) => {
       const v2 = data2?.[i]?.value ?? null;
       const v = d.value;
