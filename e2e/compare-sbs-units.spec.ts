@@ -13,6 +13,11 @@ import { test, expect, type Page } from "@playwright/test";
 // asserting on whatever data happens to be on disk.
 const ADD = "compare-add-column";
 
+// What the Nth column's unit picker shows. Not the header cell's text: the
+// picker's <option>s list every unit, so that would contain them all.
+const columnUnit = (page: Page, i: number) =>
+  page.getByTestId("compare-column-unit").nth(i).locator("option:checked");
+
 // Fixture values (e2e/build-fixtures.mjs): the grouping is in the 5,000s,
 // Alpha Unit around 100, Bravo Unit around 200.
 async function rowCells(page: Page, label: string): Promise<string[]> {
@@ -68,7 +73,24 @@ test.describe("Compare — SBS sub-units", () => {
 
     await page.getByTestId(ADD).selectOption("sbs:alpha-unit");
     await expect(page).toHaveURL(/cols=sbs(%3A|:)alpha-unit(%3A|:)\d{4}-\d{2}/);
-    await expect(page.locator("thead th").nth(1)).toContainText("Alpha Unit");
+    await expect(columnUnit(page, 0)).toHaveText("SBS · Alpha Unit");
+  });
+
+  test("a column's unit can be changed in place, keeping its month", async ({ page }) => {
+    const month = monthsBack(1);
+    await gotoCompare(page, `sbs:${month}`);
+    await expect
+      .poll(async () => page.getByTestId("compare-column-unit").first().locator("optgroup").count())
+      .toBeGreaterThan(0);
+
+    await page.getByTestId("compare-column-unit").first().selectOption("sbs:bravo-unit");
+    await expect(page).toHaveURL(new RegExp(`cols=sbs(%3A|:)bravo-unit(%3A|:)${month}(&|$)`));
+    await expect(columnUnit(page, 0)).toHaveText("SBS · Bravo Unit");
+    await expect(page.getByTestId("compare-column-month").first()).toHaveValue(month);
+
+    // And back to the grouping: the slug goes, the month stays.
+    await page.getByTestId("compare-column-unit").first().selectOption("sbs");
+    await expect(page).toHaveURL(new RegExp(`cols=sbs(%3A|:)${month}(&|$)`));
   });
 
   test("a sub-unit column shows the unit's figures, not the grouping's", async ({ page }) => {
@@ -78,10 +100,9 @@ test.describe("Compare — SBS sub-units", () => {
     // Retrying assertions, not one read: a unit's display name comes from
     // sbs-units.db, which loads lazily, so until it lands the header shows the
     // slug ("SBS · alpha-unit"). Same race as the rows below.
-    const head = page.locator("thead");
-    await expect(head).toContainText("UA SBS (USF)");
-    await expect(head).toContainText("Alpha Unit");
-    await expect(head).toContainText("Bravo Unit");
+    await expect(columnUnit(page, 0)).toHaveText("UA SBS (USF)");
+    await expect(columnUnit(page, 1)).toHaveText("SBS · Alpha Unit");
+    await expect(columnUnit(page, 2)).toHaveText("SBS · Bravo Unit");
 
     // [label, grouping, alpha, bravo] — each column reads its own source.
     // `total_targets_hit` is 5x the per-class figure in the fixture (see
@@ -130,7 +151,7 @@ test.describe("Compare — SBS sub-units", () => {
   test("a pre-sub-unit link still resolves", async ({ page }) => {
     const month = thisMonth();
     await gotoCompare(page, `sbs:${month}`);
-    await expect(page.locator("thead th").nth(1)).toContainText("UA SBS (USF)");
+    await expect(columnUnit(page, 0)).toHaveText("UA SBS (USF)");
     // Polled: the row renders before sbs.db resolves.
     await expect
       .poll(async () => (await rowCells(page, "All targets engaged"))[1])
@@ -179,7 +200,7 @@ test.describe("Compare — SBS sub-units", () => {
     // beside real ones. Before the fix this listed the grouping's months.
     await expect
       .poll(async () =>
-        (await page.locator("thead th select").first().locator("option").allTextContents())
+        (await page.getByTestId("compare-column-month").first().locator("option").allTextContents())
           .map((o) => o.trim()),
       )
       .toEqual([`${thisMonth()} (no data)`, monthsBack(12), monthsBack(13)]);
@@ -190,6 +211,6 @@ test.describe("Compare — SBS sub-units", () => {
     // Malformed link: only SBS has sub-units. The column should survive as the
     // plain entity rather than disappearing.
     await gotoCompare(page, `rubikon:alpha-unit:${month}`);
-    await expect(page.locator("thead th").nth(1)).toContainText("Рубикон");
+    await expect(columnUnit(page, 0)).toHaveText("RU «Рубикон»");
   });
 });

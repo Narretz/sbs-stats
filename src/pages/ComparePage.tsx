@@ -454,6 +454,54 @@ export function ComparePage({ preset }: Props) {
 
   const removeColumn = (id: number) => setColumns((cs) => cs.filter((c) => c.id !== id));
 
+  // Swapping a column's source keeps its month — "the same month, another
+  // unit" is the comparison being made, and a month the new source lacks reads
+  // "(no data)" like any other. The projection only survives onto SBS: no
+  // other entity has one, and the effect above drops it once the new source's
+  // rows show it can't project that month.
+  const setColumnSource = (id: number, src: ColumnSource) =>
+    setColumns((cs) => cs.map((c) => (
+      c.id === id
+        ? { id: c.id, month: c.month, ...src, ...(c.proj && src.entity === "sbs" ? { proj: true } : {}) }
+        : c
+    )));
+
+  // What the "add column" picker and each column's own picker offer, as
+  // `entity` or `sbs:<slug>` — the URL's token shape, so the two can't drift.
+  // `full` spells a sub-unit as "SBS · <unit>", for a select that shows only
+  // its chosen option and so loses the optgroup saying which entity it is in.
+  const sourceToken = (src: ColumnSource) => (src.unit ? `${src.entity}:${src.unit}` : src.entity);
+  const parseSourceToken = (token: string): ColumnSource => {
+    const [entity, unit] = token.split(":");
+    return { entity: entity as CompareEntityId, ...(unit ? { unit } : {}) };
+  };
+  const sourceOptions = (full: boolean) => (
+    <>
+      {COMPARE_ENTITIES.map((e) => (
+        <option key={e} value={e}>{ENTITY_LABELS[e]}</option>
+      ))}
+      {/* The SBS sub-units, grouped rather than listed flat: 15 of them
+          inline would bury the other two entities. Retired units keep
+          their own group here for the same reason the monthly page's
+          picker does — their history is worth comparing, but a reader
+          scanning the list shouldn't have to know which names stopped. */}
+      {units.some((u) => u.active) && (
+        <optgroup label="UA SBS sub-units">
+          {units.filter((u) => u.active).map((u) => (
+            <option key={u.slug} value={`sbs:${u.slug}`}>{full ? labelFor({ entity: "sbs", unit: u.slug }) : sbsUnitLabel(u)}</option>
+          ))}
+        </optgroup>
+      )}
+      {units.some((u) => !u.active) && (
+        <optgroup label="UA SBS sub-units — no longer reporting">
+          {units.filter((u) => !u.active).map((u) => (
+            <option key={u.slug} value={`sbs:${u.slug}`}>{full ? labelFor({ entity: "sbs", unit: u.slug }) : sbsUnitLabel(u)}</option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  );
+
   // ─── Cell values ──────────────────────────────────────────────────────────
   // Canonical rows: only those at least one selected entity can actually fill.
   // A row no column maps (Aircraft with Rubikon-only columns) would be a line
@@ -748,40 +796,12 @@ export function ComparePage({ preset }: Props) {
             data-testid="compare-add-column"
             value=""
             onChange={(e) => {
-              const v = e.target.value;
-              if (v) {
-                // "sbs:fenix" adds a sub-unit column; a bare entity id adds the
-                // entity's own. Same token shape as the URL, so the two can't
-                // drift apart.
-                const [entity, unit] = v.split(":");
-                addColumn({ entity: entity as CompareEntityId, ...(unit ? { unit } : {}) });
-              }
+              if (e.target.value) addColumn(parseSourceToken(e.target.value));
               e.target.value = "";
             }}
           >
             <option value="">unit</option>
-            {COMPARE_ENTITIES.map((e) => (
-              <option key={e} value={e}>{ENTITY_LABELS[e]}</option>
-            ))}
-            {/* The SBS sub-units, grouped rather than listed flat: 15 of them
-                inline would bury the other two entities. Retired units keep
-                their own group here for the same reason the monthly page's
-                picker does — their history is worth comparing, but a reader
-                scanning the list shouldn't have to know which names stopped. */}
-            {units.some((u) => u.active) && (
-              <optgroup label="UA SBS sub-units">
-                {units.filter((u) => u.active).map((u) => (
-                  <option key={u.slug} value={`sbs:${u.slug}`}>{sbsUnitLabel(u)}</option>
-                ))}
-              </optgroup>
-            )}
-            {units.some((u) => !u.active) && (
-              <optgroup label="UA SBS sub-units — no longer reporting">
-                {units.filter((u) => !u.active).map((u) => (
-                  <option key={u.slug} value={`sbs:${u.slug}`}>{sbsUnitLabel(u)}</option>
-                ))}
-              </optgroup>
-            )}
+            {sourceOptions(false)}
           </select>
         </label>
 
@@ -869,22 +889,39 @@ export function ComparePage({ preset }: Props) {
                       borderBottom: `1px solid ${t.border}`, verticalAlign: "top",
                       whiteSpace: "nowrap",
                     }}>
-                      <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>
-                        <span style={{ color: t.text }}>{labelFor(c)}</span>
+                      {/* Selects to the left, the remove button pinned right. */}
+                      <div style={{ display: "flex", gap: 4, alignItems: "center", justifyContent: "space-between" }}>
+                        <select
+                          className="ctl"
+                          data-testid="compare-column-unit"
+                          aria-label="Column unit"
+                          value={sourceToken(c)}
+                          onChange={(e) => setColumnSource(c.id, parseSourceToken(e.target.value))}
+                          style={{ textTransform: "none", color: t.text }}
+                        >
+                          {/* Until the sub-unit list loads, a unit column
+                              still needs its own option or the select shows
+                              the first entity instead. */}
+                          {c.unit && !units.some((u) => u.slug === c.unit) && (
+                            <option value={sourceToken(c)}>{labelFor(c)}</option>
+                          )}
+                          {sourceOptions(true)}
+                        </select>
                         <button
+                          className="ctl"
                           onClick={() => removeColumn(c.id)}
                           title="Remove column"
-                          style={{
-                            background: "none", border: "none", cursor: "pointer",
-                            color: t.textMuted, fontSize: 13, lineHeight: 1, padding: "0 2px",
-                          }}
+                          aria-label="Remove column"
+                          style={{ color: t.textMuted }}
                         >
                           ✕
                         </button>
                       </div>
-                      <div style={{ marginTop: 4 }}>
+                      <div style={{ marginTop: 4, textAlign: "left" }}>
                         <select
                           className="ctl"
+                          data-testid="compare-column-month"
+                          aria-label="Column month"
                           value={monthValue(c)}
                           onChange={(e) => setColumnMonth(c.id, e.target.value)}
                           style={{ textTransform: "none" }}

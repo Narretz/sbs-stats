@@ -63,7 +63,7 @@ async function engaged(page: Page): Promise<string> {
   return (await tr.locator("td").nth(1).textContent() ?? "").replace(/\s+/g, " ").trim();
 }
 
-const monthSelect = (page: Page) => page.locator("thead th select").first();
+const monthSelect = (page: Page) => page.getByTestId("compare-column-month").first();
 
 test.describe("Compare — month-end projection", () => {
   test("the option sits under the month it projects, and nowhere else", async ({ page }) => {
