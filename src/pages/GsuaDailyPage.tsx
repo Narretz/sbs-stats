@@ -24,7 +24,6 @@ import {
   type GsuaMetricKey,
   type EodEstimate,
 } from "@/types";
-import { FONTS } from "@/theme";
 
 
 function parseWeekdays(raw: string | null): number[] {
@@ -261,26 +260,22 @@ export function GsuaDailyPage({ refreshKey }: Props) {
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
         <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} canGoPrev={canGoPrev} />
         <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
-        <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, letterSpacing: "0.04em" }}>
-          Direction
-        </span>
-        <select
-          data-testid="direction-picker"
-          value={selectedDirection}
-          onChange={(e) => updateDirection(e.target.value)}
-          style={{
-            background: selectedDirection ? t.primary : t.bgAlt,
-            color: selectedDirection ? t.onPrimary : t.textMuted,
-            border: `1px solid ${selectedDirection ? t.primary : t.border}`,
-            borderRadius: 4, padding: "5px 8px",
-            fontFamily: FONTS.mono, fontSize: 11, cursor: "pointer",
-          }}
-        >
-          <option value="">All Ukraine (overview)</option>
-          {directionList.map((d) => (
-            <option key={d} value={d}>{d}</option>
-          ))}
-        </select>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span className="ctl-label">Direction</span>
+          <select
+            className="ctl"
+            data-testid="direction-picker"
+            value={selectedDirection}
+            onChange={(e) => updateDirection(e.target.value)}
+            // A picked direction is the "active" state, like a set end date.
+            aria-pressed={selectedDirection ? true : undefined}
+          >
+            <option value="">All Ukraine (overview)</option>
+            {directionList.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        </div>
         <StatScopeToggle />
       </>}
       loadState={loadState}
