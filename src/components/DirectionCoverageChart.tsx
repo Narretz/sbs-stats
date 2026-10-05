@@ -15,6 +15,7 @@ import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTab
 import { usePinnedChart } from "@/components/usePinnedChart";
 import { DIRECTION_AXIS_JOINT_LABEL } from "@/types";
 import type { GsuaDirectionCoverageRow } from "@/types";
+import { interimReportTime } from "@/utils/gsuaInterim";
 
 // Per-day stacked bar of combat engagements, broken down by direction with
 // an "Other" catch-all for the long tail and an "Unattributed" stack for the
@@ -82,17 +83,13 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
       data.map((row) => [row.date, new Set(row.mergedAxes ?? [])]),
     );
 
-    // The report each bucket was built from. A snapshot dated the same day as
-    // the bucket means the wrap-up report — the GS posts it the next morning —
-    // hasn't landed, so the bar is an interim reading and will grow. Monthly
-    // buckets aggregate many reports and carry no snapshot, so they never
-    // show the marker.
+    // The report each bucket was built from, when it is an interim one (see
+    // utils/gsuaInterim.ts). Monthly buckets aggregate many reports and carry
+    // no snapshot, so they never show the marker.
     const interimByBucket = new Map<string, string>();
     for (const row of data) {
-      const snap = row.snapshot_at;
-      if (snap && snap.slice(0, 10) === row.date) {
-        interimByBucket.set(row.date, snap.slice(11, 16));
-      }
+      const time = interimReportTime(row.date, row.snapshot_at);
+      if (time) interimByBucket.set(row.date, time);
     }
 
     // An axis whose composition changed is named for the window on screen.

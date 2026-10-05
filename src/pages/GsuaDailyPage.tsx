@@ -13,6 +13,7 @@ import { DateNav } from "@/components/DateNav";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows, weekdayPredicate } from "@/utils/dayRange";
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
+import { interimNote } from "@/utils/gsuaInterim";
 import {
   GSUA_METRIC_KEYS,
   GSUA_METRIC_LABELS,
@@ -173,6 +174,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
         date: d.date,
         value: typeof d[key] === "number" ? (d[key] as number) : null,
         is_today: d.is_today,
+        note: interimNote(d.date, d.snapshot_at),
       })),
       startDate,
       endDate,
@@ -203,6 +205,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       date: d.date,
       value: d.attacks,
       is_today: d.is_today,
+      note: interimNote(d.date, d.snapshot_at),
     })),
     startDate,
     endDate,
@@ -213,6 +216,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       date: d.date,
       value: d.ongoing,
       is_today: d.is_today,
+      note: interimNote(d.date, d.snapshot_at),
     })),
     startDate,
     endDate,
@@ -245,7 +249,13 @@ export function GsuaDailyPage({ refreshKey }: Props) {
     <PageScaffold
       headerVariant="block"
       title={`Daily Combat Stats ${selectedDirection ? `— ${selectedDirection}` : ""} - GSUA`}
-      description="Last snapshot per day · Parsed deterministically from Telegram @GeneralStaffZSU. May be incomplete or incorrect."
+      description={<>
+        Last snapshot per day · Parsed deterministically from Telegram <a href="https://t.me/GeneralStaffZSU" rel="nofollow external" target="_blank">@GeneralStaffZSU</a>. May be incomplete or incorrect.
+        <br/>
+        <span style={{ color: t.textImportant, border: `2px solid ${t.borderImportant}`, display: "inline-block", marginTop: 2, padding: 4, borderRadius: 4 }}>
+          A day's figures are final with the General Staff's wrap-up report the next morning (08:00). Until then they come from that day's interim report (at 22:00). Before 4 Aug there was also an afternoon report, usually at 16:00.
+        </span>
+      </>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />}
       controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />

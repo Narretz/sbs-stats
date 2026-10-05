@@ -133,6 +133,11 @@ test.describe("End-of-day projection", () => {
     expect(txt).toMatch(/\(\d+%\)/);
   });
 
-  // No GSUA hourly case: it renders through the same header as SBS hourly
-  // above, and GSUA's own hook is already proven wired by the daily one.
+  test("GSUA ru-attacks daily — today's point says it is from the interim report", async ({ page }) => {
+    // Not a projection, but the same hover: the fixture's today ends on its
+    // 22:00 report, the next morning's wrap-up still to come.
+    await page.goto(GSUA_DAILY);
+    const txt = await eodTooltip(page, 1); // a single-series metric chart
+    expect(txt).toMatch(/Interim 22:00 report/);
+  });
 });
