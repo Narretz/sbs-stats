@@ -132,8 +132,9 @@ body {
   outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }
+/* Checked reads from the tick alone: a primary border on top of it looked
+   like a focus ring left behind by the click. */
 .ctl-check:has(input:checked) {
-  border-color: var(--color-primary);
   color: var(--color-text);
 }
 
