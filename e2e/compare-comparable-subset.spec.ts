@@ -36,9 +36,9 @@ test.describe("Compare — comparable subset", () => {
   test("the caption follows the scope-notes toggle", async ({ page }) => {
     const m = thisMonth();
     await gotoCompare(page, `sbs:${m},rubikon:${m}`);
-    expect((await rowCells(page, CHILD))[0]).not.toContain("categories all selected units");
+    expect((await rowCells(page, CHILD))[0]).not.toContain("categories every column");
     await gotoCompare(page, `sbs:${m},rubikon:${m}`, "&scope=1");
-    expect((await rowCells(page, CHILD))[0]).toContain("categories all selected units");
+    expect((await rowCells(page, CHILD))[0]).toContain("categories every column");
   });
 
   test("is a child of the total, and follows the sub-category toggle", async ({ page }) => {
@@ -75,7 +75,7 @@ test.describe("Compare — comparable subset", () => {
 
     // «Рубикон» has no aircraft or watercraft counter at all — those are the
     // genuinely incomparable ones.
-    expect(cells[0]).toContain("13 categories all selected units report");
+    expect(cells[0]).toContain("13 categories every column reports");
     expect(cells[0]).toContain("left out as unique to some");
     expect(cells[0]).toContain("Aircraft");
     expect(cells[0]).toContain("Fleet");
@@ -100,14 +100,13 @@ test.describe("Compare — comparable subset", () => {
     expect(cells[0]).not.toContain("Air defense");
   });
 
-  test("two columns of the same vocabulary drop nothing", async ({ page }) => {
-    // Two SBS sub-units publish exactly the same counters, so there is nothing
-    // one reports that the other can't be compared on.
+  test("is not shown when every column is the same entity", async ({ page }) => {
+    // SBS and two of its sub-units publish exactly the same counters, so the
+    // total above is already like-for-like and there is nothing to set apart.
     const m = thisMonth();
-    await gotoCompare(page, `sbs:alpha-unit:${m},sbs:bravo-unit:${m}`, "&scope=1");
-    const cells = await rowCells(page, CHILD);
-    expect(cells[0]).toContain("15 categories all selected units report");
-    expect(cells[0]).not.toContain("left out");
+    await gotoCompare(page, `sbs:${m},sbs:alpha-unit:${m},sbs:bravo-unit:${m}`, "&scope=1");
+    await page.locator("tbody tr").filter({ hasText: PARENT }).first().waitFor();
+    await expect(page.locator("tbody tr").filter({ hasText: CHILD })).toHaveCount(0);
   });
 
   test("the subset is derived, and marked as such", async ({ page }) => {

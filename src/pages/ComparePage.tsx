@@ -580,12 +580,18 @@ export function ComparePage({ preset }: Props) {
 
   const comparableRow = useMemo<FlatRow | null>(() => {
     if (!comparableRows.length) return null;
+    // One entity throughout (a unit against itself in another month, or SBS
+    // against its own sub-units) counts the same things in every column, so
+    // the total above is already like-for-like and this would only restate
+    // part of it. Unless a counter that exists in one month is missing in
+    // another — then what dropped out still needs saying.
+    if (soloEntity && !comparable.dropped.length) return null;
     // Say what was LEFT OUT, not what went in: the rows that went in are
     // visible further down the table, while the difference between this figure
     // and the total above it is otherwise unexplained — the question this
     // caption exists to answer.
     const scope =
-      `${comparableRows.length} categories all selected units report` +
+      `${comparableRows.length} categories every column reports` +
       (comparable.dropped.length
         ? ` · left out as unique to some: ${comparable.dropped.join(", ")}`
         : "");
@@ -611,7 +617,7 @@ export function ComparePage({ preset }: Props) {
         return value ? { value: { ...value, derived: true }, scope: "" } : null;
       },
     };
-  }, [comparableRows, comparable.dropped, snapshotFor]);
+  }, [comparableRows, comparable.dropped, soloEntity, snapshotFor]);
 
   const visibleRows = useMemo(() => {
     // Children are the only indented rows, so dropping them is the whole
