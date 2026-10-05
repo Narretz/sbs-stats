@@ -1,3 +1,4 @@
+import { Temporal } from "temporal-polyfill";
 import { useTheme } from "@/hooks/useTheme";
 
 interface Props {
@@ -18,6 +19,12 @@ interface Props {
   // date that is otherwise live — but not for a derived start, which always has
   // one and would sit permanently lit.
   active?: boolean;
+  // Whether reaching `max` — picking it, or stepping onto it — means "live"
+  // (value ""), which is what an end date at today is. It is also the only way
+  // back to live on a browser whose date input has no clear button (Firefox
+  // on Android). Off for a field that must always hold a date, like the
+  // window's derived start.
+  liveAtMax?: boolean;
   title?: string;       // tooltip on the input, for a non-obvious control
   testId?: string;
 }
@@ -27,9 +34,14 @@ interface Props {
 // DayRangeSelect — by the window's start date, which is derived rather than
 // stored but steps and jumps exactly like a real one.
 export function DateNav({
-  label, value, min, max, onChange, onShift, canGoNext, canGoPrev = true, active, title, testId,
+  label, value, min, max, onChange, onShift, canGoNext, canGoPrev = true, active, liveAtMax = true, title, testId,
 }: Props) {
   const { theme: t } = useTheme();
+  const pick = (date: string) => onChange(liveAtMax && date === max ? "" : date);
+  const next = () => {
+    if (liveAtMax && value && Temporal.PlainDate.from(value).add({ days: 1 }).toString() === max) pick(max);
+    else onShift(1);
+  };
   return (
     <div style={{display: "flex", alignItems: "center", gap: 6}}>
       <span className="ctl-label">
@@ -45,7 +57,7 @@ export function DateNav({
         value={value}
         min={min}
         max={max}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => pick(e.target.value)}
         className="ctl"
         // A set date is the "active" state, same treatment as a pressed toggle.
         aria-pressed={(active ?? !!value) ? true : undefined}
@@ -53,7 +65,7 @@ export function DateNav({
         title={title}
         style={{ colorScheme: "dark" }}
       />
-      <button className="ctl" onClick={() => onShift(1)} disabled={!canGoNext}
+      <button className="ctl" onClick={next} disabled={!canGoNext}
         aria-label={`${label}: next day`}
         style={{ color: t.textMuted, height: 25 }}>&gt;</button>
     </div>

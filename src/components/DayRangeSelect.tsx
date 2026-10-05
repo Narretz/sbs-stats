@@ -144,6 +144,7 @@ export function DayRangeSelect<T extends number>({
           canGoPrev={canStartGoPrev}
           canGoNext={canStartGoNext}
           active={false}
+          liveAtMax={false}
           title="First day of the window — moving it sets the time window to match"
         />
       )}

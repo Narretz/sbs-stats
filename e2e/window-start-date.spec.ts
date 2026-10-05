@@ -56,9 +56,22 @@ test.describe("Daily/hourly pages — window start date", () => {
     await expect(start).toHaveValue(dayISO(-7));
 
     await page.getByRole("button", { name: "End: next day" }).click();
-    await page.waitForFunction((d) => location.search.includes(`date=${d}`), FIXED_TODAY);
+    // A day later is today, which is live: no date left in the URL or the field.
+    await page.waitForFunction(() => !/[?&]date=\d/.test(location.search));
+    await expect(page.getByLabel("End", { exact: true })).toHaveValue("");
     await expect(start).toHaveValue(dayISO(-6));
     await expect(page.locator('[data-testid="day-range-custom"]')).toHaveValue("7");
+  });
+
+  test("picking today as the end goes live — the only way back on a date input with no clear button", async ({ page }) => {
+    await page.goto(`/?site=sbs&page=daily&days=7&date=${dayISO(-3)}`);
+    const end = page.getByLabel("End", { exact: true });
+    await end.fill(dayISO(-2));
+    await page.waitForFunction((d) => location.search.includes(`date=${d}`), dayISO(-2));
+    await end.fill(FIXED_TODAY);
+    await page.waitForFunction(() => !/[?&]date=\d/.test(location.search));
+    await expect(end).toHaveValue("");
+    await expect(page.getByRole("button", { name: "End: next day" })).toBeDisabled();
   });
 
   test("on the hourly page too", async ({ page }) => {
