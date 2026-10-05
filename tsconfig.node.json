@@ -1,6 +1,10 @@
 {
   "compilerOptions": {
     "composite": true,
+    // Emit (composite requires it) somewhere Vite won't look: a vite.config.js
+    // beside the .ts takes precedence over it, so a `tsc -b` once left every
+    // later vite.config.ts edit silently ignored.
+    "outDir": "node_modules/.tmp/tsconfig.node",
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
