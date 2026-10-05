@@ -94,16 +94,22 @@ test("the hourly sheet keeps the header's stats, which only the card had room fo
 
   const svg = card.locator("svg.recharts-surface").first();
   const box = (await svg.boundingBox())!;
-  await svg.hover({ position: { x: box.width * 0.58, y: box.height * 0.5 } });
-  await svg.hover({ position: { x: box.width * 0.6, y: box.height * 0.5 } });
-  const hover = await page.locator(".recharts-tooltip-wrapper > div > div").first().textContent();
+  // The fixture's days only have readings at a few hours; an hour nobody has
+  // a reading at has no stats to show, so sweep until the cursor lands on one.
+  const stats = /median [\d,]+ · max [\d,]+ \(.+\) of \d+ other days? · current .* vs median/;
+  let hover = "";
+  let frac = 0.5;
+  for (; frac < 0.75 && !stats.test(hover); frac += 0.02) {
+    await svg.hover({ position: { x: box.width * frac, y: box.height * 0.5 } });
+    hover = (await page.locator(".recharts-tooltip-wrapper > div > div").first().textContent()) ?? "";
+  }
   expect(hover).toMatch(/(?:00:00|\d{2}:00–\d{2}:59)/);
-  expect(hover).toMatch(/median [\d,]+ · current .* vs median/);
+  expect(hover).toMatch(stats);
 
-  await pin(page, card);
+  await pin(page, card, frac - 0.02);
   await expect(label(page)).toHaveText(/^(00:00|\d{2}:00–\d{2}:59)$/);
   // The stats survive the pin — the stepper above carries only the hour.
-  await expect(sheet(page)).toContainText(/median [\d,]+ · current .* vs median/);
+  await expect(sheet(page)).toContainText(stats);
 });
 
 test("the stacked direction chart pins and lists its directions", async ({ page }) => {

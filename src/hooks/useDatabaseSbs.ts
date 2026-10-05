@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import type { Database } from "sql.js";
 import type { DailyRow, MonthlyRow, StatKey, EodEstimate, GlobalStats } from "@/types";
 import { TARGET_IDS } from "@/types";
-import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
+import { computeEodProjection, computeEodSteps, type EodReading } from "@/utils/eodProjection";
 import { projectMonthEnd, type IntradayReading } from "@/utils/monthProjection";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
@@ -171,8 +171,8 @@ export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
   // Today's daily value is only a partial running total (latest hour so far);
   // project where it settles from the last 90 days' intraday curves. Readings are
   // keyed by hour; the day-final is the max-hour value (incl. next-day revisions).
-  const queryEodProjection = useCallback((): Partial<Record<StatKey, EodEstimate>> => {
-    if (!db) return {};
+  const eodReadings = useCallback((): { byDate: Map<string, EodReading<StatKey>[]>; todayStr: string; keys: StatKey[] } | null => {
+    if (!db) return null;
     const todayStr = getKyivDateString();
     const availableCols = getTableColumns(db, "daily_stats");
     const allKeys: StatKey[] = [
@@ -182,9 +182,14 @@ export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
       ...TARGET_IDS.flatMap((id) => [`hit_${id}` as StatKey, `destroyed_${id}` as StatKey]),
     ];
     const keys = allKeys.filter((k) => availableCols.includes(k));
-    if (!keys.length) return {};
+    if (!keys.length) return null;
 
-    const statCols = keys.map((k) => `COALESCE(${k}, 0) AS ${k}`).join(", ");
+    // Flight counts stay null where the chart leaves them null (the foosint
+    // backfill has none): as 0 they would be "0% of the day in by this hour"
+    // samples, and a 0 partial today.
+    const statCols = keys
+      .map((k) => (k === "flights_strike" || k === "flights_recon" ? k : `COALESCE(${k}, 0) AS ${k}`))
+      .join(", ");
     const sql = `
       SELECT date, hour, ${statCols}
       FROM daily_stats
@@ -192,18 +197,29 @@ export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
       ORDER BY date ASC, hour ASC
     `;
     const byDate = new Map<string, EodReading<StatKey>[]>();
-    for (const r of queryRows<Record<string, number>>(db, sql)) {
+    for (const r of queryRows<Record<string, number | null>>(db, sql)) {
       const d = String(r.date);
       const hour = Number(r.hour);
       if (!byDate.has(d)) byDate.set(d, []);
       byDate.get(d)!.push({
         bucket: String(hour),
         asOf: `${String(hour).padStart(2, "0")}:00`,
-        values: r as Record<StatKey, number>,
+        values: r as Record<StatKey, number | null>,
       });
     }
-    return computeEodProjection(byDate, todayStr, keys);
+    return { byDate, todayStr, keys };
   }, [db]);
+
+  const queryEodProjection = useCallback((): Partial<Record<StatKey, EodEstimate>> => {
+    const r = eodReadings();
+    return r ? computeEodProjection(r.byDate, r.todayStr, r.keys) : {};
+  }, [eodReadings]);
+
+  // The same estimate re-run at each of today's hours so far (hourly page).
+  const queryEodSteps = useCallback((): Partial<Record<StatKey, EodEstimate[]>> => {
+    const r = eodReadings();
+    return r ? computeEodSteps(r.byDate, r.todayStr, r.keys) : {};
+  }, [eodReadings]);
 
   // ── Monthly ──────────────────────────────────────────────────────────────────
   const queryMonthly = useCallback((): MonthlyRow[] => {
@@ -293,7 +309,7 @@ export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
 
   return {
     loadState, error,
-    queryDaily, queryHourly, queryMonthly, queryGlobalStats, queryEodProjection, queryDataWindow,
+    queryDaily, queryHourly, queryMonthly, queryGlobalStats, queryEodProjection, queryEodSteps, queryDataWindow,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs,
   };

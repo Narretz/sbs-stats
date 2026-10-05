@@ -90,6 +90,41 @@ test.describe("End-of-day projection", () => {
     expect(txt).toMatch(/TODAY (?:00:00|\d{2}:00–\d{2}:59): (?:n\/a|[\d,]+), EoD est ~[\d,]+ \(\d+% in by \d{2}:\d{2}\)/);
   });
 
+  test("SBS hourly — each passed hour shows the estimate made at it", async ({ page }) => {
+    // The fixture's today has readings at 00, 06, 10 and 14 against history
+    // that is 50% in by 10:00 and 62% by 14:00.
+    await page.goto(SBS_HOURLY);
+    await page.waitForSelector(".hourly-card");
+    const card = page.locator(".hourly-card").first();
+    await card.scrollIntoViewIfNeeded();
+    const svg = card.locator("svg.recharts-surface").first();
+    const box = (await svg.boundingBox())!;
+    await svg.click({ position: { x: box.width * 0.5, y: box.height * 0.5 } });
+    const sheet = page.locator(".chart-sheet[data-open]");
+    await expect(sheet).toBeVisible();
+    const label = page.locator(".chart-sheet-label");
+
+    // Step the pinned hour to `hh:00–hh:59`, from wherever the click landed.
+    const stepTo = async (hh: number) => {
+      for (let i = 0; i < 30; i++) {
+        const cur = Number(((await label.textContent()) ?? "").slice(0, 2));
+        if (cur === hh) return;
+        await page.getByLabel(cur < hh ? "Next point" : "Previous point").click();
+      }
+      throw new Error(`could not step to ${hh}:00`);
+    };
+
+    await stepTo(10);
+    await expect(sheet).toContainText(/TODAY 10:00–10:59: [\d,]+, EoD est ~[\d,]+ \(50% in by 10:00\)/);
+    // No reading at 08:00, so no estimate — not 06:00's, and not the latest.
+    await stepTo(8);
+    await expect(sheet).toContainText(/TODAY 08:00–08:59: n\/a/);
+    await expect(sheet).not.toContainText("EoD est");
+    // Past the latest reading, the current estimate.
+    await stepTo(18);
+    await expect(sheet).toContainText(/TODAY 18:00–18:59: n\/a, EoD est ~[\d,]+ \(62% in by 14:00\)/);
+  });
+
   test("GSUA ru-attacks daily — single-series tooltip shows a projected value", async ({ page }) => {
     await page.goto(GSUA_DAILY);
     const txt = await eodTooltip(page, 0); // Combat Engagements

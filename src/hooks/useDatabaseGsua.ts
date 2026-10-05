@@ -10,7 +10,7 @@ import type {
   EodEstimate,
 } from "@/types";
 import { GSUA_METRIC_KEYS, directionAxis } from "@/types";
-import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
+import { computeEodProjection, computeEodSteps, type EodReading } from "@/utils/eodProjection";
 import { projectFromDays } from "@/utils/monthProjection";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString } from "@/hooks/sqlLoader";
@@ -313,8 +313,8 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
   // "as of 22:00") and settle with next morning's report. Today's latest snapshot
   // is therefore partial; project the settled total from the last 90 days, keying
   // readings by the snapshot's clock hour. day-final = last snapshot of the day.
-  const queryEodProjection = useCallback(async (): Promise<Partial<Record<GsuaMetricKey, EodEstimate>>> => {
-    if (!worker) return {};
+  const eodReadings = useCallback(async (): Promise<{ byDate: Map<string, EodReading<GsuaMetricKey>[]>; todayStr: string } | null> => {
+    if (!worker) return null;
     const todayStr = getKyivDateString();
     const sql = `
       SELECT date, snapshot_at, ${METRIC_COLS}
@@ -335,8 +335,19 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
         values: r as Record<GsuaMetricKey, number | null>,
       });
     }
-    return computeEodProjection(byDate, todayStr, GSUA_METRIC_KEYS);
+    return { byDate, todayStr };
   }, [worker]);
+
+  const queryEodProjection = useCallback(async (): Promise<Partial<Record<GsuaMetricKey, EodEstimate>>> => {
+    const r = await eodReadings();
+    return r ? computeEodProjection(r.byDate, r.todayStr, GSUA_METRIC_KEYS) : {};
+  }, [eodReadings]);
+
+  // The same estimate re-run at each of today's snapshots so far (hourly page).
+  const queryEodSteps = useCallback(async (): Promise<Partial<Record<GsuaMetricKey, EodEstimate[]>>> => {
+    const r = await eodReadings();
+    return r ? computeEodSteps(r.byDate, r.todayStr, GSUA_METRIC_KEYS) : {};
+  }, [eodReadings]);
 
   const queryDirectionList = useCallback(async (): Promise<string[]> => {
     if (!worker) return [];
@@ -699,7 +710,7 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
 
   return {
     loadState, error,
-    queryDaily, querySnapshots, queryGlobalStats, queryMonthly, queryEodProjection, queryDataWindow,
+    queryDaily, querySnapshots, queryGlobalStats, queryMonthly, queryEodProjection, queryEodSteps, queryDataWindow,
     queryDirectionList, queryDirectionDaily, queryDirectionSnapshots,
     queryDirectionCoverage, queryDirectionCoverageMonthly,
     refresh, lastRefreshed, refreshCount,

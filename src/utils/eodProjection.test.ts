@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
+import { computeEodProjection, computeEodSteps, type EodReading } from "@/utils/eodProjection";
 
 type K = "hits";
 
@@ -80,5 +80,54 @@ describe("computeEodProjection", () => {
     const byDate = history(6, 0.5, 50);
     byDate.set("2026-08-03", settled(100, 100));
     expect(project(byDate)!.fraction).toBeCloseTo(0.5, 2);
+  });
+});
+
+describe("computeEodSteps", () => {
+  // Complete days reading 25% by 10:00, 50% by 14:00, 99% by 20:00, 100 at 22:00.
+  function day(): EodReading<K>[] {
+    return [
+      { bucket: "10", asOf: "10:00", values: { hits: 25 } },
+      { bucket: "14", asOf: "14:00", values: { hits: 50 } },
+      { bucket: "20", asOf: "20:00", values: { hits: 99 } },
+      { bucket: "22", asOf: "22:00", values: { hits: 100 } },
+    ];
+  }
+  function withToday(today: EodReading<K>[]) {
+    const byDate = new Map<string, EodReading<K>[]>();
+    for (let d = 1; d <= 6; d++) byDate.set(`2026-08-0${d}`, day());
+    byDate.set("2026-09-01", today);
+    return byDate;
+  }
+
+  it("re-runs the estimate at each of today's readings, each against its own checkpoint", () => {
+    const steps = computeEodSteps(withToday([
+      { bucket: "10", asOf: "10:00", values: { hits: 30 } },
+      { bucket: "14", asOf: "14:00", values: { hits: 70 } },
+    ]), "2026-09-01", ["hits"]).hits!;
+    expect(steps.map((s) => [s.bucket, s.projected])).toEqual([["10", 120], ["14", 140]]);
+    // The latest step is exactly what the single estimate reports.
+    expect(computeEodProjection(withToday([
+      { bucket: "10", asOf: "10:00", values: { hits: 30 } },
+      { bucket: "14", asOf: "14:00", values: { hits: 70 } },
+    ]), "2026-09-01", ["hits"]).hits).toEqual(steps[1]);
+  });
+
+  it("keeps the earlier hours once the day has settled at the latest one", () => {
+    const byDate = withToday([
+      { bucket: "10", asOf: "10:00", values: { hits: 30 } },
+      { bucket: "20", asOf: "20:00", values: { hits: 110 } },
+    ]);
+    // 99% in by 20:00: no current estimate, but 10:00's is still history.
+    expect(computeEodSteps(byDate, "2026-09-01", ["hits"]).hits!.map((s) => s.bucket)).toEqual(["10"]);
+    expect(computeEodProjection(byDate, "2026-09-01", ["hits"]).hits).toBeUndefined();
+  });
+
+  it("skips a checkpoint without a profile instead of borrowing a neighbour's", () => {
+    const steps = computeEodSteps(withToday([
+      { bucket: "12", asOf: "12:00", values: { hits: 40 } },
+      { bucket: "14", asOf: "14:00", values: { hits: 50 } },
+    ]), "2026-09-01", ["hits"]).hits!;
+    expect(steps.map((s) => s.bucket)).toEqual(["14"]);
   });
 });

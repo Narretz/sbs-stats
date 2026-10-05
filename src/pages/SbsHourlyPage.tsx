@@ -61,13 +61,13 @@ interface HourlyPageProps {
 
 export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryHourly, queryGlobalStats, queryEodProjection, queryDataWindow } = useSbsDatabaseContext();
+  const { loadState, error, queryHourly, queryGlobalStats, queryEodSteps, queryDataWindow } = useSbsDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
   const [rows, setRows] = useState<DailyRow[]>([]);
   const [globalStats, setGlobalStats] = useState<GlobalStats>({} as GlobalStats);
-  const [eod, setEod] = useState<Partial<Record<StatKey, EodEstimate>>>({});
+  const [eod, setEod] = useState<Partial<Record<StatKey, EodEstimate[]>>>({});
   const [hasData, setHasData] = useState(false);
   const [tooltipSort, setTooltipSort] = useState<TooltipSortMode>(initial.sort);
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>(initial.weekdays);
@@ -111,9 +111,9 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
   useEffect(() => {
     if (loadState === "ready") {
       setGlobalStats(queryGlobalStats());
-      setEod(queryEodProjection());
+      setEod(queryEodSteps());
     }
-  }, [loadState, queryGlobalStats, queryEodProjection, refreshKey]);
+  }, [loadState, queryGlobalStats, queryEodSteps, refreshKey]);
 
   useEffect(() => {
     if (loadState === "ready") {
@@ -185,7 +185,7 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
             tooltipSort={tooltipSort}
             highlight={!!selectedDate}
             selectedDate={selectedDate}
-            eod={eod[m.key] ?? null}
+            eodSteps={eod[m.key] ?? null}
             pairedData={srcKey ? makeDataset(srcKey) : undefined}
             pairedGlobalMax={srcKey ? globalStats[srcKey]?.max ?? 0 : undefined}
           />

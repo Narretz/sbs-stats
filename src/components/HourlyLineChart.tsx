@@ -2,9 +2,10 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   ReferenceLine, ResponsiveContainer,
 } from "recharts";
-import { Temporal } from "temporal-polyfill";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DailyDaySeries, EodEstimate } from "@/types";
+import { getKyivDateString } from "@/hooks/sqlLoader";
+import { eodAtHour, hourBaseline } from "@/utils/hourlyTooltip";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
@@ -28,8 +29,9 @@ interface Props {
   tooltipSort?: TooltipSortMode;
   highlight?: boolean;
   selectedDate?: string;
-  // End-of-day estimate for today's (in-progress) series.
-  eod?: EodEstimate | null;
+  // End-of-day estimates for today's (in-progress) series, one per reading so
+  // far — the tooltip shows the one made at the hovered hour.
+  eodSteps?: EodEstimate[] | null;
   // Optional sibling data used to extend the Y-axis upper bound so paired
   // charts (e.g. destroyed alongside hit) share a visual scale. The chart's
   // own MAX/MED labels and reference lines are unaffected.
@@ -158,17 +160,17 @@ function DateGrid({ children }: { children: React.ReactNode[] }) {
 // Entries come from the pivoted row rather than recharts' tooltip payload,
 // which is what lets the pinned sheet render the identical grid.
 function describeHour({
-  row, dates, currentDate, t, sortMode, eod,
+  row, dates, currentDate, today, t, sortMode, eod,
 }: {
   row: HourRow;
   dates: string[];
   currentDate: string | undefined;
+  today: string;
   t: Theme;
   sortMode: TooltipSortMode;
   eod: EodEstimate | null;
 }): TooltipDescriptor {
   const label = row.hour;
-  const today = Temporal.Now.plainDateISO().toString();
 
   const entries: TooltipEntry[] = dates
     .map((date) => ({ dataKey: date, value: row[date] }))
@@ -181,25 +183,29 @@ function describeHour({
     if (b.dataKey === currentDate) return 1;
     return b.dataKey.localeCompare(a.dataKey);
   });
-  const hourMedian = sorted.length
-    ? [...sorted].map((e) => e.value).sort((a, b) => a - b)[Math.floor(sorted.length / 2)]
-    : 0;
   const currentEntry = currentDate ? sorted.find((e) => e.dataKey === currentDate) : undefined;
-  const currentDeltaPct = currentEntry
-    ? (hourMedian !== 0 ? ((currentEntry.value - hourMedian) / hourMedian) * 100 : null)
-    : null;
+  const base = hourBaseline(sorted.map((e) => ({ date: e.dataKey, value: e.value })), currentDate);
 
   const multipleYears = new Set(sorted.map(p => p.dataKey.slice(0, 4))).size > 1;
+  const dayLabel = (date: string) => {
+    const [y, m, d] = date.split("-");
+    return multipleYears ? `${y}-${m}-${d}` : `${m}-${d}`;
+  };
 
   const header = (
     <div style={{marginBottom: 4}}>
       <div style={{ color: t.accent, marginBottom: 5, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
-        {eod ? 'TODAY' : currentDate} {formatHour(label)}: {currentEntry ? currentEntry.value : 'n/a'}{eod && `, EoD est ~${eod.projected.toLocaleString()} (${Math.round(eod.fraction * 100)}% in by ${eod.asOf})`}
+        {currentDate === today ? 'TODAY' : currentDate} {formatHour(label)}: {currentEntry ? currentEntry.value.toLocaleString() : 'n/a'}{eod && `, EoD est ~${eod.projected.toLocaleString()} (${Math.round(eod.fraction * 100)}% in by ${eod.asOf})`}
       </div>
-      <div>
-        {`median ${hourMedian.toLocaleString()}`}
-        {` · current ${currentDeltaPct == null ? "n/a" : `${currentDeltaPct >= 0 ? "+" : ""}${currentDeltaPct.toFixed(1)}%`} vs median`}
-      </div>
+      {base.days > 0 ? (
+        <div>
+          {`median ${base.median!.toLocaleString()} · max ${base.max!.toLocaleString()} (${dayLabel(base.maxDate!)})`}
+          {` of ${base.days} other ${base.days === 1 ? "day" : "days"}`}
+          {` · current ${base.deltaPct == null ? "n/a" : `${base.deltaPct >= 0 ? "+" : ""}${base.deltaPct.toFixed(1)}%`} vs median`}
+        </div>
+      ) : (
+        <div>no other day in the window has a value at this hour</div>
+      )}
     </div>
   );
 
@@ -210,15 +216,13 @@ function describeHour({
           // Show MM-DD for past days to save space — with the year in front of
           // it only when the window spans more than one, where MM-DD alone
           // would put two different days under the same label.
-          const [y, m, d] = p.dataKey.split('-');
-
           const isToday = p.dataKey === today;
 
           const isCurrentDate = p.dataKey === currentDate;
 
           const highlight = isToday || isCurrentDate;
 
-          const label = isToday ? "TODAY" : multipleYears ? `${y}-${m}-${d}` : `${m}-${d}`;
+          const label = isToday ? "TODAY" : dayLabel(p.dataKey);
 
           return (
             <div key={p.dataKey} style={{
@@ -241,7 +245,7 @@ function describeHour({
   );
   return { header, rows: [], content, minWidth: 200 };
 }
-export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTotal, wfull, tooltipSort = "date", highlight = false, selectedDate, eod, pairedData, pairedGlobalMax }: Props) {
+export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTotal, wfull, tooltipSort = "date", highlight = false, selectedDate, eodSteps, pairedData, pairedGlobalMax }: Props) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
   const { scope } = useStatScope();
@@ -287,7 +291,11 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
   const getOpacity = (index: number) =>
     total <= 1 ? 0.18 : 0.07 + (index / (total - 1)) * 0.35;
 
-  const isToday = !selectedDate || selectedDate === Temporal.Now.plainDateISO().toString();
+  // Kyiv's date, like every query behind these charts — the browser's own
+  // date disagrees with it for hours a day anywhere west or east of Kyiv.
+  const today = getKyivDateString();
+  const isToday = !selectedDate || selectedDate === today;
+  const todaySeries = isToday ? data.find((s) => s.date === today) : undefined;
 
   const dates = data.map((s) => s.date);
   const anchor = chartAnchor(title);
@@ -297,8 +305,10 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
     data: chartData,
     xOf: (r) => r.hour,
     describe: (row) => describeHour({
-      row, dates, currentDate: primarySeries?.date, t,
-      sortMode: tooltipSort, eod: isToday ? (eod ?? null) : null,
+      row, dates, currentDate: primarySeries?.date, today, t,
+      sortMode: tooltipSort,
+      // Row 0 is the chart's day-start anchor, not a reading.
+      eod: row.hour > 0 ? eodAtHour(eodSteps, todaySeries, row.hour - 1) : null,
     }),
     formatLabel: (r) => formatHour(r.hour),
     // The date grid is as wide as its column count, which a half-width chart

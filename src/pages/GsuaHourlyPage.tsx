@@ -78,7 +78,7 @@ interface Props {
 export function GsuaHourlyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
   const {
-    loadState, error, querySnapshots, queryDirectionList, queryDirectionSnapshots, queryEodProjection, queryDataWindow,
+    loadState, error, querySnapshots, queryDirectionList, queryDirectionSnapshots, queryEodSteps, queryDataWindow,
   } = useGsuaDatabaseContext();
   const [dataWindow, setDataWindow] = useState<{ minDate: string | null; maxDate: string | null; latestSnapshotAt: string | null }>({ minDate: null, maxDate: null, latestSnapshotAt: null });
   useEffect(() => { queryDataWindow().then(setDataWindow); }, [queryDataWindow]);
@@ -93,7 +93,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
   const [rows, setRows] = useState<GsuaDailyRow[]>([]);
   const [directionRows, setDirectionRows] = useState<GsuaDirectionRow[]>([]);
   const [directionList, setDirectionList] = useState<string[]>([]);
-  const [eod, setEod] = useState<Partial<Record<GsuaMetricKey, EodEstimate>>>({});
+  const [eod, setEod] = useState<Partial<Record<GsuaMetricKey, EodEstimate[]>>>({});
   const [hasData, setHasData] = useState(false);
 
   const updateDays = (d: DayOption) => {
@@ -138,13 +138,13 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
     if (loadState !== "ready") return;
     let cancelled = false;
     (async () => {
-      const [dl, ep] = await Promise.all([queryDirectionList(), queryEodProjection()]);
+      const [dl, ep] = await Promise.all([queryDirectionList(), queryEodSteps()]);
       if (cancelled) return;
       setDirectionList(dl);
       setEod(ep);
     })();
     return () => { cancelled = true; };
-  }, [loadState, queryDirectionList, queryEodProjection, refreshKey]);
+  }, [loadState, queryDirectionList, queryEodSteps, refreshKey]);
 
   useEffect(() => {
     if (loadState !== "ready") return;
@@ -312,7 +312,7 @@ export function GsuaHourlyPage({ refreshKey }: Props) {
               tooltipSort={tooltipSort}
               highlight={!!selectedDate}
               selectedDate={selectedDate}
-              eod={eod[k] ?? null}
+              eodSteps={eod[k] ?? null}
             />
           ))}
         </ChartGrid>
