@@ -77,13 +77,16 @@ The `date` column is the day the report **covers**, not the day it was posted
 
 ## What the channel publishes
 
-Three slots per day, all Kyiv local time:
+Two slots per day since 4 Aug 2026, three before it, all Kyiv local time:
 
 | slot | role | day-of-coverage |
 | --- | --- | --- |
 | 08:00 | morning wrap-up | covers the **previous** day |
-| 16:00 | midday update | covers the same day, 00:00→now |
+| 16:00 | midday update — **last posted 3 Aug 2026** (2024 times vary: 13:00–17:00) | covers the same day, 00:00→now |
 | 22:00 | evening report | covers the same day |
+
+With a single interim report left there is no intraday curve, so the site no
+longer has an hourly GSUA view.
 
 Header is always `Оперативна інформація станом на HH:MM DD.MM.YYYY щодо
 російського вторгнення` (older posts use the Ukrainian-month form "9 травня 2026").

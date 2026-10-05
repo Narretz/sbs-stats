@@ -10,7 +10,7 @@ import type {
   EodEstimate,
 } from "@/types";
 import { GSUA_METRIC_KEYS, directionAxis } from "@/types";
-import { computeEodProjection, computeEodSteps, type EodReading } from "@/utils/eodProjection";
+import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
 import { projectFromDays } from "@/utils/monthProjection";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString } from "@/hooks/sqlLoader";
@@ -154,39 +154,6 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
     [worker]
   );
 
-  const querySnapshots = useCallback(
-    async (days: number, endDate?: string): Promise<GsuaDailyRow[]> => {
-      if (!worker) return [];
-      const todayStr = getKyivDateString();
-      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
-      const startDateSql = windowStartSql(endDateSql, days);
-
-      const sql = `
-        SELECT date, source, snapshot_at, ${METRIC_COLS}
-        FROM ${LATEST_POSTS} posts
-        WHERE date >= ${startDateSql} AND date <= '${endDateSql}'
-          AND snapshot_at IS NOT NULL
-        GROUP BY date, source, snapshot_at
-        ORDER BY date ASC, snapshot_at ASC
-      `;
-      const rows = (await worker.db.query(sql)) as Record<string, unknown>[];
-      return rows.map((row) => {
-        const d = String(row.date);
-        return {
-          date: d,
-          snapshot_at: String(row.snapshot_at ?? ""),
-          source: String(row.source ?? ""),
-          is_today: d === todayStr,
-          ...(GSUA_METRIC_KEYS.reduce((acc, k) => {
-            acc[k] = typeof row[k] === "number" ? (row[k] as number) : null;
-            return acc;
-          }, {} as Record<GsuaMetricKey, number | null>)),
-        } as GsuaDailyRow;
-      });
-    },
-    [worker]
-  );
-
   const queryGlobalStats = useCallback(
     async (): Promise<GsuaGlobalStats> => {
       if (!worker) return {} as GsuaGlobalStats;
@@ -313,8 +280,8 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
   // "as of 22:00") and settle with next morning's report. Today's latest snapshot
   // is therefore partial; project the settled total from the last 90 days, keying
   // readings by the snapshot's clock hour. day-final = last snapshot of the day.
-  const eodReadings = useCallback(async (): Promise<{ byDate: Map<string, EodReading<GsuaMetricKey>[]>; todayStr: string } | null> => {
-    if (!worker) return null;
+  const queryEodProjection = useCallback(async (): Promise<Partial<Record<GsuaMetricKey, EodEstimate>>> => {
+    if (!worker) return {};
     const todayStr = getKyivDateString();
     const sql = `
       SELECT date, snapshot_at, ${METRIC_COLS}
@@ -335,19 +302,8 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
         values: r as Record<GsuaMetricKey, number | null>,
       });
     }
-    return { byDate, todayStr };
+    return computeEodProjection(byDate, todayStr, GSUA_METRIC_KEYS);
   }, [worker]);
-
-  const queryEodProjection = useCallback(async (): Promise<Partial<Record<GsuaMetricKey, EodEstimate>>> => {
-    const r = await eodReadings();
-    return r ? computeEodProjection(r.byDate, r.todayStr, GSUA_METRIC_KEYS) : {};
-  }, [eodReadings]);
-
-  // The same estimate re-run at each of today's snapshots so far (hourly page).
-  const queryEodSteps = useCallback(async (): Promise<Partial<Record<GsuaMetricKey, EodEstimate[]>>> => {
-    const r = await eodReadings();
-    return r ? computeEodSteps(r.byDate, r.todayStr, GSUA_METRIC_KEYS) : {};
-  }, [eodReadings]);
 
   const queryDirectionList = useCallback(async (): Promise<string[]> => {
     if (!worker) return [];
@@ -406,40 +362,6 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
         });
       }
       return out;
-    },
-    [worker]
-  );
-
-  const queryDirectionSnapshots = useCallback(
-    async (direction: string, days: number, endDate?: string): Promise<GsuaDirectionRow[]> => {
-      if (!worker) return [];
-      const todayStr = getKyivDateString();
-      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
-      const dirSafe = direction.replace(/'/g, "''");
-
-      const sql = `
-        SELECT
-          p.date, p.source, p.snapshot_at,
-          d.direction, d.attacks, d.ongoing
-        FROM ${LATEST_POSTS} p
-        INNER JOIN directions d
-          ON p.source = d.source AND p.source_id = d.source_id AND p.scraped_at = d.scraped_at
-        WHERE d.direction = '${dirSafe}'
-          AND p.date >= ${windowStartSql(endDateSql, days)}
-          AND p.date <= date('${endDateSql}')
-          AND p.snapshot_at IS NOT NULL
-        ORDER BY p.date ASC, p.snapshot_at ASC,
-                 CASE p.source WHEN 'telegram' THEN 0 ELSE 1 END ASC
-      `;
-      const rows = (await worker.db.query(sql)) as Record<string, unknown>[];
-      return rows.map((row) => ({
-        date: String(row.date),
-        snapshot_at: String(row.snapshot_at ?? ""),
-        direction: String(row.direction ?? ""),
-        attacks: typeof row.attacks === "number" ? row.attacks : null,
-        ongoing: typeof row.ongoing === "number" ? row.ongoing : null,
-        is_today: String(row.date) === todayStr,
-      }));
     },
     [worker]
   );
@@ -710,8 +632,8 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
 
   return {
     loadState, error,
-    queryDaily, querySnapshots, queryGlobalStats, queryMonthly, queryEodProjection, queryEodSteps, queryDataWindow,
-    queryDirectionList, queryDirectionDaily, queryDirectionSnapshots,
+    queryDaily, queryGlobalStats, queryMonthly, queryEodProjection, queryDataWindow,
+    queryDirectionList, queryDirectionDaily,
     queryDirectionCoverage, queryDirectionCoverageMonthly,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs,

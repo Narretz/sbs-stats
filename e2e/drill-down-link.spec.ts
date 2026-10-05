@@ -56,31 +56,29 @@ test("a monthly-only source has no daily link", async ({ page }) => {
   await expect(byDay(page)).toHaveCount(0);
 });
 
-for (const site of ["sbs", "ru-attacks-gsua"]) {
-  test(`a pinned ${site} day opens the hourly view ending on that day`, async ({ page }) => {
-    await page.goto(`/?site=${site}&page=daily&days=7`);
-    await page.waitForSelector(".chart-card");
-    const card = page.locator(".chart-card").first();
-    const anchor = await card.getAttribute("id");
-    await pin(page, card, 0.5);
+test("a pinned day opens the hourly view ending on that day", async ({ page }) => {
+  await page.goto("/?site=sbs&page=daily&days=7");
+  await page.waitForSelector(".chart-card");
+  const card = page.locator(".chart-card").first();
+  const anchor = await card.getAttribute("id");
+  await pin(page, card, 0.5);
 
-    const href = await byHour(page).getAttribute("href");
-    const target = new URL(href!, page.url());
-    const date = target.searchParams.get("date");
-    await byHour(page).click();
+  const href = await byHour(page).getAttribute("href");
+  const target = new URL(href!, page.url());
+  const date = target.searchParams.get("date");
+  await byHour(page).click();
 
-    await expect(page).toHaveURL(/[?&]page=hourly\b/);
-    const url = new URL(page.url());
-    expect(url.hash).toBe(`#${anchor}`);
-    await expect(page.locator(`.hourly-card${url.hash}`)).toBeVisible();
-    // The day, or live when it is today; the daily page's span is kept.
-    expect(url.searchParams.get("date")).toBe(date);
-    if (date) expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(url.searchParams.get("days")).toBe("7");
-    await expect(page.locator(".hourly-card").first()).toBeVisible();
-    await expect(sheet(page)).toHaveCount(0);
-  });
-}
+  await expect(page).toHaveURL(/[?&]page=hourly\b/);
+  const url = new URL(page.url());
+  expect(url.hash).toBe(`#${anchor}`);
+  await expect(page.locator(`.hourly-card${url.hash}`)).toBeVisible();
+  // The day, or live when it is today; the daily page's span is kept.
+  expect(url.searchParams.get("date")).toBe(date);
+  if (date) expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  expect(url.searchParams.get("days")).toBe("7");
+  await expect(page.locator(".hourly-card").first()).toBeVisible();
+  await expect(sheet(page)).toHaveCount(0);
+});
 
 test("a paired SBS day lands on the hourly chart of its primary series", async ({ page }) => {
   // Daily draws hit / destroyed as one chart; hourly splits them.

@@ -18,7 +18,6 @@ import { SbsDailyPage } from "@/pages/SbsDailyPage";
 import { SbsHourlyPage } from "@/pages/SbsHourlyPage";
 import { SbsMonthlyPage } from "@/pages/SbsMonthlyPage";
 import { GsuaDailyPage } from "@/pages/GsuaDailyPage";
-import { GsuaHourlyPage } from "@/pages/GsuaHourlyPage";
 import { GsuaMonthlyPage } from "@/pages/GsuaMonthlyPage";
 import { RuLossesDailyPage } from "@/pages/RuLossesDailyPage";
 import { RuLossesMonthlyPage } from "@/pages/RuLossesMonthlyPage";
@@ -78,7 +77,7 @@ export const SITE_REGISTRY: Partial<Record<Site, SiteConfig>> = {
   "ru-attacks-gsua": {
     provider: GsuaDatabaseProvider,
     useDbContext: useGsuaDatabaseContext,
-    pages: { hourly: GsuaHourlyPage, daily: GsuaDailyPage, monthly: GsuaMonthlyPage },
+    pages: { daily: GsuaDailyPage, monthly: GsuaMonthlyPage },
   },
   "ru-losses-gsua": {
     provider: RuLossesDatabaseProvider,
