@@ -304,7 +304,7 @@ summary::marker {
   bottom: 0;
   transform: translateX(-50%) translateY(100%);
   width: min(100vw, 1400px);
-  max-height: min(50vh, 460px);
+  max-height: min(40vh, 460px);
   display: flex;
   flex-direction: column;
   z-index: 20;
