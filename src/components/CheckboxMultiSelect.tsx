@@ -34,12 +34,17 @@ interface Props {
   onChange: (next: string[]) => void;
   allLabel: string;
   testId?: string;
+  // What the button says for a selection, when the default (up to two names,
+  // then "N selected") doesn't fit — the weekday filter names every day.
+  summarize?: (selected: string[]) => string;
+  // Give the button the pressed (filled) treatment, for a selection that is a
+  // filter worth seeing at a glance.
+  active?: boolean;
 }
 
-const POP_WIDTH = 280;
 const POP_HEIGHT_PREF = 420;
 
-export function CheckboxMultiSelect({ label, options, selected, onChange, allLabel, testId }: Props) {
+export function CheckboxMultiSelect({ label, options, selected, onChange, allLabel, testId, summarize, active }: Props) {
   const { theme: t } = useTheme();
   const popoverId = `multi-select-${useId().replace(/:/g, "-")}`;
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -58,7 +63,10 @@ export function CheckboxMultiSelect({ label, options, selected, onChange, allLab
       const rect = btn.getBoundingClientRect();
       const margin = 8;
       const gap = 4;
-      const left = Math.max(margin, Math.min(rect.left, window.innerWidth - POP_WIDTH - margin));
+      // Measured, not assumed: the list is as wide as its longest option (a
+      // weekday list is narrow, a direction list wide), and it is already
+      // laid out by the time "toggle" fires.
+      const left = Math.max(margin, Math.min(rect.left, window.innerWidth - pop.offsetWidth - margin));
       const spaceBelow = window.innerHeight - rect.bottom - gap - margin;
       const spaceAbove = rect.top - gap - margin;
       const placeAbove = spaceBelow < Math.min(POP_HEIGHT_PREF, 240) && spaceAbove > spaceBelow;
@@ -84,6 +92,7 @@ export function CheckboxMultiSelect({ label, options, selected, onChange, allLab
   const labelOf = (v: string) => options.find((o) => o.value === v)?.label ?? v;
   const summary =
     selected.length === 0 ? allLabel
+    : summarize ? summarize(selected)
     : selected.length <= 2 ? selected.map(labelOf).join(", ")
     : `${selected.length} selected`;
 
@@ -99,6 +108,7 @@ export function CheckboxMultiSelect({ label, options, selected, onChange, allLab
         {...triggerProps}
         className="ctl"
         data-testid={testId}
+        aria-pressed={active || undefined}
         title={selected.length > 2 ? selected.map(labelOf).join(", ") : undefined}
       >
         {summary} ▾
@@ -117,7 +127,9 @@ export function CheckboxMultiSelect({ label, options, selected, onChange, allLab
           border: `1px solid ${t.border}`,
           borderRadius: 6,
           padding: 8,
-          width: POP_WIDTH,
+          width: "max-content",
+          minWidth: 160,
+          maxWidth: "min(320px, calc(100vw - 16px))",
           overflowY: "auto",
           boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
           color: t.text,

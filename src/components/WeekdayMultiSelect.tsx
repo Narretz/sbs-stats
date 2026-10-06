@@ -1,6 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import { useTheme } from "@/hooks/useTheme";
-import { FONTS } from "@/theme";
+import { CheckboxMultiSelect } from "@/components/CheckboxMultiSelect";
 
 const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -10,98 +8,25 @@ interface WeekdayMultiSelectProps {
   todayDow: number;
 }
 
+// The weekday filter, on the shared checkbox popover. Days are 0 (Sun) – 6
+// (Sat), as Date.getDay() numbers them. Nothing picked, or all seven, is no
+// filter at all: the button reads "All" and isn't lit.
 export function WeekdayMultiSelect({ selected, onChange, todayDow }: WeekdayMultiSelectProps) {
-  const { theme: t } = useTheme();
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const active = selected.length > 0;
-
-  const ALL_WEEKDAYS = 'All';
-
-  const summary = !active
-    ? ALL_WEEKDAYS
-    : selected.length === 7
-      ? ALL_WEEKDAYS
-      : selected.map(d => DOW_LABELS[d]).join(", ");
-
-  const toggle = (dow: number) => {
-    const next = selected.includes(dow)
-      ? selected.filter(d => d !== dow)
-      : [...selected, dow].sort((a, b) => a - b);
-    onChange(next);
-  };
-
+  const filtering = selected.length > 0 && selected.length < 7;
   return (
-    <div ref={wrapRef} style={{ position: "relative", display: "flex", alignItems: "center", gap: 6 }}>
-      <span className="ctl-label">
-        Weekdays
-      </span>
-      <button
-        className="ctl"
-        onClick={() => setOpen(o => !o)}
-        aria-pressed={active || undefined}
-        style={{
-          padding: "5px 12px",
-          color: active ? undefined : t.textMuted,
-          display: "inline-flex", alignItems: "center", gap: 6,
-        }}
-      >
-        <span>{summary}</span>
-        <span style={{ fontSize: 8, opacity: 0.7 }}>{open ? "▲" : "▼"}</span>
-      </button>
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 200,
-          background: t.surface, border: `1px solid ${t.border}`,
-          borderRadius: 4, padding: 6, minWidth: 140,
-          boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-          fontFamily: FONTS.mono, fontSize: 11,
-        }}>
-          {DOW_LABELS.map((lab, dow) => {
-            const checked = selected.includes(dow);
-            return (
-              <label key={dow} style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "4px 6px", cursor: "pointer", borderRadius: 3,
-                color: checked ? t.text : t.textMuted,
-                fontWeight: checked ? 700 : 400,
-              }}>
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggle(dow)}
-                  style={{ cursor: "pointer", accentColor: t.accent }}
-                />
-                <span>{lab}{dow === todayDow ? " (today)" : ""}</span>
-              </label>
-            );
-          })}
-          {active && (
-            <button
-              onClick={() => onChange([])}
-              style={{
-                marginTop: 4, width: "100%",
-                background: "transparent", color: t.textMuted,
-                border: `1px solid ${t.border}`, borderRadius: 3,
-                padding: "4px 8px", fontFamily: FONTS.mono, fontSize: 10,
-                cursor: "pointer",
-              }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      )}
-    </div>
+    <CheckboxMultiSelect
+      label="Weekdays"
+      allLabel="All"
+      options={DOW_LABELS.map((lab, dow) => ({
+        value: String(dow),
+        label: dow === todayDow ? `${lab} (today)` : lab,
+      }))}
+      selected={selected.map(String)}
+      onChange={(next) => onChange(next.map(Number))}
+      // Every picked day by name — seven short ones fit, and "3 selected"
+      // would hide which.
+      summarize={(sel) => (sel.length === 7 ? "All" : sel.map((d) => DOW_LABELS[Number(d)]).join(", "))}
+      active={filtering}
+    />
   );
 }
