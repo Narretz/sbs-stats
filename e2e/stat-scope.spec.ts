@@ -106,3 +106,19 @@ test.describe("SBS hourly — the tooltip's per-hour stats follow the scope", ()
     await expect(sheet).not.toContainText(SENTINEL);
   });
 });
+
+test.describe("Homepage — whole-dataset stats are fetched when they're shown", () => {
+  // They are only read under "All data" (and only by daily charts), so they
+  // are only fetched then. The guard here is the other half: switching to "All
+  // data" must still fetch them, and the far-past sentinel must surface.
+  test("'All data' brings in the whole-dataset MAX, 'Window data' doesn't need it", async ({ page }) => {
+    const charts = encodeURIComponent("A:d30:sbs.total_personnel_casualties");
+    await page.goto(`/?charts=${charts}`);
+    await page.waitForSelector(".recharts-surface");
+    await page.getByTestId("stat-scope-select").selectOption("window");
+    await expect(page.locator(".chart-card").first()).not.toContainText(SENTINEL);
+
+    await page.getByTestId("stat-scope-select").selectOption("all");
+    await expect(page.locator(".chart-card").first()).toContainText(`MAX ${SENTINEL}`);
+  });
+});

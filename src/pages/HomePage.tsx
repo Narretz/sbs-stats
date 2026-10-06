@@ -336,18 +336,37 @@ export function HomePage({ onGoToSite }: Props) {
       mediazona.loadState, mediazona.queryRolesMonthly, mediazona.queryEstimateMonthly,
       zelensky.loadState, zelensky.queryWeeks]);
 
-  // Refetch whole-dataset stats whenever the set of needed sources grows. The
-  // bundle is keyed by source so adding a metric from an already-loaded source
-  // doesn't refetch.
+  // The sources whose whole-dataset stats a chart would actually read: daily
+  // charts only (the bundle is per single day — the wrong scale for a week or a
+  // month), and only under the "All data" stat scope, which isn't the default.
+  // Fetched otherwise, they were a whole-history read per source on every
+  // visit — over httpvfs, for GSUA, ~110 pages — for numbers nothing showed.
+  const statsSources = useMemo(() => {
+    const s = new Set<MetricSource>();
+    if (scope !== "all") return s;
+    for (const c of charts) {
+      if (c.granularity !== "daily") continue;
+      for (const id of c.metricIds) {
+        const m = findMetric(id);
+        if (m) s.add(m.source);
+      }
+    }
+    return s;
+  }, [charts, scope]);
+
+  // Refetch whole-dataset stats whenever the set of sources they're read for
+  // grows. The bundle is keyed by source so adding a metric from an
+  // already-loaded source doesn't refetch.
   useEffect(() => {
+    const want = (src: MetricSource) => statsSources.has(src);
     const sourcesReady: Record<MetricSource, boolean> = {
-      "sbs": needed.has("sbs") && sbs.loadState === "ready",
-      "gsua": needed.has("gsua") && gsua.loadState === "ready",
-      "ru-losses": needed.has("ru-losses") && ruLosses.loadState === "ready",
-      "ua-losses": needed.has("ua-losses") && uaLosses.loadState === "ready",
-      "ua-losses-ru-mod": needed.has("ua-losses-ru-mod") && uaLossesRuMod.loadState === "ready",
-      "ru-airdef-mod": needed.has("ru-airdef-mod") && ruMod.loadState === "ready",
-      "ru-air-attacks": needed.has("ru-air-attacks") && ruAir.loadState === "ready",
+      "sbs": want("sbs") && sbs.loadState === "ready",
+      "gsua": want("gsua") && gsua.loadState === "ready",
+      "ru-losses": want("ru-losses") && ruLosses.loadState === "ready",
+      "ua-losses": want("ua-losses") && uaLosses.loadState === "ready",
+      "ua-losses-ru-mod": want("ua-losses-ru-mod") && uaLossesRuMod.loadState === "ready",
+      "ru-airdef-mod": want("ru-airdef-mod") && ruMod.loadState === "ready",
+      "ru-air-attacks": want("ru-air-attacks") && ruAir.loadState === "ready",
       // Monthly-only sources; the daily global-stats bundle doesn't carry
       // them. Their charts fall back to window stats either way.
       "sbs-unit": false,
@@ -374,7 +393,7 @@ export function HomePage({ onGoToSite }: Props) {
       if (!cancelled) setGlobalStats((prev) => ({ ...prev, ...bundle }));
     });
     return () => { cancelled = true; };
-  }, [needed, sbs.loadState, sbs.queryGlobalStats, gsua.loadState, gsua.queryGlobalStats, ruLosses.loadState, ruLosses.queryGlobalStats, uaLosses.loadState, uaLosses.queryGlobalStats, uaLossesRuMod.loadState, uaLossesRuMod.queryGlobalStats, ruMod.loadState, ruMod.queryGlobalStats, ruAir.loadState, ruAir.queryGlobalStats]);
+  }, [statsSources, sbs.loadState, sbs.queryGlobalStats, gsua.loadState, gsua.queryGlobalStats, ruLosses.loadState, ruLosses.queryGlobalStats, uaLosses.loadState, uaLosses.queryGlobalStats, uaLossesRuMod.loadState, uaLossesRuMod.queryGlobalStats, ruMod.loadState, ruMod.queryGlobalStats, ruAir.loadState, ruAir.queryGlobalStats]);
 
   // Single chart-config mutator. Persists to URL, omitting the `charts=` param
   // when the chart list matches the curated JSON defaults so "/" stays clean.
