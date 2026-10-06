@@ -57,12 +57,16 @@ test.describe("Controls row visibility", () => {
   //
   // The row-present side of the rule is covered by the daily tests below —
   // same gate, same component.
-  test("gsua monthly is shorter than the smallest window → no controls at all", async ({ page }) => {
+  test("gsua monthly is shorter than the smallest window → only the direction picker", async ({ page }) => {
+    // Like SBS monthly's unit picker below: the direction filter doesn't
+    // depend on the window, so it keeps the row — only the window-dependent
+    // controls go.
     await page.goto("/?site=ru-attacks-gsua&page=monthly");
     await page.waitForSelector(".recharts-surface");
     const c = await counts(page);
-    expect(c.row, "whole row dropped, not just the scope control").toBe(0);
+    expect(c.row, "the direction picker keeps the row alive").toBe(1);
     expect(c.scope).toBe(0);
+    await expect(page.getByTestId("direction-picker")).toBeVisible();
   });
 
   test("sbs monthly keeps the unit picker but drops the window-dependent controls", async ({ page }) => {

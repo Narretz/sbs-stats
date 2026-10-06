@@ -49,4 +49,18 @@ test.describe("GSUA daily — direction picker", () => {
     await expect(page.locator(".chart-card").filter({ hasText: "Attacks · Lyman" })).toHaveCount(1);
     await expect(page.getByTestId(PICKER)).toHaveText(/Lyman/);
   });
+
+  test("the monthly page has the picker too, summing each direction's days into months", async ({ page }) => {
+    await page.goto("/?site=ru-attacks-gsua&page=monthly");
+    await page.waitForSelector(".chart-card");
+    const list = await openPicker(page);
+    await tick(list, "Lyman");
+    await expect(page).toHaveURL(/[?&]direction=Lyman(&|$)/);
+    await expect(page.locator(".chart-card").filter({ hasText: "Attacks · Lyman" })).toHaveCount(1);
+
+    await tick(list, "Pokrovsk");
+    const overlay = page.locator(".chart-card").filter({ hasText: "Attacks by direction" });
+    await expect(overlay).toContainText("Pokrovsk");
+    await expect(overlay).toContainText("Lyman");
+  });
 });

@@ -5,7 +5,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { DailyMultiLineChart, type LineSeries } from "@/components/DailyMultiLineChart";
 import { CheckboxMultiSelect } from "@/components/CheckboxMultiSelect";
-import { qualitativeColor } from "@/chartColors";
+import { directionColor, directionOptions, directionsTitle, parseDirectionsParam } from "@/utils/gsuaDirections";
 import { DirectionCoverageChart } from "@/components/DirectionCoverageChart";
 import { DataWindow } from "@/components/DataWindow";
 import { ChartGrid } from "@/components/Layout";
@@ -48,9 +48,7 @@ function getUrlParams() {
     days: parseDaysParam(p.get("days"), resolvedEndDate(parseDate(p.get("date")))),
     weekdays: parseWeekdays(p.get("weekdays")),
     date: parseDate(p.get("date")),
-    // A comma list; a link from before several could be picked holds one
-    // name, which parses the same. No direction name contains a comma.
-    directions: (p.get("direction") ?? "").split(",").filter(Boolean),
+    directions: parseDirectionsParam(p.get("direction")),
   };
 }
 
@@ -231,16 +229,11 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       total: vals.reduce((s, n) => s + n, 0),
     };
   };
-  // A direction keeps its colour whatever else is picked: its place in the
-  // full list, not in the selection.
-  const directionColor = (dir: string) => {
-    const i = directionList.indexOf(dir);
-    return qualitativeColor(i >= 0 ? i : directionList.length + selectedDirections.indexOf(dir));
-  };
   const directionSeries = (which: "attacks" | "ongoing"): LineSeries[] =>
-    selectedDirections.map((dir) => ({ key: dir, label: dir, color: directionColor(dir), data: directionDataset(dir, which) }));
-  const directionTitle =
-    selectedDirections.length <= 3 ? selectedDirections.join(", ") : `${selectedDirections.length} directions`;
+    selectedDirections.map((dir) => ({
+      key: dir, label: dir, color: directionColor(directionList, dir, selectedDirections), data: directionDataset(dir, which),
+    }));
+  const directionTitle = directionsTitle(selectedDirections);
   const oneDirection = selectedDirections.length === 1 ? selectedDirections[0] : null;
 
   return (
@@ -263,9 +256,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
           label="Direction"
           testId="direction-picker"
           allLabel="All Ukraine (overview)"
-          // Alphabetical, to be found by name; the colours stay keyed to the
-          // list's own (by attacks) order, so they don't move.
-          options={[...directionList].sort((a, b) => a.localeCompare(b)).map((d) => ({ value: d, label: d, color: directionColor(d) }))}
+          options={directionOptions(directionList)}
           selected={selectedDirections}
           onChange={updateDirections}
         />
