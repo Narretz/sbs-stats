@@ -267,8 +267,6 @@ export function GsuaDailyPage({ refreshKey }: Props) {
             data-testid="direction-picker"
             value={selectedDirection}
             onChange={(e) => updateDirection(e.target.value)}
-            // A picked direction is the "active" state, like a set end date.
-            aria-pressed={selectedDirection ? true : undefined}
           >
             <option value="">All Ukraine (overview)</option>
             {directionList.map((d) => (
