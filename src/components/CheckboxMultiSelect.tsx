@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
+import { clampLeft, placePopover } from "@/components/popoverPlacement";
 
 // A labelled "pick several" control: a `.ctl` button that opens a checkbox
 // list. Not a <select multiple>: on desktop that renders as an always-open
@@ -43,6 +44,7 @@ interface Props {
 }
 
 const POP_HEIGHT_PREF = 420;
+const POP_MAX_WIDTH = 320;
 
 export function CheckboxMultiSelect({ label, options, selected, onChange, allLabel, testId, summarize, active }: Props) {
   const { theme: t } = useTheme();
@@ -50,33 +52,28 @@ export function CheckboxMultiSelect({ label, options, selected, onChange, allLab
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  // Popovers open at 0,0 in the top layer, so placement is ours: left-aligned
-  // under the trigger, flipped above it when there is more room there, and
-  // height-capped to the space available.
+  // Placed before it opens (see popoverPlacement.ts), left-aligned to the
+  // trigger. It is as wide as its longest option, which can't be measured
+  // until it is shown, so it is placed against its maximum width and its left
+  // edge re-clamped once open — which only moves it at the viewport's edge.
   useEffect(() => {
     const pop = popoverRef.current;
     if (!pop) return;
-    const handleToggle = (e: Event) => {
-      if ((e as ToggleEvent).newState !== "open") return;
-      const btn = triggerRef.current;
-      if (!btn) return;
-      const rect = btn.getBoundingClientRect();
-      const margin = 8;
-      const gap = 4;
-      // Measured, not assumed: the list is as wide as its longest option (a
-      // weekday list is narrow, a direction list wide), and it is already
-      // laid out by the time "toggle" fires.
-      const left = Math.max(margin, Math.min(rect.left, window.innerWidth - pop.offsetWidth - margin));
-      const spaceBelow = window.innerHeight - rect.bottom - gap - margin;
-      const spaceAbove = rect.top - gap - margin;
-      const placeAbove = spaceBelow < Math.min(POP_HEIGHT_PREF, 240) && spaceAbove > spaceBelow;
-      const height = Math.max(140, Math.min(POP_HEIGHT_PREF, placeAbove ? spaceAbove : spaceBelow));
-      pop.style.left = `${Math.round(left)}px`;
-      pop.style.top = `${Math.round(placeAbove ? Math.max(margin, rect.top - gap - height) : rect.bottom + gap)}px`;
-      pop.style.maxHeight = `${Math.round(height)}px`;
+    const handleBeforeToggle = (e: Event) => {
+      if ((e as ToggleEvent).newState !== "open" || !triggerRef.current) return;
+      placePopover(pop, triggerRef.current, {
+        width: POP_MAX_WIDTH, prefHeight: POP_HEIGHT_PREF, minHeight: 140, flipBelow: 240, align: "left",
+      });
     };
+    const handleToggle = (e: Event) => {
+      if ((e as ToggleEvent).newState === "open") clampLeft(pop);
+    };
+    pop.addEventListener("beforetoggle", handleBeforeToggle);
     pop.addEventListener("toggle", handleToggle);
-    return () => pop.removeEventListener("toggle", handleToggle);
+    return () => {
+      pop.removeEventListener("beforetoggle", handleBeforeToggle);
+      pop.removeEventListener("toggle", handleToggle);
+    };
   }, []);
 
   const selectedSet = new Set(selected);
@@ -129,7 +126,7 @@ export function CheckboxMultiSelect({ label, options, selected, onChange, allLab
           padding: 8,
           width: "max-content",
           minWidth: 160,
-          maxWidth: "min(320px, calc(100vw - 16px))",
+          maxWidth: `min(${POP_MAX_WIDTH}px, calc(100vw - 16px))`,
           overflowY: "auto",
           boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
           color: t.text,

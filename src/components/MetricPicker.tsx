@@ -11,6 +11,7 @@ import {
   type MetricView,
 } from "@/utils/combinedMetrics";
 import { sbsUnitLabel, type SbsUnit } from "@/types";
+import { placePopover } from "@/components/popoverPlacement";
 
 interface Props {
   selected: string[];
@@ -75,51 +76,29 @@ export function MetricPicker({ selected, onChange, view, units = [], onOpen }: P
   const onOpenRef = useRef(onOpen);
   onOpenRef.current = onOpen;
 
-  // Position the popover relative to the trigger button when it opens.
-  // Popovers default to the top layer at fixed 0,0, so we own placement
-  // ourselves — anchor positioning would be cleaner but is still patchy
-  // across browsers in 2026.
-  //
-  // Flip above the trigger when the chart is near the bottom of the viewport
-  // and there's more room above than below; cap max-height to whatever space
-  // is actually available so the picker never gets clipped off-screen.
+  // Placed before it opens (see popoverPlacement.ts), right-aligned to the
+  // trigger; the open hook and the search focus wait until it has.
   useEffect(() => {
     const pop = popoverRef.current;
     if (!pop) return;
+    const handleBeforeToggle = (e: Event) => {
+      if ((e as ToggleEvent).newState !== "open" || !triggerRef.current) return;
+      placePopover(pop, triggerRef.current, {
+        width: 360, prefHeight: 480, minHeight: 160, flipBelow: 280, align: "right",
+      });
+    };
     const handleToggle = (e: Event) => {
-      const ev = e as ToggleEvent;
-      if (ev.newState !== "open") return;
+      if ((e as ToggleEvent).newState !== "open") return;
       onOpenRef.current?.();
-      const btn = triggerRef.current;
-      if (!btn) return;
-      const rect = btn.getBoundingClientRect();
-      const popWidth = 360;
-      const popHeightPref = 480;
-      const margin = 8;
-      const gap = 4;
-      // Horizontal: right-align to the trigger, clamped to viewport edges.
-      let left = rect.right - popWidth;
-      if (left < margin) left = margin;
-      const maxLeft = window.innerWidth - popWidth - margin;
-      if (left > maxLeft) left = maxLeft;
-      // Vertical: prefer below; flip above when below is too cramped and
-      // above has more room. Always cap maxHeight to the available space.
-      const spaceBelow = window.innerHeight - rect.bottom - gap - margin;
-      const spaceAbove = rect.top - gap - margin;
-      const placeAbove = spaceBelow < Math.min(popHeightPref, 280) && spaceAbove > spaceBelow;
-      const available = placeAbove ? spaceAbove : spaceBelow;
-      const height = Math.max(160, Math.min(popHeightPref, available));
-      const top = placeAbove
-        ? Math.max(margin, rect.top - gap - height)
-        : Math.round(rect.bottom + gap);
-      pop.style.left = `${Math.round(left)}px`;
-      pop.style.top = `${Math.round(top)}px`;
-      pop.style.maxHeight = `${Math.round(height)}px`;
       // Light-dismiss focus behavior: focus the search input on open.
       setTimeout(() => searchRef.current?.focus(), 0);
     };
-    pop.addEventListener("toggle", handleToggle as EventListener);
-    return () => pop.removeEventListener("toggle", handleToggle as EventListener);
+    pop.addEventListener("beforetoggle", handleBeforeToggle);
+    pop.addEventListener("toggle", handleToggle);
+    return () => {
+      pop.removeEventListener("beforetoggle", handleBeforeToggle);
+      pop.removeEventListener("toggle", handleToggle);
+    };
   }, []);
 
   const available = useMemo(
