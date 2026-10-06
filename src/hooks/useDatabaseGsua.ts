@@ -15,6 +15,10 @@ import { projectFromDays } from "@/utils/monthProjection";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
+import {
+  LATEST_POSTS, METRIC_COLS, canonicalDailySql, coverageMonthlySql, pickCanonicalDaily,
+  pivotCoverageMonthly, recentFloor, sumMetricsByMonth,
+} from "@/utils/gsuaSql";
 
 // Dev default is the `.app.db` copy, the same object production reads: same
 // schema with `posts.text` blanked, ~3x smaller, and nothing here queries the
@@ -71,22 +75,8 @@ async function loadWorker(): Promise<WorkerHttpvfs> {
 
 const workerCache = makeResourceCache<WorkerHttpvfs>();
 
-const METRIC_COLS = GSUA_METRIC_KEYS.map((k) => `MAX(${k}) AS ${k}`).join(", ");
-
-// `posts`/`directions` are edit-versioned: a post (source, source_id) can have
-// several rows, one per scrape that saw changed text, keyed by scraped_at. Reads
-// must use only the latest version per post. This "no newer version exists"
-// subquery is index-only (the PK covers it) and flattens in SQLite, so an outer
-// WHERE date>=… still pushes down — important over httpvfs. Substituted for the
-// `posts` table in every query; direction joins additionally match scraped_at.
-const LATEST_POSTS = `(
-  SELECT p.* FROM posts p
-  WHERE NOT EXISTS (
-    SELECT 1 FROM posts n
-    WHERE n.source = p.source AND n.source_id = p.source_id
-      AND n.scraped_at > p.scraped_at
-  )
-)`;
+// LATEST_POSTS / METRIC_COLS and the queries with a precomputed twin live in
+// utils/gsuaSql.ts.
 
 // GSUA reports update only ~3×/day, so polling the 32 MB R2 DB every 10 min is
 // wasteful. Refresh hourly; the on-focus + manual refresh paths still apply.
@@ -157,34 +147,7 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
   const queryGlobalStats = useCallback(
     async (): Promise<GsuaGlobalStats> => {
       if (!worker) return {} as GsuaGlobalStats;
-
-      const sql = `
-        WITH per_date_source AS (
-          SELECT date, source, MAX(snapshot_at) AS latest_snapshot, ${METRIC_COLS}
-          FROM ${LATEST_POSTS} posts
-          GROUP BY date, source, snapshot_at
-        ),
-        last_per_date_source AS (
-          SELECT date, source, MAX(latest_snapshot) AS latest_snapshot
-          FROM per_date_source
-          GROUP BY date, source
-        )
-        SELECT p.date, p.source, ${GSUA_METRIC_KEYS.join(", ")}
-        FROM per_date_source p
-        INNER JOIN last_per_date_source l
-          ON p.date = l.date AND p.source = l.source AND p.latest_snapshot = l.latest_snapshot
-        ORDER BY p.date ASC,
-                 CASE p.source WHEN 'telegram' THEN 0 ELSE 1 END ASC
-      `;
-      const rows = (await worker.db.query(sql)) as Record<string, number>[];
-      const seen = new Set<string>();
-      const deduped: Record<string, number>[] = [];
-      for (const row of rows) {
-        const d = String(row.date);
-        if (seen.has(d)) continue;
-        seen.add(d);
-        deduped.push(row);
-      }
+      const deduped = pickCanonicalDaily((await worker.db.query(canonicalDailySql())) as Record<string, number>[]);
 
       const result = {} as GsuaGlobalStats;
       for (const key of GSUA_METRIC_KEYS) {
@@ -200,53 +163,39 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
     [worker]
   );
 
+  // Does the app copy carry this precomputed table (scripts/gsua/app_db.sql)?
+  // The schema is on page 1, which every query has already read.
+  const hasTable = useCallback(async (name: string): Promise<boolean> => {
+    if (!worker) return false;
+    const rows = (await worker.db.query(
+      `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '${name}'`,
+    )) as unknown[];
+    return rows.length > 0;
+  }, [worker]);
+
+  // Completed months from `gsua_monthly` when the app copy has it; the recent
+  // months — which a scrape can still change, and whose days the projection
+  // needs — live, from their own days only. Without the table, everything live.
   const queryMonthly = useCallback(async (): Promise<GsuaMonthlyRow[]> => {
     if (!worker) return [];
-    const sql = `
-      WITH per_date_source AS (
-        SELECT date, source, MAX(snapshot_at) AS latest_snapshot, ${METRIC_COLS}
-        FROM ${LATEST_POSTS} posts
-        GROUP BY date, source, snapshot_at
-      ),
-      last_per_date_source AS (
-        SELECT date, source, MAX(latest_snapshot) AS latest_snapshot
-        FROM per_date_source
-        GROUP BY date, source
-      )
-      SELECT p.date, p.source, ${GSUA_METRIC_KEYS.join(", ")}
-      FROM per_date_source p
-      INNER JOIN last_per_date_source l
-        ON p.date = l.date AND p.source = l.source AND p.latest_snapshot = l.latest_snapshot
-      ORDER BY p.date ASC,
-               CASE p.source WHEN 'telegram' THEN 0 ELSE 1 END ASC
-    `;
-    const rows = (await worker.db.query(sql)) as Record<string, number | null>[];
-    const seen = new Set<string>();
-    const daily: Record<string, number | null>[] = [];
-    for (const row of rows) {
-      const d = String(row["date"]);
-      if (seen.has(d)) continue;
-      seen.add(d);
-      daily.push(row);
-    }
-
-    const byMonth = new Map<string, Record<GsuaMetricKey, number>>();
-    for (const row of daily) {
-      const month = String(row["date"]).slice(0, 7);
-      const bucket =
-        byMonth.get(month) ??
-        (GSUA_METRIC_KEYS.reduce((acc, k) => {
-          acc[k] = 0;
-          return acc;
-        }, {} as Record<GsuaMetricKey, number>));
-      for (const k of GSUA_METRIC_KEYS) {
-        const v = row[k];
-        if (typeof v === "number") bucket[k] += v;
-      }
-      byMonth.set(month, bucket);
-    }
-
     const today = getKyivDateString();
+    const floor = recentFloor(today);
+    const precomputed = await hasTable("gsua_monthly");
+    const daily = pickCanonicalDaily(
+      (await worker.db.query(canonicalDailySql(precomputed ? floor : undefined))) as Record<string, number | null>[],
+    );
+    const byMonth = sumMetricsByMonth(daily);
+    if (precomputed) {
+      const settled = (await worker.db.query(
+        `SELECT * FROM gsua_monthly WHERE month < '${floor.slice(0, 7)}'`,
+      )) as Record<string, unknown>[];
+      for (const r of settled) {
+        byMonth.set(String(r.month), Object.fromEntries(
+          GSUA_METRIC_KEYS.map((k) => [k, typeof r[k] === "number" ? r[k] : 0]),
+        ) as Record<GsuaMetricKey, number>);
+      }
+    }
+
     const currentMonth = today.slice(0, 7);
     const projection = projectFromDays(
       currentMonth,
@@ -273,7 +222,7 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
         }
         return row;
       });
-  }, [worker]);
+  }, [worker, hasTable]);
 
   // ── End-of-day projection for today ──────────────────────────────────────────
   // GS posts run cumulative daily totals across the day (e.g. "as of 16:00",
@@ -514,110 +463,23 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
   // Month totals and per-direction sums come from two side-by-side CTEs so
   // the outer JOIN doesn't multiply the month total by the number of
   // directions in it.
+  // Completed months from `gsua_direction_monthly` when the app copy has it,
+  // the recent ones live — see queryMonthly. Live over everything, this was the
+  // site's heaviest read: ~1,070 pages.
   const queryDirectionCoverageMonthly = useCallback(
     async (): Promise<GsuaDirectionCoverageRow[]> => {
       if (!worker) return [];
-      const sql = `
-        WITH latest_posts AS (
-          SELECT p.* FROM posts p
-          WHERE NOT EXISTS (
-            SELECT 1 FROM posts n
-            WHERE n.source = p.source AND n.source_id = p.source_id
-              AND n.scraped_at > p.scraped_at
-          )
-        ),
-        per_date_source_snap AS (
-          SELECT date, source, snapshot_at,
-                 MAX(combat_engagements) AS combat_engagements
-          FROM latest_posts
-          WHERE snapshot_at IS NOT NULL
-          GROUP BY date, source, snapshot_at
-        ),
-        best_per_date AS (
-          SELECT date, source, snapshot_at, combat_engagements
-          FROM (
-            SELECT *,
-                   ROW_NUMBER() OVER (
-                     PARTITION BY date
-                     ORDER BY CASE source WHEN 'telegram' THEN 0 ELSE 1 END,
-                              snapshot_at DESC
-                   ) AS rn
-            FROM per_date_source_snap
-          ) t
-          WHERE rn = 1
-        ),
-        month_totals AS (
-          SELECT substr(date, 1, 7) AS month,
-                 SUM(combat_engagements) AS total
-          FROM best_per_date
-          GROUP BY substr(date, 1, 7)
-        ),
-        per_date_direction AS (
-          -- Fair-share for paired-anchor rows; see comment in the daily
-          -- variant. Dedup WITHIN a date first with MAX (not SUM): a
-          -- double-posted report (same directions under two message ids,
-          -- e.g. 2026-07-11) shares one (date, source, snapshot_at), so the
-          -- join re-expands it — MAX takes each direction's single value and
-          -- still merges multipart posts (each direction lives in one part).
-          SELECT b.date AS date,
-                 d.direction AS direction,
-                 MAX(d.attacks * 1.0 / d.attacks_group_size) AS attacks
-          FROM best_per_date b
-          LEFT JOIN latest_posts p
-            ON p.source = b.source AND p.date = b.date AND p.snapshot_at = b.snapshot_at
-          LEFT JOIN directions d
-            ON d.source = p.source AND d.source_id = p.source_id
-            AND d.scraped_at = p.scraped_at
-          GROUP BY b.date, d.direction
-        ),
-        month_direction_attacks AS (
-          -- Then roll the deduped per-day shares up to the month.
-          SELECT substr(date, 1, 7) AS month,
-                 direction AS direction,
-                 SUM(attacks) AS attacks
-          FROM per_date_direction
-          GROUP BY substr(date, 1, 7), direction
-        )
-        SELECT m.month AS date, m.total,
-               a.direction, a.attacks
-        FROM month_totals m
-        LEFT JOIN month_direction_attacks a ON a.month = m.month
-        ORDER BY m.month ASC
-      `;
-      const rows = (await worker.db.query(sql)) as Record<string, unknown>[];
-      const byMonth = new Map<string, GsuaDirectionCoverageRow>();
-      for (const r of rows) {
-        const date = String(r.date);
-        const total = typeof r.total === "number" ? r.total : null;
-        let row = byMonth.get(date);
-        if (!row) {
-          row = {
-            date, total, attributed: 0, unattributed: 0,
-            byDirection: {}, is_today: false,
-          };
-          byMonth.set(date, row);
-        }
-        // Key by AXIS, not raw direction: the two halves of a jointly-reported
-        // pair land on the same key and re-add to the figure the report gave
-        // (0.5 + 0.5 = 1). `attributed` is unaffected — folding two rows into
-        // one changes which bucket the credit lands in, not how much there is.
-        const raw = r.direction == null ? null : String(r.direction);
-        const dir = raw == null ? null : directionAxis(raw);
-        const attacks = typeof r.attacks === "number" ? r.attacks : 0;
-        if (dir && attacks > 0) {
-          row.byDirection[dir] = (row.byDirection[dir] ?? 0) + attacks;
-          row.attributed += attacks;
-          // The fold happened on this date, so the line was joint here. Only
-          // the folded-away member trips this, so it records once per axis.
-          if (raw !== dir) (row.mergedAxes ??= []).push(dir);
-        }
-      }
-      for (const row of byMonth.values()) {
-        row.unattributed = row.total == null ? 0 : Math.max(0, row.total - row.attributed);
-      }
-      return [...byMonth.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+      const floor = recentFloor(getKyivDateString());
+      const precomputed = await hasTable("gsua_direction_monthly");
+      const recent = (await worker.db.query(coverageMonthlySql(precomputed ? floor : undefined))) as Record<string, unknown>[];
+      const settled = precomputed
+        ? ((await worker.db.query(
+            `SELECT date, total, direction, attacks FROM gsua_direction_monthly WHERE date < '${floor.slice(0, 7)}'`,
+          )) as Record<string, unknown>[])
+        : [];
+      return pivotCoverageMonthly([...settled, ...recent]);
     },
-    [worker]
+    [worker, hasTable]
   );
 
   // Full covered date range (first/last day) plus the newest snapshot on the last
