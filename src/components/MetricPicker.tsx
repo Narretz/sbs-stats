@@ -5,6 +5,7 @@ import {
   COMBINED_METRICS,
   SBS_UNIT_METRIC_KEYS,
   SOURCE_LABELS,
+  findMetric,
   sbsUnitMetricId,
   type CombinedMetric,
   type MetricSource,
@@ -68,6 +69,11 @@ export function MetricPicker({ selected, onChange, view, units = [], onOpen }: P
   const reactId = useId();
   const popoverId = `metric-picker-${reactId.replace(/:/g, "-")}`;
   const [query, setQuery] = useState("");
+  // Whether the popover is showing. The list itself stays mounted (a native
+  // popover is hidden, not removed), but the Selected section is built only
+  // while open: it repeats full metric labels, which in a closed picker on
+  // every chart would sit in the DOM as hidden duplicates of the legends'.
+  const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -88,6 +94,7 @@ export function MetricPicker({ selected, onChange, view, units = [], onOpen }: P
       });
     };
     const handleToggle = (e: Event) => {
+      setOpen((e as ToggleEvent).newState === "open");
       if ((e as ToggleEvent).newState !== "open") return;
       onOpenRef.current?.();
       // Light-dismiss focus behavior: focus the search input on open.
@@ -197,6 +204,59 @@ export function MetricPicker({ selected, onChange, view, units = [], onOpen }: P
     padding: "4px 4px 2px",
   };
 
+  // One checkbox row, the same wherever the metric is listed.
+  const checkRow = (id: string, label: React.ReactNode, key: string = id) => {
+    const on = selectedSet.has(id);
+    return (
+      <label
+        key={key}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "4px 6px",
+          fontFamily: FONTS.mono,
+          fontSize: 11,
+          cursor: "pointer",
+          borderRadius: 3,
+          color: on ? t.text : t.textMuted,
+          background: on ? t.bgAlt : "transparent",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={() => toggle(id)}
+          style={{ cursor: "pointer", accentColor: t.primary }}
+        />
+        <span>{label}</span>
+      </label>
+    );
+  };
+
+  // What is on the chart, repeated at the top: with ~100 metrics across a
+  // dozen groups, the ticked ones are otherwise scattered out of sight. Out of
+  // their groups, each carries its group inline ("GSUA · Combat engagements").
+  // Hidden while searching, which is a question about what matches. A metric
+  // this chart's grain can't plot says so — the chart silently skips it.
+  const selectedGroup = open && selected.length > 0 && !query.trim() && (
+    <div style={{ marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${t.border}` }} data-testid="metric-picker-selected">
+      <div style={groupHeaderStyle}>Selected · {selected.length}</div>
+      {selected.map((id) => {
+        const m = findMetric(id);
+        const label = (
+          <>
+            {m?.label ?? id}
+            {m && !m.views.includes(view) && (
+              <span style={{ color: t.textFaint }}> · not on {view} charts</span>
+            )}
+          </>
+        );
+        return checkRow(id, label, `selected-${id}`);
+      })}
+    </div>
+  );
+
   // Rendered directly under the SBS group rather than at the end of the list:
   // it IS SBS data, and at the bottom of ~280 rows in a 460px-tall popover it
   // was effectively unreachable.
@@ -229,35 +289,7 @@ export function MetricPicker({ selected, onChange, view, units = [], onOpen }: P
               No matches in this unit.
             </div>
           )}
-          {unitRows.map(([key, label]) => {
-            const id = sbsUnitMetricId(activeUnit, key);
-            const on = selectedSet.has(id);
-            return (
-              <label
-                key={id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "4px 6px",
-                  fontFamily: FONTS.mono,
-                  fontSize: 11,
-                  cursor: "pointer",
-                  borderRadius: 3,
-                  color: on ? t.text : t.textMuted,
-                  background: on ? t.bgAlt : "transparent",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={on}
-                  onChange={() => toggle(id)}
-                  style={{ cursor: "pointer", accentColor: t.primary }}
-                />
-                <span>{label}</span>
-              </label>
-            );
-          })}
+          {unitRows.map(([key, label]) => checkRow(sbsUnitMetricId(activeUnit, key), label))}
         </>
       )}
     </div>
@@ -321,6 +353,7 @@ export function MetricPicker({ selected, onChange, view, units = [], onOpen }: P
             Close
           </button>
         </div>
+        {selectedGroup}
         {grouped.length === 0 && (
           <div style={{ color: t.textMuted, fontFamily: FONTS.mono, fontSize: 11, padding: 6 }}>
             No matches.
@@ -332,34 +365,7 @@ export function MetricPicker({ selected, onChange, view, units = [], onOpen }: P
             <div style={groupHeaderStyle}>
               {SOURCE_LABELS[source]}
             </div>
-            {metrics.map((m) => {
-              const on = selectedSet.has(m.id);
-              return (
-                <label
-                  key={m.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "4px 6px",
-                    fontFamily: FONTS.mono,
-                    fontSize: 11,
-                    cursor: "pointer",
-                    borderRadius: 3,
-                    color: on ? t.text : t.textMuted,
-                    background: on ? t.bgAlt : "transparent",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={() => toggle(m.id)}
-                    style={{ cursor: "pointer", accentColor: t.primary }}
-                  />
-                  <span>{m.metricLabel}</span>
-                </label>
-              );
-            })}
+            {metrics.map((m) => checkRow(m.id, m.metricLabel))}
           </div>
           {/* The sub-units belong with SBS, not after Mediazona. */}
           {source === "sbs" && unitGroup}
