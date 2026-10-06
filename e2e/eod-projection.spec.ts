@@ -87,7 +87,7 @@ test.describe("End-of-day projection", () => {
   test("SBS hourly — tooltip header shows the EoD estimate", async ({ page }) => {
     await page.goto(SBS_HOURLY);
     const txt = await eodTooltip(page, 0);
-    expect(txt).toMatch(/TODAY (?:00:00|\d{2}:00–\d{2}:59): (?:n\/a|[\d,]+), EoD est ~[\d,]+ \(\d+% in by \d{2}:\d{2}\)/);
+    expect(txt).toMatch(/TODAY (?:00:00|\d{2}:00–\d{2}:59)[\s\S]*Today\s*(?:—|[\d,]+)[\s\S]*EoD est \(\d+% in\)\s*~[\d,]+/);
   });
 
   test("SBS hourly — each passed hour shows the estimate made at it", async ({ page }) => {
@@ -115,14 +115,15 @@ test.describe("End-of-day projection", () => {
     };
 
     await stepTo(10);
-    await expect(sheet).toContainText(/TODAY 10:00–10:59: [\d,]+, EoD est ~[\d,]+ \(50% in by 10:00\)/);
+    await expect(sheet).toContainText(/TODAY 10:00–10:59[\s\S]*Today\s*[\d,]+[\s\S]*EoD est \(50% in\)\s*~[\d,]+/);
     // No reading at 08:00, so no estimate — not 06:00's, and not the latest.
     await stepTo(8);
-    await expect(sheet).toContainText(/TODAY 08:00–08:59: n\/a/);
+    await expect(sheet).toContainText(/TODAY 08:00–08:59[\s\S]*Today\s*—/);
     await expect(sheet).not.toContainText("EoD est");
     // Past the latest reading, the current estimate.
     await stepTo(18);
-    await expect(sheet).toContainText(/TODAY 18:00–18:59: n\/a, EoD est ~[\d,]+ \(62% in by 14:00\)/);
+    // 62% is the share in by 14:00, the latest reading: the current estimate.
+    await expect(sheet).toContainText(/TODAY 18:00–18:59[\s\S]*Today\s*—[\s\S]*EoD est \(62% in\)\s*~[\d,]+/);
   });
 
   test("GSUA ru-attacks daily — single-series tooltip shows a projected value", async ({ page }) => {

@@ -415,3 +415,12 @@ summary::marker {
   }
   .chart-sheet-label { font-size: 11px; }
 }
+
+/* A space in a tooltip table header that becomes a line break where columns
+   get tight ("Median 29d" → "Median" over "29d"), at the same width the sheet
+   tightens its font and gaps. A real space, not generated content, so the
+   header's text still reads as two words; as a block with nothing but
+   whitespace in it, it takes no height and only forces the break. */
+@media (max-width: 560px) {
+  .tt-break { display: block; }
+}

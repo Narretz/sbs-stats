@@ -97,10 +97,12 @@ test.describe("SBS hourly — the tooltip's per-hour stats follow the scope", ()
       await page.getByLabel("Next point").click();
     }
     await expect(label).toHaveText("23:00–23:59");
-    await expect(sheet).toContainText(`max ${SENTINEL} (2020-01-01) of`);
+    // Two-digit year: the max's date sits in a column header.
+    await expect(sheet).toContainText(/Max 20-01-01/);
+    await expect(sheet).toContainText(SENTINEL);
 
     await page.getByTestId("stat-scope-select").selectOption("window");
-    await expect(sheet).toContainText(/max [\d,]+ \(.+\) of \d+ other days?/);
+    await expect(sheet).toContainText(/Median\s*vs med\s*Max [\d-]+\s*vs max/);
     await expect(sheet).not.toContainText(SENTINEL);
   });
 });

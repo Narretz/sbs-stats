@@ -16,7 +16,7 @@ import { chartAnchor } from "@/utils/chartAnchor";
 import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { ChartPlaceholder, useNearViewport } from "@/components/LazyChartArea";
 import { usePinnedChart } from "@/components/usePinnedChart";
-import type { TooltipDescriptor } from "@/components/TooltipTable";
+import { TooltipTable, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
 export type TooltipSortMode = "date" | "value";
 
 interface Props {
@@ -203,30 +203,68 @@ function describeHour({
     return multipleYears ? `${y}-${m}-${d}` : `${m}-${d}`;
   };
   // Under "All data" the max can come from a day outside the window, and so
-  // from a year the window doesn't show.
-  const maxDayLabel = (date: string) =>
-    date.slice(0, 4) !== (currentDate ?? today).slice(0, 4) ? date : dayLabel(date);
+  // from a year the window doesn't show. Where a year is shown it is two
+  // digits ("25-10-02"): this sits in a column header, where space is tight.
+  const maxDayLabel = (date: string) => {
+    const label = date.slice(0, 4) !== (currentDate ?? today).slice(0, 4) ? date : dayLabel(date);
+    return label.length === 10 ? label.slice(2) : label;
+  };
 
+  // The title says which day and hour, and how many other days the median and
+  // max columns are taken over — said once here because it applies to both.
+  // Median and max take the card's MED / MAX colours, so the reference lines
+  // and these read as the same thing.
+  const hasBase = !!base && base.days > 0;
   const header = (
-    <div style={{marginBottom: 4}}>
-      <div style={{ color: t.accent, marginBottom: 5, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
-        {currentDate === today ? 'TODAY' : currentDate} {formatHour(label)}: {currentEntry ? currentEntry.value.toLocaleString() : 'n/a'}{eod && `, EoD est ~${eod.projected.toLocaleString()} (${Math.round(eod.fraction * 100)}% in by ${eod.asOf})`}
-      </div>
-      {base == null ? null : base.days > 0 ? (
-        <div>
-          {`median ${base.median!.toLocaleString()}` }
-          {` · current ${base.deltaPct == null ? "n/a" : `${base.deltaPct >= 0 ? "+" : ""}${base.deltaPct.toFixed(1)}%`} vs median`}
-          {`· max ${base.max!.toLocaleString()} (${maxDayLabel(base.maxDate!)})`}
-          {` of ${base.days} other ${base.days === 1 ? "day" : "days"}`}
-        </div>
-      ) : (
-        <div>no other day has a value at this hour</div>
+    <div style={{ color: t.accent, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
+      {currentDate === today ? "TODAY" : currentDate} {formatHour(label)}
+      {hasBase && (
+        <span style={{ color: t.textMuted, fontWeight: 400, letterSpacing: 0 }}>
+          {` · vs ${base!.days} other ${base!.days === 1 ? "day" : "days"}`}
+        </span>
       )}
     </div>
   );
+  const c = chartColors(t);
+  const sign = (n: number | null) => (n == null ? null : `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`);
+  // One row per reading (the day, its EoD estimate), the hour's reference
+  // figures as columns. The max's header carries its date — on a second line
+  // on narrow screens only (.tt-break).
+  const extraColumns = hasBase
+    ? [
+        <span key="m" style={{ color: c.medReference }}>Median</span>,
+        "vs med",
+        <span key="x" style={{ color: c.maxReference }}>Max<span className="tt-break"> </span>{maxDayLabel(base!.maxDate!)}</span>,
+        "vs max",
+      ]
+    : [];
+  const rows: TooltipTableRow[] = [{
+    label: currentDate ? (currentDate === today ? "Today" : dayLabel(currentDate)) : "—",
+    color: t.accent,
+    value: currentEntry?.value ?? null,
+    emphasis: "bold",
+    extra: hasBase ? [base!.median, sign(base!.deltaPct), base!.max, sign(base!.deltaMaxPct)] : undefined,
+  }];
+  if (eod) {
+    rows.push({
+      label: <>EoD est <span style={{ fontSize: "0.9em", color: t.textMuted }}>({Math.round(eod.fraction * 100)}% in)</span></>,
+      color: t.accent,
+      value: `~${eod.projected.toLocaleString()}`,
+    });
+  }
 
   const content = (
     <>
+      {/* flex: none — in the sheet this sits in a flex column above a grid that
+          claims the leftover height, and must not be squeezed by it. Sized to
+          its content, or the full-width sheet puts each figure a screen away
+          from its label. */}
+      <div style={{ flex: "none", marginBottom: 8, width: "max-content", maxWidth: "100%" }}>
+        <TooltipTable rows={rows} extraColumns={extraColumns} />
+        {base && !hasBase && (
+          <div style={{ color: t.textMuted, marginTop: 2 }}>No other day has a value at this hour</div>
+        )}
+      </div>
       <DateGrid>
         {sorted.map((p) => {
           // Show MM-DD for past days to save space — with the year in front of

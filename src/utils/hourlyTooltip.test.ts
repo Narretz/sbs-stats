@@ -18,6 +18,7 @@ describe("hourBaseline", () => {
     expect(b.median).toBe(40);
     expect(b.max).toBe(40);
     expect(b.deltaPct).toBeCloseTo(150);
+    expect(b.deltaMaxPct).toBeCloseTo(150);
   });
 
   it("names the most recent day that reached the max", () => {
@@ -40,6 +41,16 @@ describe("hourBaseline", () => {
     const b = hourBaseline([{ date: "2026-09-01", value: 0 }, { date: "2026-09-05", value: 3 }], "2026-09-05");
     expect(b.median).toBe(0);
     expect(b.deltaPct).toBeNull();
+  });
+
+  it("compares against the max as well as the median", () => {
+    // Others 10, 20, 40, 40: median 40 (upper-middle), max 40 — so use a day
+    // below both to tell the two apart from the median's own case.
+    const b = hourBaseline([...entries.slice(0, 4), { date: "2026-09-06", value: 30 }, { date: "2026-09-07", value: 80 }], "2026-09-06");
+    expect(b.median).toBe(40);
+    expect(b.max).toBe(80);
+    expect(b.deltaPct).toBeCloseTo(-25);
+    expect(b.deltaMaxPct).toBeCloseTo(-62.5);
   });
 });
 

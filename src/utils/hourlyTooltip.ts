@@ -14,6 +14,8 @@ export interface HourBaseline {
   // The highlighted day against the median, in percent; null without a value
   // or a non-zero median to compare.
   deltaPct: number | null;
+  // …and against the max, likewise.
+  deltaMaxPct: number | null;
 }
 
 // One hour's readings across a set of days, sorted ascending by value (ties by
@@ -51,7 +53,7 @@ export function baselineOf(
   const { values = [], dates = [] } = history ?? {};
   const skip = currentDate ? dates.indexOf(currentDate) : -1;
   const n = values.length - (skip >= 0 ? 1 : 0);
-  if (n <= 0) return { days: 0, median: null, max: null, maxDate: null, deltaPct: null };
+  if (n <= 0) return { days: 0, median: null, max: null, maxDate: null, deltaPct: null, deltaMaxPct: null };
   // The i-th of the other days, in sorted order.
   const nth = (i: number) => (skip >= 0 && i >= skip ? i + 1 : i);
   // Upper-middle for an even count, like every other median on the site
@@ -59,8 +61,8 @@ export function baselineOf(
   const median = values[nth(Math.floor(n / 2))];
   // Last in sort order is the max, and among equal maxima the most recent day.
   const top = nth(n - 1);
-  const deltaPct = currentValue != null && median !== 0 ? ((currentValue - median) / median) * 100 : null;
-  return { days: n, median, max: values[top], maxDate: dates[top], deltaPct };
+  const vs = (ref: number) => (currentValue != null && ref !== 0 ? ((currentValue - ref) / ref) * 100 : null);
+  return { days: n, median, max: values[top], maxDate: dates[top], deltaPct: vs(median), deltaMaxPct: vs(values[top]) };
 }
 
 export function hourBaseline(

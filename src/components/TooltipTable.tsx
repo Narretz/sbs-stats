@@ -26,7 +26,8 @@ import type { ModelBreakdownEntry } from "@/types";
 
 /** One row in a tooltip table. */
 export interface TooltipTableRow {
-  label: string;
+  /** Usually text; a node for a label that needs a second, smaller line. */
+  label: ReactNode;
   color: string;
   /** Number → rendered with `toLocaleString` (via `formatValue`). Anything
    *  else (string, JSX fragment) is passed through — used for values like
@@ -52,6 +53,9 @@ export interface TooltipTableRow {
   /** Draw a thin separator above this row (e.g., between Total and its
    *  components on stacked charts). */
   separatorAbove?: boolean;
+  /** Cells for the table's `extraColumns`, in the same order. A number goes
+   *  through `formatValue`; anything else renders as-is. */
+  extra?: Array<number | ReactNode | null>;
 }
 
 interface TableProps {
@@ -70,6 +74,10 @@ interface TableProps {
    *  vocabulary — `Dest` on SBS pairs, `Int` on RU air-attacks, `Killed`
    *  on Personnel. Neither column renders when this is undefined. */
   subsetLabel?: string;
+  /** Headers of caller-defined columns, rendered right after Value — for a
+   *  table whose figures don't fit the named columns (the hourly overlay's
+   *  median / max for the hovered hour). A header may hold a <br/>. */
+  extraColumns?: ReactNode[];
 }
 
 // Column minimums are `em`, not px, so the whole table scales from a single
@@ -108,7 +116,7 @@ function subsetRate(r: TooltipTableRow): number | null {
 function HeaderCell({ children }: { children: ReactNode }) {
   return (
     <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", paddingBottom: 3 }}>
-      <span style={{ fontSize: "0.833em" }}>{children}</span>
+      <span style={{ fontSize: "0.9em" }}>{children}</span>
     </span>
   );
 }
@@ -123,6 +131,7 @@ export function TooltipTable({
   formatTrend,
   shareLabel = "Share %",
   subsetLabel,
+  extraColumns = [],
 }: TableProps) {
   const { theme: t } = useTheme();
   const trendFmt = formatTrend ?? formatValue;
@@ -144,6 +153,7 @@ export function TooltipTable({
   const cols = [
     "minmax(0, 1fr)",
     `minmax(${VALUE_MIN}, max-content)`,
+    ...extraColumns.map(() => `minmax(${PCT_MIN}, max-content)`),
     ...(hasShare ? [`minmax(${PCT_MIN}, max-content)`] : []),
     ...(hasSubset ? [`minmax(${SUBSET_MIN}, max-content)`] : []),
     ...(hasSubsetRate ? [`minmax(${PCT_MIN}, max-content)`] : []),
@@ -156,7 +166,7 @@ export function TooltipTable({
     fontVariantNumeric: "tabular-nums",
     padding: "1px 0",
   };
-  const showHeader = hasShare || hasSubset || hasSubsetRate || hasTrend || hasProjected;
+  const showHeader = extraColumns.length > 0 || hasShare || hasSubset || hasSubsetRate || hasTrend || hasProjected;
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: cols, columnGap: GAP, alignItems: "baseline" }}>
@@ -164,6 +174,7 @@ export function TooltipTable({
         <div style={{ display: "contents", color: t.textMuted }}>
           <span />
           <HeaderCell>Value</HeaderCell>
+          {extraColumns.map((h, i) => <HeaderCell key={i}>{h}</HeaderCell>)}
           {hasShare && <HeaderCell>{shareLabel}</HeaderCell>}
           {hasSubset && <HeaderCell>{subsetLabel}</HeaderCell>}
           {hasSubsetRate && <HeaderCell>{subsetLabel} %</HeaderCell>}
@@ -192,6 +203,11 @@ export function TooltipTable({
             <span style={{ ...num, color: t.text, fontWeight: 700 }}>
               {renderCell(r.value, formatValue, VALUE_EMPTY)}
             </span>
+            {extraColumns.map((_, j) => (
+              <span key={j} style={{ ...num, color: t.text }}>
+                {renderCell(r.extra?.[j], formatValue, "")}
+              </span>
+            ))}
             {hasShare && <span style={{ ...num, color: t.textMuted }}>{fmtPct(r.share)}</span>}
             {hasSubset && (
               <span style={{ ...num, color: t.textMuted }}>
@@ -320,6 +336,7 @@ export interface TooltipDescriptor {
   shareLabel?: string;
   formatValue?: (n: number) => string;
   formatTrend?: (n: number) => string;
+  extraColumns?: ReactNode[];
   /** Hover-card minimum width. Ignored by the sheet, which is viewport-wide. */
   minWidth?: number;
   /** Escape hatch for a tooltip that genuinely isn't a row table — the hourly
@@ -347,6 +364,7 @@ export function DescriptorCard({ d }: { d: TooltipDescriptor | null }) {
           formatTrend={d.formatTrend}
           shareLabel={d.shareLabel}
           subsetLabel={d.subsetLabel}
+          extraColumns={d.extraColumns}
         />
       ))}
     </TooltipCard>
@@ -385,6 +403,7 @@ export function DescriptorBody({ d }: { d: TooltipDescriptor | null }) {
         formatTrend={d.formatTrend}
         shareLabel={d.shareLabel}
         subsetLabel={d.subsetLabel}
+        extraColumns={d.extraColumns}
       />
       {d.footer}
     </>
