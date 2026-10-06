@@ -292,15 +292,6 @@ export type GsuaDailyRow = {
   source: string;
 } & Record<GsuaMetricKey, number | null>;
 
-export interface GsuaDirectionRow {
-  date: string;
-  snapshot_at: string;
-  direction: string;
-  attacks: number | null;
-  ongoing: number | null;
-  is_today: boolean;
-}
-
 // Directions the General Staff folded into an existing line, mapped to the
 // axis whose series the merged reports continue.
 //

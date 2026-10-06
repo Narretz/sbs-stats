@@ -14,4 +14,12 @@ declare module "sql.js" {
     run(sql: string, params?: Array<string | number | null>): Database;
     close(): void;
   }
+
+  // The module's own entry point. The app never imports it — the browser gets
+  // sql.js from a script tag — but a unit test opens an in-memory DB with it
+  // (src/utils/gsuaSql.test.ts).
+  export interface SqlJsStatic {
+    Database: new (data?: ArrayLike<number> | null) => Database;
+  }
+  export default function initSqlJs(config?: { locateFile?: (file: string) => string }): Promise<SqlJsStatic>;
 }

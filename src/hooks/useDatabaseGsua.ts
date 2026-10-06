@@ -2,7 +2,6 @@ import { useCallback } from "react";
 import { createDbWorker, type WorkerHttpvfs } from "sql.js-httpvfs";
 import type {
   GsuaDailyRow,
-  GsuaDirectionRow,
   GsuaDirectionCoverageRow,
   GsuaGlobalStats,
   GsuaMetricKey,
@@ -283,52 +282,6 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
     return rows.map((r) => r.direction);
   }, [worker]);
 
-  const queryDirectionDaily = useCallback(
-    async (direction: string, days: number, endDate?: string): Promise<GsuaDirectionRow[]> => {
-      if (!worker) return [];
-      const todayStr = getKyivDateString();
-      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
-      const dirSafe = direction.replace(/'/g, "''");
-
-      const sql = `
-        SELECT
-          p.date,
-          p.source,
-          MAX(p.snapshot_at) AS snapshot_at,
-          '${dirSafe}'       AS direction,
-          MAX(d.attacks)     AS attacks,
-          MAX(d.ongoing)     AS ongoing
-        FROM ${LATEST_POSTS} p
-        INNER JOIN directions d
-          ON p.source = d.source AND p.source_id = d.source_id AND p.scraped_at = d.scraped_at
-        WHERE d.direction = '${dirSafe}'
-          AND p.date >= ${windowStartSql(endDateSql, days)}
-          AND p.date <= date('${endDateSql}')
-        GROUP BY p.date, p.source
-        ORDER BY p.date ASC,
-                 CASE p.source WHEN 'telegram' THEN 0 ELSE 1 END ASC
-      `;
-      const rows = (await worker.db.query(sql)) as Record<string, unknown>[];
-      const seen = new Set<string>();
-      const out: GsuaDirectionRow[] = [];
-      for (const row of rows) {
-        const d = String(row.date);
-        if (seen.has(d)) continue;
-        seen.add(d);
-        out.push({
-          date: d,
-          snapshot_at: String(row.snapshot_at ?? ""),
-          direction: String(row.direction ?? ""),
-          attacks: typeof row.attacks === "number" ? row.attacks : null,
-          ongoing: typeof row.ongoing === "number" ? row.ongoing : null,
-          is_today: d === todayStr,
-        });
-      }
-      return out;
-    },
-    [worker]
-  );
-
   // Per-date "how much of today's `combat_engagements` count is broken down
   // into named directions, and which ones?" — for the coverage/composition
   // chart. Picks ONE canonical post per date (prefer telegram, then latest
@@ -509,7 +462,7 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
   return {
     loadState, error,
     queryDaily, queryGlobalStats, queryMonthly, queryEodProjection, queryDataWindow,
-    queryDirectionList, queryDirectionDaily,
+    queryDirectionList,
     queryDirectionCoverage, queryDirectionCoverageMonthly,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs,

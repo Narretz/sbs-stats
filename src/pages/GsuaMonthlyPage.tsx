@@ -10,8 +10,7 @@ import { PageScaffold } from "@/components/PageScaffold";
 import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
 import { CheckboxMultiSelect } from "@/components/CheckboxMultiSelect";
 import { DailyMultiLineChart, type LineSeries } from "@/components/DailyMultiLineChart";
-import { sumByMonth } from "@/utils/monthlySum";
-import { directionColor, directionOptions, directionsTitle, parseDirectionsParam } from "@/utils/gsuaDirections";
+import { axisLabel, axisSeries, directionColor, directionOptions, directionsTitle, parseDirectionsParam } from "@/utils/gsuaDirections";
 import { getKyivDateString } from "@/hooks/sqlLoader";
 import { maxMedian } from "@/utils/windowStats";
 import {
@@ -20,18 +19,12 @@ import {
   type GsuaMetricKey,
   type GsuaMonthlyRow,
   type GsuaDirectionCoverageRow,
-  type GsuaDirectionRow,
   type MonthlyDataPoint,
 } from "@/types";
 
 interface Props {
   refreshKey?: number;
 }
-
-// Every day since the data began — a direction's monthly figure is summed from
-// its daily ones (there is no monthly query per direction), over the whole
-// history so the stat scope's "all data" and the month-range slice both work.
-const ALL_DAYS = 100_000;
 
 function setDirectionParam(dirs: string[]) {
   const p = new URLSearchParams(window.location.search);
@@ -43,7 +36,7 @@ function setDirectionParam(dirs: string[]) {
 export function GsuaMonthlyPage({ refreshKey }: Props) {
   const {
     loadState, error, queryMonthly, queryDirectionCoverageMonthly, queryDataWindow,
-    queryDirectionList, queryDirectionDaily,
+    queryDirectionList,
   } = useGsuaDatabaseContext();
   const [dataWindow, setDataWindow] = useState<{ minDate: string | null; maxDate: string | null; latestSnapshotAt: string | null }>({ minDate: null, maxDate: null, latestSnapshotAt: null });
   useEffect(() => { queryDataWindow().then(setDataWindow); }, [queryDataWindow]);
@@ -54,12 +47,10 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
   const [selectedDirections, setSelectedDirections] = useState<string[]>(
     () => parseDirectionsParam(new URLSearchParams(window.location.search).get("direction")),
   );
-  const [directionRows, setDirectionRows] = useState<Record<string, GsuaDirectionRow[]>>({});
   const updateDirections = (dirs: string[]) => {
     setSelectedDirections(dirs);
     setDirectionParam(dirs);
   };
-  const directionsKey = selectedDirections.join(",");
   const yr = useMonthlyMonthRange(allRows.length);
   const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
 
@@ -81,17 +72,6 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
     return () => { cancelled = true; };
   }, [loadState, queryMonthly, queryDirectionCoverageMonthly, queryDirectionList, refreshKey]);
 
-  useEffect(() => {
-    if (loadState !== "ready") return;
-    const dirs = directionsKey ? directionsKey.split(",") : [];
-    let cancelled = false;
-    (async () => {
-      const perDir = await Promise.all(dirs.map((d) => queryDirectionDaily(d, ALL_DAYS)));
-      if (cancelled) return;
-      setDirectionRows(Object.fromEntries(dirs.map((d, i) => [d, perDir[i]])));
-    })();
-    return () => { cancelled = true; };
-  }, [loadState, directionsKey, queryDirectionDaily, refreshKey]);
 
   // Coverage rows are keyed by "YYYY-MM"; filter to the same year-range slice
   // the metric grid uses so the two views agree on what's shown.
@@ -130,28 +110,28 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
       endMonth,
     );
 
-  // A direction's months, cut to the same month-range slice as the rest.
-  const today = getKyivDateString();
-  const shownMonths = new Set(rows.map((r) => r.date));
-  const directionMonths = (dir: string, which: "attacks" | "ongoing") =>
-    sumByMonth((directionRows[dir] ?? []).map((d) => ({ date: d.date, value: d[which] })), today);
-  const inSlice = <T extends { date: string }>(pts: T[]) =>
-    shownMonths.size ? pts.filter((p) => shownMonths.has(p.date)) : pts;
+  // A picked direction's months: its share of the coverage stack the page
+  // already loads (see utils/gsuaDirections.ts) — the month-range slice for
+  // the bars, all months for the "All data" stats. The month still running is
+  // marked, as everywhere else.
+  const currentMonth = getKyivDateString().slice(0, 7);
+  const directionMonths = (axis: string, rowsIn: GsuaDirectionCoverageRow[]) =>
+    axisSeries(rowsIn, axis, (r) => (r.date === currentMonth ? "Month so far." : undefined))
+      .map((p) => ({ ...p, is_today: p.date === currentMonth }));
   const oneDirection = selectedDirections.length === 1 ? selectedDirections[0] : null;
-  const directionSeries = (which: "attacks" | "ongoing"): LineSeries[] =>
-    selectedDirections.map((dir) => ({
-      key: dir, label: dir, color: directionColor(directionList, dir, selectedDirections),
-      data: inSlice(directionMonths(dir, which)),
+  const directionSeries = (): LineSeries[] =>
+    selectedDirections.map((axis) => ({
+      key: axis, label: axisLabel(axis), color: directionColor(directionList, axis, selectedDirections),
+      data: directionMonths(axis, filteredCoverageRows),
     }));
-  const directionBarChart = (dir: string, which: "attacks" | "ongoing", title: string) => {
-    const all = directionMonths(dir, which);
-    const stats = maxMedian(all.map((p) => p.value));
+  const directionBarChart = (axis: string) => {
+    const stats = maxMedian(directionMonths(axis, coverageRows).map((p) => p.value));
     return (
       <MonthlyBarChart
-        key={`${dir}-${which}`}
-        title={title}
-        data={padTrailingMonthly(inSlice(all).map((p) => ({ date: p.date, value: p.value, note: p.note })), endMonth)}
-        wfull={false}
+        key={axis}
+        title={`Attacks · ${axisLabel(axis)}`}
+        data={padTrailingMonthly(directionMonths(axis, filteredCoverageRows).map((p) => ({ date: p.date, value: p.value, note: p.note })), endMonth)}
+        wfull
         globalMax={stats.max}
         globalMedian={stats.median}
         globalTotal={stats.total}
@@ -203,13 +183,11 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
         )}
         </>)}
         {oneDirection && (<>
-          {directionBarChart(oneDirection, "attacks", `Attacks · ${oneDirection}`)}
-          {directionBarChart(oneDirection, "ongoing", `Ongoing engagements · ${oneDirection}`)}
+          {directionBarChart(oneDirection)}
         </>)}
-        {/* Several: side by side per month, not summed — see the daily page. */}
+        {/* Several: side by side per month, one bar each. */}
         {selectedDirections.length > 1 && (<>
-          <DailyMultiLineChart title="Attacks by direction" series={directionSeries("attacks")} granularity="monthly" style="bar" wfull />
-          <DailyMultiLineChart title="Ongoing engagements by direction" series={directionSeries("ongoing")} granularity="monthly" style="bar" wfull />
+          <DailyMultiLineChart title="Attacks by direction" series={directionSeries()} granularity="monthly" style="bar" wfull />
         </>)}
       </>}
     />
