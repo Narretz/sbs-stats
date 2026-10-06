@@ -3,6 +3,9 @@ import { Temporal } from "temporal-polyfill";
 import { useGsuaDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
+import { DailyMultiLineChart, type LineSeries } from "@/components/DailyMultiLineChart";
+import { CheckboxMultiSelect } from "@/components/CheckboxMultiSelect";
+import { qualitativeColor } from "@/chartColors";
 import { DirectionCoverageChart } from "@/components/DirectionCoverageChart";
 import { DataWindow } from "@/components/DataWindow";
 import { ChartGrid } from "@/components/Layout";
@@ -45,7 +48,9 @@ function getUrlParams() {
     days: parseDaysParam(p.get("days"), resolvedEndDate(parseDate(p.get("date")))),
     weekdays: parseWeekdays(p.get("weekdays")),
     date: parseDate(p.get("date")),
-    direction: p.get("direction") ?? "",
+    // A comma list; a link from before several could be picked holds one
+    // name, which parses the same. No direction name contains a comma.
+    directions: (p.get("direction") ?? "").split(",").filter(Boolean),
   };
 }
 
@@ -75,12 +80,12 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   const [days, setDays] = useState<DayOption>(initial.days);
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>(initial.weekdays);
   const [selectedDate, setSelectedDate] = useState<string>(initial.date);
-  const [selectedDirection, setSelectedDirection] = useState<string>(initial.direction);
+  const [selectedDirections, setSelectedDirections] = useState<string[]>(initial.directions);
 
   const [rows, setRows] = useState<GsuaDailyRow[]>([]);
   const [globalStats, setGlobalStats] = useState<GsuaGlobalStats>({} as GsuaGlobalStats);
   const [directionList, setDirectionList] = useState<string[]>([]);
-  const [directionRows, setDirectionRows] = useState<GsuaDirectionRow[]>([]);
+  const [directionRows, setDirectionRows] = useState<Record<string, GsuaDirectionRow[]>>({});
   const [coverageRows, setCoverageRows] = useState<GsuaDirectionCoverageRow[]>([]);
   const [eod, setEod] = useState<Partial<Record<GsuaMetricKey, EodEstimate>>>({});
   const [hasData, setHasData] = useState(false);
@@ -103,10 +108,13 @@ export function GsuaDailyPage({ refreshKey }: Props) {
     setSelectedWeekdays(next);
     setUrlParams({ weekdays: next.join(",") });
   };
-  const updateDirection = (dir: string) => {
-    setSelectedDirection(dir);
-    setUrlParams({ direction: dir });
+  const updateDirections = (dirs: string[]) => {
+    setSelectedDirections(dirs);
+    setUrlParams({ direction: dirs.join(",") });
   };
+  // Joined into the effect's key rather than the array itself, which is a new
+  // object on every parse even when the selection hasn't changed.
+  const directionsKey = selectedDirections.join(",");
 
   useEffect(() => {
     if (loadState !== "ready") return;
@@ -128,13 +136,14 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       const daily = await queryDaily(days, selectedDate || undefined);
       if (cancelled) return;
       setRows(daily);
-      if (selectedDirection) {
-        const dir = await queryDirectionDaily(selectedDirection, days, selectedDate || undefined);
+      const dirs = directionsKey ? directionsKey.split(",") : [];
+      if (dirs.length) {
+        const perDir = await Promise.all(dirs.map((d) => queryDirectionDaily(d, days, selectedDate || undefined)));
         if (cancelled) return;
-        setDirectionRows(dir);
+        setDirectionRows(Object.fromEntries(dirs.map((d, i) => [d, perDir[i]])));
         setCoverageRows([]);
       } else {
-        setDirectionRows([]);
+        setDirectionRows({});
         const cov = await queryDirectionCoverage(days, selectedDate || undefined);
         if (cancelled) return;
         setCoverageRows(cov);
@@ -142,7 +151,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       setHasData(true);
     })();
     return () => { cancelled = true; };
-  }, [loadState, days, selectedDate, selectedDirection, queryDaily, queryDirectionDaily, queryDirectionCoverage, refreshKey]);
+  }, [loadState, days, selectedDate, directionsKey, queryDaily, queryDirectionDaily, queryDirectionCoverage, refreshKey]);
 
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00").getDay();
   const maxSelectableDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
@@ -161,7 +170,6 @@ export function GsuaDailyPage({ refreshKey }: Props) {
 
   const filteredCoverageRows = useMemo(() => filterDailyRows(coverageRows, { selectedDate, days, weekdays: selectedWeekdays }), [coverageRows, selectedDate, selectedWeekdays, days]);
 
-  const filteredDirectionRows = useMemo(() => filterDailyRows(directionRows, { selectedDate, days, weekdays: selectedWeekdays }), [directionRows, selectedDate, selectedWeekdays, days]);
 
   const endDate = resolvedEndDate(selectedDate);
   const startDate = windowStartDate(endDate, days);
@@ -199,55 +207,46 @@ export function GsuaDailyPage({ refreshKey }: Props) {
     { keepDate },
   );
 
-  const directionAttacksDataset = fillDailyRange(
-    filteredDirectionRows.map((d) => ({
-      date: d.date,
-      value: d.attacks,
-      is_today: d.is_today,
-      note: interimNote(d.date, d.snapshot_at),
-    })),
-    startDate,
-    endDate,
-    { keepDate },
-  );
-  const directionOngoingDataset = fillDailyRange(
-    filteredDirectionRows.map((d) => ({
-      date: d.date,
-      value: d.ongoing,
-      is_today: d.is_today,
-      note: interimNote(d.date, d.snapshot_at),
-    })),
-    startDate,
-    endDate,
-    { keepDate },
-  );
-  const directionAttacksStats = useMemo(() => {
-    const vals = directionAttacksDataset
-      .map((p) => p.value)
-      .filter((v): v is number => typeof v === "number")
-      .sort((a, b) => a - b);
+  // One dataset per picked direction and measure, filtered and padded like
+  // the overview's.
+  const directionDataset = (dir: string, which: "attacks" | "ongoing") =>
+    fillDailyRange(
+      filterDailyRows(directionRows[dir] ?? [], { selectedDate, days, weekdays: selectedWeekdays }).map((d) => ({
+        date: d.date,
+        value: d[which],
+        is_today: d.is_today,
+        note: interimNote(d.date, d.snapshot_at),
+      })),
+      startDate,
+      endDate,
+      { keepDate },
+    );
+  // Window MAX / MED / TOTAL for the one-direction charts, which have no
+  // whole-dataset stats of their own.
+  const windowStats = (data: { value: number | null }[]) => {
+    const vals = data.map((p) => p.value).filter((v): v is number => typeof v === "number").sort((a, b) => a - b);
     return {
       max: vals.length ? vals[vals.length - 1] : 0,
       median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
       total: vals.reduce((s, n) => s + n, 0),
     };
-  }, [directionAttacksDataset]);
-  const directionOngoingStats = useMemo(() => {
-    const vals = directionOngoingDataset
-      .map((p) => p.value)
-      .filter((v): v is number => typeof v === "number")
-      .sort((a, b) => a - b);
-    return {
-      max: vals.length ? vals[vals.length - 1] : 0,
-      median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
-      total: vals.reduce((s, n) => s + n, 0),
-    };
-  }, [directionOngoingDataset]);
+  };
+  // A direction keeps its colour whatever else is picked: its place in the
+  // full list, not in the selection.
+  const directionColor = (dir: string) => {
+    const i = directionList.indexOf(dir);
+    return qualitativeColor(i >= 0 ? i : directionList.length + selectedDirections.indexOf(dir));
+  };
+  const directionSeries = (which: "attacks" | "ongoing"): LineSeries[] =>
+    selectedDirections.map((dir) => ({ key: dir, label: dir, color: directionColor(dir), data: directionDataset(dir, which) }));
+  const directionTitle =
+    selectedDirections.length <= 3 ? selectedDirections.join(", ") : `${selectedDirections.length} directions`;
+  const oneDirection = selectedDirections.length === 1 ? selectedDirections[0] : null;
 
   return (
     <PageScaffold
       headerVariant="block"
-      title={`Daily Combat Stats ${selectedDirection ? `— ${selectedDirection}` : ""} - GSUA`}
+      title={`Daily Combat Stats ${selectedDirections.length ? `— ${directionTitle}` : ""} - GSUA`}
       description={<>
         Last snapshot per day · Parsed deterministically from Telegram <a href="https://t.me/GeneralStaffZSU" rel="nofollow external" target="_blank">@GeneralStaffZSU</a>. May be incomplete or incorrect.
         <br/>
@@ -260,20 +259,16 @@ export function GsuaDailyPage({ refreshKey }: Props) {
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
         <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} canGoPrev={canGoPrev} />
         <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span className="ctl-label">Direction</span>
-          <select
-            className="ctl"
-            data-testid="direction-picker"
-            value={selectedDirection}
-            onChange={(e) => updateDirection(e.target.value)}
-          >
-            <option value="">All Ukraine (overview)</option>
-            {directionList.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-        </div>
+        <CheckboxMultiSelect
+          label="Direction"
+          testId="direction-picker"
+          allLabel="All Ukraine (overview)"
+          // Alphabetical, to be found by name; the colours stay keyed to the
+          // list's own (by attacks) order, so they don't move.
+          options={[...directionList].sort((a, b) => a.localeCompare(b)).map((d) => ({ value: d, label: d, color: directionColor(d) }))}
+          selected={selectedDirections}
+          onChange={updateDirections}
+        />
         <StatScopeToggle />
       </>}
       loadState={loadState}
@@ -281,7 +276,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       hasData={hasData}
       loadingMessage="Loading GSUA database…"
     >
-      {!selectedDirection && (
+      {selectedDirections.length === 0 && (
         <ChartGrid>
           {GSUA_METRIC_KEYS.map((k) => {
             // The combat_engagements chart gets the attributed/unattributed
@@ -316,24 +311,39 @@ export function GsuaDailyPage({ refreshKey }: Props) {
           )}
         </ChartGrid>
       )}
-      {selectedDirection && (
+      {oneDirection && (() => {
+        const attacks = directionDataset(oneDirection, "attacks");
+        const ongoing = directionDataset(oneDirection, "ongoing");
+        const sa = windowStats(attacks);
+        const so = windowStats(ongoing);
+        return (
+          <ChartGrid>
+            <DailyLineChart
+              title={`Attacks · ${oneDirection}`}
+              data={attacks}
+              globalMax={sa.max}
+              globalMedian={sa.median}
+              globalTotal={sa.total}
+              wfull={false}
+            />
+            <DailyLineChart
+              title={`Ongoing engagements · ${oneDirection}`}
+              data={ongoing}
+              globalMax={so.max}
+              globalMedian={so.median}
+              globalTotal={so.total}
+              wfull={false}
+            />
+          </ChartGrid>
+        );
+      })()}
+      {/* Several directions: overlaid, one line each, to compare them — not
+          summed. Two directions the GS reports jointly ("На X і Y напрямках
+          N…") carry the same figure, which a sum would count twice. */}
+      {selectedDirections.length > 1 && (
         <ChartGrid>
-          <DailyLineChart
-            title={`Attacks · ${selectedDirection}`}
-            data={directionAttacksDataset}
-            globalMax={directionAttacksStats.max}
-            globalMedian={directionAttacksStats.median}
-            globalTotal={directionAttacksStats.total}
-            wfull={false}
-          />
-          <DailyLineChart
-            title={`Ongoing engagements · ${selectedDirection}`}
-            data={directionOngoingDataset}
-            globalMax={directionOngoingStats.max}
-            globalMedian={directionOngoingStats.median}
-            globalTotal={directionOngoingStats.total}
-            wfull={false}
-          />
+          <DailyMultiLineChart title="Attacks by direction" series={directionSeries("attacks")} wfull />
+          <DailyMultiLineChart title="Ongoing engagements by direction" series={directionSeries("ongoing")} wfull />
         </ChartGrid>
       )}
     </PageScaffold>

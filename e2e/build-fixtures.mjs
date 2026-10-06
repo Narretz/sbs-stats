@@ -289,6 +289,10 @@ function buildGsua(SQL) {
   };
   const day = (date, settled, withFinal) => {
     post(date, `${date}T16:00:00`, 0.70, settled, "16");
+    // A second direction, so the direction picker has two to overlay. On the
+    // 16:00 post only: the coverage query reads each day's canonical (latest)
+    // post, so its 60% Pokrovsk attribution is untouched.
+    insDir.run(["telegram", `${date}-16`, `${date}T23:59:59`, "Lyman", 7, 2, 1, null]);
     // The canonical (latest-snapshot) post per date carries the coverage
     // duplicate: the next-morning 08:00 final once the day has settled, else
     // the same-day 22:00 for the still-open current day.
