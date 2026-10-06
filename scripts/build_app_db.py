@@ -13,12 +13,22 @@ VITE_*_DB_URL points at the app copy.
 Sentinel choice is automatic: NULL where the column allows it, '' where there's
 a NOT NULL constraint — so post-VACUUM the row layout shrinks either way.
 
+`--sql FILE` (repeatable) runs a SQL script on the copy after blanking, for
+derived tables only the frontend needs — an answer that would otherwise cost
+the frontend a scan of the whole history over HTTP range requests. It runs on
+the copy, so the authoritative DB never carries them. See
+scripts/gsua/app_db.sql.
+
 Usage:
   python scripts/build_app_db.py \\
     --in scripts/ru_mod/output/ru-mod-ad.db \\
     --out scripts/ru_mod/output/ru-mod-ad.app.db \\
     --blank ad_reports.raw_text \\
     --blank summaries.raw_text
+
+  python scripts/build_app_db.py \\
+    --in data/ru-attacks-gsua.db --out data/ru-attacks-gsua.app.db \\
+    --blank posts.text --sql scripts/gsua/app_db.sql
 """
 import argparse
 import shutil
@@ -35,6 +45,11 @@ def main() -> int:
         "--blank", action="append", required=True, metavar="table.col",
         help="Column to blank out (repeatable). Sentinel auto-picked: '' for "
              "NOT NULL columns, NULL otherwise.",
+    )
+    p.add_argument(
+        "--sql", action="append", default=[], type=Path, metavar="FILE",
+        help="SQL script to run on the copy after blanking (repeatable) — "
+             "derived tables for the frontend.",
     )
     args = p.parse_args()
 
@@ -61,6 +76,9 @@ def main() -> int:
             sentinel = "''" if info[0] else "NULL"
             n = conn.execute(f"UPDATE {table} SET {col} = {sentinel}").rowcount
             print(f"  blanked {spec} ({n} row(s), sentinel={sentinel})")
+        for script in args.sql:
+            conn.executescript(script.read_text())
+            print(f"  ran {script}")
         conn.execute("VACUUM")
     finally:
         conn.close()

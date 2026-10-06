@@ -305,8 +305,22 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
     return computeEodProjection(byDate, todayStr, GSUA_METRIC_KEYS);
   }, [worker]);
 
+  // Ranked by all-time attacks. Read from `direction_totals`, which the app
+  // copy is built with (scripts/gsua/app_db.sql): two pages. Computed live, as
+  // below, it walks every direction row ever recorded — ~580 pages, the
+  // heaviest read of the daily page — so the live query is only the fallback,
+  // for a copy built without that script. Same rows either way.
   const queryDirectionList = useCallback(async (): Promise<string[]> => {
     if (!worker) return [];
+    const derived = (await worker.db.query(
+      `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'direction_totals'`,
+    )) as unknown[];
+    if (derived.length) {
+      const rows = (await worker.db.query(
+        `SELECT direction FROM direction_totals ORDER BY total DESC`,
+      )) as { direction: string }[];
+      return rows.map((r) => r.direction);
+    }
     const sql = `
       SELECT d.direction, SUM(COALESCE(d.attacks, 0)) AS total
       FROM directions d

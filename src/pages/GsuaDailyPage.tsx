@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Temporal } from "temporal-polyfill";
 import { useGsuaDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
+import { useStatScope } from "@/hooks/useStatScope";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { DailyMultiLineChart, type LineSeries } from "@/components/DailyMultiLineChart";
 import { CheckboxMultiSelect } from "@/components/CheckboxMultiSelect";
@@ -118,14 +119,24 @@ export function GsuaDailyPage({ refreshKey }: Props) {
     if (loadState !== "ready") return;
     let cancelled = false;
     (async () => {
-      const [gs, dl, ep] = await Promise.all([queryGlobalStats(), queryDirectionList(), queryEodProjection()]);
+      const [dl, ep] = await Promise.all([queryDirectionList(), queryEodProjection()]);
       if (cancelled) return;
-      setGlobalStats(gs);
       setDirectionList(dl);
       setEod(ep);
     })();
     return () => { cancelled = true; };
-  }, [loadState, queryGlobalStats, queryDirectionList, queryEodProjection, refreshKey]);
+  }, [loadState, queryDirectionList, queryEodProjection, refreshKey]);
+
+  // Whole-history MAX / MED / TOTAL, which the charts read only under the "All
+  // data" stat scope — the default is "Window data". Over httpvfs it is the
+  // whole history's daily rows (~110 pages), so it waits until it is used.
+  const { scope } = useStatScope();
+  useEffect(() => {
+    if (loadState !== "ready" || scope !== "all") return;
+    let cancelled = false;
+    queryGlobalStats().then((gs) => { if (!cancelled) setGlobalStats(gs); });
+    return () => { cancelled = true; };
+  }, [loadState, scope, queryGlobalStats, refreshKey]);
 
   useEffect(() => {
     if (loadState !== "ready") return;

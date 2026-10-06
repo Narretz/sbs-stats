@@ -351,7 +351,11 @@ bash scripts/setup_env.sh                 # npm + pip bootstrap for a fresh cont
   reparse or ingest rewrites `<name>.db` and leaves the app copy alone, so dev
   keeps serving the old rows while the file they came from looks correct.
   Rebuild it with `scripts/build_app_db.py` — not by re-running the fetch,
-  which would overwrite the reparse with R2's copy. **CIT reads the full DB in
+  which would overwrite the reparse with R2's copy. GSUA's app copy also
+  carries derived tables the full DB doesn't (`--sql scripts/gsua/app_db.sql`:
+  `direction_totals`, the direction picker's ranked list — computed live it
+  was a whole-history scan of ~2.3 MB over httpvfs); a copy built without it
+  still works, through a slower fallback query. **CIT reads the full DB in
   dev**, deliberately: it is a whole fetch, not a range fetch, so the app copy
   changes only the download size and using it locally would buy that same
   staleness trap for nothing.

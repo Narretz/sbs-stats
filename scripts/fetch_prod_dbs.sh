@@ -13,7 +13,8 @@
 # near R2:
 #
 #   python3 scripts/build_app_db.py --in data/ru-attacks-gsua.db \
-#     --out data/ru-attacks-gsua.app.db --blank posts.text
+#     --out data/ru-attacks-gsua.app.db --blank posts.text \
+#     --sql scripts/gsua/app_db.sql
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

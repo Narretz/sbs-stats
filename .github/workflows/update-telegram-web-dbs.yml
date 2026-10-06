@@ -114,7 +114,8 @@ jobs:
           python3 scripts/build_app_db.py \
             --in  "scripts/gsua/output/$GSUA_DB_NAME" \
             --out "scripts/gsua/output/${GSUA_DB_NAME%.db}.app.db" \
-            --blank posts.text
+            --blank posts.text \
+            --sql scripts/gsua/app_db.sql
 
       - name: Upload GSUA DB to R2 (full + app)
         env:
