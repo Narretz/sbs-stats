@@ -1,4 +1,4 @@
-import { Bar, Cell } from "recharts";
+import { Bar, Cell, Rectangle } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
 import { FONTS } from "@/theme";
@@ -16,9 +16,11 @@ import type { CitTerritoryDailyRow, CitTerritoryRow } from "@/types";
 // the tooltip breaks it out rather than letting one number hide the other.
 //
 // The daily page draws the same chart one bar per day. A weekend report is
-// one 48-hour figure spread over its two days (utils/citTerritory.ts); those
-// bars are drawn faded and the tooltip quotes the report's real totals, the
-// way the headline daily charts flag the same days.
+// one 48-hour figure, drawn as ONE faded bar spanning both its days at the
+// daily-average height, so the bar's area is the report's real total — a
+// histogram with one wider bin — and the tooltip quotes those totals. Two
+// half-height bars would read as two measured days; a full-height bar on the
+// Sunday would read as a spike with a hole before it.
 
 const MAX_BAR_SIZE = 70;
 
@@ -96,7 +98,32 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
     return { header: label(d), rows, footer, formatValue: fmtValue, minWidth: 260 };
   };
 
-  const faded = (d: Row) => (isDaily(d) && d.window_days > 1 ? 0.55 : 1);
+  const daily = rows.length > 0 && isDaily(rows[0]);
+
+  // A weekend's first day draws nothing and leaves its x behind; its second
+  // day — the report's own date — draws one bar from there to its own right
+  // edge. recharts renders a series' bars in data order, so the first day's
+  // x is always recorded, in the same pass, before the second day reads it.
+  // A weekend whose first day falls before the window has no recorded x and
+  // draws as an ordinary single-day bar.
+  const spanShape = (fill: string, radius: number) => {
+    const firstDayX = new Map<string, number>();
+    return (props: unknown) => {
+      const { x, y, width, height, payload } =
+        props as { x: number; y: number; width: number; height: number; payload: CitTerritoryDailyRow };
+      const weekend = payload.window_days > 1 && payload.report_date != null;
+      if (weekend && payload.date !== payload.report_date) {
+        firstDayX.set(payload.report_date!, x);
+        return <g />;
+      }
+      const left = weekend ? firstDayX.get(payload.date) ?? x : x;
+      return (
+        <Rectangle x={left} y={y} width={x + width - left} height={height}
+                   radius={[radius, radius, 0, 0]}
+                   fill={fill} fillOpacity={weekend ? 0.55 : 1} />
+      );
+    };
+  };
 
   // Ukrainian-controlled on the bottom: it is ~73% of the total, so putting it
   // at the baseline keeps the smaller band's own variation readable along a
@@ -111,7 +138,7 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
       // one description rendered two ways is the point of the descriptor, and
       // "Mar 2026" above a stepper reading "2026-03" would undo it.
       formatLabel={label}
-      tickFormatter={rows.length > 0 && isDaily(rows[0]) ? dayTick : undefined}
+      tickFormatter={daily ? dayTick : undefined}
       showEmptyWrapper
       subheader={caveat && (
         <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, marginBottom: 10 }}>{caveat}</div>
@@ -121,12 +148,14 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
         { label: "Russian-controlled (occupied Ukraine + Russia)", color: c.territoryRuControlled },
       ]}
     >
-      <Bar dataKey="uaControlled" stackId="a" name="Ukrainian-controlled" maxBarSize={MAX_BAR_SIZE}>
-        {rows.map((d, i) => <Cell key={`ua-${i}`} fill={c.territoryUaControlled} fillOpacity={faded(d)} />)}
+      <Bar dataKey="uaControlled" stackId="a" name="Ukrainian-controlled" maxBarSize={MAX_BAR_SIZE}
+           shape={daily ? spanShape(c.territoryUaControlled, 0) : undefined}>
+        {!daily && rows.map((_, i) => <Cell key={`ua-${i}`} fill={c.territoryUaControlled} />)}
       </Bar>
       <Bar dataKey="ruControlled" stackId="a" name="Russian-controlled"
-           radius={[3, 3, 0, 0]} maxBarSize={MAX_BAR_SIZE}>
-        {rows.map((d, i) => <Cell key={`ru-${i}`} fill={c.territoryRuControlled} fillOpacity={faded(d)} />)}
+           radius={[3, 3, 0, 0]} maxBarSize={MAX_BAR_SIZE}
+           shape={daily ? spanShape(c.territoryRuControlled, 3) : undefined}>
+        {!daily && rows.map((_, i) => <Cell key={`ru-${i}`} fill={c.territoryRuControlled} />)}
       </Bar>
     </MonthlyChartCard>
   );
