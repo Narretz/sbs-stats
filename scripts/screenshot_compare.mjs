@@ -32,6 +32,7 @@
 //                    down again afterwards.
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
+import { chromiumExecutablePath } from "./chromium-path.mjs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -144,18 +145,8 @@ function ensureVendor() {
 }
 
 async function launchBrowser(playwright, dsf, width) {
-  // Chromium comes from PLAYWRIGHT_BROWSERS_PATH normally; CHROMIUM_PATH is the
-  // escape hatch for a container whose pinned build doesn't match the installed
-  // playwright (the launch error names the path it wanted).
-  const opts = process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {};
-  let browser;
-  try {
-    browser = await playwright.chromium.launch(opts);
-  } catch (e) {
-    const fallback = "/opt/pw-browsers/chromium";
-    if (opts.executablePath || !existsSync(fallback)) throw e;
-    browser = await playwright.chromium.launch({ executablePath: fallback });
-  }
+  const executablePath = chromiumExecutablePath(playwright.chromium.executablePath());
+  const browser = await playwright.chromium.launch(executablePath ? { executablePath } : {});
   return {
     browser,
     context: await browser.newContext({
