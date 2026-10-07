@@ -133,15 +133,15 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
             readable against an injured count roughly six times larger. */}
         <CitDailyBarChart title="All civilian casualties" data={bars}
                           series={["killed", "injured"]} globalStats={globalStats} wfull />
-        <CitDailyBarChart title={CIT_METRIC_LABELS.killed} data={bars}
-                          series={["killed"]} globalStats={globalStats} wfull />
-        <CitDailyBarChart title={CIT_METRIC_LABELS.injured} data={bars}
-                          series={["injured"]} globalStats={globalStats} wfull />
         <CitTerritoryChart
           data={territory}
           wfull
           caveat={<>Killed + injured, from each report's per-region lines — accurate to about a percent in aggregate, but rarely to the person on a given day. A double-width bar is one weekend report spanning its two days, at the daily average.</>}
         />
+        <CitDailyBarChart title={CIT_METRIC_LABELS.killed} data={bars}
+                          series={["killed"]} globalStats={globalStats} wfull />
+        <CitDailyBarChart title={CIT_METRIC_LABELS.injured} data={bars}
+                          series={["injured"]} globalStats={globalStats} wfull />
       </>}
     />
   );
