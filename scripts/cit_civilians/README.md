@@ -221,7 +221,7 @@ Site key `cit-civilians`, two pages, wired in `src/sites/registry.tsx`:
 
 | Page | What it shows |
 |---|---|
-| `daily` | killed and injured per day, from `daily_stated`. Two charts, never one: the two series differ by roughly an order of magnitude and sharing an axis would flatten killed to nothing. |
+| `daily` | killed and injured per day, from `daily_stated`. Two charts, never one: the two series differ by roughly an order of magnitude and sharing an axis would flatten killed to nothing. Plus casualties by controlling side per day (below). |
 | `monthly` | the same figures summed per month, plus casualties by controlling side and the caveat that governs it. |
 
 The daily page also stacks the two into one "all casualties" chart
@@ -246,6 +246,12 @@ reusing it for a place would make one hue carry two meanings. They are also
 deliberately not flag colours. The pair passes the lightness, chroma, CVD and
 contrast checks against both surfaces, which is why one step serves both
 themes.
+
+The daily page draws the same split one bar per **report** day
+(`queryTerritoryDaily`): an amendment counts on the day CIT reported it, as it
+does in that post's own total, and a weekend report is spread over its two days
+at half each (`src/utils/citTerritory.ts`), drawn faded, with the report's real
+48-hour figures in the tooltip. A day no report covers is a gap, not a zero.
 
 The hook (`src/hooks/useDatabaseCitCivilians.ts`) reads the headline view for the
 charts and `casualties_latest` for the territory chart. It spreads a weekend

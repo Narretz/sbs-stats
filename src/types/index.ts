@@ -1304,7 +1304,7 @@ export interface CitReconciliation {
 // separately as well because they are near-equal halves of it — folding them
 // into one number without saying so would hide that.
 export interface CitTerritoryRow {
-  date: string;              // "YYYY-MM"
+  date: string;              // "YYYY-MM", or "YYYY-MM-DD" on the daily page
   uaControlled: number;
   ruControlled: number;
   occupiedUkraine: number;
@@ -1312,4 +1312,19 @@ export interface CitTerritoryRow {
   // Casualties in a region the parser did not recognise (~1% of the archive).
   // Excluded from both bands so they can't silently inflate one.
   unattributed: number;
+}
+
+// One calendar day of the same split. A weekend report covers two days and is
+// spread over them at half its figures each (`window_days = 2`, never in the
+// DB — see utils/citTerritory.ts); a day no report covers is a gap, with every
+// figure null, so it draws as nothing rather than as a quiet zero.
+export interface CitTerritoryDailyRow {
+  date: string;              // "YYYY-MM-DD"
+  report_date: string | null;
+  window_days: number;
+  uaControlled: number | null;
+  ruControlled: number | null;
+  occupiedUkraine: number | null;
+  russia: number | null;
+  unattributed: number | null;
 }

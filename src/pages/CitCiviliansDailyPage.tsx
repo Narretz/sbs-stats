@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Temporal } from "temporal-polyfill";
 import { useCitCiviliansDatabaseContext } from "@/context/databases";
 import { DailyLineChart } from "@/components/DailyLineChart";
+import { CitTerritoryChart } from "@/components/CitTerritoryChart";
 import { DataWindow } from "@/components/DataWindow";
 import { PageScaffold } from "@/components/PageScaffold";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
@@ -17,6 +18,7 @@ import {
   type CitDailyRow,
   type CitGlobalStats,
   type CitMetricKey,
+  type CitTerritoryDailyRow,
 } from "@/types";
 
 function parseDate(raw: string | null): string {
@@ -54,7 +56,7 @@ interface Props {
 }
 
 export function CitCiviliansDailyPage({ refreshKey }: Props) {
-  const { loadState, error, queryDaily, queryGlobalStats, queryDataWindow } =
+  const { loadState, error, queryDaily, queryTerritoryDaily, queryGlobalStats, queryDataWindow } =
     useCitCiviliansDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
 
@@ -63,6 +65,7 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
   const [selectedDate, setSelectedDate] = useState<string>(initial.date);
 
   const [rows, setRows] = useState<CitDailyRow[]>([]);
+  const [territory, setTerritory] = useState<CitTerritoryDailyRow[]>([]);
   const [globalStats, setGlobalStats] = useState<CitGlobalStats>({} as CitGlobalStats);
   const [hasData, setHasData] = useState(false);
 
@@ -80,9 +83,10 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
   useEffect(() => {
     if (loadState === "ready") {
       setRows(queryDaily(days, selectedDate || undefined));
+      setTerritory(queryTerritoryDaily(days, selectedDate || undefined));
       setHasData(true);
     }
-  }, [loadState, days, selectedDate, queryDaily, refreshKey]);
+  }, [loadState, days, selectedDate, queryDaily, queryTerritoryDaily, refreshKey]);
 
   const maxSelectableDate = mskToday();
   const shiftSelectedDate = (delta: number) => {
@@ -174,6 +178,11 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
             wfull
           />
         ))}
+        <CitTerritoryChart
+          data={territory}
+          wfull
+          caveat={<>Killed + injured, from each report's per-region lines — accurate to about a percent in aggregate, but rarely to the person on a given day. Faded bars are a weekend report averaged over its two days.</>}
+        />
       </>}
     />
   );
