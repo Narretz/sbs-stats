@@ -250,7 +250,7 @@ themes.
 The daily page draws the same split one bar per **report** day
 (`queryTerritoryDaily`): an amendment counts on the day CIT reported it, as it
 does in that post's own total, and a weekend report is spread over its two days
-at half each (`src/utils/citTerritory.ts`) and drawn as one faded bar spanning
+at half each (`src/utils/citTerritory.ts`) and drawn as one bar spanning
 both days — the histogram encoding above, done with a custom recharts bar shape
 — with the report's real 48-hour figures in the tooltip. A day no report covers is a gap, not a zero.
 

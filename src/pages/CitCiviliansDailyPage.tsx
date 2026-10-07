@@ -181,7 +181,7 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
         <CitTerritoryChart
           data={territory}
           wfull
-          caveat={<>Killed + injured, from each report's per-region lines — accurate to about a percent in aggregate, but rarely to the person on a given day. A wide, faded bar is one weekend report spanning its two days, at the daily average.</>}
+          caveat={<>Killed + injured, from each report's per-region lines — accurate to about a percent in aggregate, but rarely to the person on a given day. A double-width bar is one weekend report spanning its two days, at the daily average.</>}
         />
       </>}
     />

@@ -16,7 +16,7 @@ import type { CitTerritoryDailyRow, CitTerritoryRow } from "@/types";
 // the tooltip breaks it out rather than letting one number hide the other.
 //
 // The daily page draws the same chart one bar per day. A weekend report is
-// one 48-hour figure, drawn as ONE faded bar spanning both its days at the
+// one 48-hour figure, drawn as ONE bar spanning both its days at the
 // daily-average height, so the bar's area is the report's real total — a
 // histogram with one wider bin — and the tooltip quotes those totals. Two
 // half-height bars would read as two measured days; a full-height bar on the
@@ -120,7 +120,7 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
       return (
         <Rectangle x={left} y={y} width={x + width - left} height={height}
                    radius={[radius, radius, 0, 0]}
-                   fill={fill} fillOpacity={weekend ? 0.55 : 1} />
+                   fill={fill} />
       );
     };
   };
