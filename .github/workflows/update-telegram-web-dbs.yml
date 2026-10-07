@@ -30,6 +30,8 @@ on:
     # idempotent lookback covers anything missed by timing.
     - cron: "0 8,16,22 * * *"
       timezone: "Europe/Kyiv"
+    # Also dispatched at 09:10 / 23:10 Kyiv by the Cloudflare cron Worker
+    # (cloudflare/worker.ts) — GitHub's scheduler can skip or delay runs.
 
 jobs:
   # ── GSUA General Staff operational reports → ru-attacks-gsua.db ──────────────

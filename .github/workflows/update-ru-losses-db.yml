@@ -6,6 +6,8 @@ on:
     # The General Staff publishes once a day and PetroIvaniuk mirrors it within
     # hours; one run each morning (UTC) is plenty.
     - cron: "30 9 * * *"
+    # Also dispatched at 09:10 Kyiv by the Cloudflare cron Worker
+    # (cloudflare/worker.ts).
 
 # Single source of truth for the bucket + DB filename.
 env:

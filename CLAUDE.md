@@ -114,8 +114,9 @@ datasets for future views.
 ## CI / deploy
 
 GitHub Actions in `.github/workflows/`:
-- `update-db.yml` — SBS grouping total. No `schedule:`; an external cron
-  dispatches it roughly hourly. One run at a time (`concurrency: sbs-db`):
+- `update-db.yml` — SBS grouping total. No `schedule:`; the Cloudflare cron
+  Worker (`cloudflare/`, see `deploy-cron-worker.yml`) dispatches it four
+  times an hour (:10/:25/:40/:55 UTC). One run at a time (`concurrency: sbs-db`):
   each run uploads the whole DB, so overlapping runs would drop each other's
   hours. Hours a run never happened for (an expired Cloudflare token, say)
   come back with the manual `backfill_from_foosint` input, which inserts only
@@ -131,11 +132,12 @@ GitHub Actions in `.github/workflows/`:
   from `sbs.db` because that one is fetched whole by every SBS page and unit
   data is only read by the monthly / compare / combined views. Retirement is
   derived from "no live daily period", never listed.
-- `update-ru-losses-db.yml` — RU losses.
+- `update-ru-losses-db.yml` — RU losses. 09:30 UTC `schedule:`, plus 09:10
+  Kyiv dispatched by the cron Worker.
 - `update-telegram-web-dbs.yml` — GSUA + RU MoD (two jobs, both scrape the
   public `t.me/s` web preview, no API account). Scheduled at 08:00 / 16:00 /
   22:00 **Europe/Kyiv** (IANA `timezone:` cron field) to land just after the GS
-  reports; a 2-day idempotent lookback covers GitHub's scheduler lag. When
+  reports, plus 09:10 / 23:10 Kyiv dispatched by the cron Worker; a 2-day idempotent lookback covers GitHub's scheduler lag. When
   RU MoD reports a gap day, `scripts/ru_mod/probe_gap.py` reports the difference
   between "the MoD posted nothing" and "the parser rejected what it posted" —
   `--source web` by default; it exits 2 when the preview
@@ -222,8 +224,10 @@ GitHub Actions in `.github/workflows/`:
   regression.
 - `deploy.yml` — builds and publishes to GitHub Pages.
 - `deploy-cron-worker.yml` — deploys `cloudflare/`, the `sbs-stats-cron`
-  Worker whose cron trigger (`wrangler.toml`) is the "external cron" that
-  dispatches `update-db.yml`. On push to main touching `cloudflare/`, or
+  Worker whose one cron trigger (`wrangler.toml`) dispatches `update-db.yml`
+  every tick and, from `dispatchesFor()` in `worker.ts` matching the tick's
+  Kyiv time, the daily Telegram-web and RU-losses runs. Cloudflare crons are
+  UTC-only, hence the matching in code. On push to main touching `cloudflare/`, or
   manually; a PR only bundles it (`--dry-run`). Needs the
   `CLOUDFLARE_WORKERS_API_TOKEN` secret (Workers Scripts: Edit), kept apart
   from the R2-only `CLOUDFLARE_API_TOKEN`. The Worker's `GH_TOKEN` is a
