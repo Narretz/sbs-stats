@@ -23,12 +23,9 @@ on:
         required: false
         default: "2"
   schedule:
-    # GS reports land ~08:00 / 16:00 / 22:00 Kyiv. GitHub Actions added an IANA
-    # `timezone:` field for cron (2026-03), so we schedule in Kyiv local time and
-    # it follows DST automatically — no UTC offset juggling. GitHub's scheduler
-    # runs a few minutes late, which lands each run just after the report; a 2-day
-    # idempotent lookback covers anything missed by timing.
-    - cron: "0 8,16,22 * * *"
+    # GS reports land ~08:00 / 22:00 Kyiv. GitHub's scheduler runs late.
+    # A 2-day idempotent lookback covers anything missed by timing.
+    - cron: "0 8,22 * * *"
       timezone: "Europe/Kyiv"
 
 jobs:
