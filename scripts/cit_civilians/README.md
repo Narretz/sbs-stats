@@ -230,11 +230,13 @@ Site key `cit-civilians`, two pages, wired in `src/sites/registry.tsx`:
 | `daily` | killed and injured per day, from `daily_stated`. Two charts, never one: the two series differ by roughly an order of magnitude and sharing an axis would flatten killed to nothing. Plus casualties by controlling side per day (below). |
 | `monthly` | the same figures summed per month, plus casualties by controlling side and the caveat that governs it. |
 
-The daily page also stacks the two into one "all casualties" chart
-(`pairMode="sum"`), which is a good total and a poor split — killed is ~9% of a
-day, so its band is unreadable at that scale and the blue band's top edge is
-the total rather than injured. It sits above the two single-series charts
-rather than replacing them.
+Every daily chart is bars (`CitDailyBarChart`), so that a weekend report can
+be drawn as one bar spanning its two days — the histogram encoding above, a
+custom recharts bar shape (`src/components/spanBarShape.tsx`). The page also
+stacks killed and injured into one "all casualties" chart, which is a good
+total and a poor split — killed is ~9% of a day, so its band is thin at that
+scale and the top edge is the total rather than injured. It sits above the two
+single-series charts rather than replacing them.
 
 `CitRegionTable` — a ranked per-region table, every oblast with its killed and
 injured — is built and working but **not mounted**: it was on the monthly page
@@ -257,14 +259,14 @@ The daily page draws the same split one bar per **report** day
 (`queryTerritoryDaily`): an amendment counts on the day CIT reported it, as it
 does in that post's own total, and a weekend report is spread over its two days
 at half each (`src/utils/citTerritory.ts`) and drawn as one bar spanning
-both days — the histogram encoding above, done with a custom recharts bar shape
-— with the report's real 48-hour figures in the tooltip. A day no report covers is a gap, not a zero.
+both days, like the headline charts, with the report's real 48-hour figures in
+the tooltip. A day no report covers is a gap, not a zero.
 
 The hook (`src/hooks/useDatabaseCitCivilians.ts`) reads the headline view for the
 charts and `casualties_latest` for the territory chart. It spreads a weekend
-report across its two days there — never in the DB — and tags both points with
-a `note`, which `DailyLineChart` renders as a flagged dot plus the report's real
-48-hour figures in the tooltip.
+report across its two days there — never in the DB — keeping `window_days` and
+`report_date` on both, which is what the bar shape joins on and what the
+tooltip multiplies back into the report's real 48-hour figures.
 
 Production reads a stripped `cit-civilians.app.db` (raw post text and the
 per-clause audit labels blanked, 11 MB → ~2 MB); dev reads the full DB, since
