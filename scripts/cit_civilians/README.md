@@ -20,7 +20,13 @@ python3 scripts/cit_civilians/ingest.py --out data/cit-civilians.db --reparse
 
 python3 scripts/cit_civilians/check_db.py --db data/cit-civilians.db --since 2026-09-01
 python3 -m pytest scripts/cit_civilians/test_parse.py -q
+
+# the site, on a synthetic fixture built from schema.sql (e2e/build-fixtures.mjs)
+npx playwright test e2e/cit-civilians.spec.ts
 ```
+
+The schema lives in `schema.sql`, which `ingest.py` loads and the e2e fixture
+builder shares.
 
 ## The source post
 

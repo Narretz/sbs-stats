@@ -62,7 +62,9 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
 
   const describe = (d: Row): TooltipDescriptor => {
     if (d.uaControlled == null || d.ruControlled == null) {
-      return { header: label(d), rows: [], emptyState: "No CIT report covers this day." };
+      // A footer rather than `emptyState`, which only the pinned sheet shows:
+      // on hover too, an uncovered day has to say it is a gap, not a quiet day.
+      return { header: label(d), rows: [], footer: "No CIT report covers this day." };
     }
     const total = d.uaControlled + d.ruControlled;
     const share = (v: number | null) => (v != null && total > 0 ? (v / total) * 100 : null);
