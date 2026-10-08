@@ -97,9 +97,11 @@ test.describe("CIT daily page", () => {
 
   test("the controlling-side weekend tooltip is the report, at its 48-hour totals", async ({ page }) => {
     const tip = await tooltipAt(page, page.locator(SIDE), "10–11 Jan 2026");
-    expect(tip).toMatch(/Total\s+46/);
-    expect(tip).toMatch(/Ukrainian-controlled\s+34/);
-    expect(tip).toMatch(/Russian-controlled\s+12/);
+    // Total, then killed and injured, per side.
+    expect(tip).toMatch(/Total\s+46\s+6\s+40/);
+    expect(tip).toMatch(/Ukrainian-controlled\s+34\s+4\s+30/);
+    expect(tip).toMatch(/Russian-controlled\s+12\s+2\s+10/);
+    expect(tip).toMatch(/occupied Ukraine\s+5\s+1\s+4/);
   });
 
   test("either half of the weekend bar shows the same entry", async ({ page }) => {
@@ -157,8 +159,9 @@ test.describe("CIT monthly page", () => {
     await expect(card).toBeVisible();
     // January: Ukrainian-controlled 8+18+10+12+34, Russian-controlled 4+6+0+6+12.
     const tip = await tooltipAt(page, card, "Jan 2026");
-    expect(tip).toMatch(/Total\s+110/);
-    expect(tip).toMatch(/Ukrainian-controlled\s+82/);
-    expect(tip).toMatch(/Russian-controlled\s+28/);
+    // Killed: 2+3+1+2+4 and 2+2; injured: 6+15+9+10+30 and 13+11.
+    expect(tip).toMatch(/Total\s+110\s+16\s+94/);
+    expect(tip).toMatch(/Ukrainian-controlled\s+82\s+12\s+70/);
+    expect(tip).toMatch(/Russian-controlled\s+28\s+4\s+24/);
   });
 });

@@ -14,7 +14,7 @@ import { CIT_METRIC_KEYS } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
-import { spreadTerritoryReports } from "@/utils/citTerritory";
+import { outcomesFromSql, spreadTerritoryReports, territoryTotals } from "@/utils/citTerritory";
 
 // Fetched whole via sql.js, like the RU-losses / UA-losses / Mediazona
 // loaders. In production that points at the stripped `.app.db` (raw post text
@@ -45,16 +45,21 @@ export const REFRESH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 // the monthly page, its date on the daily one. `window_days` is constant per
 // report, so MAX is only there to make it a legal aggregate.
 function territorySql(bucket: string, where = ""): string {
+  // killed and injured per part: `<part>_killed`, `<part>_injured` — read by
+  // utils/citTerritory.ts outcomesFromSql.
+  const parts: Array<[string, string]> = [
+    ["uaControlled", "c.country = 'UA' AND c.occupied = 0"],
+    ["occupiedUkraine", "c.country = 'UA' AND c.occupied = 1"],
+    ["russia", "c.country = 'RU'"],
+    ["unattributed", "c.country IS NULL"],
+  ];
+  const cols = parts.flatMap(([name, cond]) => [
+    `SUM(CASE WHEN ${cond} THEN c.killed ELSE 0 END) AS ${name}_killed`,
+    `SUM(CASE WHEN ${cond} THEN c.injured ELSE 0 END) AS ${name}_injured`,
+  ]).join(",\n                 ");
   return `SELECT ${bucket} AS bucket,
                  MAX(r.window_days) AS window_days,
-                 SUM(CASE WHEN c.country = 'UA' AND c.occupied = 0
-                          THEN c.killed + c.injured ELSE 0 END) AS uaControlled,
-                 SUM(CASE WHEN c.country = 'UA' AND c.occupied = 1
-                          THEN c.killed + c.injured ELSE 0 END) AS occupiedUkraine,
-                 SUM(CASE WHEN c.country = 'RU'
-                          THEN c.killed + c.injured ELSE 0 END) AS russia,
-                 SUM(CASE WHEN c.country IS NULL
-                          THEN c.killed + c.injured ELSE 0 END) AS unattributed
+                 ${cols}
           FROM casualties_latest c
           JOIN reports_latest r
             ON r.post_id = c.post_id AND r.scraped_at = c.scraped_at
@@ -251,17 +256,8 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
       db,
       territorySql("substr(r.report_date, 1, 7)"),
     ).map((row) => {
-      const num = (k: string) => (typeof row[k] === "number" ? (row[k] as number) : 0);
-      const occupiedUkraine = num("occupiedUkraine");
-      const russia = num("russia");
-      return {
-        date: String(row.bucket),
-        uaControlled: num("uaControlled"),
-        ruControlled: occupiedUkraine + russia,
-        occupiedUkraine,
-        russia,
-        unattributed: num("unattributed"),
-      };
+      const outcomes = outcomesFromSql(row);
+      return { date: String(row.bucket), ...territoryTotals(outcomes), outcomes };
     });
   }, [db]);
 
@@ -281,17 +277,11 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
       const reports = queryRows<Record<string, number | string>>(
         db,
         territorySql("r.report_date", where),
-      ).map((row) => {
-        const num = (k: string) => (typeof row[k] === "number" ? (row[k] as number) : 0);
-        return {
-          report_date: String(row.bucket),
-          window_days: num("window_days") || 1,
-          uaControlled: num("uaControlled"),
-          occupiedUkraine: num("occupiedUkraine"),
-          russia: num("russia"),
-          unattributed: num("unattributed"),
-        };
-      });
+      ).map((row) => ({
+        report_date: String(row.bucket),
+        window_days: typeof row.window_days === "number" && row.window_days > 0 ? row.window_days : 1,
+        outcomes: outcomesFromSql(row),
+      }));
       return spreadTerritoryReports(reports, windowStartDateOf(endDateSql, days), endDateSql);
     },
     [db]

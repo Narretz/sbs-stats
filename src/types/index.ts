@@ -1312,7 +1312,17 @@ export interface CitTerritoryRow {
   // Casualties in a region the parser did not recognise (~1% of the archive).
   // Excluded from both bands so they can't silently inflate one.
   unattributed: number;
+  // The same parts split into killed and injured, for the tooltip — the bars
+  // draw only the sums above.
+  outcomes: CitOutcomes;
 }
+
+// Where a casualty row falls by controlling side. Russian-controlled is
+// occupiedUkraine + russia; it is derived, never stored.
+export const CIT_TERRITORY_PARTS = ["uaControlled", "occupiedUkraine", "russia", "unattributed"] as const;
+export type CitTerritoryPart = (typeof CIT_TERRITORY_PARTS)[number];
+export interface CitKilledInjured { killed: number; injured: number }
+export type CitOutcomes = Record<CitTerritoryPart, CitKilledInjured>;
 
 // One calendar day of the same split. A weekend report covers two days and is
 // spread over them at half its figures each (`window_days = 2`, never in the
@@ -1327,4 +1337,5 @@ export interface CitTerritoryDailyRow {
   occupiedUkraine: number | null;
   russia: number | null;
   unattributed: number | null;
+  outcomes: CitOutcomes | null;
 }
