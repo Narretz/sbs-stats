@@ -254,7 +254,9 @@ The monthly page's **casualties by controlling side** chart sums killed and
 injured and splits them Ukrainian-controlled vs Russian-controlled, the latter
 being occupied Ukraine plus Russia proper — near-equal halves (13.5% and 12.7%
 of the archive), so the tooltip breaks them out rather than letting one number
-hide the other. Its colours are a categorical pair (`theme.categorical1/2`),
+hide the other. The bars draw killed + injured; the tooltip splits every row back
+into killed and injured, from the same parsed region rows — so those columns
+need not match the headline killed / injured charts on a given day. Its colours are a categorical pair (`theme.categorical1/2`),
 not the main/second series tokens: on a page where blue already means injured,
 reusing it for a place would make one hue carry two meanings. They are also
 deliberately not flag colours. The pair passes the lightness, chroma, CVD and

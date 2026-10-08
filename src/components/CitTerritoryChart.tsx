@@ -7,7 +7,8 @@ import { dayTick, entryOfDay, fmtCount, formatEntry, spanBarShape } from "@/comp
 import { SpanCursor } from "@/components/SpanCursor";
 import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 import type { ReactNode } from "react";
-import type { CitTerritoryDailyRow, CitTerritoryRow } from "@/types";
+import type { CitKilledInjured, CitTerritoryDailyRow, CitTerritoryRow } from "@/types";
+import { scaleOutcomes } from "@/utils/citTerritory";
 
 // Where civilians are being hurt, month by month: killed and injured summed
 // (the question is the place, not the outcome), split by which side holds the
@@ -51,47 +52,53 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
 
   // A weekend report's days describe the report itself, at its real 48-hour
   // figures — the same entry from either day (see CitDailyBarChart).
+  //
+  // The bars draw killed + injured; the tooltip splits each part back into
+  // the two. Like the bars, these are the parsed region rows, so they need not
+  // match the headline killed / injured charts on a given day.
   const describe = (row: Row): TooltipDescriptor => {
-    const span = isDaily(row) ? row.window_days : 1;
-    const whole = (v: number | null) => (v == null ? null : Math.round(v * span));
-    const d = span > 1 ? {
-      ...row,
-      uaControlled: whole(row.uaControlled), ruControlled: whole(row.ruControlled),
-      occupiedUkraine: whole(row.occupiedUkraine), russia: whole(row.russia),
-      unattributed: whole(row.unattributed),
-    } : row;
-    if (d.uaControlled == null || d.ruControlled == null) {
+    if (row.outcomes == null) {
       // A footer rather than `emptyState`, which only the pinned sheet shows:
       // on hover too, an uncovered day has to say it is a gap, not a quiet day.
       return { header: label(row), rows: [], footer: "No CIT report covers this day." };
     }
-    const total = d.uaControlled + d.ruControlled;
-    const share = (v: number | null) => (v != null && total > 0 ? (v / total) * 100 : null);
+    const span = isDaily(row) ? row.window_days : 1;
+    // Whole numbers again: a weekend day carries half of each figure.
+    const o = scaleOutcomes(row.outcomes, span);
+    const add = (...xs: CitKilledInjured[]): CitKilledInjured =>
+      xs.reduce((a, x) => ({ killed: a.killed + x.killed, injured: a.injured + x.injured }), { killed: 0, injured: 0 });
+    const ruControlled = add(o.occupiedUkraine, o.russia);
+    const all = add(o.uaControlled, ruControlled);
+    const total = all.killed + all.injured;
+    const line = (label: string, color: string, v: CitKilledInjured, extra: Partial<TooltipTableRow> = {}): TooltipTableRow => {
+      const n = v.killed + v.injured;
+      return {
+        label, color, value: n, extra: [v.killed, v.injured],
+        share: total > 0 ? (n / total) * 100 : null, ...extra,
+      };
+    };
     const rows: TooltipTableRow[] = [
-      { label: "Total", color: t.text, value: total, emphasis: "bold" },
-      { label: "Ukrainian-controlled", color: c.territoryUaControlled,
-        value: d.uaControlled, share: share(d.uaControlled), separatorAbove: true },
-      { label: "Russian-controlled", color: c.territoryRuControlled,
-        value: d.ruControlled, share: share(d.ruControlled) },
+      { ...line("Total", t.text, all, { emphasis: "bold" }), share: null },
+      line("Ukrainian-controlled", c.territoryUaControlled, o.uaControlled, { separatorAbove: true }),
+      line("Russian-controlled", c.territoryRuControlled, ruControlled),
       // The halves of the band above, indented by their labels rather than by
       // layout — the table has no nesting, and inventing one here would cost
       // more than it explains.
-      { label: "— occupied Ukraine", color: t.textMuted,
-        value: d.occupiedUkraine, share: share(d.occupiedUkraine) },
-      { label: "— Russia", color: t.textMuted,
-        value: d.russia, share: share(d.russia) },
+      line("— occupied Ukraine", t.textMuted, o.occupiedUkraine),
+      line("— Russia", t.textMuted, o.russia),
     ];
-    if (d.unattributed != null && d.unattributed > 0) {
-      rows.push({
-        label: "Region unrecognised", color: t.textMuted, value: d.unattributed,
-        separatorAbove: true,
-      });
+    const unrec = o.unattributed;
+    if (unrec.killed + unrec.injured > 0) {
+      rows.push({ ...line("Region unrecognised", t.textMuted, unrec, { separatorAbove: true }), share: null });
     }
     const footer = span > 1
       ? `One ${span * 24}-hour weekend report. Drawn across its ${span} days at the daily ` +
         `average \u2014 CIT did not publish a per-day split.`
       : undefined;
-    return { header: label(row), rows, footer, formatValue: fmtCount, minWidth: 260 };
+    return {
+      header: label(row), rows, footer, formatValue: fmtCount, minWidth: 340,
+      extraColumns: ["Killed", "Injured"],
+    };
   };
 
   const daily = rows.length > 0 && isDaily(rows[0]);
