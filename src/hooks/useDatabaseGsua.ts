@@ -224,10 +224,10 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
   }, [worker, hasTable]);
 
   // ── End-of-day projection for today ──────────────────────────────────────────
-  // GS posts run cumulative daily totals across the day (e.g. "as of 16:00",
-  // "as of 22:00") and settle with next morning's report. Today's latest snapshot
-  // is therefore partial; project the settled total from the last 90 days, keying
-  // readings by the snapshot's clock hour. day-final = last snapshot of the day.
+  // GS posts a cumulative daily total "as of 22:00" that settles with next
+  // morning's 08:00 report, so today's snapshot is partial; project the settled
+  // total from the last 90 days, keying readings by the snapshot's clock hour.
+  // day-final = last snapshot of the day.
   const queryEodProjection = useCallback(async (): Promise<Partial<Record<GsuaMetricKey, EodEstimate>>> => {
     if (!worker) return {};
     const todayStr = getKyivDateString();
@@ -245,8 +245,8 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
       const snap = String(r.snapshot_at);
       if (!byDate.has(d)) byDate.set(d, []);
       byDate.get(d)!.push({
-        bucket: snap.slice(11, 13), // clock hour, "16"
-        asOf: snap.slice(11, 16),   // "16:00"
+        bucket: snap.slice(11, 13), // clock hour, "22"
+        asOf: snap.slice(11, 16),   // "22:00"
         values: r as Record<GsuaMetricKey, number | null>,
       });
     }

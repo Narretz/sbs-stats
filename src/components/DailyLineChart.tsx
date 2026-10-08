@@ -31,11 +31,11 @@ interface Props {
   globalTotal2?: number;
   pairMode?: PairMode;
   // End-of-day estimate for the "today" point (primary / paired series).
+  // `null` is not the same as omitting it: null says today is a running total
+  // with no estimate, and the trend fit leaves today out; omitted says today is
+  // a whole day's report (see linearTrend).
   eod?: EodEstimate | null;
   eod2?: EodEstimate | null;
-  // Today's value is a running total (SBS), not a whole day's report: with no
-  // estimate to stand in for it, the trend fit leaves today out.
-  todayPartial?: boolean;
   // Optional per-date model breakdown rendered as continuation rows below
   // the main tooltip table. Used by the RU air-attacks daily category charts
   // to show "what models drove this day's number" (and by the aggregate "All"
@@ -286,7 +286,7 @@ function describePaired(ctx: DescribeCtx, d: PairedRow): TooltipDescriptor {
 export function DailyLineChart({
   title, data, globalMax, globalMedian, globalTotal, wfull,
   data2, primaryLabel, label2, globalMax2, globalMedian2, globalTotal2, pairMode = "subset",
-  eod, eod2, todayPartial = false, breakdownByDate, primaryIsDiff = false, subsetLabel, drillAnchor,
+  eod, eod2, breakdownByDate, primaryIsDiff = false, subsetLabel, drillAnchor,
 }: Props) {
   const { theme: t } = useTheme();
   const anchor = chartAnchor(title);
@@ -332,8 +332,8 @@ export function DailyLineChart({
   }, [data, data2]);
 
   const chartData = useMemo(() => {
-    const trend1 = linearTrend(data, eod, todayPartial);
-    const trend2 = data2 ? linearTrend(data2, eod2, todayPartial) : null;
+    const trend1 = linearTrend(data, eod);
+    const trend2 = data2 ? linearTrend(data2, eod2) : null;
     // Fold the diff into its own series so we can regress on it. Only used
     // when `primaryIsDiff` — otherwise the tooltip's "primary trend" IS
     // just trend1 (SBS-style "Hit" is the total, so its trend is trend1).
@@ -349,9 +349,11 @@ export function DailyLineChart({
     });
     // Today's diff estimate is the difference of the two estimates — only when
     // both series have one, since half an estimate against half a day is no
-    // better than the partial.
-    const eodDiff = eod && eod2 ? { ...eod, projected: Math.max(0, eod.projected - eod2.projected) } : null;
-    const trendDiff = data2 && pairMode === "subset" ? linearTrend(diffSeries, eodDiff, todayPartial) : null;
+    // better than the partial. A source with no estimates at all keeps today.
+    const eodDiff = eod === undefined || eod2 === undefined
+      ? undefined
+      : eod && eod2 ? { ...eod, projected: Math.max(0, eod.projected - eod2.projected) } : null;
+    const trendDiff = data2 && pairMode === "subset" ? linearTrend(diffSeries, eodDiff) : null;
     return data.map<PairedRow>((d, i) => {
       const v2 = data2?.[i]?.value ?? null;
       const v = d.value;
@@ -372,7 +374,7 @@ export function DailyLineChart({
         note: d.note,
       };
     });
-  }, [data, data2, pairMode, eod, eod2, todayPartial]);
+  }, [data, data2, pairMode, eod, eod2]);
 
   // One description per x-position, rendered two ways: as the floating hover
   // card and as the pinned sheet's body. A date with no payload at all still

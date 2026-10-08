@@ -173,7 +173,6 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
           pairMode={m.pairMode}
           eod={eod[m.key] ?? null}
           eod2={m.pairedKey ? (eod[m.pairedKey] ?? null) : undefined}
-          todayPartial
           drillAnchor={m.pairedKey ? chartAnchor(unpairedLabel(m.key) ?? m.label) : undefined}
         />
       ))}
