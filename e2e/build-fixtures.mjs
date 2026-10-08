@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 //   - Rubikon   → scripts/rubikon/schema.sql   (reports, counters)
 //   - GSUA      → scripts/gsua/schema.sql      (posts)
 //   - Zelensky  → scripts/zelensky_weekly/schema.sql (reports, counters)
+//   - CIT       → scripts/cit_civilians/schema.sql (reports, casualties)
 //
 // Freshness matters only for the end-of-day projection, which keys off the real
 // "today": so we anchor the synthetic days to the current Kyiv date and stop
@@ -428,6 +429,58 @@ function buildZelenskyWeekly(SQL) {
   db.close();
 }
 
+// ── CIT civilian casualties: reports + casualties behind the daily/monthly ──
+// views. Fixed dates (the pages take `date=`, and the monthly range slices by
+// row count, so nothing here keys off "today"): one December report, so the
+// monthly page has two months, then the week of 5–11 Jan 2026 with
+//   - no report on Wed 7 Jan       → a gap, not a zero
+//   - ONE weekend report for 10–11 → one 48-hour bucket, dated the Sunday
+// Each report's casualty rows sum exactly to its stated headline; `split` is
+// [country, occupied, killed, injured] per region row.
+export const CIT_WEEK = { start: "2026-01-05", gap: "2026-01-07", weekendEnd: "2026-01-11" };
+const CIT_REPORTS = [
+  { date: "2025-12-15", days: 1, split: [["UA", 0, 4, 20], ["UA", 1, 1, 5]] },
+  { date: "2026-01-05", days: 1, split: [["UA", 0, 2, 6], ["UA", 1, 0, 4]] },
+  { date: "2026-01-06", days: 1, split: [["UA", 0, 3, 15], ["RU", null, 1, 5]] },
+  { date: "2026-01-08", days: 1, split: [["UA", 0, 1, 9]] },
+  { date: "2026-01-09", days: 1, split: [["UA", 0, 2, 10], ["UA", 1, 1, 5]] },
+  { date: "2026-01-11", days: 2, split: [["UA", 0, 4, 30], ["UA", 1, 1, 4], ["RU", null, 1, 6]] },
+];
+
+function buildCitCivilians(SQL) {
+  const db = new SQL.Database();
+  db.run(fs.readFileSync(path.join(ROOT, "scripts/cit_civilians/schema.sql"), "utf8"));
+  const insR = db.prepare(
+    `INSERT INTO reports (post_id, scraped_at, posted_at, part_ids, url, report_type, window_days,
+                          report_date, date_basis, stated_killed, stated_injured,
+                          sum_killed, sum_injured, reconciled, body_text, text_hash)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+  );
+  const insC = db.prepare(
+    `INSERT INTO casualties (post_id, scraped_at, seq, kind, event_date, date_basis, region_key,
+                             region_raw, occupied, country, killed, injured, raw_label)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
+  );
+  const scrapedAt = `${FIXED_TODAY}T00:00:00Z`;
+  CIT_REPORTS.forEach(({ date, days, split }, i) => {
+    const postId = 100 + i;
+    const killed = split.reduce((a, r) => a + r[2], 0);
+    const injured = split.reduce((a, r) => a + r[3], 0);
+    insR.run([postId, scrapedAt, `${date}T17:00:00Z`, String(postId),
+      `https://t.me/CIT_shellings/${postId}`, days > 1 ? "weekend_summary" : "daily_summary",
+      days, date, "window", killed, injured, killed, injured, 1, "synthetic", `hash-${postId}`]);
+    split.forEach(([country, occupied, k, inj], seq) => {
+      const region = `${country.toLowerCase()}-${occupied ?? "x"}`;
+      insC.run([postId, scrapedAt, seq, "daily", date, days > 1 ? "window_multiday" : "window",
+        region, region, occupied, country, k, inj, "synthetic"]);
+    });
+  });
+  insR.free();
+  insC.free();
+  fs.writeFileSync(path.join(FIX_DIR, "cit-civilians.db"), Buffer.from(db.export()));
+  db.close();
+}
+
 export async function buildFixtures() {
   fs.mkdirSync(FIX_DIR, { recursive: true });
   const SQL = await initSqlJs({ locateFile: (f) => path.join(ROOT, "node_modules/sql.js/dist", f) });
@@ -437,6 +490,7 @@ export async function buildFixtures() {
   buildGsua(SQL);
   buildRuAirAttacks(SQL);
   buildZelenskyWeekly(SQL);
+  buildCitCivilians(SQL);
 }
 
 // Run the build when invoked directly (`node e2e/build-fixtures.mjs`).

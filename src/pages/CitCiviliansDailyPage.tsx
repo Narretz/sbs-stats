@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { Temporal } from "temporal-polyfill";
 import { useCitCiviliansDatabaseContext } from "@/context/databases";
-import { DailyLineChart } from "@/components/DailyLineChart";
+import { CitDailyBarChart, type CitDailyBarRow } from "@/components/CitDailyBarChart";
+import { CitTerritoryChart } from "@/components/CitTerritoryChart";
 import { DataWindow } from "@/components/DataWindow";
 import { PageScaffold } from "@/components/PageScaffold";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
@@ -10,13 +11,11 @@ import { DayRangeSelect } from "@/components/DayRangeSelect";
 import {
   DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR,
 } from "@/utils/dayRange";
-import { fillDailyRange } from "@/utils/padTrailing";
 import {
-  CIT_METRIC_KEYS,
   CIT_METRIC_LABELS,
   type CitDailyRow,
   type CitGlobalStats,
-  type CitMetricKey,
+  type CitTerritoryDailyRow,
 } from "@/types";
 
 function parseDate(raw: string | null): string {
@@ -38,11 +37,6 @@ function setUrlParams(params: Record<string, string>) {
   window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
 }
 
-function fmtDayMonth(iso: string): string {
-  const [, m, d] = iso.split("-");
-  return `${Number(d)}.${Number(m)}`;
-}
-
 // CIT reports on Moscow time, so "today" and the date picker's ceiling are the
 // Moscow date — the same basis as the 20:00–20:00 MSK window itself.
 function mskToday(): string {
@@ -54,7 +48,7 @@ interface Props {
 }
 
 export function CitCiviliansDailyPage({ refreshKey }: Props) {
-  const { loadState, error, queryDaily, queryGlobalStats, queryDataWindow } =
+  const { loadState, error, queryDaily, queryTerritoryDaily, queryGlobalStats, queryDataWindow } =
     useCitCiviliansDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
 
@@ -63,6 +57,7 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
   const [selectedDate, setSelectedDate] = useState<string>(initial.date);
 
   const [rows, setRows] = useState<CitDailyRow[]>([]);
+  const [territory, setTerritory] = useState<CitTerritoryDailyRow[]>([]);
   const [globalStats, setGlobalStats] = useState<CitGlobalStats>({} as CitGlobalStats);
   const [hasData, setHasData] = useState(false);
 
@@ -80,9 +75,10 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
   useEffect(() => {
     if (loadState === "ready") {
       setRows(queryDaily(days, selectedDate || undefined));
+      setTerritory(queryTerritoryDaily(days, selectedDate || undefined));
       setHasData(true);
     }
-  }, [loadState, days, selectedDate, queryDaily, refreshKey]);
+  }, [loadState, days, selectedDate, queryDaily, queryTerritoryDaily, refreshKey]);
 
   const maxSelectableDate = mskToday();
   const shiftSelectedDate = (delta: number) => {
@@ -98,33 +94,20 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
   const endDate = selectedDate || maxSelectableDate;
   const startDate = windowStartDate(endDate, days);
 
-  // A weekend report covers 48 hours, so its two days carry half of it each.
-  // That half is an average, not a measurement — `note` makes the point render
-  // as flagged and puts the report's real figures in the tooltip, so the shape
-  // of the series stays readable without the number being taken literally.
-  const weekendNote = (row: CitDailyRow): string | undefined => {
-    const span = row.window_days;
-    if (span < 2) return undefined;
-    const end = Temporal.PlainDate.from(row.report_date);
-    const first = end.subtract({ days: span - 1 });
-    const total = (k: CitMetricKey) =>
-      typeof row[k] === "number" ? Math.round((row[k] as number) * span) : null;
-    return `One ${span * 24}-hour weekend report covering ${fmtDayMonth(first.toString())}–${fmtDayMonth(end.toString())}: ` +
-      `${total("killed") ?? "\u2014"} killed, ${total("injured") ?? "\u2014"} injured in total. ` +
-      `Shown here as a daily average \u2014 CIT did not publish a per-day split.`;
-  };
-
-  const makeDataset = (key: CitMetricKey) =>
-    fillDailyRange(
-      rows.map((d) => ({
-        date: d.date,
-        value: typeof d[key] === "number" ? (d[key] as number) : null,
-        is_today: d.is_today,
-        note: weekendNote(d),
-      })),
-      startDate,
-      endDate,
-    );
+  // One row per day of the window. queryDaily has already spread a weekend
+  // report over its two days; a day no report covers becomes a gap, not a 0.
+  const bars = useMemo((): CitDailyBarRow[] => {
+    const byDate = new Map(rows.map((r) => [r.date, r]));
+    const out: CitDailyBarRow[] = [];
+    for (let d = Temporal.PlainDate.from(startDate); d.toString() <= endDate; d = d.add({ days: 1 })) {
+      const r = byDate.get(d.toString());
+      out.push(r
+        ? { date: r.date, report_date: r.report_date, window_days: r.window_days,
+            killed: r.killed, injured: r.injured }
+        : { date: d.toString(), report_date: null, window_days: 1, killed: null, injured: null });
+    }
+    return out;
+  }, [rows, startDate, endDate]);
 
   return (
     <PageScaffold
@@ -145,35 +128,20 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
       loadingMessage="Loading CIT civilian-casualties database…"
       gridChildren={<>
         {/* Killed + injured as one stacked total. The two are disjoint, so
-            pairMode="sum" — killed sits at the bottom of the stack, anchored to
-            the baseline, which is the only place a band that small stays
+            they sum; killed sits at the bottom of the stack, anchored to the
+            baseline, which is the only place a band that small stays
             readable against an injured count roughly six times larger. */}
-        <DailyLineChart
-          title="All civilian casualties"
-          data={makeDataset("injured")}
-          data2={makeDataset("killed")}
-          pairMode="sum"
-          primaryLabel={CIT_METRIC_LABELS.injured}
-          label2={CIT_METRIC_LABELS.killed}
-          globalMax={globalStats.injured?.max ?? 0}
-          globalMedian={globalStats.injured?.median ?? 0}
-          globalTotal={globalStats.injured?.total ?? 0}
-          globalMax2={globalStats.killed?.max ?? 0}
-          globalMedian2={globalStats.killed?.median ?? 0}
-          globalTotal2={globalStats.killed?.total ?? 0}
+        <CitDailyBarChart title="All civilian casualties" data={bars}
+                          series={["killed", "injured"]} globalStats={globalStats} wfull />
+        <CitTerritoryChart
+          data={territory}
           wfull
+          caveat={<>Killed + injured, from each report's per-region lines — accurate to about a percent in aggregate, but rarely to the person on a given day. A double-width bar is one weekend report spanning its two days, at the daily average.</>}
         />
-        {CIT_METRIC_KEYS.map((k) => (
-          <DailyLineChart
-            key={k}
-            title={CIT_METRIC_LABELS[k]}
-            data={makeDataset(k)}
-            globalMax={globalStats[k]?.max ?? 0}
-            globalMedian={globalStats[k]?.median ?? 0}
-            globalTotal={globalStats[k]?.total ?? 0}
-            wfull
-          />
-        ))}
+        <CitDailyBarChart title={CIT_METRIC_LABELS.killed} data={bars}
+                          series={["killed"]} globalStats={globalStats} wfull />
+        <CitDailyBarChart title={CIT_METRIC_LABELS.injured} data={bars}
+                          series={["injured"]} globalStats={globalStats} wfull />
       </>}
     />
   );

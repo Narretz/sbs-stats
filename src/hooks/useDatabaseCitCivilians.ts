@@ -7,12 +7,14 @@ import type {
   CitMetricKey,
   CitMonthlyRow,
   CitRegionRow,
+  CitTerritoryDailyRow,
   CitTerritoryRow,
 } from "@/types";
 import { CIT_METRIC_KEYS } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
+import { spreadTerritoryReports } from "@/utils/citTerritory";
 
 // Fetched whole via sql.js, like the RU-losses / UA-losses / Mediazona
 // loaders. In production that points at the stripped `.app.db` (raw post text
@@ -38,6 +40,28 @@ function getMskDateString(): string {
 }
 
 export const REFRESH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+
+// Casualties by controlling side, grouped by `bucket` — the report's month on
+// the monthly page, its date on the daily one. `window_days` is constant per
+// report, so MAX is only there to make it a legal aggregate.
+function territorySql(bucket: string, where = ""): string {
+  return `SELECT ${bucket} AS bucket,
+                 MAX(r.window_days) AS window_days,
+                 SUM(CASE WHEN c.country = 'UA' AND c.occupied = 0
+                          THEN c.killed + c.injured ELSE 0 END) AS uaControlled,
+                 SUM(CASE WHEN c.country = 'UA' AND c.occupied = 1
+                          THEN c.killed + c.injured ELSE 0 END) AS occupiedUkraine,
+                 SUM(CASE WHEN c.country = 'RU'
+                          THEN c.killed + c.injured ELSE 0 END) AS russia,
+                 SUM(CASE WHEN c.country IS NULL
+                          THEN c.killed + c.injured ELSE 0 END) AS unattributed
+          FROM casualties_latest c
+          JOIN reports_latest r
+            ON r.post_id = c.post_id AND r.scraped_at = c.scraped_at
+          WHERE c.kind IN ('daily', 'amendment') ${where}
+          GROUP BY bucket
+          ORDER BY bucket ASC`;
+}
 
 // `reports` is append-on-change: a post CIT later edits gets a second row. The
 // `*_latest` views in the DB already resolve the newest `scraped_at` per post,
@@ -225,27 +249,13 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
     if (!db) return [];
     return queryRows<Record<string, number | string>>(
       db,
-      `SELECT substr(r.report_date, 1, 7) AS month,
-              SUM(CASE WHEN c.country = 'UA' AND c.occupied = 0
-                       THEN c.killed + c.injured ELSE 0 END) AS uaControlled,
-              SUM(CASE WHEN c.country = 'UA' AND c.occupied = 1
-                       THEN c.killed + c.injured ELSE 0 END) AS occupiedUkraine,
-              SUM(CASE WHEN c.country = 'RU'
-                       THEN c.killed + c.injured ELSE 0 END) AS russia,
-              SUM(CASE WHEN c.country IS NULL
-                       THEN c.killed + c.injured ELSE 0 END) AS unattributed
-       FROM casualties_latest c
-       JOIN reports_latest r
-         ON r.post_id = c.post_id AND r.scraped_at = c.scraped_at
-       WHERE c.kind IN ('daily', 'amendment')
-       GROUP BY month
-       ORDER BY month ASC`
+      territorySql("substr(r.report_date, 1, 7)"),
     ).map((row) => {
       const num = (k: string) => (typeof row[k] === "number" ? (row[k] as number) : 0);
       const occupiedUkraine = num("occupiedUkraine");
       const russia = num("russia");
       return {
-        date: String(row.month),
+        date: String(row.bucket),
         uaControlled: num("uaControlled"),
         ruControlled: occupiedUkraine + russia,
         occupiedUkraine,
@@ -254,6 +264,38 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
       };
     });
   }, [db]);
+
+  // The same split per day, for the daily page. One bucket per REPORT, keyed
+  // like the headline daily series: an amendment for an earlier day counts on
+  // the day CIT reported it, as it does in the post's own total. A weekend
+  // report is spread over its two days by spreadTerritoryReports, which is
+  // also what fills the window's uncovered days in as gaps.
+  const queryTerritoryDaily = useCallback(
+    (days: number, endDate?: string): CitTerritoryDailyRow[] => {
+      if (!db) return [];
+      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : getMskDateString();
+      // One day beyond the window start, so a weekend report whose second day
+      // is the window's first still contributes that day.
+      const where = `AND r.report_date >= date(${windowStartSql(endDateSql, days)}, '-1 day')
+                     AND r.report_date <= date('${endDateSql}')`;
+      const reports = queryRows<Record<string, number | string>>(
+        db,
+        territorySql("r.report_date", where),
+      ).map((row) => {
+        const num = (k: string) => (typeof row[k] === "number" ? (row[k] as number) : 0);
+        return {
+          report_date: String(row.bucket),
+          window_days: num("window_days") || 1,
+          uaControlled: num("uaControlled"),
+          occupiedUkraine: num("occupiedUkraine"),
+          russia: num("russia"),
+          unattributed: num("unattributed"),
+        };
+      });
+      return spreadTerritoryReports(reports, windowStartDateOf(endDateSql, days), endDateSql);
+    },
+    [db]
+  );
 
   // How far the region breakdown can be trusted. Surfaced on the page rather
   // than buried, because it is what says how much weight the region table
@@ -306,7 +348,7 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
 
   return {
     loadState, error,
-    queryDaily, queryGlobalStats, queryMonthly, queryRegions, queryTerritory,
+    queryDaily, queryGlobalStats, queryMonthly, queryRegions, queryTerritory, queryTerritoryDaily,
     queryReconciliation,
     queryDataWindow,
     refresh, lastRefreshed, refreshCount,

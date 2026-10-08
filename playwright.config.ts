@@ -1,7 +1,13 @@
-import { defineConfig, devices } from "@playwright/test";
+import { chromium, defineConfig, devices } from "@playwright/test";
+import { chromiumExecutablePath } from "./scripts/chromium-path.mjs";
 
 // Isolated port so the e2e server never collides with a running `npm run dev`.
 const PORT = 5199;
+
+// Set only where Playwright's own Chromium build is missing — a container whose
+// preinstalled browser doesn't match the installed playwright. See
+// scripts/chromium-path.mjs, which the screenshot script shares.
+const executablePath = chromiumExecutablePath(chromium.executablePath());
 
 export default defineConfig({
   testDir: "./e2e",
@@ -21,6 +27,7 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "retain-on-failure",
+    ...(executablePath ? { launchOptions: { executablePath } } : {}),
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
