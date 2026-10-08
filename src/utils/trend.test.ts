@@ -25,6 +25,20 @@ describe("linearTrend", () => {
     expect(linearTrend(rising(60), est(190))).toEqual(rising(190).map((d) => d.value));
   });
 
+  it("leaves a partial today out of the fit when there is no estimate", () => {
+    // 01:00: nothing in yet, and no estimate (the typical share by now is 0).
+    expect(linearTrend(rising(0), null, true)).toEqual(rising(190).map((d) => d.value));
+  });
+
+  it("still prefers the estimate over leaving today out", () => {
+    expect(linearTrend(rising(0), est(250), true)[9]).toBeGreaterThan(190);
+  });
+
+  it("fits today as it stands on a source whose today is a whole report", () => {
+    const t = linearTrend(rising(0));
+    expect(t[9]!).toBeLessThan(190);
+  });
+
   it("uses the estimate for today only", () => {
     // An estimate handed to a series with no today has nothing to replace.
     const past = rising(190).map((d) => ({ ...d, is_today: false }));
