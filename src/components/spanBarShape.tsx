@@ -37,7 +37,7 @@ export function weekendFirstDay(d: SpannedDay): string {
 // recorded, in the same pass, before the last day reads it. A report whose
 // first day falls before the window has no recorded x and draws as an ordinary
 // single-day bar. Call it once per <Bar> per render.
-export function spanBarShape(fill: string, radius: number) {
+export function spanBarShape(fill: string) {
   const firstDayX = new Map<string, number>();
   return (props: unknown) => {
     const { x, y, width, height, payload } =
@@ -49,8 +49,7 @@ export function spanBarShape(fill: string, radius: number) {
     }
     const left = spans ? firstDayX.get(payload.date) ?? x : x;
     return (
-      <Rectangle x={left} y={y} width={x + width - left} height={height}
-                 radius={[radius, radius, 0, 0]} fill={fill} />
+      <Rectangle x={left} y={y} width={x + width - left} height={height} fill={fill} />
     );
   };
 }

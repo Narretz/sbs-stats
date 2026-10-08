@@ -114,12 +114,12 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
       ]}
     >
       <Bar dataKey="uaControlled" stackId="a" name="Ukrainian-controlled" maxBarSize={MAX_BAR_SIZE}
-           shape={daily ? spanBarShape(c.territoryUaControlled, 0) : undefined}>
+           shape={daily ? spanBarShape(c.territoryUaControlled) : undefined}>
         {!daily && rows.map((_, i) => <Cell key={`ua-${i}`} fill={c.territoryUaControlled} />)}
       </Bar>
       <Bar dataKey="ruControlled" stackId="a" name="Russian-controlled"
-           radius={[3, 3, 0, 0]} maxBarSize={MAX_BAR_SIZE}
-           shape={daily ? spanBarShape(c.territoryRuControlled, 3) : undefined}>
+           maxBarSize={MAX_BAR_SIZE}
+           shape={daily ? spanBarShape(c.territoryRuControlled) : undefined}>
         {!daily && rows.map((_, i) => <Cell key={`ru-${i}`} fill={c.territoryRuControlled} />)}
       </Bar>
     </MonthlyChartCard>

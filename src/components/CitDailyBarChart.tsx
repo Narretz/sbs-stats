@@ -118,9 +118,9 @@ export function CitDailyBarChart({ title, data, series, globalStats, wfull }: Pr
         <ReferenceLine y={stat(series[0]).median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
           label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
       )}
-      {series.map((k, i) => (
+      {series.map((k) => (
         <Bar key={k} dataKey={k} stackId="a" name={CIT_METRIC_LABELS[k]} maxBarSize={MAX_BAR_SIZE}
-             shape={spanBarShape(color[k], i === series.length - 1 ? 3 : 0)} />
+             shape={spanBarShape(color[k])} />
       ))}
     </MonthlyChartCard>
   );
