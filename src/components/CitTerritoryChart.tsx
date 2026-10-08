@@ -3,7 +3,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
 import { FONTS } from "@/theme";
 import { MonthlyChartCard } from "@/components/MonthlyChartCard";
-import { dayTick, fmtCount, formatDay, spanBarShape, weekendFirstDay } from "@/components/spanBarShape";
+import { dayTick, entryOfDay, fmtCount, formatEntry, spanBarShape } from "@/components/spanBarShape";
+import { SpanCursor } from "@/components/SpanCursor";
 import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 import type { ReactNode } from "react";
 import type { CitTerritoryDailyRow, CitTerritoryRow } from "@/types";
@@ -46,13 +47,23 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
   const c = chartColors(t);
   const rows: Row[] = data;
 
-  const label = (d: Row) => (isDaily(d) ? formatDay(d.date) : formatMonth(d.date));
+  const label = (d: Row) => (isDaily(d) ? formatEntry(d) : formatMonth(d.date));
 
-  const describe = (d: Row): TooltipDescriptor => {
+  // A weekend report's days describe the report itself, at its real 48-hour
+  // figures — the same entry from either day (see CitDailyBarChart).
+  const describe = (row: Row): TooltipDescriptor => {
+    const span = isDaily(row) ? row.window_days : 1;
+    const whole = (v: number | null) => (v == null ? null : Math.round(v * span));
+    const d = span > 1 ? {
+      ...row,
+      uaControlled: whole(row.uaControlled), ruControlled: whole(row.ruControlled),
+      occupiedUkraine: whole(row.occupiedUkraine), russia: whole(row.russia),
+      unattributed: whole(row.unattributed),
+    } : row;
     if (d.uaControlled == null || d.ruControlled == null) {
       // A footer rather than `emptyState`, which only the pinned sheet shows:
       // on hover too, an uncovered day has to say it is a gap, not a quiet day.
-      return { header: label(d), rows: [], footer: "No CIT report covers this day." };
+      return { header: label(row), rows: [], footer: "No CIT report covers this day." };
     }
     const total = d.uaControlled + d.ruControlled;
     const share = (v: number | null) => (v != null && total > 0 ? (v / total) * 100 : null);
@@ -76,16 +87,11 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
         separatorAbove: true,
       });
     }
-    let footer: string | undefined;
-    if (isDaily(d) && d.window_days > 1 && d.report_date) {
-      const span = d.window_days;
-      const first = dayTick(weekendFirstDay(d));
-      const whole = (v: number | null) => Math.round((v ?? 0) * span).toLocaleString();
-      footer = `One ${span * 24}-hour weekend report covering ${first}–${dayTick(d.report_date)}: ` +
-        `${whole(d.uaControlled)} Ukrainian-controlled, ${whole(d.ruControlled)} Russian-controlled in total. ` +
-        `Shown here as a daily average \u2014 CIT did not publish a per-day split.`;
-    }
-    return { header: label(d), rows, footer, formatValue: fmtCount, minWidth: 260 };
+    const footer = span > 1
+      ? `One ${span * 24}-hour weekend report. Drawn across its ${span} days at the daily ` +
+        `average \u2014 CIT did not publish a per-day split.`
+      : undefined;
+    return { header: label(row), rows, footer, formatValue: fmtCount, minWidth: 260 };
   };
 
   const daily = rows.length > 0 && isDaily(rows[0]);
@@ -105,6 +111,8 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
       formatLabel={label}
       tickFormatter={daily ? dayTick : undefined}
       showEmptyWrapper
+      entryOf={daily ? (d) => entryOfDay(d as CitTerritoryDailyRow) : undefined}
+      cursor={daily ? <SpanCursor rows={rows as CitTerritoryDailyRow[]} /> : undefined}
       subheader={caveat && (
         <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, marginBottom: 10 }}>{caveat}</div>
       )}
@@ -114,12 +122,12 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
       ]}
     >
       <Bar dataKey="uaControlled" stackId="a" name="Ukrainian-controlled" maxBarSize={MAX_BAR_SIZE}
-           shape={daily ? spanBarShape(c.territoryUaControlled, 0) : undefined}>
+           shape={daily ? spanBarShape(c.territoryUaControlled) : undefined}>
         {!daily && rows.map((_, i) => <Cell key={`ua-${i}`} fill={c.territoryUaControlled} />)}
       </Bar>
       <Bar dataKey="ruControlled" stackId="a" name="Russian-controlled"
-           radius={[3, 3, 0, 0]} maxBarSize={MAX_BAR_SIZE}
-           shape={daily ? spanBarShape(c.territoryRuControlled, 3) : undefined}>
+           maxBarSize={MAX_BAR_SIZE}
+           shape={daily ? spanBarShape(c.territoryRuControlled) : undefined}>
         {!daily && rows.map((_, i) => <Cell key={`ru-${i}`} fill={c.territoryRuControlled} />)}
       </Bar>
     </MonthlyChartCard>

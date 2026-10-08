@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import {
-  BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis,
+  BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
@@ -50,6 +50,10 @@ interface Props<TData extends { date: string }> {
   // Used to show MAX/MED/TOTAL stat labels in the same row-style as
   // DailyLineChart, kept opt-in so consumers without window stats don't pay.
   subheader?: ReactNode;
+  // Rows that are one entry across several bars — see usePinnedChart.
+  entryOf?: (row: TData) => string | number;
+  // recharts hover `cursor`, for a chart whose entries span several bands.
+  cursor?: ComponentProps<typeof Tooltip>["cursor"];
   // `<Bar>` elements — one or more. May also include `<ReferenceLine>` etc.
   children: ReactNode;
 }
@@ -57,7 +61,8 @@ interface Props<TData extends { date: string }> {
 const monthTick = (v: string) => v.slice(0, 7).replace("-", "/");
 
 export function MonthlyChartCard<TData extends { date: string }>({
-  title, data, legend, wfull, describe, formatLabel, tickFormatter = monthTick, ticks, showEmptyWrapper, subheader, children,
+  title, data, legend, wfull, describe, formatLabel, tickFormatter = monthTick, ticks, showEmptyWrapper, subheader,
+  entryOf, cursor, children,
 }: Props<TData>) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
@@ -71,6 +76,8 @@ export function MonthlyChartCard<TData extends { date: string }>({
     formatLabel,
     periodOf: (d) => d.date.slice(0, 7),
     showEmptyWrapper,
+    entryOf,
+    cursor,
   });
 
   return (

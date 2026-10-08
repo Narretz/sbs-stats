@@ -238,6 +238,12 @@ total and a poor split — killed is ~9% of a day, so its band is thin at that
 scale and the top edge is the total rather than injured. It sits above the two
 single-series charts rather than replacing them.
 
+A weekend report is also ONE entry to interact with, not two days: hovering
+either day shows the report — its date span and its real 48-hour figures, the
+average only in a note — the hover band covers both days, and a pin sits in
+the middle of the bar and steps over the weekend in one step. That is
+`usePinnedChart`'s `entryOf` (keyed by `report_date`) plus `SpanCursor`.
+
 `CitRegionTable` — a ranked per-region table, every oblast with its killed and
 injured — is built and working but **not mounted**: it was on the monthly page
 and taken off again. Dropping `<CitRegionTable rows={queryRegions()} />` into
