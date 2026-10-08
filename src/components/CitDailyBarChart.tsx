@@ -7,8 +7,9 @@ import { FONTS } from "@/theme";
 import { maxMedian } from "@/utils/windowStats";
 import { MonthlyChartCard } from "@/components/MonthlyChartCard";
 import {
-  dayTick, fmtCount, formatDay, spanBarShape, weekendFirstDay, type SpannedDay,
+  dayTick, entryOfDay, fmtCount, formatEntry, spanBarShape, type SpannedDay,
 } from "@/components/spanBarShape";
+import { SpanCursor } from "@/components/SpanCursor";
 import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 import { CIT_METRIC_LABELS, type CitMetricKey, type Stat } from "@/types";
 
@@ -57,28 +58,31 @@ export function CitDailyBarChart({ title, data, series, globalStats, wfull }: Pr
   const stat = (k: CitMetricKey): Stat =>
     scope === "window" ? windowStats[k] : (globalStats[k] ?? { max: 0, median: 0, total: 0 });
 
+  // One description per ENTRY: both days of a weekend report describe the
+  // report itself — its date span and its real 48-hour figures — so hovering
+  // or pinning either day reads the same, and the pinned sheet steps over the
+  // weekend in one step (entryOfDay). Only the bar height is the average.
   const describe = (d: CitDailyBarRow): TooltipDescriptor => {
-    const header = formatDay(d.date);
+    const header = formatEntry(d);
     if (d.report_date == null) {
       return { header, rows: [], footer: "No CIT report covers this day." };
     }
+    const span = d.window_days;
+    const whole = (v: number | null) => (v == null ? null : Math.round(v * span));
     // Top of the stack first, as it reads on the chart.
     const rows: TooltipTableRow[] = [...series].reverse().map((k) => ({
-      label: CIT_METRIC_LABELS[k], color: color[k], value: d[k],
+      label: CIT_METRIC_LABELS[k], color: color[k], value: whole(d[k]),
     }));
     if (stacked) {
-      const total = series.reduce((s, k) => s + (d[k] ?? 0), 0);
+      const total = series.reduce((s, k) => s + (whole(d[k]) ?? 0), 0);
       rows.unshift({ label: "Total", color: t.text, value: total, emphasis: "bold" });
       rows[1] = { ...rows[1], separatorAbove: true };
     }
-    let footer: string | undefined;
-    if (d.window_days > 1) {
-      const whole = (v: number | null) => (v == null ? "—" : Math.round(v * d.window_days).toLocaleString());
-      footer = `One ${d.window_days * 24}-hour weekend report covering ` +
-        `${dayTick(weekendFirstDay(d))}–${dayTick(d.report_date)}: ` +
-        `${whole(d.killed)} killed, ${whole(d.injured)} injured in total. ` +
-        `Shown here as a daily average — CIT did not publish a per-day split.`;
-    }
+    const footer = span > 1
+      ? `One ${span * 24}-hour weekend report. Drawn across its ${span} days at the ` +
+        `daily average (${series.map((k) => `${fmtCount(d[k] ?? 0)} ${k}`).join(", ")} a day) ` +
+        `\u2014 CIT did not publish a per-day split.`
+      : undefined;
     return { header, rows, footer, formatValue: fmtCount, minWidth: 220 };
   };
 
@@ -109,10 +113,12 @@ export function CitDailyBarChart({ title, data, series, globalStats, wfull }: Pr
       data={data}
       wfull={wfull}
       describe={describe}
-      formatLabel={(d) => formatDay(d.date)}
+      formatLabel={formatEntry}
       tickFormatter={dayTick}
       showEmptyWrapper
       subheader={statsHeader}
+      entryOf={entryOfDay}
+      cursor={<SpanCursor rows={data} />}
     >
       {!stacked && (
         <ReferenceLine y={stat(series[0]).median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}

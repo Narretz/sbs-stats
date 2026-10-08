@@ -85,20 +85,60 @@ test.describe("CIT daily page", () => {
     }
   });
 
-  test("the headline weekend tooltip quotes the report's 48-hour totals", async ({ page }) => {
-    const tip = await tooltipAt(page, page.locator(ALL), "10 Jan 2026");
-    // 6 killed + 40 injured over two days → a daily average of 3 + 20.
-    expect(tip).toMatch(/Total\s+23/);
-    expect(tip).toContain("One 48-hour weekend report covering 10/01–11/01");
-    expect(tip).toContain("6 killed, 40 injured in total");
+  test("the headline weekend tooltip is the report, at its 48-hour totals", async ({ page }) => {
+    const tip = await tooltipAt(page, page.locator(ALL), "10–11 Jan 2026");
+    // The report's own figures, not the per-day average the bar is drawn at.
+    expect(tip).toMatch(/Total\s+46/);
+    expect(tip).toMatch(/Civilians injured\s+40/);
+    expect(tip).toMatch(/Civilians killed\s+6/);
+    expect(tip).toContain("One 48-hour weekend report");
+    expect(tip).toContain("3 killed, 20 injured a day");
   });
 
-  test("the controlling-side weekend tooltip quotes the report's 48-hour totals", async ({ page }) => {
-    const tip = await tooltipAt(page, page.locator(SIDE), "10 Jan 2026");
-    // 34 + 12 over two days → a daily average of 17 + 6.
-    expect(tip).toMatch(/Total\s+23/);
-    expect(tip).toContain("One 48-hour weekend report covering 10/01–11/01");
-    expect(tip).toContain("34 Ukrainian-controlled, 12 Russian-controlled in total");
+  test("the controlling-side weekend tooltip is the report, at its 48-hour totals", async ({ page }) => {
+    const tip = await tooltipAt(page, page.locator(SIDE), "10–11 Jan 2026");
+    expect(tip).toMatch(/Total\s+46/);
+    expect(tip).toMatch(/Ukrainian-controlled\s+34/);
+    expect(tip).toMatch(/Russian-controlled\s+12/);
+  });
+
+  test("either half of the weekend bar shows the same entry", async ({ page }) => {
+    const card = page.locator(KILLED_CARD);
+    await card.scrollIntoViewIfNeeded();
+    const bars = card.locator(".recharts-bar-rectangle path");
+    await expect(bars.first()).toBeVisible();
+    // The weekend bar is the widest one.
+    const boxes = await Promise.all((await bars.all()).map((b) => b.boundingBox()));
+    const wide = boxes.reduce((a, b) => (b!.width > a!.width ? b : a))!;
+    const wrapper = card.locator(".recharts-tooltip-wrapper");
+    const tips: string[] = [];
+    for (const frac of [0.2, 0.8]) {
+      await page.mouse.move(wide.x + wide.width * frac, wide.y + wide.height / 2);
+      await expect(wrapper).toContainText("10–11 Jan 2026");
+      tips.push((await wrapper.innerText()).trim());
+    }
+    expect(tips[0]).toBe(tips[1]);
+  });
+
+  test("the pinned sheet steps over the weekend in one step", async ({ page }) => {
+    const card = page.locator(KILLED_CARD);
+    await card.scrollIntoViewIfNeeded();
+    const bars = card.locator(".recharts-bar-rectangle path");
+    await expect(bars.first()).toBeVisible();
+    const boxes = await Promise.all((await bars.all()).map((b) => b.boundingBox()));
+    // Bars in x order: Mon, Tue, Thu, Fri, weekend. Pin Friday.
+    const fri = boxes[3]!;
+    await page.mouse.click(fri.x + fri.width / 2, fri.y + fri.height / 2);
+    const sheet = page.locator(".chart-sheet[data-open]");
+    const label = sheet.locator(".chart-sheet-label");
+    await expect(label).toHaveText("9 Jan 2026");
+    await sheet.getByRole("button", { name: "Next point" }).click();
+    await expect(label).toHaveText("10–11 Jan 2026");
+    expect(await sheet.innerText()).toMatch(/Civilians killed\s+6/);
+    // The weekend is the window's last entry, so there is nowhere further.
+    await expect(sheet.getByRole("button", { name: "Next point" })).toBeDisabled();
+    await sheet.getByRole("button", { name: "Previous point" }).click();
+    await expect(label).toHaveText("9 Jan 2026");
   });
 
   test("a day with no report is a gap, not a zero", async ({ page }) => {

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { ReferenceLine, Tooltip } from "recharts";
+import { ReferenceArea, ReferenceLine, Tooltip } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { useChartPin } from "@/hooks/ChartPinProvider";
 import { ChartSheetContent } from "@/components/ChartSheet";
@@ -57,6 +57,13 @@ interface Options<T> {
   /** Where on the finer view the link lands, when that isn't this chart's
    *  own anchor. */
   drillAnchor?: string;
+  /** The entry a row belongs to, when one entry spans several x positions —
+   *  CIT's 48-hour weekend report, drawn across two day slots. Rows sharing an
+   *  entry pin as one: a click on either selects it, the stepper moves over
+   *  it in one step, and the pinned cursor sits at the middle of its span.
+   *  Defaults to the row's own x. `describe` should then give every row of an
+   *  entry the same description. */
+  entryOf?: (row: T) => string | number;
 }
 
 export interface PinnedChart {
@@ -84,7 +91,7 @@ export interface PinnedChart {
 
 export function usePinnedChart<T>({
   chartId, title, data, xOf, describe, formatLabel, cursor, cursorProps, showEmptyWrapper,
-  fitToContent, periodOf, drillAnchor,
+  fitToContent, periodOf, drillAnchor, entryOf,
 }: Options<T>): PinnedChart {
   const { theme: t } = useTheme();
   const drillDown = useDrillDownLink();
@@ -92,13 +99,21 @@ export function usePinnedChart<T>({
   // inline arrow, so a memo keyed on it would never hit, and these arrays top
   // out at a few hundred entries.
   const xs = data.map(xOf);
-  const pin = useChartPin(chartId, xs);
+  // The pin steps over entries, not x positions; without `entryOf` they are
+  // the same list.
+  const rowEntries = entryOf ? data.map(entryOf) : xs;
+  const entries = entryOf ? [...new Set(rowEntries)] : xs;
+  const pin = useChartPin(chartId, entries);
   const rowAt = (x: string | number | undefined): T | null => {
     if (x == null) return null;
     const i = xs.indexOf(x);
     return i >= 0 ? data[i] : null;
   };
-  const pinnedRow = pin.isPinned ? data[pin.index] : null;
+  // The x positions the pinned entry spans, first and last.
+  const pinnedEntry = pin.isPinned ? entries[pin.index] : null;
+  const firstI = pinnedEntry != null ? rowEntries.indexOf(pinnedEntry) : -1;
+  const lastI = pinnedEntry != null ? rowEntries.lastIndexOf(pinnedEntry) : -1;
+  const pinnedRow = firstI >= 0 ? data[lastI] : null;
 
   // The floating hover card is a *hover* affordance, but recharts drives it
   // from touch as well — onTouchMove runs the same handler as onMouseMove —
@@ -163,7 +178,7 @@ export function usePinnedChart<T>({
 
   return {
     isPinned: pin.isPinned,
-    pinnedX: pinnedRow != null ? xs[pin.index] : null,
+    pinnedX: pinnedRow != null ? xs[lastI] : null,
     cardProps: {
       ...pin.cardProps,
       onPointerMove,
@@ -175,17 +190,27 @@ export function usePinnedChart<T>({
         // press resolves to the nearest x-band regardless of where vertically
         // it landed — the whole plot area is a hit target.
         const i = state?.activeTooltipIndex;
-        if (typeof i === "number" && data[i]) pin.select(xs[i]);
+        if (typeof i === "number" && data[i]) pin.select(rowEntries[i]);
       },
     },
     tooltip,
-    cursor: pinnedRow != null
-      ? <ReferenceLine x={xs[pin.index]} stroke={t.accent} strokeWidth={1.5} strokeOpacity={0.9} {...cursorProps} />
-      : null,
+    cursor: pinnedRow == null ? null
+      : lastI > firstI
+        // An entry over several x bands: an area from the first band's start
+        // to the last one's end, drawn as nothing but the same vertical line
+        // through its middle — so the cursor sits on the centre of a
+        // multi-day bar rather than on one of its days.
+        ? <ReferenceArea x1={xs[firstI]} x2={xs[lastI]} {...cursorProps}
+            shape={(r: { x: number; y: number; width: number; height: number }) => (
+              <line className="recharts-reference-line-line" x1={r.x + r.width / 2} x2={r.x + r.width / 2}
+                    y1={r.y} y2={r.y + r.height}
+                    stroke={t.accent} strokeWidth={1.5} strokeOpacity={0.9} />
+            )} />
+        : <ReferenceLine x={xs[firstI]} stroke={t.accent} strokeWidth={1.5} strokeOpacity={0.9} {...cursorProps} />,
     sheet: pinnedRow != null ? (
       <ChartSheetContent
         title={title}
-        label={formatLabel ? formatLabel(pinnedRow) : String(xs[pin.index])}
+        label={formatLabel ? formatLabel(pinnedRow) : String(xs[lastI])}
         canPrev={pin.canPrev}
         canNext={pin.canNext}
         onStep={pin.step}
