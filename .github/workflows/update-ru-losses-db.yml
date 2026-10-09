@@ -1,13 +1,10 @@
 name: Update RU Losses Database
 
 on:
-  workflow_dispatch: # allow manual trigger from GitHub UI
-  schedule:
-    # The General Staff publishes once a day and PetroIvaniuk mirrors it within
-    # hours; one run each morning (UTC) is plenty.
-    - cron: "30 9 * * *"
-    # Also dispatched at 09:10 Kyiv by the Cloudflare cron Worker
-    # (cloudflare/worker.ts).
+  # No GitHub schedule: dispatched daily at 09:10 Kyiv by the Cloudflare cron
+  # Worker (cloudflare/worker.ts). The General Staff publishes once a day and
+  # PetroIvaniuk mirrors it within hours.
+  workflow_dispatch:
 
 # Single source of truth for the bucket + DB filename.
 env:
