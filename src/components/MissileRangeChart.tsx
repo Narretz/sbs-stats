@@ -155,7 +155,7 @@ export function MissileRangeChart({ series, unit, timeDomain, ticks, yMax, swatc
           <Line
             type="linear" dataKey="mid" stroke={color} strokeWidth={single ? 0 : 1.8}
             isAnimationActive={false}
-            dot={({ key, ...p }) => <BoundDot key={key} {...p} color={color} />}
+            dot={({ key, points: _points, ...p }) => <BoundDot key={key} {...p} color={color} />}
             activeDot={{ r: 5, fill: color }}
           />
           {/* Painted last so it reads as a crosshair over the series,

@@ -487,7 +487,7 @@ export function DailyLineChart({
                   whole line redrew itself every time the sheet opened, closed, or
                   stepped a day — a full re-animation per press of ›. */}
               <Line type="monotone" dataKey="value" name={resolvedPrimaryLabel} stroke={primaryColor} strokeWidth={2} isAnimationActive={false}
-                dot={({ key, ...props }) => <CustomDot key={key} {...props} accentColor={t.accent} primaryColor={primaryColor} bgColor={t.surface} noteColor={chartColors(t).noteText} pinnedDate={pinnedDate} />}
+                dot={({ key, points: _points, ...props }) => <CustomDot key={key} {...props} accentColor={t.accent} primaryColor={primaryColor} bgColor={t.surface} noteColor={chartColors(t).noteText} pinnedDate={pinnedDate} />}
                 // The hover activeDot is the last piece of hover feedback recharts
                 // draws from its own state rather than from `active`, so it has to
                 // be switched off by hand while pinned.

@@ -162,14 +162,14 @@ export function MissileCombinedChart({ stock, prod, label, swatch, timeDomain, t
           <Line
             type="linear" dataKey="stock_mid" stroke={color} strokeWidth={1.8} connectNulls
             isAnimationActive={false}
-            dot={({ key, ...p }) => <BoundDot key={key} {...p} payload={(p.payload as Row)?.stock_p} color={color} />}
+            dot={({ key, points: _points, ...p }) => <BoundDot key={key} {...p} payload={(p.payload as Row)?.stock_p} color={color} />}
             activeDot={{ r: 5, fill: color }}
           />
           {/* Production: dashed + slightly faded so the two read apart at a glance. */}
           <Line
             type="linear" dataKey="prod_plot" stroke={color} strokeWidth={1.6} strokeDasharray="4 3"
             strokeOpacity={0.7} connectNulls isAnimationActive={false}
-            dot={({ key, ...p }) => <BoundDot key={key} {...p} payload={(p.payload as Row)?.prod_p} color={color} />}
+            dot={({ key, points: _points, ...p }) => <BoundDot key={key} {...p} payload={(p.payload as Row)?.prod_p} color={color} />}
             activeDot={{ r: 5, fill: color }}
           />
           {/* Painted last so it reads as a crosshair over the series,

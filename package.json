@@ -21,7 +21,8 @@
     "playwright": "^1.60.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "recharts": "^2.15.4",
+    "react-is": "^19.3.0",
+    "recharts": "^3.10.1",
     "sql.js": "^1.14.1",
     "sql.js-httpvfs": "^0.8.12",
     "temporal-polyfill": "^0.3.2"
