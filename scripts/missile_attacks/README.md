@@ -208,8 +208,12 @@ was first built with — a change would never reach R2 and would fail silently.
 ## DB output
 
 Writes **`output/ru-air-attacks-gsua.db`** (override with `MISSILE_DB_NAME` /
-`MISSILE_DB_PATH`). CI (`update-missile-attacks-db.yml`) downloads the current DB
-first so it appends, then uploads the R2 object of the same name.
+`MISSILE_DB_PATH`). CI (`update-missile-attacks-db.yml`; when it runs is in
+[CI.md](../../CI.md)) downloads the current DB first so it appends, then
+uploads the R2 object of the same name. It needs the `KAGGLE_USERNAME` /
+`KAGGLE_KEY` secrets. Each run re-pulls the whole Kaggle dataset, and storage
+is append-on-change, so the ~weekly re-publish of unchanged rows inserts
+nothing — and a parser fix takes effect on the next run, no input to widen.
 
 ## CLI
 

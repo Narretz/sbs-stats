@@ -161,6 +161,13 @@ if both of a day's runs are skipped, that day's settled row is gone for good.
 The day still lands in the monthly totals, which are re-read independently; it
 is the daily row that is lost.
 
+The workflow's `all` input re-reads every sub-unit month and year the API
+still exposes, rather than only the recent ones. It is the one manual input in
+CI that can be urgent: the API keeps twelve monthly period slots per unit and
+re-points them yearly (see [the twelve-slot window](#the-twelve-slot-window--why-the-backfill-was-a-one-shot)),
+so a month nobody captured before it rolls out is gone for good —
+`check_db.py` reports exactly that.
+
 ## Don't repeat these mistakes
 
 - **Addressing a month by its slot name.** `monthly_8` is whatever August that

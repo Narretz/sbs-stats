@@ -56,6 +56,15 @@ python3 scripts/rubikon/ingest.py --out data/rubikon.db --reparse --apply
 The DB lives on R2 (bucket `russia-ukraine-war`, key `rubikon.db`), pulled at
 runtime by the frontend and by the workflow. Not committed to the repo.
 
+In CI, `update-rubikon-db.yml` runs on days 2–8 of each month (times in
+[CI.md](../../CI.md)) — both series land in that window, the recap on the
+3rd–4th and the digest at the month's turn — which is a much tighter window
+than SBU Alfa's, and why it's its own workflow rather than a job beside it.
+Its `pages` input (default 3) widens the walk to recover a recap the parser
+used to drop; a recap stored but misread needs `--reparse` instead, locally.
+`ingest.py` writes `changed=true|false` to `$GITHUB_OUTPUT` and the upload is
+gated on it: most runs in the window find nothing new.
+
 ### Three kinds of number, kept apart
 
 Rubikon says **«Поражены»** — *engaged* — with **no destroyed/damaged split**

@@ -116,6 +116,12 @@ untouched): a **floor** (< `MIN_ROWS_FLOOR` = 365 day-rows ⇒ truncated) and a
 ## Status / not yet done
 
 The frontend combined-charts wiring (site key `ua-losses`) surfaces `number` +
-the status split. CI (a Kaggle-pull workflow + R2 upload) is **not** set up yet;
-the workbook is supplied locally via `--xlsx` or `--version`. See
-`scripts/ru_losses/` + `update-ru-losses-db.yml` for the pattern to follow.
+the status split; there is no dedicated site yet.
+
+In CI, `update-ua-losses-db.yml` (when it runs is in [CI.md](../../CI.md))
+runs `ingest.py --latest`, which resolves and downloads the current Kaggle
+version (`KAGGLE_USERNAME` / `KAGGLE_KEY` secrets) and appends on change. The
+source is xlsx, so the job pip-installs `openpyxl` — the only ingest workflow
+that isn't stdlib-only. It runs twice a month because the source re-uploads
+only every ~2 months: that catches a release within ~2 weeks without a daily
+30 MB no-op download.

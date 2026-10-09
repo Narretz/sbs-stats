@@ -22,6 +22,12 @@ python3 scripts/mediazona/ingest.py \
     --published-at 2026-05-22
 ```
 
+In CI (`update-mediazona-db.yml`; when it runs is in [CI.md](../../CI.md)) the
+article URL is the workflow's `MEDIAZONA_ARTICLE_URL` env var, which overrides
+`DEFAULT_ARTICLE_URL` here — when Mediazona publishes at a new path, bump that
+env var; no code change. Each run re-pulls the whole bundle, append-on-change,
+so a parser fix takes effect on the next run.
+
 `--published-at` (YYYY-MM-DD) is the Mediazona article's publication date — the
 source vintage the data comes from. It's analogous to `ru_losses`' `reported_at`.
 In `--from-article` mode it's auto-derived from the bundle's `current_date`

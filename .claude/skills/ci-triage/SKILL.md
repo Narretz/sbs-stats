@@ -99,7 +99,7 @@ within the window. Use the rate:
   failed job's log**; the tail of the file is cleanup, not the failure.
 - **An ingest script dying mid-run** — always worth a look, because an
   interrupted run uploads nothing. The sub-units ingest died on an unhandled
-  `429` from the SBS API, and per `CLAUDE.md` a sub-unit month that rolls out of
+  `429` from the SBS API, and per `scripts/sbs_units/README.md` a sub-unit month that rolls out of
   the API's twelve-slot window is unrecoverable. That class of crash is the
   highest-value thing this routine can catch.
 

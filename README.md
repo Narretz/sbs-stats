@@ -45,8 +45,8 @@ budget-derived casualties, frontline weather, etc.).
   `russia-ukraine-war` (public `pub-de9836bbd1a14affa2ecd7e998df13a2.r2.dev`).
   Small DBs are fetched whole via sql.js; the large GSUA attacks DB is range-fetched
   via sql.js-httpvfs.
-- **CI**: workflows in `.github/workflows/` schedule each ingest and `deploy.yml`
-  builds and publishes to GitHub Pages.
+- **CI**: workflows in `.github/workflows/` run each ingest and `deploy.yml`
+  builds and publishes to GitHub Pages — see [`CI.md`](CI.md).
 - **Tests** (`e2e/`): e2e tests for the frontend application. Uses fixtures in place of live data.
 
 ## Common commands

@@ -125,7 +125,12 @@ time rather than being found later on a chart:
   sum to the headline, and air-target-worded reports (above).
 
 Verify a flagged date with `probe_gap.py`, then either fix the parser and
-re-scrape, or record the confirmed silence with `--mark-silent`.
+re-scrape, or record the confirmed silence with `--mark-silent`. It tells "the
+MoD posted nothing" from "the parser rejected what it posted", reading the
+web preview by default (`--source web`); it exits 2 when the preview walk ran
+out of pages before reaching the dates, because absence you did not actually
+look at is not evidence. `--source telethon` (and `--ids`) remain for
+historical windows.
 
 > A post the parser **dropped** was never stored, so `reparse.py` can't recover
 > it — only a re-scrape can. In CI, dispatch the workflow with a wider
@@ -138,6 +143,13 @@ reporting, raw Сводка capture rationale).
 
 Writes **`output/ru-mod-ad.db`** (override with `RU_MOD_DB_NAME` / `RU_MOD_DB_PATH`).
 CI downloads/uploads the R2 object of the same name.
+
+CI (`update-telegram-web-dbs.yml`, RU MoD job; when it runs is in
+[CI.md](../../CI.md)) also builds and uploads **`ru-mod-ad.app.db`**, the copy
+the frontend reads: `ad_reports.raw_text` and `summaries.raw_text` blanked
+(~5× smaller) by `scripts/build_app_db.py`. Dev reads the app copy too, so
+after a local reparse rebuild it with that script — the full DB alone isn't
+what the site shows.
 
 ## CLI
 

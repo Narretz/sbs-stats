@@ -118,178 +118,23 @@ datasets for future views.
 
 ## CI / deploy
 
-GitHub Actions in `.github/workflows/`:
-- `update-db.yml` — SBS grouping total. No `schedule:`; the Cloudflare cron
-  Worker (`cloudflare/`, see `deploy-cron-worker.yml`) dispatches it four
-  times an hour (:10/:25/:40/:55 UTC). One run at a time (`concurrency: sbs-db`):
-  each run uploads the whole DB, so overlapping runs would drop each other's
-  hours. Hours a run never happened for (an expired Cloudflare token, say)
-  come back with the manual `backfill_from_foosint` input, which inserts only
-  the (date, hour) rows missing here from foosint/sbs-stats — same API, no
-  flight counts.
-- `update-sbs-units-db.yml` — the 15 tracked SBS sub-units
-  ([`scripts/sbs_units/`](scripts/sbs_units/README.md)). Its own workflow
-  precisely because it must NOT run hourly: the capture-bucket key means extra
-  runs change freshness rather than row count, at ~60 requests each. Scheduled
-  09:00 / 21:00 **Europe/Kyiv** (IANA `timezone:` cron field) — 21:00 for the
-  settled `prev_day` plus a nearly-complete "today", 09:00 as redundancy, since
-  a day's settled value is only reachable while it is `prev_day`. Separate DB
-  from `sbs.db` because that one is fetched whole by every SBS page and unit
-  data is only read by the monthly / compare / combined views. Retirement is
-  derived from "no live daily period", never listed.
-- `update-ru-losses-db.yml` — RU losses. No `schedule:`; the cron Worker
-  dispatches it daily at 09:10 Kyiv.
-- `update-telegram-web-dbs.yml` — GSUA + RU MoD (two jobs, both scrape the
-  public `t.me/s` web preview, no API account). No `schedule:`; the cron
-  Worker dispatches it at 09:10 / 23:10 Kyiv, just after the GS reports
-  (~08:00 / 22:00); a 2-day idempotent lookback covers a missed run. The GSUA
-  job uploads only what changed (see the app-copy note under Conventions). When
-  RU MoD reports a gap day, `scripts/ru_mod/probe_gap.py` reports the difference
-  between "the MoD posted nothing" and "the parser rejected what it posted" —
-  `--source web` by default; it exits 2 when the preview
-  walk ran out of pages before reaching the dates, because absence you did not
-  actually look at is not evidence. `--source telethon` (and `--ids`) remain for
-  historical windows.
-- `update-missile-attacks-db.yml` — RU missile & UAV attacks. Daily (06:00 UTC);
-  pulls piterfm's Kaggle dataset (needs `KAGGLE_USERNAME` / `KAGGLE_KEY`
-  secrets), append-on-change so an unchanged ~weekly re-publish inserts nothing.
-- `update-mediazona-db.yml` — Mediazona named-deaths + probate estimate. Every
-  3 days (07:00 UTC); pulls directly from the live article's JS bundle
-  (`--from-article` mode), append-on-change. Article URL is a workflow env var
-  (`MEDIAZONA_ARTICLE_URL`) — bump it when Mediazona publishes at a new path.
-- `update-sbu-alfa-db.yml` — SBU Alfa monthly recap. Daily 08:00 UTC on days
-  5–20 of each month (~16 runs). `scripts/sbu_alfa/discover.py` scans the SBU
-  news listing, slug-filters candidate URLs, and ingests any not already in
-  the DB. Slug-drift-safe: matches only insert if the parser recognises
-  `report_type='monthly_top1'` with a valid `period`. Its parser-fix
-  counterpart is the manual `reparse-sbu-alfa-db.yml` (see below).
-- `update-rubikon-db.yml` — Rubikon monthly recap. Daily 08:00 UTC on days
-  2–8 of each month (7 runs) — the channel posts on the 3rd–4th, so this is a
-  much tighter window than SBU Alfa's, which is why it's its own workflow
-  rather than a second job alongside it. `scripts/rubikon/ingest.py` reads the
-  public `t.me/s/icpbtrubicon` web preview (no Telegram API account, stdlib
-  only) and stores the channel's TWO monthly series — the General-Staff-plan
-  recap (3rd–4th, `report_type='monthly'`, the site) and the «Итоги»
-  published-episode digest (month end / 1st, `report_type='monthly_digest'`,
-  ingested but deliberately **not surfaced** — see scripts/rubikon/README.md).
-  The ~200 other posts a month, including the multi-month cumulative totals,
-  are rejected by the parsers' gates. Uploads gated on `changed=true`, like
-  SBU Alfa. Both series land inside the days-2–8 window.
-- `update-ua-losses-db.yml` — UA personnel losses (ualosses.org via Kaggle).
-  Twice a month (07:00 UTC on the 1st & 15th) — the source re-uploads only every
-  ~2 months, so this catches a release within ~2 weeks without a daily 30 MB
-  no-op download. `ingest.py --latest` pulls the current Kaggle version (needs
-  `KAGGLE_USERNAME` / `KAGGLE_KEY` secrets), append-on-change. The ingest needs
-  `openpyxl` (the source is xlsx), so the job pip-installs it — the only ingest
-  workflow that isn't stdlib-only. Not yet a dedicated site; feeds the combined
-  charts only.
-- `update-cit-civilians-db.yml` — CIT civilian casualties. Twice daily (19:00
-  UTC, just after the ~20:00 MSK post, and 07:00 UTC for a late one or an
-  edit). Reads the public `t.me/s` preview, no API account. Two things make
-  this one different from the other Telegram ingests: a long summary overruns
-  Telegram's 4096-char limit and is **stitched** from consecutive posts
-  (`reports.part_ids`), and every post closes with its own casualty total, so
-  each one is **reconciled** against it (`reports.reconciled`). The chart
-  series is `reports.stated_*` — CIT's own headline, which parses on 100% of
-  posts from 2024 on (the 2023 era carries no total line); the per-region rows
-  are secondary, exact on the killed column for 82% of posts and within ~1% of
-  the headline in aggregate, but exact on both columns for only 50%. Weekend
-  days come as ONE 48-hour post (`window_days = 2`) and must never be plotted
-  as a single day. Publishes a stripped `cit-civilians.app.db` alongside the
-  authoritative DB (see below); the site is `cit-civilians`, daily + monthly.
-- `update-ua-losses-ru-mod-db.yml` — John Felix's sheet of the RU MoD's claimed
-  Ukrainian losses, via its public CSV export. 08:15 / 20:15 UTC; uploads only
-  when a cell or note changed (`changed=true`). A **backup**: the site that
-  displays it is left out of the production build (see Datasets above).
-- `update-zelensky-weekly-db.yml` — the President's weekly strike tally
-  ([`scripts/zelensky_weekly/`](scripts/zelensky_weekly/README.md)): strike
-  drones / guided bombs (КАБ) / missiles per week, read from one sentence of the
-  Sunday post on the public `t.me/s/V_Zelenskiy_official` preview. Sat/Sun/Mon
-  20:00 **Europe/Kyiv**; the incremental walk stops at the previous tally, so
-  most runs upload nothing. The week is **derived** from when the post went up
-  (the post only ever says "this/last week"), and every figure carries its
-  hedge (`bound`: понад / майже / близько). Site `zelensky-weekly`, one
-  weekly page; the tooltip quotes each figure as hedged in the post. Also a
-  weekly-only source in the combined charts.
-- `python-tests.yml` — the ingest test suites, when a `.py` under `scripts/`
-  changed. On push to any branch AND on `pull_request` (plus
-  `workflow_dispatch`): a push matches its paths against that push alone, so a
-  PR whose last commit is docs-only would show no checks at all, while a
-  pull_request event matches the whole PR diff and runs against the merge
-  commit. Installs pytest and `requests`, which is the whole of it —
-  `fetch_and_update.py` imports requests
-  at module level and six suites reach it transitively, so leaving it out fails
-  collection rather than skipping a test; the rest of `scripts/requirements.txt`
-  is lazily imported and stays out. Calls `scripts/test_python.sh`. The
-  scheduled ingest workflows are not a substitute: they exercise whatever the
-  source published today and stay green while a fixture case breaks.
-- `node-tests.yml` — eslint plus the vitest tier, on push to any branch and on
-  `pull_request` (same reasoning as above) when `src/` or the build config
-  changed. Deliberately not the Playwright tier, which is minutes per run for
-  the tier least likely to catch a helper or parser
-  regression.
-- `deploy.yml` — builds and publishes to GitHub Pages.
-- `deploy-cron-worker.yml` — deploys `cloudflare/`, the `sbs-stats-cron`
-  Worker whose one cron trigger (`wrangler.toml`) dispatches `update-db.yml`
-  every tick and, from `dispatchesFor()` in `worker.ts` matching the tick's
-  Kyiv time, the daily Telegram-web and RU-losses runs. Cloudflare crons are
-  UTC-only, hence the matching in code. On push to main touching `cloudflare/`, or
-  manually; a PR only bundles it (`--dry-run`). Needs the
-  `CLOUDFLARE_WORKERS_API_TOKEN` secret (Workers Scripts: Edit), kept apart
-  from the R2-only `CLOUDFLARE_API_TOKEN`. The Worker's `GH_TOKEN` is a
-  Worker secret that survives deploys — still set with `wrangler secret put`.
+The workflows, when each runs, how a parser fix reaches the data, what gets
+uploaded and how findings surface: **[CI.md](CI.md)**. What is particular to
+one ingest — its window, its inputs, its quirks — is in its README. The rules
+that bite when changing code:
 
-Nothing in CI reads the annotations the ingests raise, so a daily Claude Code
-web Routine does: `.claude/skills/ci-triage/SKILL.md` is its operating manual
-and `routine-prompt.md` beside it is the scheduled message. It reads
-`scripts/ci_digest.py --hours 48`, fixes what it can establish from the repo
-alone, and files nothing it has already filed — fingerprints in PR bodies are
-its only memory between runs. What it must NOT do is the important half: no
-ingest, no reparse, no dataset mutation, no PR for a step that flaked once.
-
-The scrapers that only re-read a recent window expose that window as a
-`workflow_dispatch` input, so a manual run can widen it after a parser fix — a
-post the parser dropped was never stored, so `reparse.py` can't recover it and
-only a re-scrape can. `update-telegram-web-dbs.yml`: `gsua_lookback_days` /
-`rumod_lookback_days` (default 2). `update-sbu-alfa-db.yml`: `pages` (default
-3 listing pages). `update-rubikon-db.yml`: `pages` (default 3 t.me/s preview
-pages). `update-cit-civilians-db.yml`: `pages` (default 4 t.me/s preview
-pages). `update-db.yml`: `all_months` (bypass the SBS 10-day / 6-hour
-refresh thresholds). `update-sbs-units-db.yml`: `all` (re-read every sub-unit
-month and year the API still exposes) — the one that is genuinely urgent when
-needed, because the API keeps only twelve monthly period slots per unit and
-re-points them yearly, so a month nobody captured before it rolls out is gone
-for good; `scripts/sbs_units/check_db.py` reports exactly that. The Kaggle / CSV / article-bundle pipelines (RU losses, UA
-losses, missile attacks, Mediazona) re-pull the whole source every run, so a
-fix takes effect on the next run with no input to widen.
-
-A widened lookback only helps for posts the parser **dropped**. When a fix
-changes how already-stored text is *read*, a re-scrape re-ingests identical
-text and changes nothing — the stored rows need re-parsing instead, which is
-its own manual workflow: `reparse-gsua-db.yml` (inputs `since` =
-`YYYY-MM-DD` or `all`, and `dry_run`, on by default). It pulls the DB from
-R2, runs `scripts/gsua/reparse.py` over it, and re-uploads the full and app
-copies. Kept separate from the scheduled scrape on purpose: different
-trigger, different blast radius.
-
-Rubikon has the same split without a workflow of its own: it stores each post's
-raw text, so `scripts/rubikon/ingest.py --reparse` (dry-run; `--apply` writes)
-re-reads the stored recaps locally after a parser fix, while `--max-pages` /
-the workflow's `pages` input widens the scrape for a recap that was dropped
-outright. `scripts/cit_civilians/ingest.py --reparse` works the same way, and
-matters more there: its parser is still being sharpened against the archive, so
-a fix lands as a reparse over stored text rather than a re-scrape. (Which era
-reads worst is counter-intuitive — 2024 is the *best*, and 2026 the weakest;
-see scripts/cit_civilians/README.md.)
-
-SBU Alfa splits the same way GSUA does, into its own manual workflow:
-`reparse-sbu-alfa-db.yml` (input `dry_run`, on by default) pulls the DB from
-R2, runs `scripts/sbu_alfa/ingest.py --reparse` over the stored
-`reports.body_text`, tees the per-counter diff into the job summary, and
-re-uploads only when a row actually changed. Reparse is the half that matters
-for this dataset: `discover.py` filters candidates by URL against the DB
-*before* parsing, so a recap already stored is never re-read by a re-scan,
-however wide `pages` is.
+- **A parser fix: re-scrape or reparse.** A post the parser *dropped* was never
+  stored, so only a re-scrape (the workflow's widen input) recovers it; one it
+  *misread* is stored, and a re-scrape re-ingests identical text — only a
+  reparse fixes it. Know which before dispatching anything.
+- **Uploads are gated on `changed=`** where the ingest can tell — a new ingest
+  should write it to `$GITHUB_OUTPUT` too, rather than overwrite a live R2
+  object on every run.
+- `python-tests.yml` and `node-tests.yml` run the Python suites and
+  lint + vitest on push and PR; Playwright runs only in the pre-push hook.
+- A daily Claude Code routine triages CI annotations
+  (`.claude/skills/ci-triage/`): it fixes from the repo alone and must not
+  ingest, reparse or mutate a dataset.
 
 ## Common commands
 
@@ -352,29 +197,18 @@ bash scripts/setup_env.sh                 # npm + pip bootstrap for a fresh cont
   vars. Small DBs are fetched whole via sql.js; larger ones (GSUA attacks)
   are range-fetched via sql.js-httpvfs.
 - **GSUA, RU MoD and CIT publish two objects each**: the authoritative
-  `<name>.db` carrying the raw post text, and a stripped `<name>.app.db`
-  (GSUA/RU MoD blank `posts.text` / `raw_text`, ~3-5x smaller; CIT blanks
-  `reports.body_text` plus the per-clause `casualties.raw_label` /
-  `region_raw`, 11 MB → ~2 MB) that the frontend reads in production.
-  `fetch_prod_dbs.sh` downloads both; CI builds them from the same source, so
-  they can't drift on R2. (GSUA uploads each only when it changed: the full DB
-  when the scraper reports it stored something (`changed=`, from the
-  connection's row changes), the app copy when its contents differ from R2's
-  — so a change to how the app copy is built still ships with no new data. See
-  `scripts/db_fingerprint.py`.)
-  **GSUA and RU MoD read the app copy in dev too**, so local range-fetch
+  `<name>.db` carrying the raw post text, and a stripped `<name>.app.db` that
+  the frontend reads in production, built in CI by `scripts/build_app_db.py`
+  (details in [CI.md](CI.md) and each README). `fetch_prod_dbs.sh` downloads
+  both. **GSUA and RU MoD read the app copy in dev too**, so local range-fetch
   behaviour matches the deployed site — and there they drift **locally**: a
   reparse or ingest rewrites `<name>.db` and leaves the app copy alone, so dev
   keeps serving the old rows while the file they came from looks correct.
-  Rebuild it with `scripts/build_app_db.py` — not by re-running the fetch,
-  which would overwrite the reparse with R2's copy. GSUA's app copy also
-  carries derived tables the full DB doesn't (`--sql scripts/gsua/app_db.sql`):
-  `direction_totals` (the direction picker's ranked list), `gsua_monthly` and
-  `gsua_direction_monthly` (the monthly page's sums, read for completed months
-  only — the last two months stay live). Each replaced a whole-history scan
-  over httpvfs; a copy built without them still works, through the slower live
-  queries. The monthly twins are held to their live SQL (`src/utils/gsuaSql.ts`)
-  by `gsuaSql.test.ts` — change one, change both. **CIT reads the full DB in
-  dev**, deliberately: it is a whole fetch, not a range fetch, so the app copy
-  changes only the download size and using it locally would buy that same
-  staleness trap for nothing.
+  Rebuild it with `scripts/build_app_db.py` (the command is in
+  `fetch_prod_dbs.sh`) — not by re-running the fetch, which would overwrite the
+  reparse with R2's copy. GSUA's app copy carries derived tables
+  (`scripts/gsua/app_db.sql`) whose monthly ones must match their live SQL in
+  `src/utils/gsuaSql.ts` — `gsuaSql.test.ts` holds them to it; change one,
+  change both. **CIT reads the full DB in dev**, deliberately: it is a whole
+  fetch, not a range fetch, so the app copy changes only the download size and
+  using it locally would buy that same staleness trap for nothing.

@@ -56,6 +56,41 @@ parser and one `upsert_report`, so rows are identical regardless of source;
 Writes **`output/ru-attacks-gsua.db`** (override with `GSUA_DB_NAME`). CI
 downloads/uploads the R2 object of the same name.
 
+### In CI (`update-telegram-web-dbs.yml`, GSUA job)
+
+When it runs is in [CI.md](../../CI.md). Each run scrapes the web preview from
+2 days before the newest stored report — the idempotent lookback that covers a
+missed run; the `gsua_lookback_days` input widens it to recover posts a parser
+fix now accepts (a post the parser dropped was never stored, so only a
+re-scrape brings it back — see "Working loop" below for a misread one).
+
+It publishes two objects, each uploaded only when it changed:
+
+- **`ru-attacks-gsua.db`**, the authoritative DB with the raw post text — when
+  the scraper reports it stored something: `report_changed()` writes
+  `changed=true|false` to `$GITHUB_OUTPUT` from the connection's
+  `total_changes`, so every row write counts (a new post, a new version, a
+  migration copying rows). Most runs land between GS reports and store nothing.
+- **`ru-attacks-gsua.app.db`**, the copy the frontend reads: `posts.text`
+  blanked (~3× smaller) by `scripts/build_app_db.py`, plus derived tables from
+  `--sql scripts/gsua/app_db.sql` — uploaded when its contents differ from the
+  one on R2 (`scripts/db_fingerprint.py`, a hash of the SQL dump). Not "when
+  the data changed": a change to how it is built changes it with no new data.
+
+The derived tables are answers the frontend would otherwise compute from the
+whole history over HTTP range requests, on every page view:
+
+- `direction_totals` — the direction picker's list, ranked by all-time attacks.
+- `gsua_monthly`, `gsua_direction_monthly` — the monthly page's sums and
+  direction coverage. The frontend reads completed months from them and the
+  current and previous month live (a scrape can still change those).
+
+The monthly twins must give exactly the rows of their live SQL in
+`src/utils/gsuaSql.ts`, which `src/utils/gsuaSql.test.ts` checks on a
+synthetic DB — change one, change both. A copy built without the script still
+works, through the live queries. Rebuild the local app copy after a local
+reparse with the same command (`scripts/fetch_prod_dbs.sh` has it).
+
 ## Schema & edit-versioning
 
 Tables `posts` + `directions`, view `daily_combined`. The schema is
