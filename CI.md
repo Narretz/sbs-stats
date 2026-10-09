@@ -125,9 +125,9 @@ ingest, no reparse, no dataset mutation, no PR for a step that flaked once.
   is imported lazily. The scheduled ingests are not a substitute: they
   exercise whatever the source published today and stay green while a fixture
   case breaks.
-- `node-tests.yml` — eslint plus the vitest tier, on push and `pull_request`
-  (same reasoning) when `src/` or the build config changed. Not the Playwright
-  tier, which is minutes per run for the tier least likely to catch a helper
-  or parser regression; `.githooks/pre-push` runs that.
+- `node-tests.yml` — eslint plus both vitest tiers (unit, and the component
+  tests in Chromium), on push and `pull_request` (same reasoning) when `src/`
+  or the build config changed. Not the Playwright e2e tier, which builds the
+  app and its fixtures and is minutes per run; `.githooks/pre-push` runs that.
 - `deploy.yml` — builds and publishes to GitHub Pages on a push to main
   touching the app.

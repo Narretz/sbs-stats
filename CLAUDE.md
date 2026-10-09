@@ -91,12 +91,19 @@ datasets for future views.
   a row is never overwritten; an edit/correction inserts a new row keyed by an
   ingest timestamp (`scraped_at`), and reads resolve the latest version. See the
   per-script READMEs for details.
-- **Tests**, three tiers, split by what a case actually needs:
+- **Tests**, four tiers, split by what a case actually needs:
   - `src/**/*.test.ts` (vitest, `npm test`): the app's pure logic — the
     homepage's `charts=` codec (`src/home/charts.ts`), the compare registry's
     value arithmetic, the date/window helpers, the EoD projection. Plain Node,
     no DOM, sub-second, so edge cases (delimiters in a name, a malformed spec,
     a settled day) cost a line each. A new pure helper belongs here.
+  - `src/**/*.browser.test.tsx` (vitest browser mode, `npm run test:browser`):
+    one component mounted on its own in a real Chromium, props in and
+    callbacks out — a control's own behaviour: stepping and clamping, the live
+    state, a debounce, where a popover opens. Real layout, so placement and
+    focus can be measured; no page, no DB, no build, so a case costs ~100 ms
+    against ~1.5 s in e2e. A new control's behaviour belongs here; how a page
+    wires it up (the URL, the window it drives) stays in e2e.
   - `e2e/` (Playwright, `npm run test:e2e`): everything that needs the real
     thing — a DB loading, recharts sizing itself, an IntersectionObserver, the
     history stack. Uses synthetic fixtures, never `data/*.db`. Runs against
@@ -112,8 +119,9 @@ datasets for future views.
     changed. Run them with `bash scripts/test_python.sh`, which runs
     **one pytest process per dataset directory**.
 
-  The first two are also the rule for where logic lives: if an e2e test is
-  asserting arithmetic, the arithmetic wants lifting out of the component.
+  The tiers are also the rule for where logic lives: if an e2e test is
+  asserting arithmetic, the arithmetic wants lifting out of the component; if
+  it is exercising one control, the case wants moving to the browser tier.
 
 
 ## CI / deploy
@@ -144,9 +152,10 @@ npm run build        # production build → dist/
 npm run lint         # eslint, zero-warnings
 npm test             # vitest unit tests (src/**/*.test.ts) — fast, no browser
 npm run test:watch   # the same, in watch mode
+npm run test:browser # component tests (src/**/*.browser.test.tsx) in Chromium — seconds
 npm run test:e2e     # Playwright e2e (uses .env.e2e fixture DBs).
 # Only run e2e tests that directly cover the area you are working in —
-# `.githooks/pre-push` runs the whole suite (plus `npm test`) on every push,
+# `.githooks/pre-push` runs the whole suite (plus `npm test` and `test:browser`) on every push,
 # which is where the full sweep belongs. `git push --no-verify`, or
 # SKIP_TESTS=1, skips it. `npm install` points core.hooksPath at .githooks;
 # a hooksPath somebody has deliberately set elsewhere is left alone.

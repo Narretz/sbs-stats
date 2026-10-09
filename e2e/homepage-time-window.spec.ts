@@ -43,19 +43,6 @@ test.describe("Homepage custom charts — time window picker", () => {
     expect(ids.length).toBe(3);
   });
 
-  test("spinner-equivalent (ArrowUp without blur) debounces and commits", async ({ page }) => {
-    await openHomeWithDefaults(page);
-    // Default daily window is 60d (per defaultCharts.json). ArrowUp twice → 62.
-    const custom = page.locator('[data-testid="day-range-custom"]').first();
-    await expect(custom).toHaveValue("60");
-    await custom.focus();
-    await custom.press("ArrowUp");
-    await custom.press("ArrowUp");
-    // Don't blur — the debounce path must commit on its own ~350ms after the
-    // last keystroke. Pre-fix (onBlur-only) the URL never updated.
-    await page.waitForFunction(() => /[?&]charts=.*d62/.test(location.search), null, { timeout: 2_000 });
-  });
-
   test("spinner-equivalent after adding a metric preserves the metric (closure freshness)", async ({ page }) => {
     await openHomeWithDefaults(page);
     const trigger = await addOneMetricToFirstChart(page);
@@ -73,27 +60,4 @@ test.describe("Homepage custom charts — time window picker", () => {
     expect(ids.length).toBe(3);
   });
 
-  test("clearing the input leaves it cleared, and blur restores the value", async ({ page }) => {
-    await openHomeWithDefaults(page);
-    const custom = page.locator('[data-testid="day-range-custom"]').first();
-    await expect(custom).toHaveValue("60");
-
-    // An empty field is a state on the way to another value, not an invalid
-    // commit to be corrected: the debounce used to put the old value back
-    // 350ms later, so clearing the field to type a new number snatched it back
-    // under the cursor.
-    await custom.focus();
-    await custom.fill("");
-    await page.waitForTimeout(700);
-    await expect(custom).toHaveValue("");
-
-    // Typing on from there commits normally.
-    await custom.fill("45");
-    await page.waitForFunction(() => /[?&]charts=.*d45/.test(location.search), null, { timeout: 2_000 });
-
-    // Blur is what ends the edit, so an abandoned one reverts there.
-    await custom.fill("");
-    await custom.blur();
-    await expect(custom).toHaveValue("45");
-  });
 });

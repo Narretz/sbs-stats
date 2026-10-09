@@ -5,11 +5,10 @@ name: Node tests
 # pushed from a container without the hooks installed — an agent's branch, a
 # `--no-verify`, a web session — reached main unchecked.
 #
-# Vitest and eslint only, NOT the Playwright suite. The e2e tier needs a
-# browser download plus the `.env.e2e` fixture DBs, which is minutes per run
-# for the tier least likely to catch a regression in a parser or helper fix;
-# the pre-push hook is where that sweep belongs. What runs here is the tier
-# CLAUDE.md describes as "plain Node, no DOM, sub-second".
+# Eslint and both Vitest tiers — the unit tests (plain Node, sub-second) and
+# the component tests (one component at a time in Chromium, seconds) — but NOT
+# the Playwright e2e suite, which builds the app and the `.env.e2e` fixture DBs
+# and takes minutes per run; the pre-push hook is where that sweep belongs.
 #
 # Both triggers, for the reasons python-tests.yml spells out: `push` for the
 # earliest signal on any branch, `pull_request` so the PR's own checks reflect
@@ -21,6 +20,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "vite.config.ts"
+      - "vitest.config.ts"
       - "tsconfig*.json"
       - ".eslintrc*"
       - "eslint.config.*"
@@ -31,6 +31,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "vite.config.ts"
+      - "vitest.config.ts"
       - "tsconfig*.json"
       - ".eslintrc*"
       - "eslint.config.*"
@@ -64,5 +65,17 @@ jobs:
         run: npm run lint
 
       - name: Unit tests
+        id: unit
         if: always() && steps.lint.conclusion != 'cancelled'
         run: npm test
+
+      # The component tier (`*.browser.test.tsx`) mounts components in a real
+      # Chromium — seconds, unlike the Playwright e2e suite, which stays in the
+      # pre-push hook.
+      - name: Install Chromium
+        if: always() && steps.lint.conclusion != 'cancelled'
+        run: npx playwright install --with-deps chromium
+
+      - name: Component tests
+        if: always() && steps.lint.conclusion != 'cancelled'
+        run: npm run test:browser

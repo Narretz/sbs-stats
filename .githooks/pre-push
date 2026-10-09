@@ -37,6 +37,8 @@ cd "$(git rev-parse --show-toplevel)"
 
 echo "pre-push: unit tests"
 npm test --silent
+echo "pre-push: component tests (browser)"
+npm run test:browser --silent
 
 echo "pre-push: full Playwright suite (a few minutes; --no-verify skips it)"
 npm run test:e2e --silent

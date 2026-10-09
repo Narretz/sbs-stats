@@ -85,3 +85,6 @@ scripts/sbu_alfa/fixtures/*
 !scripts/sbu_alfa/fixtures/*.html
 
 .claude/worktrees
+
+# Vitest browser mode: failure screenshots and other attachments
+.vitest/

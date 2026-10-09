@@ -4,11 +4,13 @@ import { test, expect, type Page } from "@playwright/test";
 // moving the end slides the same number of months back, and the current month
 // is "live" — no `end-month=` in the URL.
 //
+// The control's own behaviour — year switching, clamping, the range's ends —
+// is src/components/MonthNav.browser.test.tsx; this is the window it drives.
+//
 // Long Unit (build-fixtures.mjs → SBS_UNITS) is the one fixture with more than
 // 12 months; below that the window controls hide themselves.
 const PAGE = "/?site=sbs&page=monthly&unit=long-unit&months=3";
 const END = "month-end-month";
-const YEAR = "month-end-year";
 
 function monthsBack(n: number): string {
   const [y, m] = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }).split("-").map(Number);
@@ -46,20 +48,4 @@ test.describe("Monthly — end month", () => {
     await expect.poll(() => axisMonths(page)).toEqual([monthsBack(7), monthsBack(6), monthsBack(5)]);
   });
 
-  test("goes no earlier than the data", async ({ page }) => {
-    // 15 months of data: the oldest is 14 back.
-    await page.goto(`${PAGE}&end-month=${monthsBack(14)}`);
-    await expect(page.getByRole("button", { name: "End: previous month" })).toBeDisabled();
-    await expect(page.getByTestId(END).locator("option").first()).toHaveAttribute("value", monthsBack(14));
-  });
-
-  test("a year switch keeps the month, and the latest month is live", async ({ page }) => {
-    await page.goto(`${PAGE}&end-month=${monthsBack(12)}`);
-    const thisYear = monthsBack(0).slice(0, 4);
-    await page.getByTestId(YEAR).selectOption(thisYear);
-    // A year on from 12 months back is this month: live.
-    await expect(page).not.toHaveURL(/end-month=/);
-    await expect(page.getByTestId(END)).toHaveValue(monthsBack(0));
-    await expect(page.getByTestId(END).locator("option:checked")).toHaveText(/\(live\)/);
-  });
 });
