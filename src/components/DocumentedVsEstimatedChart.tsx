@@ -70,18 +70,25 @@ function describeBand(
 export function DocumentedVsEstimatedChart({
   rows,
   bucket = "weekly",
+  provisionalFrom: provisionalFromProp,
 }: {
   rows: MediazonaEstimateRow[];
   bucket?: "weekly" | "monthly";
+  // First provisional bucket, when `rows` is a window rather than the whole
+  // series — the provisional span is the series' newest buckets, not the
+  // window's. null = none in view. Omitted, it's measured off `rows`.
+  provisionalFrom?: string | null;
 }) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
 
   const { data, totDoc, totEst } = useMemo(() => {
-    let totDoc = 0, totEst = 0;
+    // null until a figure is seen: a window past the estimate's last release
+    // has none, and "total 0" would read as zero deaths.
+    let totDoc: number | null = null, totEst: number | null = null;
     const data: Row[] = rows.map((r) => {
-      if (typeof r.documented === "number") totDoc += r.documented;
-      if (typeof r.estimate === "number") totEst += r.estimate;
+      if (typeof r.documented === "number") totDoc = (totDoc ?? 0) + r.documented;
+      if (typeof r.estimate === "number") totEst = (totEst ?? 0) + r.estimate;
       const gap = typeof r.estimate === "number" && typeof r.documented === "number"
         ? Math.max(r.estimate - r.documented, 0) : null;
       return { week: r.week, documented: r.documented, estimate: r.estimate, gap };
@@ -90,8 +97,15 @@ export function DocumentedVsEstimatedChart({
   }, [rows]);
 
   const provisionalSpan = bucket === "monthly" ? PROVISIONAL_MONTHS : PROVISIONAL_WEEKS;
-  const provisionalFrom = data.length > provisionalSpan ? data[data.length - provisionalSpan].week : null;
-  const lastWeek = data.length ? data[data.length - 1].week : null;
+  // The last bucket with a figure: a caller may pad the axis past the data.
+  const lastWeek = [...data].reverse().find((r) => r.documented != null || r.estimate != null)?.week ?? null;
+  // Shaded from the first bucket at or after the cutoff — which must be one of
+  // the axis's categories, or recharts draws nothing.
+  const cutoff = provisionalFromProp !== undefined
+    ? provisionalFromProp
+    : data.length > provisionalSpan ? data[data.length - provisionalSpan].week : null;
+  const provisionalFrom = cutoff == null || lastWeek == null || cutoff > lastWeek
+    ? null : data.find((r) => r.week >= cutoff)?.week ?? null;
 
   const pin = usePinnedChart({
     chartId: "mediazona-documented-vs-estimated",
@@ -114,8 +128,8 @@ export function DocumentedVsEstimatedChart({
         Recorded names vs. estimated losses
       </div>
       <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
-        <span style={{ color: c.lineSecondary }}>● Estimated losses <span style={{ opacity: 0.8 }}>· total {fmt(totEst)}</span></span>
-        <span style={{ color: c.line }}>● Recorded names <span style={{ opacity: 0.8 }}>· total {fmt(totDoc)}</span></span>
+        <span style={{ color: c.lineSecondary }}>● Estimated losses <span style={{ opacity: 0.8 }}>· {totEst == null ? "no figures in this window" : `total ${fmt(totEst)}`}</span></span>
+        <span style={{ color: c.line }}>● Recorded names <span style={{ opacity: 0.8 }}>· {totDoc == null ? "no figures in this window" : `total ${fmt(totDoc)}`}</span></span>
       </div>
       <ResponsiveContainer width="100%" height={300}>
         <ComposedChart data={data} margin={{ top: 8, right: 8, left: -6, bottom: 0 }} {...pin.chartProps}>
