@@ -137,12 +137,12 @@ GitHub Actions in `.github/workflows/`:
   from `sbs.db` because that one is fetched whole by every SBS page and unit
   data is only read by the monthly / compare / combined views. Retirement is
   derived from "no live daily period", never listed.
-- `update-ru-losses-db.yml` — RU losses. 09:30 UTC `schedule:`, plus 09:10
-  Kyiv dispatched by the cron Worker.
+- `update-ru-losses-db.yml` — RU losses. No `schedule:`; the cron Worker
+  dispatches it daily at 09:10 Kyiv.
 - `update-telegram-web-dbs.yml` — GSUA + RU MoD (two jobs, both scrape the
-  public `t.me/s` web preview, no API account). Scheduled at 08:00 / 16:00 /
-  22:00 **Europe/Kyiv** (IANA `timezone:` cron field) to land just after the GS
-  reports, plus 09:10 / 23:10 Kyiv dispatched by the cron Worker; a 2-day idempotent lookback covers GitHub's scheduler lag. The GSUA
+  public `t.me/s` web preview, no API account). No `schedule:`; the cron
+  Worker dispatches it at 09:10 / 23:10 Kyiv, just after the GS reports
+  (~08:00 / 22:00); a 2-day idempotent lookback covers a missed run. The GSUA
   job uploads only what changed (see the app-copy note under Conventions). When
   RU MoD reports a gap day, `scripts/ru_mod/probe_gap.py` reports the difference
   between "the MoD posted nothing" and "the parser rejected what it posted" —
