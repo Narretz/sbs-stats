@@ -14,14 +14,6 @@ import { clampLeft, placePopover } from "@/components/popoverPlacement";
 // Nothing ticked means "all" (`allLabel`) — the same reading the weekday
 // filter gives an empty selection.
 
-// React 18's JSX types don't include the popover attributes; lowercase names
-// pass through as plain HTML attributes. See MetricPicker.
-type PopoverProps = {
-  popover?: "auto" | "manual";
-  popovertarget?: string;
-  popovertargetaction?: "show" | "hide" | "toggle";
-};
-
 export interface MultiSelectOption {
   value: string;
   label: string;
@@ -93,16 +85,12 @@ export function CheckboxMultiSelect({ label, options, selected, onChange, allLab
     : selected.length <= 2 ? selected.map(labelOf).join(", ")
     : `${selected.length} selected`;
 
-  const triggerProps: PopoverProps = { popovertarget: popoverId };
-  const popoverProps: PopoverProps = { popover: "auto" };
-  const closeProps: PopoverProps = { popovertarget: popoverId, popovertargetaction: "hide" };
-
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       <span className="ctl-label">{label}</span>
       <button
         ref={triggerRef}
-        {...triggerProps}
+        popoverTarget={popoverId}
         className="ctl"
         data-testid={testId}
         aria-pressed={active || undefined}
@@ -113,7 +101,7 @@ export function CheckboxMultiSelect({ label, options, selected, onChange, allLab
       <div
         ref={popoverRef}
         id={popoverId}
-        {...popoverProps}
+        popover="auto"
         data-testid={testId ? `${testId}-list` : undefined}
         style={{
           // Reset the UA popover defaults so our placement sticks.
@@ -136,7 +124,7 @@ export function CheckboxMultiSelect({ label, options, selected, onChange, allLab
           <button onClick={() => onChange([])} disabled={selected.length === 0} className="ctl" style={{ fontSize: 10 }}>
             {allLabel}
           </button>
-          <button {...closeProps} className="ctl" style={{ fontSize: 10 }}>Close</button>
+          <button popoverTarget={popoverId} popoverTargetAction="hide" className="ctl" style={{ fontSize: 10 }}>Close</button>
         </div>
         {options.map((o) => {
           const on = selectedSet.has(o.value);

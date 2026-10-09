@@ -51,17 +51,6 @@ const SOURCE_ORDER = [
 const ALL_SOURCES_LISTED: Exclude<ListedSource, (typeof SOURCE_ORDER)[number]> extends never ? true : never = true;
 void ALL_SOURCES_LISTED;
 
-// Minimal local types — React 18's JSX types don't include the popover
-// attributes yet. We pass them through as data on the element and rely on the
-// browser to wire up popover behavior. Names must be lowercase: React 18 logs
-// a "does not recognize the prop" warning for unknown camelCase props on DOM
-// elements but passes lowercase ones through as plain HTML attributes.
-type PopoverProps = {
-  popover?: "auto" | "manual";
-  popovertarget?: string;
-  popovertargetaction?: "show" | "hide" | "toggle";
-};
-
 export function MetricPicker({ selected, onChange, view, units = [], onOpen }: Props) {
   const { theme: t } = useTheme();
   // Per-instance ID — useId() guarantees uniqueness when multiple pickers
@@ -295,15 +284,11 @@ export function MetricPicker({ selected, onChange, view, units = [], onOpen }: P
     </div>
   );
 
-  const triggerProps: PopoverProps = { popovertarget: popoverId };
-  const popoverProps: PopoverProps = { popover: "auto" };
-  const closeProps: PopoverProps = { popovertarget: popoverId, popovertargetaction: "hide" };
-
   return (
     <>
       <button
         ref={triggerRef}
-        {...triggerProps}
+        popoverTarget={popoverId}
         className="ctl"
       >
         {selected.length === 0 ? "+ add metric" : `${selected.length} metric${selected.length === 1 ? "" : "s"} ▾`}
@@ -311,7 +296,7 @@ export function MetricPicker({ selected, onChange, view, units = [], onOpen }: P
       <div
         ref={popoverRef}
         id={popoverId}
-        {...popoverProps}
+        popover="auto"
         style={{
           // The popover API places this in the top layer; we just provide our
           // own placement and chrome. Reset the UA defaults that come with the
@@ -349,7 +334,7 @@ export function MetricPicker({ selected, onChange, view, units = [], onOpen }: P
           >
             Clear all
           </button>
-          <button {...closeProps} className="ctl" style={{ fontSize: 10 }}>
+          <button popoverTarget={popoverId} popoverTargetAction="hide" className="ctl" style={{ fontSize: 10 }}>
             Close
           </button>
         </div>

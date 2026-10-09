@@ -29,7 +29,7 @@ const MARGIN = "100%"; // one viewport above and below — three viewports in al
  * hover. Everything else wants the component below.
  */
 // eslint-disable-next-line react-refresh/only-export-components -- the hook and the box it renders are one mechanism, kept together like usePinnedChart
-export function useNearViewport(ref: RefObject<Element>): boolean {
+export function useNearViewport(ref: RefObject<Element | null>): boolean {
   const [near, setNear] = useState(false);
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export function LazyChartArea({ height, children }: { height: number; children: 
 /** The box that holds a chart's space until it renders. Exactly the plot
  *  area's height, so nothing below it moves when the chart arrives. */
 export function ChartPlaceholder(
-  { inner, height }: { inner: RefObject<HTMLDivElement>; height: number },
+  { inner, height }: { inner: RefObject<HTMLDivElement | null>; height: number },
 ) {
   return <div ref={inner} style={{ height }} data-chart-pending="" />;
 }

@@ -45,12 +45,12 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v5
 
-      # Node 20 and `cache: npm`, matching deploy.yml — a test run that passes
+      # Node 24 and `cache: npm`, matching deploy.yml — a test run that passes
       # on a different major than the one that builds the site is worth less.
       - name: Set up Node
         uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
 
       - name: Install dependencies

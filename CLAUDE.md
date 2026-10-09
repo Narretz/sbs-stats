@@ -1,6 +1,6 @@
 # sbs-stats
 
-A static dashboard of Russia–Ukraine war statistics. React 18 + Vite 5 +
+A static dashboard of Russia–Ukraine war statistics. React 19 + Vite 8 +
 TypeScript frontend, deployed to GitHub Pages. There is **no application
 backend**: each dataset is snapshotted into a SQLite file by a Python ingest
 script (run in CI), uploaded to Cloudflare R2, and read directly in the browser

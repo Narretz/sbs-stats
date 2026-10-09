@@ -63,7 +63,7 @@ interface ChartPinContextValue {
   setHost: (el: HTMLDivElement | null) => void;
   /** The fixed sheet element — read for its height when deciding whether the
    *  pinned card needs scrolling clear of it. */
-  sheetRef: RefObject<HTMLDivElement>;
+  sheetRef: RefObject<HTMLDivElement | null>;
   /** Set by the pinned chart so the sheet's keyboard handler can step without
    *  knowing anything about that chart's data. */
   stepRef: MutableRefObject<((delta: number) => void) | null>;
@@ -164,7 +164,7 @@ export interface ChartPinState {
    *  measure for the scroll-clear, and marks the card as pin-owning so the
    *  sheet's outside-click handler doesn't treat a click on another chart as a
    *  dismissal (it's a re-selection). */
-  cardProps: { ref: RefObject<HTMLDivElement>; "data-chart-pinnable": "" };
+  cardProps: { ref: RefObject<HTMLDivElement | null>; "data-chart-pinnable": "" };
 }
 
 /**

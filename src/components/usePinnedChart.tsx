@@ -73,7 +73,7 @@ export interface PinnedChart {
   pinnedX: string | number | null;
   /** Spread on the chart card's root element. */
   cardProps: {
-    ref: React.RefObject<HTMLDivElement>;
+    ref: React.RefObject<HTMLDivElement | null>;
     "data-chart-pinnable": "";
     onPointerMove: (e: ReactPointerEvent) => void;
     onPointerLeave: () => void;
