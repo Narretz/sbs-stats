@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseMonthsParam, windowStartMonth } from "@/utils/monthRange";
+import {
+  monthsOfYear, parseEndMonthParam, parseMonthsParam, sliceMonthWindow, switchYear, windowStartMonth, yearsBetween,
+} from "@/utils/monthRange";
 import {
   WINDOW_FLOOR, clampDays, daysBetweenInclusive, maxDaysFor, parseDaysParam,
   windowStartDate, windowStartSql,
@@ -151,5 +153,56 @@ describe("the window floor", () => {
     expect(parseDaysParam(null, "2022-02-26")).toBe(3);
     // Without an end date there is no floor to measure against.
     expect(parseDaysParam("99999")).toBe(99_999);
+  });
+});
+
+describe("sliceMonthWindow", () => {
+  const rows = ["2026-01", "2026-02", "2026-03", "2026-04", "2026-05"].map((date) => ({ date }));
+
+  it("is the trailing window when live", () => {
+    expect(sliceMonthWindow(rows, 2, "").map((r) => r.date)).toEqual(["2026-04", "2026-05"]);
+  });
+
+  it("ends the window at the end month", () => {
+    expect(sliceMonthWindow(rows, 2, "2026-03").map((r) => r.date)).toEqual(["2026-02", "2026-03"]);
+    expect(sliceMonthWindow(rows, "all", "2026-02").map((r) => r.date)).toEqual(["2026-01", "2026-02"]);
+  });
+
+  it("slices a bare period list too", () => {
+    expect(sliceMonthWindow(["2026-01", "2026-02", "2026-03"], 1, "2026-02")).toEqual(["2026-02"]);
+  });
+
+  it("reads only the month of a longer date", () => {
+    expect(sliceMonthWindow([{ date: "2026-03-01" }, { date: "2026-04-01" }], 5, "2026-03")).toEqual([{ date: "2026-03-01" }]);
+  });
+});
+
+describe("parseEndMonthParam", () => {
+  it("takes a month and nothing else", () => {
+    expect(parseEndMonthParam("2026-06")).toBe("2026-06");
+    expect(parseEndMonthParam("2026-13")).toBe("");
+    expect(parseEndMonthParam("2026-06-01")).toBe("");
+    expect(parseEndMonthParam(null)).toBe("");
+  });
+});
+
+describe("the end-month picker's year and month", () => {
+  const MIN = "2022-02", MAX = "2026-10";
+
+  it("lists years newest first, and only a year's months in range", () => {
+    expect(yearsBetween(MIN, MAX)).toEqual(["2026", "2025", "2024", "2023", "2022"]);
+    expect(monthsOfYear("2022", MIN, MAX)[0]).toBe("2022-02");
+    expect(monthsOfYear("2025", MIN, MAX)).toHaveLength(12);
+    expect(monthsOfYear("2026", MIN, MAX).at(-1)).toBe("2026-10");
+  });
+
+  it("keeps the month across a year switch where it can", () => {
+    expect(switchYear("2026-03", "2025", MIN, MAX)).toBe("2025-03");
+  });
+
+  it("clamps into a year the range cuts short", () => {
+    expect(switchYear("2023-01", "2022", MIN, MAX)).toBe("2022-02");
+    // Onto the latest month — which is live.
+    expect(switchYear("2025-12", "2026", MIN, MAX)).toBe("2026-10");
   });
 });

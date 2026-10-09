@@ -7,9 +7,9 @@ import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/components/MonthlyTargetPairChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
-import { MonthRangeSelect } from "@/components/MonthRangeSelect";
+import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
-import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
+import { padTrailingMonthly } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import {
   ATTACK_CATEGORY_LABELS,
@@ -86,7 +86,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
     return { cat, catInt, model, modelInt };
   }, [allRows, allModelRows]);
 
-  const endMonth = resolvedEndMonth();
+  const endMonth = yr.endMonth;
   // Months containing attacks UA reported without figures hold a real partial
   // sum, so the bar still renders — flagged as a lower bound rather than
   // blanked. "all" is a lower bound whenever any category was withheld.
@@ -171,7 +171,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
       // No window picker → no scope toggle either; see StatScopeToggle.
       controls={yr.hidden ? undefined : (
         <>
-          <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
+          <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
           <StatScopeToggle />
         </>
       )}

@@ -4,9 +4,9 @@ import { useMonthlyMetricGrid } from "@/hooks/useMonthlyMetricGrid";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
-import { MonthRangeSelect } from "@/components/MonthRangeSelect";
+import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
-import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
+import { padTrailingMonthly } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import {
   RU_LOSSES_METRIC_KEYS,
@@ -34,7 +34,7 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
     loadState, queryMonthly, refreshKey, keys: RU_LOSSES_METRIC_KEYS,
   });
 
-  const endMonth = resolvedEndMonth();
+  const endMonth = yr.endMonth;
 
   // Whole-dataset stats for the synthetic total (off the un-sliced rows, like
   // the per-metric stats the hook computes).
@@ -89,7 +89,7 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
       // No window picker → no scope toggle either; see StatScopeToggle.
       controls={yr.hidden ? undefined : (
         <>
-          <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
+          <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
           <StatScopeToggle />
         </>
       )}

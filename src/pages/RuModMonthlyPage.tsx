@@ -4,9 +4,9 @@ import { useMonthlyMetricGrid } from "@/hooks/useMonthlyMetricGrid";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
-import { MonthRangeSelect } from "@/components/MonthRangeSelect";
+import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
-import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
+import { padTrailingMonthly } from "@/utils/padTrailing";
 import type { MonthlyDataPoint } from "@/types";
 
 interface Props {
@@ -19,11 +19,11 @@ type MetricKey = (typeof RU_MOD_KEYS)[number];
 export function RuModMonthlyPage({ refreshKey }: Props) {
   const { loadState, error, queryMonthly, queryDataWindow } = useRuModDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
-  const { rows, hasData, yr, allStats } = useMonthlyMetricGrid({
-    loadState, queryMonthly, refreshKey, keys: RU_MOD_KEYS,
+  const { allRows, rows, hasData, yr, allStats } = useMonthlyMetricGrid({
+    loadState, queryMonthly, refreshKey, keys: RU_MOD_KEYS, tz: "Europe/Moscow",
   });
 
-  const endMonth = resolvedEndMonth("Europe/Moscow");
+  const endMonth = yr.endMonth;
   const makeDataset = (key: MetricKey): MonthlyDataPoint[] =>
     padTrailingMonthly(
       rows.map((d) => {
@@ -59,7 +59,7 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
       // No window picker → no scope toggle either; see StatScopeToggle.
       controls={yr.hidden ? undefined : (
         <>
-          <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
+          <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
           <StatScopeToggle />
         </>
       )}

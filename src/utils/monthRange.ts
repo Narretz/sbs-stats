@@ -42,3 +42,51 @@ export function windowStartMonth(endMonth: string, months: MonthOption): string 
   d.setUTCMonth(d.getUTCMonth() - (months - 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
+
+// Parse an `end-month=YYYY-MM` URL value; anything else is "" (live).
+export function parseEndMonthParam(raw: string | null): string {
+  return raw && /^\d{4}-(0[1-9]|1[0-2])$/.test(raw) ? raw : "";
+}
+
+// A monthly page's window: the last `months` rows up to and including
+// `endMonth` ("" = no end, i.e. live). Counts rows rather than calendar months,
+// as the window always has — `key` reads a row's YYYY-MM, which is `date` for
+// a data row and the value itself for a bare period list.
+export function sliceMonthWindow<T>(
+  rows: T[],
+  months: MonthOption,
+  endMonth: string,
+  key: (row: T) => string = (r) => (typeof r === "string" ? r : (r as { date: string }).date),
+): T[] {
+  const upTo = endMonth ? rows.filter((r) => key(r).slice(0, 7) <= endMonth) : rows;
+  if (months === "all" || upTo.length <= months) return upTo;
+  return upTo.slice(upTo.length - months);
+}
+
+// The two halves of the end-month picker (MonthNav), within [min, max] — both
+// YYYY-MM. Years newest first; a year's months in calendar order, only those
+// inside the range.
+export function yearsBetween(min: string, max: string): string[] {
+  const out: string[] = [];
+  for (let y = Number(max.slice(0, 4)); y >= Number(min.slice(0, 4)); y--) out.push(String(y));
+  return out;
+}
+
+export function monthsOfYear(year: string, min: string, max: string): string[] {
+  const out: string[] = [];
+  for (let m = 1; m <= 12; m++) {
+    const ym = `${year}-${String(m).padStart(2, "0")}`;
+    if (ym >= min && ym <= max) out.push(ym);
+  }
+  return out;
+}
+
+// Picking another year keeps the month where that year has it, and otherwise
+// takes the nearest one it does: a year cut short by the range's start or end
+// clamps to its first or last month.
+export function switchYear(current: string, year: string, min: string, max: string): string {
+  const ym = `${year}${current.slice(4)}`;
+  if (ym < min) return min;
+  if (ym > max) return max;
+  return ym;
+}

@@ -4,10 +4,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { TargetsStackedChart, type TargetsStackPoint } from "@/components/TargetsStackedChart";
-import { MonthRangeSelect } from "@/components/MonthRangeSelect";
+import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
-import { extendMonthsTo, resolvedEndMonth } from "@/utils/padTrailing";
+import { extendMonthsTo } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import {
   SBU_ALFA_CATEGORY_KEYS,
@@ -85,7 +85,7 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
   // has published 13+ monthly recaps.
   const yr = useMonthlyMonthRange(allPeriods.length);
   const periods = useMemo(
-    () => extendMonthsTo(yr.slice(allPeriods), resolvedEndMonth()),
+    () => extendMonthsTo(yr.slice(allPeriods), yr.endMonth),
     [allPeriods, yr],
   );
   const visibleRows = useMemo(() => {
@@ -198,7 +198,7 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
       // No window picker → no scope toggle either; see StatScopeToggle.
       controls={yr.hidden ? undefined : (
         <>
-          <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
+          <MonthWindowControls yr={yr} min={allPeriods[0] ?? ""} />
           <StatScopeToggle />
         </>
       )}

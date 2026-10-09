@@ -5,9 +5,9 @@ import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DirectionCoverageChart } from "@/components/DirectionCoverageChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
-import { MonthRangeSelect } from "@/components/MonthRangeSelect";
+import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
-import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
+import { padTrailingMonthly } from "@/utils/padTrailing";
 import { CheckboxMultiSelect } from "@/components/CheckboxMultiSelect";
 import { DailyMultiLineChart, type LineSeries } from "@/components/DailyMultiLineChart";
 import { axisLabel, axisSeries, directionColor, directionOptions, directionsTitle, parseDirectionsParam } from "@/utils/gsuaDirections";
@@ -91,7 +91,7 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
     return out;
   }, [allRows]);
 
-  const endMonth = resolvedEndMonth();
+  const endMonth = yr.endMonth;
   const makeDataset = (key: GsuaMetricKey): MonthlyDataPoint[] =>
     padTrailingMonthly(
       rows.map((d) => {
@@ -145,8 +145,13 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
       description={<>Monthly sums of daily totals from Ukrainian General Staff reports. Current month shows end-of-month projection. Parsed deterministically from Telegram <a href="https://t.me/GeneralStaffZSU" rel="nofollow external" target="_blank">@GeneralStaffZSU</a>. May be incomplete or incorrect.</>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />}
       // No window picker → no scope toggle either; see StatScopeToggle.
-      controls={<>
-        {!yr.hidden && <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />}
+      controls={yr.hidden ? undefined : (
+        <>
+          <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
+          <StatScopeToggle />
+        </>
+      )}
+      filters={
         <CheckboxMultiSelect
           label="Direction"
           testId="direction-picker"
@@ -155,8 +160,7 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
           selected={selectedDirections}
           onChange={updateDirections}
         />
-        {!yr.hidden && <StatScopeToggle />}
-      </>}
+      }
       loadState={loadState}
       error={error}
       hasData={hasData}

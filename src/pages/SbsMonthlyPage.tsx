@@ -8,10 +8,10 @@ import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/components/MonthlyTargetPairChart";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
-import { MonthRangeSelect } from "@/components/MonthRangeSelect";
+import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
 import { buildMetrics } from "@/utils/metrics";
-import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
+import { padTrailingMonthly } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import { SBS_UNIT_ALL, TARGET_IDS, TARGET_LABELS, sbsUnitLabel } from "@/types";
 import type { MonthlyDataPoint, MonthlyRow, StatKey, Metric } from "@/types";
@@ -120,7 +120,7 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
     return out;
   }, [allRows]);
 
-  const endMonth = resolvedEndMonth();
+  const endMonth = yr.endMonth;
   const makeDataset = (key: StatKey): MonthlyDataPoint[] =>
     padTrailingMonthly(
       rows.map((d: MonthlyRow) => {
@@ -222,22 +222,17 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
           <span style={{ color: t.textMuted }}>Lighter segment = current-month projection</span>
         </div>
       }
-      // The unit picker shows even when the month range doesn't: a unit with
-      // only a handful of months hides the range picker (see
-      // useMonthlyMonthRange), and hiding the control that got you there would
-      // strand you on that unit.
-      controls={
+      // No window picker → no scope toggle either; see StatScopeToggle.
+      controls={yr.hidden ? undefined : (
         <>
-          <UnitSelect units={unitList} value={unit} onChange={setUnit} />
-          {!yr.hidden && (
-            <>
-              <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
-              {/* No window picker → no scope toggle either; see StatScopeToggle. */}
-              <StatScopeToggle />
-            </>
-          )}
+          <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
+          <StatScopeToggle />
         </>
-      }
+      )}
+      // The unit picker shows even when the window controls don't: a unit with
+      // only a handful of months hides them (see useMonthlyMonthRange), and
+      // hiding the control that got you there would strand you on that unit.
+      filters={<UnitSelect units={unitList} value={unit} onChange={setUnit} />}
       loadState={loadState}
       error={error}
       hasData={hasData}

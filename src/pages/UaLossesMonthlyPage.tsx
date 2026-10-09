@@ -4,9 +4,9 @@ import { useMonthlyMetricGrid } from "@/hooks/useMonthlyMetricGrid";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
-import { MonthRangeSelect } from "@/components/MonthRangeSelect";
+import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
-import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
+import { padTrailingMonthly } from "@/utils/padTrailing";
 import {
   UA_LOSSES_METRIC_KEYS,
   UA_LOSSES_METRIC_LABELS,
@@ -21,11 +21,11 @@ interface Props {
 export function UaLossesMonthlyPage({ refreshKey }: Props) {
   const { loadState, error, queryMonthly, queryDataWindow } = useUaLossesDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
-  const { rows, hasData, yr, allStats } = useMonthlyMetricGrid({
+  const { allRows, rows, hasData, yr, allStats } = useMonthlyMetricGrid({
     loadState, queryMonthly, refreshKey, keys: UA_LOSSES_METRIC_KEYS,
   });
 
-  const endMonth = resolvedEndMonth();
+  const endMonth = yr.endMonth;
   const makeDataset = (key: UaLossesMetricKey): MonthlyDataPoint[] =>
     padTrailingMonthly(
       rows.map((d) => {
@@ -52,7 +52,7 @@ export function UaLossesMonthlyPage({ refreshKey }: Props) {
       // No window picker → no scope toggle either; see StatScopeToggle.
       controls={yr.hidden ? undefined : (
         <>
-          <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
+          <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
           <StatScopeToggle />
         </>
       )}

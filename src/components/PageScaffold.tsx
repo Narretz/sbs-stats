@@ -17,10 +17,14 @@ interface PageScaffoldProps {
   // flex column with an 8px gap. Preserves each page's existing spacing.
   headerVariant?: "block" | "stack";
 
-  // Sticky controls row. Omitted → the row isn't rendered at all (e.g.
-  // Mediazona, and the monthly pages when their dataset is too short for a
-  // time window to mean anything). Only rendered once `hasData`.
+  // Sticky controls row. Omitted → the row isn't rendered at all (the monthly
+  // pages when their dataset is too short for a time window to mean
+  // anything). Only rendered once `hasData`.
   controls?: ReactNode;
+  // A second line of the controls row, under the generic window/scope
+  // controls: what narrows the page to part of the dataset (SBS's unit,
+  // GSUA's directions).
+  filters?: ReactNode;
 
   // Load gating — identical across every dataset page.
   loadState: LoadState;
@@ -37,7 +41,8 @@ interface PageScaffoldProps {
 
 const HEADER_STACK: React.CSSProperties = { display: "flex", gap: 8, flexDirection: "column", marginBottom: 16 };
 const HEADER_BLOCK: React.CSSProperties = { marginBottom: 16 };
-const CONTROLS_ROW: React.CSSProperties = { display: "flex", alignItems: "center", flexWrap: "wrap", marginBottom: 20 };
+const CONTROLS_STICKY: React.CSSProperties = { display: "flex", flexDirection: "column", marginBottom: 20 };
+const CONTROLS_ROW: React.CSSProperties = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: "inherit" };
 
 // Shared chrome for a dataset page: header (title + description + data-window),
 // the sticky controls row, and the loading / error / ready gate. Pages supply
@@ -45,7 +50,7 @@ const CONTROLS_ROW: React.CSSProperties = { display: "flex", alignItems: "center
 // here. See the per-dataset pages for usage.
 export function PageScaffold({
   title, description, descriptionStyle, dataWindow, headerExtra, headerVariant = "stack",
-  controls, loadState, error, hasData, loadingMessage,
+  controls, filters, loadState, error, hasData, loadingMessage,
   gridChildren, children,
 }: PageScaffoldProps) {
   const { theme: t } = useTheme();
@@ -77,9 +82,10 @@ export function PageScaffold({
           is nothing for a day-range / month-range / scope control to act on, so
           showing them over the loading screen offers choices that do nothing.
           Also keeps them off the error screen. */}
-      {ready && controls !== undefined && (
-        <div className="page-controls-sticky" style={CONTROLS_ROW}>
-          {controls}
+      {ready && (controls !== undefined || filters !== undefined) && (
+        <div className="page-controls-sticky" style={CONTROLS_STICKY}>
+          {controls !== undefined && <div className="page-controls-row" style={CONTROLS_ROW}>{controls}</div>}
+          {filters !== undefined && <div className="page-controls-row" style={CONTROLS_ROW}>{filters}</div>}
         </div>
       )}
 

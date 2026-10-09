@@ -6,10 +6,10 @@ import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { CitTerritoryChart } from "@/components/CitTerritoryChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
-import { MonthRangeSelect } from "@/components/MonthRangeSelect";
+import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
 import { ChartGrid } from "@/components/Layout";
-import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
+import { padTrailingMonthly } from "@/utils/padTrailing";
 import { FONTS } from "@/theme";
 import {
   CIT_METRIC_KEYS,
@@ -35,8 +35,8 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
   const { loadState, error, queryMonthly, queryTerritory,
           queryReconciliation, queryDataWindow } = useCitCiviliansDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
-  const { rows, hasData, yr, allStats } = useMonthlyMetricGrid<CitMonthlyRow, CitMetricKey>({
-    loadState, queryMonthly, refreshKey, keys: CIT_METRIC_KEYS,
+  const { allRows, rows, hasData, yr, allStats } = useMonthlyMetricGrid<CitMonthlyRow, CitMetricKey>({
+    loadState, queryMonthly, refreshKey, keys: CIT_METRIC_KEYS, tz: "Europe/Moscow",
   });
 
   const [territory, setTerritory] = useState<CitTerritoryRow[]>([]);
@@ -50,7 +50,7 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
     }
   }, [loadState, queryTerritory, queryReconciliation, refreshKey]);
 
-  const endMonth = resolvedEndMonth("Europe/Moscow");
+  const endMonth = yr.endMonth;
 
   // A month is projected from the days actually covered by a report, not from
   // today's date: CIT can be a day or two behind, and a weekend post covers two
@@ -86,7 +86,7 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="cit" />}
       controls={yr.hidden ? undefined : (
         <>
-          <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
+          <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
           <StatScopeToggle />
         </>
       )}

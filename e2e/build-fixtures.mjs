@@ -132,6 +132,9 @@ export const SBS_UNITS = [
   { slug: "gone-unit", title: "Gone Unit", active: 0, months: 2, hit: 50, retiredMonths: true },
   // Registry row with no stats at all: must NOT appear in the picker.
   { slug: "empty-unit", title: "Empty Unit", active: 1, months: 0, hit: 0 },
+  // The one dataset past the monthly picker's 12-month threshold, for the
+  // window controls that only show there (month-end-picker.spec).
+  { slug: "long-unit", title: "Long Unit", active: 1, months: 15, hit: 300 },
 ];
 
 const UNIT_COLS = [

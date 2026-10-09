@@ -4,9 +4,9 @@ import { useMonthlyMetricGrid } from "@/hooks/useMonthlyMetricGrid";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
-import { MonthRangeSelect } from "@/components/MonthRangeSelect";
+import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
-import { padTrailingMonthly, resolvedEndMonth } from "@/utils/padTrailing";
+import { padTrailingMonthly } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import { armourBreakdown } from "@/utils/armourBreakdown";
 import {
@@ -35,7 +35,7 @@ export function UaLossesRuModMonthlyPage({ refreshKey }: Props) {
     loadState, queryMonthly, refreshKey, keys: UA_LOSSES_RU_MOD_METRIC_KEYS,
   });
 
-  const endMonth = resolvedEndMonth();
+  const endMonth = yr.endMonth;
 
   // Felix's itemisation of the MoD's armour figure, per month (see the daily page).
   const armourByMonth = useMemo(() => {
@@ -97,7 +97,7 @@ export function UaLossesRuModMonthlyPage({ refreshKey }: Props) {
       // No window picker → no scope toggle either; see StatScopeToggle.
       controls={yr.hidden ? undefined : (
         <>
-          <MonthRangeSelect options={yr.monthOptions} value={yr.months} onChange={yr.setMonths} />
+          <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
           <StatScopeToggle />
         </>
       )}

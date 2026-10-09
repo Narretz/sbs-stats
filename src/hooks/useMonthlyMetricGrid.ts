@@ -16,12 +16,13 @@ import { maxMedian } from "@/utils/windowStats";
 // reference (a module-level const) so `allStats` doesn't recompute each render.
 //
 export function useMonthlyMetricGrid<Row extends { date: string }, K extends string = never>({
-  loadState, queryMonthly, refreshKey, keys,
+  loadState, queryMonthly, refreshKey, keys, tz,
 }: {
   loadState: LoadState;
   queryMonthly: () => Row[];
   refreshKey?: number;
   keys?: readonly K[];
+  tz?: string; // see useMonthlyMonthRange
 }): {
   allRows: Row[];
   rows: Row[];
@@ -39,7 +40,7 @@ export function useMonthlyMetricGrid<Row extends { date: string }, K extends str
     }
   }, [loadState, queryMonthly, refreshKey]);
 
-  const yr = useMonthlyMonthRange(allRows.length);
+  const yr = useMonthlyMonthRange(allRows.length, undefined, tz);
   const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
 
   const allStats = useMemo(() => {
