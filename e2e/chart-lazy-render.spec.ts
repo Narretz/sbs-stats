@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
 // Charts render when they are nearly in view, not all at once.
 //
@@ -6,74 +6,14 @@ import { test, expect, type Page } from "@playwright/test";
 // x hit/destroyed), each with one <Line> per day in the window. Rendering them
 // up front blocked the main thread for ~5.6s at a 120-day window before the
 // page would answer a click — almost all of it for charts nobody had scrolled
-// to. See LazyChartArea.
+// to. See LazyChartArea, whose own behaviour (only nearby areas render, the
+// placeholders hold the height, nothing is unrendered) is
+// src/components/LazyChartArea.browser.test.tsx. What stays here is the real
+// page: a chart that arrived by scrolling works like any other.
 
 const HOURLY = "/?site=sbs&page=hourly";
 
-const counts = (page: Page) =>
-  page.evaluate(() => ({
-    rendered: document.querySelectorAll(".recharts-surface").length,
-    pending: document.querySelectorAll("[data-chart-pending]").length,
-    height: document.documentElement.scrollHeight,
-  }));
-
-// `behavior: "instant"` because the app sets `scroll-behavior: smooth`, and a
-// test that reads scrollY mid-animation measures the animation.
-async function scrollTo(page: Page, y: number | "bottom") {
-  await page.evaluate((target) => {
-    const top = target === "bottom" ? document.documentElement.scrollHeight : (target as number);
-    window.scrollTo({ top, behavior: "instant" as ScrollBehavior });
-  }, y);
-  await page.waitForTimeout(600);
-}
-
 test.describe("Charts render on approach", () => {
-  test("only the charts near the viewport render, and the rest hold their space", async ({ page }) => {
-    await page.goto(HOURLY);
-    await page.locator(".hourly-card").first().waitFor();
-    await page.waitForTimeout(1200);
-
-    const cards = await page.locator(".hourly-card").count();
-    const first = await counts(page);
-    // A handful, not all of them — and every card that hasn't drawn its chart
-    // is holding a box instead.
-    expect(first.rendered).toBeGreaterThan(0);
-    expect(first.rendered).toBeLessThan(cards / 2);
-    expect(first.rendered + first.pending).toBe(cards);
-  });
-
-  test("the page is its full height from the first frame", async ({ page }) => {
-    await page.goto(HOURLY);
-    await page.locator(".hourly-card").first().waitFor();
-    await page.waitForTimeout(1200);
-    const before = (await counts(page)).height;
-
-    await scrollTo(page, "bottom");
-    await scrollTo(page, 0);
-    const after = await counts(page);
-
-    // The placeholder is exactly the plot area's height, so charts arriving
-    // neither lengthen the page nor shift what is under the reader's cursor.
-    expect(after.height).toBe(before);
-    expect(after.rendered).toBeGreaterThan(0);
-  });
-
-  test("scrolling renders more, and nothing is ever taken back", async ({ page }) => {
-    await page.goto(HOURLY);
-    await page.locator(".hourly-card").first().waitFor();
-    await page.waitForTimeout(1200);
-    const start = (await counts(page)).rendered;
-
-    await scrollTo(page, "bottom");
-    const bottom = (await counts(page)).rendered;
-    expect(bottom).toBeGreaterThan(start);
-
-    // Back where we began: what rendered stays rendered. Unmounting would pay
-    // the expensive first render again on the way back.
-    await scrollTo(page, 0);
-    expect((await counts(page)).rendered).toBeGreaterThanOrEqual(bottom);
-  });
-
   test("a chart that arrived by scrolling is fully interactive", async ({ page }) => {
     await page.goto(HOURLY);
     await page.locator(".hourly-card").first().waitFor();

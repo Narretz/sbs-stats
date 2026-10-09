@@ -5,8 +5,9 @@ import { FIXED_TODAY } from "./build-fixtures.mjs";
 // it differently: bar charts resolve a click to a category band, the hourly
 // overlay has a *numeric* x-axis (so the pin stores a number, not a date
 // string), and the stacked direction chart carries one bar per direction. This
-// covers one chart of each family end to end; the fine-grained behaviour lives
-// in chart-pin-sheet.spec.ts.
+// covers one chart of each family end to end, on a real page; the sheet's own
+// behaviour (stepping, keys, closing, one pin at a time, a pin surviving new
+// data) is src/components/ChartSheet.browser.test.tsx.
 
 const sheet = (p: Page) => p.locator(".chart-sheet[data-open]");
 const label = (p: Page) => p.locator(".chart-sheet-label");
@@ -30,6 +31,19 @@ async function hasCursor(card: Locator): Promise<boolean> {
       return Math.abs(x1 - x2) < 0.5 && Math.abs(y1 - y2) > 1;
     }));
 }
+
+test("a daily line chart pins the clicked date, with its values", async ({ page }) => {
+  await page.goto("/?site=ru-air-attacks-gsua&page=daily&days=7");
+  const card = page.locator(".chart-card#all-drones-missiles-launched");
+  await pin(page, card, 0.9);
+  await expect(page.locator(".chart-sheet-title")).toHaveText("All — Drones + Missiles · Launched");
+  // The last populated day in the fixture; 0.9 across a 7-day window lands on it.
+  const d = new Date(`${FIXED_TODAY}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  await expect(label(page)).toHaveText(d.toISOString().slice(0, 10).split("-").reverse().join("."));
+  await expect(sheet(page)).toContainText("Launched");
+  expect(await hasCursor(card)).toBe(true);
+});
 
 test("monthly bar chart pins and marks the bar", async ({ page }) => {
   // Not the SBS monthly page: its fixture is seven days inside one month and
