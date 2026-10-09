@@ -180,12 +180,17 @@ export function HomePage({ onGoToSite }: Props) {
   // so the first unit metric has to be added by id (a shared link) or via the
   // group the picker renders once this resolves.
   const [sbsUnitList, setSbsUnitList] = useState<SbsUnit[]>([]);
+  // On the hook's state, not the hook: it returns a new object every render,
+  // so depending on that ran this after every render once the DB was ready —
+  // a new list each time, so another render, without end. The page re-rendered
+  // nonstop from the first picker opened.
+  const { loadState: unitsLoadState, queryUnits } = sbsUnits;
   useEffect(() => {
-    if (sbsUnits.loadState !== "ready") return;
-    const list = sbsUnits.queryUnits();
+    if (unitsLoadState !== "ready") return;
+    const list = queryUnits();
     setSbsUnitList(list);
     setSbsUnitNames(list.map((u) => ({ slug: u.slug, name: sbsUnitLabel(u) })));
-  }, [sbsUnits]);
+  }, [unitsLoadState, queryUnits]);
   const gsua = useDatabaseGsua({ enabled: needed.has("gsua") });
   const ruLosses = useDatabaseRuLosses({ enabled: needed.has("ru-losses") });
   const uaLosses = useDatabaseUaLosses({ enabled: needed.has("ua-losses") });
