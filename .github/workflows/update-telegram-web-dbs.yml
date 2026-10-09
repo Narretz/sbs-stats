@@ -93,7 +93,13 @@ jobs:
       # Web-preview path: parses t.me/s/GeneralStaffZSU as static HTML. (telethon
       # needs interactive login; the Nitter/FB scripts still exist but are no
       # longer used — slated for removal.) GSUA_DB_NAME is inherited from job env.
+      # `id:` + $GITHUB_OUTPUT: the scraper writes `changed=true|false` — did it
+      # store a new post or version (scrape_general_staff.report_changed). Most
+      # runs land between GS reports and store nothing; re-uploading the
+      # unchanged ~25 MB DB three times a day overwrote a live object for no
+      # reason.
       - name: Scrape GSUA reports (web preview)
+        id: scrape
         working-directory: scripts/gsua
         run: python scrape_general_staff.py --source web --since "${{ steps.cutoff.outputs.since }}"
 
@@ -116,18 +122,54 @@ jobs:
             --blank posts.text \
             --sql scripts/gsua/app_db.sql
 
-      - name: Upload GSUA DB to R2 (full + app)
+      # The app copy is compared with the one on R2, not with "did the scrape
+      # change the data": a change to how it is built (scripts/gsua/app_db.sql,
+      # build_app_db.py) changes it with no new data at all, and must still
+      # reach the site. A failed download (first run) fingerprints as
+      # `missing`, so it uploads.
+      - name: Fetch the app copy currently on R2
+        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          for variant in "$GSUA_DB_NAME" "${GSUA_DB_NAME%.db}.app.db"; do
-            npx --yes wrangler@4 r2 object put \
-              "$R2_BUCKET/$variant" \
-              --file "scripts/gsua/output/$variant" \
-              --content-type application/vnd.sqlite3 \
-              --remote
-          done
+          npx --yes wrangler@4 r2 object get \
+            "$R2_BUCKET/${GSUA_DB_NAME%.db}.app.db" \
+            --file "${{ runner.temp }}/r2.app.db" \
+            --remote
+
+      # By contents, not bytes (scripts/db_fingerprint.py).
+      - name: Does the app copy differ from R2's?
+        id: app
+        run: |
+          app=$(python3 scripts/db_fingerprint.py "scripts/gsua/output/${GSUA_DB_NAME%.db}.app.db")
+          r2app=$(python3 scripts/db_fingerprint.py "${{ runner.temp }}/r2.app.db")
+          if [ "$app" != "$r2app" ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
+          echo "full DB changed: ${{ steps.scrape.outputs.changed }} · app copy differs from R2: $([ "$app" != "$r2app" ] && echo true || echo false)"
+
+      - name: Upload GSUA DB to R2 (full)
+        if: steps.scrape.outputs.changed == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/$GSUA_DB_NAME" \
+            --file "scripts/gsua/output/$GSUA_DB_NAME" \
+            --content-type application/vnd.sqlite3 \
+            --remote
+
+      - name: Upload GSUA DB to R2 (app)
+        if: steps.app.outputs.changed == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/${GSUA_DB_NAME%.db}.app.db" \
+            --file "scripts/gsua/output/${GSUA_DB_NAME%.db}.app.db" \
+            --content-type application/vnd.sqlite3 \
+            --remote
 
       # Always, so a scrape that dies still reports what it found on the way.
       - name: Annotate ingest diagnostics

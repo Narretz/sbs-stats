@@ -2911,6 +2911,34 @@ class TestVersioning:
         assert _latest_ce(conn) == 140        # latest version wins
         conn.close()
 
+    def test_reports_changed_only_when_a_version_was_stored(self, tmp_path, monkeypatch):
+        # What the workflow gates the full DB's upload on (GITHUB_OUTPUT).
+        out = tmp_path / "gh_output"
+        monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+        db = tmp_path / "g.db"
+
+        conn = gs.open_db(db)
+        assert _ingest(conn, _report_text(100)) is True
+        conn.commit()
+        assert gs.report_changed(conn) is True
+        conn.close()
+
+        # A later run re-scrapes the same post unchanged: nothing to upload.
+        conn = gs.open_db(db)
+        assert _ingest(conn, _report_text(100)) is False
+        conn.commit()
+        assert gs.report_changed(conn) is False
+        conn.close()
+
+        # …and then an edit: a new version is a change.
+        conn = gs.open_db(db)
+        assert _ingest(conn, _report_text(140)) is True
+        conn.commit()
+        assert gs.report_changed(conn) is True
+        conn.close()
+
+        assert out.read_text().splitlines() == ["changed=true", "changed=false", "changed=true"]
+
     def test_directions_versioned_with_post(self, tmp_path):
         conn = gs.open_db(tmp_path / "g.db")
         _ingest(conn, _report_text(100, pokrovsk=5))

@@ -142,7 +142,8 @@ GitHub Actions in `.github/workflows/`:
 - `update-telegram-web-dbs.yml` — GSUA + RU MoD (two jobs, both scrape the
   public `t.me/s` web preview, no API account). Scheduled at 08:00 / 16:00 /
   22:00 **Europe/Kyiv** (IANA `timezone:` cron field) to land just after the GS
-  reports, plus 09:10 / 23:10 Kyiv dispatched by the cron Worker; a 2-day idempotent lookback covers GitHub's scheduler lag. When
+  reports, plus 09:10 / 23:10 Kyiv dispatched by the cron Worker; a 2-day idempotent lookback covers GitHub's scheduler lag. The GSUA
+  job uploads only what changed (see the app-copy note under Conventions). When
   RU MoD reports a gap day, `scripts/ru_mod/probe_gap.py` reports the difference
   between "the MoD posted nothing" and "the parser rejected what it posted" —
   `--source web` by default; it exits 2 when the preview
@@ -355,8 +356,12 @@ bash scripts/setup_env.sh                 # npm + pip bootstrap for a fresh cont
   (GSUA/RU MoD blank `posts.text` / `raw_text`, ~3-5x smaller; CIT blanks
   `reports.body_text` plus the per-clause `casualties.raw_label` /
   `region_raw`, 11 MB → ~2 MB) that the frontend reads in production.
-  `fetch_prod_dbs.sh` downloads both; CI always uploads them together, built
-  from the same source, so they can't drift on R2.
+  `fetch_prod_dbs.sh` downloads both; CI builds them from the same source, so
+  they can't drift on R2. (GSUA uploads each only when it changed: the full DB
+  when the scraper reports it stored something (`changed=`, from the
+  connection's row changes), the app copy when its contents differ from R2's
+  — so a change to how the app copy is built still ships with no new data. See
+  `scripts/db_fingerprint.py`.)
   **GSUA and RU MoD read the app copy in dev too**, so local range-fetch
   behaviour matches the deployed site — and there they drift **locally**: a
   reparse or ingest rewrites `<name>.db` and leaves the app copy alone, so dev

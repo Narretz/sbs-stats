@@ -2952,6 +2952,24 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def report_changed(conn: sqlite3.Connection) -> bool:
+    """Tell the workflow whether the full DB changed, so an unchanged one isn't
+    re-uploaded: most runs land between GS reports and store nothing.
+
+    `total_changes` is every row this connection inserted, updated or deleted —
+    a new post, a new version of an edited one, and a migration in open_db
+    that copies a table's rows — so it doesn't depend on each write path
+    reporting for itself. (An ALTER that only adds a column changes no rows;
+    that DB ships with the next real change.)"""
+    changed = conn.total_changes > 0
+    out = os.environ.get("GITHUB_OUTPUT")
+    if out:
+        with open(out, "a", encoding="utf-8") as fh:
+            fh.write(f"changed={'true' if changed else 'false'}\n")
+    log.info(f"[web] DB {'changed' if changed else 'unchanged'} ({conn.total_changes} row change(s))")
+    return changed
+
+
 async def main():
     args = parse_args()
 
@@ -2965,6 +2983,7 @@ async def main():
                 debug_rejected=args.debug_rejected,
                 max_pages=args.max_pages, sleep=args.sleep,
             )
+            report_changed(conn)
         finally:
             conn.close()
         return
