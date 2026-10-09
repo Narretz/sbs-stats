@@ -169,6 +169,13 @@ bash scripts/fetch_prod_dbs.sh sbs rubikon   # just these DBs (exact names)
 # Python ingest scripts: see each scripts/<x>/README.md
 pip install -r scripts/requirements.txt   # the devcontainer does this on create
 bash scripts/setup_env.sh                 # npm + pip bootstrap for a fresh container
+
+# npm's postinstall: copies sql.js + sql.js-httpvfs into public/vendor/ and
+# points core.hooksPath at .githooks. Run it by hand wherever postinstall
+# didn't — a new worktree or clone under `ignore-scripts=true` — and after
+# upgrading either package. Without it every DB load fails ("Failed to load
+# sql.js script"), and the whole e2e suite times out rather than failing fast.
+node scripts/setup-dev.cjs
 ```
 
 ## Conventions
