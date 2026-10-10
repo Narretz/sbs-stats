@@ -229,3 +229,28 @@ def test_save_then_input_one_sector(tmp_path, capsys, monkeypatch):
     out = capsys.readouterr().out
     assert "00–09h hindcast" in out
     assert "* Pokrovsk" in out and "1/1 sectors" in out
+
+
+def test_vis_formatting():
+    assert [report._vis(m) for m in (None, 20.0, 430.0, 9_900.0, 44_000.0)] == \
+        ["–", "<0.1", "0.4", "9.9", ">10"]
+
+
+def test_real_open_meteo_response(capsys):
+    """A real fetch (2026-10-10 19:05 Kyiv), saved with --save: pins the
+    response shape and that every requested field came back filled.
+    The next morning's forecast had dense fog (20–40 m) over the Donbas."""
+    path = Path(__file__).parent / "fixtures" / "live-2026-10-10.json"
+    saved = json.loads(path.read_text())
+    for item in saved["response"]:
+        for key in report.HOURLY:
+            assert all(v is not None for v in item["hourly"][key]), key
+
+    assert report.main(["--input", str(path), "--json"]) == 0
+    data = {s["key"]: s for s in json.loads(capsys.readouterr().out)["sectors"]}
+    today, tomorrow = data["Pokrovsk"]["days"]
+    assert today["hindcast_hours"] == 20   # 00:00–19:00 are before 19:05
+    assert tomorrow["hindcast_hours"] == 0
+    assert tomorrow["drones"]["rating"] == "POOR"
+    assert tomorrow["drones"]["reasons"]["fog"] >= 6
+    assert data["Orikhiv"]["days"][1]["drones"]["rating"] == "GOOD"

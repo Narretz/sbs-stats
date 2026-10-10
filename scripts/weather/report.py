@@ -118,7 +118,10 @@ def _f(x: float | None, fmt: str = "{:.0f}", none: str = "–") -> str:
 def _vis(m: float | None) -> str:
     if m is None:
         return "–"
-    return ">10" if m >= 10_000 else f"{m / 1000:.1f}"
+    if m >= 10_000:
+        return ">10"
+    # Dense model fog comes back as 20–40 m, which would round to "0.0".
+    return "<0.1" if m < 100 else f"{m / 1000:.1f}"
 
 
 def _drones(s: assess.DaySummary) -> str:

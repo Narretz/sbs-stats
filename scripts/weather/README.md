@@ -75,5 +75,9 @@ point that is 10 km off still samples the same weather.
 
 ## Tests
 
-`bash scripts/test_python.sh scripts/weather`. The tests use synthetic
-payloads in Open-Meteo's column-wise shape and make no network calls.
+`bash scripts/test_python.sh scripts/weather`. No network calls: most cases
+are synthetic payloads in Open-Meteo's column-wise shape. One case replays
+`fixtures/live-2026-10-10.json`, a real `--save` from both days of
+2026-10-10/11. Every requested field came back filled there, and from the
+historical archive too (checked against 2025-01-20). The fixture pins that,
+plus the response shape.
