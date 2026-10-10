@@ -903,7 +903,11 @@ export function ComparePage({ preset }: Props) {
                           aria-label="Column unit"
                           value={sourceToken(c)}
                           onChange={(e) => setColumnSource(c.id, parseSourceToken(e.target.value))}
-                          style={{ textTransform: "none", color: t.text }}
+                          // A native select is as wide as its longest option —
+                          // here a full "SBS · <unit>" label — which made every
+                          // column that wide. Size it to the selection instead
+                          // (Firefox ignores this and keeps the old width).
+                          style={{ textTransform: "none", color: t.text, fieldSizing: "content" }}
                         >
                           {/* Until the sub-unit list loads, a unit column
                               still needs its own option or the select shows
@@ -930,7 +934,7 @@ export function ComparePage({ preset }: Props) {
                           aria-label="Column month"
                           value={monthValue(c)}
                           onChange={(e) => setColumnMonth(c.id, e.target.value)}
-                          style={{ textTransform: "none" }}
+                          style={{ textTransform: "none", fieldSizing: "content" }}
                         >
                           {monthOptions(c).map((o) => (
                             <option key={o.value} value={o.value}>{o.label}</option>
