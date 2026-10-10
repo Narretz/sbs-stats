@@ -22,7 +22,8 @@
 //   --no-sub         hide sub-category rows (shown by default)
 //   --pct <mode>     first | prev — what the % change compares against
 //   --full           capture the whole page, not just the table
-//   --width <px>     viewport width in CSS px, default 800. The table is fluid,
+//   --width <px>     layout width in CSS px, default 800 (a zoom above 100
+//                    widens the viewport to keep it). The table is fluid,
 //                    so a wide viewport spreads the numbers away from their
 //                    labels; ~650px is its nowrap floor, below which the
 //                    viewport stops mattering.
@@ -204,7 +205,12 @@ async function main() {
 
   const dsf = opts.dsf ?? Math.max(1, 100 / opts.zoom);
   const playwright = await import("playwright");
-  const { browser, context } = await launchBrowser(playwright, dsf, opts.width);
+  // Zooming in shrinks the layout width by the same factor, and below the
+  // table's nowrap floor it scrolls inside its card and the shot is cut off.
+  // Widen the viewport to match, so --width stays the layout width and a zoom
+  // only enlarges the text.
+  const viewportWidth = Math.round(opts.width * Math.max(1, opts.zoom / 100));
+  const { browser, context } = await launchBrowser(playwright, dsf, viewportWidth);
   // The app reads its theme from localStorage on first render, so it has to be
   // there before the bundle runs — a click on the toggle afterwards would be a
   // second paint and a race with the screenshot.
