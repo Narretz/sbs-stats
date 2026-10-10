@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
 // doesn't exist yet — the DB is still being fetched and no chart has rendered.
 // So we wait for the page to report `ready` and then poll briefly for the id.
 //
-// Two scrolls, not one: recharts' ResponsiveContainer measures itself after
+// Two scrolls, not one: a responsive recharts chart measures itself after
 // mount, so cards above the target grow a moment later and the first scroll
 // lands short. The second pass, after layout settles, corrects it.
 const POLL_MS = 50;

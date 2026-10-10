@@ -1,4 +1,5 @@
-import { Bar, Cell } from "recharts";
+import { Bar } from "recharts";
+import { styledBar } from "@/components/barShape";
 import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
 import { MonthlyChartCard } from "@/components/MonthlyChartCard";
@@ -55,16 +56,10 @@ export function TargetsStackedChart({ title, data, wfull }: Props) {
         { label: "Damaged", color: c.damaged },
       ]}
     >
-      <Bar dataKey="destroyed" stackId="a" name="Destroyed" maxBarSize={MAX_BAR_SIZE}>
-        {data.map((_, i) => (
-          <Cell key={`d-${i}`} fill={i === lastIdx ? c.destroyedCurrent : c.destroyed} />
-        ))}
-      </Bar>
-      <Bar dataKey="damaged" stackId="a" name="Damaged" radius={[3, 3, 0, 0]} maxBarSize={MAX_BAR_SIZE}>
-        {data.map((_, i) => (
-          <Cell key={`m-${i}`} fill={i === lastIdx ? c.barCurrent : c.damaged} />
-        ))}
-      </Bar>
+      <Bar dataKey="destroyed" stackId="a" name="Destroyed" maxBarSize={MAX_BAR_SIZE}
+        shape={styledBar((_, i) => ({ fill: i === lastIdx ? c.destroyedCurrent : c.destroyed }))} />
+      <Bar dataKey="damaged" stackId="a" name="Damaged" radius={[3, 3, 0, 0]} maxBarSize={MAX_BAR_SIZE}
+        shape={styledBar((_, i) => ({ fill: i === lastIdx ? c.barCurrent : c.damaged }))} />
     </MonthlyChartCard>
   );
 }

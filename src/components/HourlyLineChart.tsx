@@ -1,6 +1,6 @@
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  ReferenceLine, ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DailyDaySeries, EodEstimate } from "@/types";
@@ -389,42 +389,40 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
         <span style={{ color: t.textMuted }}>Σ TOTAL {windowTotal.toLocaleString()}</span>
       </div>
 {near ? (
-      <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
-          <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
-          <XAxis dataKey="hour"
-            tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-            tickLine={false} axisLine={false}
-            ticks={Array.from({ length: 25 }, (_, i) => i)}
-            tickFormatter={(h: number) => `${h}`}
-            type="number"
-            domain={[0, 24]}
+      <LineChart responsive style={{ width: "100%", height: 220 }} data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
+        <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
+        <XAxis dataKey="hour"
+          tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+          tickLine={false} axisLine={false}
+          ticks={Array.from({ length: 25 }, (_, i) => i)}
+          tickFormatter={(h: number) => `${h}`}
+          type="number"
+          domain={[0, 24]}
+        />
+        <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, yScaleMax)]} />
+        {pin.tooltip}
+        <ReferenceLine y={max} stroke={c.maxReference} strokeDasharray="4 4" strokeOpacity={0.6}
+          label={{ value: "MAX", position: "insideTopRight", fontSize: 9, fill: c.maxReference, fontFamily: FONTS.mono }} />
+        <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
+          label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
+        {pastSeries.map((s, i) => (
+          <Line key={s.date} type="monotone" dataKey={s.date}
+            stroke={c.hourlyPastDay} strokeWidth={1} strokeOpacity={getOpacity(i)}
+            dot={false} activeDot={{ r: 3, fill: c.hourlyPastDay, opacity: 0.6 }}
+            connectNulls isAnimationActive={false}
           />
-          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, yScaleMax)]} />
-          {pin.tooltip}
-          <ReferenceLine y={max} stroke={c.maxReference} strokeDasharray="4 4" strokeOpacity={0.6}
-            label={{ value: "MAX", position: "insideTopRight", fontSize: 9, fill: c.maxReference, fontFamily: FONTS.mono }} />
-          <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
-            label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
-          {pastSeries.map((s, i) => (
-            <Line key={s.date} type="monotone" dataKey={s.date}
-              stroke={c.hourlyPastDay} strokeWidth={1} strokeOpacity={getOpacity(i)}
-              dot={false} activeDot={{ r: 3, fill: c.hourlyPastDay, opacity: 0.6 }}
-              connectNulls isAnimationActive={false}
-            />
-          ))}
-          {primarySeries && (
-            <Line key={primarySeries.date} type="monotone" dataKey={primarySeries.date}
-              stroke={c.hourlyToday} strokeWidth={3.5} strokeOpacity={1}
-              dot={false} activeDot={{ r: 4, fill: c.hourlyToday }}
-              connectNulls isAnimationActive={false}
-            />
-          )}
-          {/* Painted last so it reads as a crosshair over the series,
-              not a stub buried under a bar. */}
-          {pin.cursor}
-        </LineChart>
-      </ResponsiveContainer>
+        ))}
+        {primarySeries && (
+          <Line key={primarySeries.date} type="monotone" dataKey={primarySeries.date}
+            stroke={c.hourlyToday} strokeWidth={3.5} strokeOpacity={1}
+            dot={false} activeDot={{ r: 4, fill: c.hourlyToday }}
+            connectNulls isAnimationActive={false}
+          />
+        )}
+        {/* Painted last so it reads as a crosshair over the series,
+            not a stub buried under a bar. */}
+        {pin.cursor}
+      </LineChart>
       ) : (
         <ChartPlaceholder inner={plotRef} height={220} />
       )}

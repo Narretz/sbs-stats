@@ -1,6 +1,7 @@
 import {
-  ComposedChart, Line, Bar, Cell, XAxis, YAxis, CartesianGrid, ResponsiveContainer, type DotProps,
+  ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, type DotProps,
 } from "recharts";
+import { noteOutline, styledBar } from "@/components/barShape";
 import { useMemo } from "react";
 import type { DailyDataPoint } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -255,76 +256,65 @@ export function DailyMultiLineChart({
         })}
       </div>
       <LazyChartArea height={220}>
-        <ResponsiveContainer width="100%" height={220}>
-          <ComposedChart data={rows} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} barGap={1} {...pin.chartProps}>
-            <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
-            <XAxis dataKey="date"
+        <ComposedChart responsive style={{ width: "100%", height: 220 }} data={rows} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} barGap={1} {...pin.chartProps}>
+          <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
+          <XAxis dataKey="date"
+            tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+            tickLine={false} axisLine={false}
+            tickFormatter={granularity === "monthly"
+              ? formatMonthTick
+              : granularity === "weekly"
+                ? formatWeekTick
+                : (v: string) => { const p = v.slice(5).split("-"); return `${p[1]}/${p[0]}`; }}
+            // A 2-year weekly window is ~100 ticks of "DD/MM/YY"; recharts'
+            // default gap (5px) lets them run together at this width.
+            minTickGap={granularity === "weekly" ? 24 : undefined}
+          />
+          {yMode === "log" ? (
+            <YAxis
+              allowDecimals={false}
               tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
               tickLine={false} axisLine={false}
-              tickFormatter={granularity === "monthly"
-                ? formatMonthTick
-                : granularity === "weekly"
-                  ? formatWeekTick
-                  : (v: string) => { const p = v.slice(5).split("-"); return `${p[1]}/${p[0]}`; }}
-              // A 2-year weekly window is ~100 ticks of "DD/MM/YY"; recharts'
-              // default gap (5px) lets them run together at this width.
-              minTickGap={granularity === "weekly" ? 24 : undefined}
+              scale="log"
+              domain={["auto", "auto"]}
+              allowDataOverflow
             />
-            {yMode === "log" ? (
-              <YAxis
-                allowDecimals={false}
-                tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-                tickLine={false} axisLine={false}
-                scale="log"
-                domain={["auto", "auto"]}
-                allowDataOverflow
-              />
-            ) : yMode === "normalized" ? (
-              <YAxis
-                tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-                tickLine={false} axisLine={false}
-                domain={[0, 1]}
-                tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
-              />
-            ) : (
-              <YAxis
-                allowDecimals={false}
-                tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-                tickLine={false} axisLine={false}
-                domain={[0, (dataMax: number) => Math.max(dataMax, ceiling)]}
-              />
-            )}
-            {pin.tooltip}
-            {series.map((s) => style === "bar" ? (
-              // The line's dot markers, carried over to the bar itself: a
-              // caveat note (e.g. a week summed from missing days) gets the
-              // dashed outline MonthlyBarChart uses, and the period still in
-              // progress is drawn faded rather than with a bigger dot.
-              <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color}
-                maxBarSize={MAX_BAR_SIZE} isAnimationActive={false}>
-                {rows.map((r) => {
-                  const noted = !!r[`${s.key}__note`];
-                  return (
-                    <Cell key={r.date}
-                      fillOpacity={r.is_today ? 0.4 : 0.85}
-                      stroke={noted ? chartColors(t).noteText : undefined}
-                      strokeWidth={noted ? 1.5 : undefined}
-                      strokeDasharray={noted ? "3 2" : undefined}
-                    />
-                  );
-                })}
-              </Bar>
-            ) : (
-              <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2}
-                dot={({ key, points: _points, ...props }) => <Dot key={key} {...props} color={s.color} bg={t.surface} noteKey={`${s.key}__note`} noteColor={chartColors(t).noteText} />}
-                activeDot={{ r: 5, fill: s.color }} connectNulls={yMode === "log"} isAnimationActive={false}
-              />
-            ))}
-            {/* Painted last so it reads as a crosshair over the series,
-                not a stub buried under a bar. */}
-            {pin.cursor}
-          </ComposedChart>
-        </ResponsiveContainer>
+          ) : yMode === "normalized" ? (
+            <YAxis
+              tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+              tickLine={false} axisLine={false}
+              domain={[0, 1]}
+              tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
+            />
+          ) : (
+            <YAxis
+              allowDecimals={false}
+              tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+              tickLine={false} axisLine={false}
+              domain={[0, (dataMax: number) => Math.max(dataMax, ceiling)]}
+            />
+          )}
+          {pin.tooltip}
+          {series.map((s) => style === "bar" ? (
+            // The line's dot markers, carried over to the bar itself: a
+            // caveat note (e.g. a week summed from missing days) gets the
+            // dashed outline MonthlyBarChart uses, and the period still in
+            // progress is drawn faded rather than with a bigger dot.
+            <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color}
+              maxBarSize={MAX_BAR_SIZE} isAnimationActive={false}
+              shape={styledBar<Row>((r) => ({
+                fillOpacity: r.is_today ? 0.4 : 0.85, ...noteOutline(r[`${s.key}__note`], chartColors(t).noteText),
+              }))} />
+          ) : (
+            <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2}
+              dot={({ key, points: _points, ...props }) => <Dot key={key} {...props} color={s.color} bg={t.surface} noteKey={`${s.key}__note`} noteColor={chartColors(t).noteText} />}
+              activeDot={{ r: 5, fill: s.color }} connectNulls={yMode === "log"} isAnimationActive={false}
+            />
+          ))}
+          {/* Painted last so it reads as a crosshair over the series,
+              not a stub buried under a bar. */}
+          {pin.cursor}
+        </ComposedChart>
       </LazyChartArea>
       {pin.sheet}
     </div>

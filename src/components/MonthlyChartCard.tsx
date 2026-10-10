@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from "react";
 import {
-  BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  BarChart, CartesianGrid, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
@@ -12,7 +12,7 @@ import { usePinnedChart } from "@/components/usePinnedChart";
 import type { TooltipDescriptor } from "@/components/TooltipTable";
 
 // Shared chrome for monthly bar charts: card wrapper, title, optional legend,
-// ResponsiveContainer + BarChart + axes + grid + tooltip. Consumers pass in the
+// A responsive BarChart + axes + grid + tooltip. Consumers pass in the
 // <Bar> elements as children and a tooltip render function — the data shape
 // and per-series semantics stay in the consumer.
 //
@@ -101,25 +101,23 @@ export function MonthlyChartCard<TData extends { date: string }>({
       )}
       {subheader}
       <LazyChartArea height={220}>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
-            <CartesianGrid strokeDasharray="2 4" stroke={c.grid} />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-              tickLine={false} axisLine={false}
-              tickFormatter={tickFormatter}
-              ticks={ticks}
-              interval={ticks ? 0 : undefined}
-            />
-            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
-            {describe && pin.tooltip}
-            {children}
-            {/* Painted last so it reads as a crosshair over the bars, not a
-                stub buried under one. */}
-            {describe && pin.cursor}
-          </BarChart>
-        </ResponsiveContainer>
+        <BarChart responsive style={{ width: "100%", height: 220 }} data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
+          <CartesianGrid strokeDasharray="2 4" stroke={c.grid} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+            tickLine={false} axisLine={false}
+            tickFormatter={tickFormatter}
+            ticks={ticks}
+            interval={ticks ? 0 : undefined}
+          />
+          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
+          {describe && pin.tooltip}
+          {children}
+          {/* Painted last so it reads as a crosshair over the bars, not a
+              stub buried under one. */}
+          {describe && pin.cursor}
+        </BarChart>
       </LazyChartArea>
       {pin.sheet}
     </div>

@@ -1,5 +1,5 @@
 import {
-  ComposedChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
+  ComposedChart, Line, XAxis, YAxis, CartesianGrid,
 } from "recharts";
 import { useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
@@ -140,43 +140,41 @@ export function MissileCombinedChart({ stock, prod, label, swatch, timeDomain, t
       <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textFaint, marginBottom: 8 }}>
         log · ▬ stockpile ({nStock}) · ┄ production/mo ({nProd})
       </div>
-      <ResponsiveContainer width="100%" height={200}>
-        <ComposedChart data={plotRows} margin={{ top: 8, right: 12, left: -8, bottom: 0 }} {...pin.chartProps}>
-          <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
-          <XAxis
-            type="number" dataKey="t" scale="time" domain={timeDomain} ticks={ticks}
-            tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-            tickLine={false} axisLine={false}
-            tickFormatter={(v: number) => {
-              const d = new Date(v);
-              return `${MONTHS[d.getUTCMonth() + 1]} '${String(d.getUTCFullYear()).slice(2)}`;
-            }}
-          />
-          <YAxis
-            scale="log" domain={yDomain ?? ["auto", "auto"]} allowDataOverflow allowDecimals={false}
-            tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-            tickLine={false} axisLine={false}
-          />
-          {pin.tooltip}
-          {/* Stockpile: solid. connectNulls bridges reports that gave only production. */}
-          <Line
-            type="linear" dataKey="stock_mid" stroke={color} strokeWidth={1.8} connectNulls
-            isAnimationActive={false}
-            dot={({ key, points: _points, ...p }) => <BoundDot key={key} {...p} payload={(p.payload as Row)?.stock_p} color={color} />}
-            activeDot={{ r: 5, fill: color }}
-          />
-          {/* Production: dashed + slightly faded so the two read apart at a glance. */}
-          <Line
-            type="linear" dataKey="prod_plot" stroke={color} strokeWidth={1.6} strokeDasharray="4 3"
-            strokeOpacity={0.7} connectNulls isAnimationActive={false}
-            dot={({ key, points: _points, ...p }) => <BoundDot key={key} {...p} payload={(p.payload as Row)?.prod_p} color={color} />}
-            activeDot={{ r: 5, fill: color }}
-          />
-          {/* Painted last so it reads as a crosshair over the series,
-              not a stub buried under a bar. */}
-          {pin.cursor}
-        </ComposedChart>
-      </ResponsiveContainer>
+      <ComposedChart responsive style={{ width: "100%", height: 200 }} data={plotRows} margin={{ top: 8, right: 12, left: -8, bottom: 0 }} {...pin.chartProps}>
+        <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
+        <XAxis
+          type="number" dataKey="t" scale="time" domain={timeDomain} ticks={ticks}
+          tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+          tickLine={false} axisLine={false}
+          tickFormatter={(v: number) => {
+            const d = new Date(v);
+            return `${MONTHS[d.getUTCMonth() + 1]} '${String(d.getUTCFullYear()).slice(2)}`;
+          }}
+        />
+        <YAxis
+          scale="log" domain={yDomain ?? ["auto", "auto"]} allowDataOverflow allowDecimals={false}
+          tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+          tickLine={false} axisLine={false}
+        />
+        {pin.tooltip}
+        {/* Stockpile: solid. connectNulls bridges reports that gave only production. */}
+        <Line
+          type="linear" dataKey="stock_mid" stroke={color} strokeWidth={1.8} connectNulls
+          isAnimationActive={false}
+          dot={({ key, points: _points, ...p }) => <BoundDot key={key} {...p} payload={(p.payload as Row)?.stock_p} color={color} />}
+          activeDot={{ r: 5, fill: color }}
+        />
+        {/* Production: dashed + slightly faded so the two read apart at a glance. */}
+        <Line
+          type="linear" dataKey="prod_plot" stroke={color} strokeWidth={1.6} strokeDasharray="4 3"
+          strokeOpacity={0.7} connectNulls isAnimationActive={false}
+          dot={({ key, points: _points, ...p }) => <BoundDot key={key} {...p} payload={(p.payload as Row)?.prod_p} color={color} />}
+          activeDot={{ r: 5, fill: color }}
+        />
+        {/* Painted last so it reads as a crosshair over the series,
+            not a stub buried under a bar. */}
+        {pin.cursor}
+      </ComposedChart>
       {pin.sheet}
     </div>
   );

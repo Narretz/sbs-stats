@@ -87,7 +87,7 @@ export interface PinnedChart {
   /** Render as a child of the recharts chart — the pinned cursor. Null when
    *  nothing is pinned. */
   cursor: ReactNode;
-  /** Render as a sibling of the ResponsiveContainer. Portals into the sheet. */
+  /** Render as a sibling of the chart. Portals into the sheet. */
   sheet: ReactNode;
 }
 
@@ -163,16 +163,11 @@ export function usePinnedChart<T>({
         ...(fitToContent ? { width: "max-content" } : null),
       }}
       cursor={cursor}
-      content={(props) => {
-        const p = props as unknown as {
-          active?: boolean;
-          label?: string | number;
-          payload?: ReadonlyArray<{ payload?: T }>;
-        };
-        if (!p.active) return null;
+      content={({ active, label, payload }) => {
+        if (!active) return null;
         // Prefer the payload row; fall back to the axis label, which is all
         // recharts hands over when every series is null at that x.
-        const row = p.payload?.[0]?.payload ?? rowAt(p.label);
+        const row = (payload[0]?.payload as T | undefined) ?? rowAt(label);
         return row ? <DescriptorCard d={describe(row)} /> : null;
       }}
     />

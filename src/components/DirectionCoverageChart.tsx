@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import {
-  BarChart, Bar, CartesianGrid, ResponsiveContainer, XAxis, YAxis,
+  BarChart, Bar, CartesianGrid, XAxis, YAxis,
 } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
@@ -246,42 +246,40 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
           {" · "}{summary.directionCount} direction{summary.directionCount === 1 ? "" : "s"} seen
         </span>
       </div>
-      <ResponsiveContainer width="100%" height={400}>
-        <BarChart data={flat} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
-          <CartesianGrid strokeDasharray="2 4" stroke={c.grid} />
-          <XAxis
-            dataKey="date"
-            tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-            tickLine={false} axisLine={false}
-            // daily rows: YYYY-MM-DD → MM-DD; monthly rows: YYYY-MM → YY/MM
-            tickFormatter={(v: string) =>
-              granularity === "monthly"
-                ? `${v.slice(2, 4)}/${v.slice(5, 7)}`
-                : v.slice(5)}
+      <BarChart responsive style={{ width: "100%", height: 400 }} data={flat} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} {...pin.chartProps}>
+        <CartesianGrid strokeDasharray="2 4" stroke={c.grid} />
+        <XAxis
+          dataKey="date"
+          tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+          tickLine={false} axisLine={false}
+          // daily rows: YYYY-MM-DD → MM-DD; monthly rows: YYYY-MM → YY/MM
+          tickFormatter={(v: string) =>
+            granularity === "monthly"
+              ? `${v.slice(2, 4)}/${v.slice(5, 7)}`
+              : v.slice(5)}
+        />
+        <YAxis
+          allowDecimals={false}
+          tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+          tickLine={false} axisLine={false}
+        />
+        {pin.tooltip}
+        {stacks.map((s, i) => (
+          <Bar
+            key={s.key}
+            dataKey={s.key}
+            stackId="a"
+            name={s.label}
+            fill={s.color}
+            maxBarSize={MAX_BAR_SIZE}
+            // Round only the topmost stack (last in render order).
+            radius={i === stacks.length - 1 ? [3, 3, 0, 0] : undefined}
           />
-          <YAxis
-            allowDecimals={false}
-            tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-            tickLine={false} axisLine={false}
-          />
-          {pin.tooltip}
-          {stacks.map((s, i) => (
-            <Bar
-              key={s.key}
-              dataKey={s.key}
-              stackId="a"
-              name={s.label}
-              fill={s.color}
-              maxBarSize={MAX_BAR_SIZE}
-              // Round only the topmost stack (last in render order).
-              radius={i === stacks.length - 1 ? [3, 3, 0, 0] : undefined}
-            />
-          ))}
-          {/* Painted last so it reads as a crosshair over the series,
-              not a stub buried under a bar. */}
-          {pin.cursor}
-        </BarChart>
-      </ResponsiveContainer>
+        ))}
+        {/* Painted last so it reads as a crosshair over the series,
+            not a stub buried under a bar. */}
+        {pin.cursor}
+      </BarChart>
       {pin.sheet}
     </div>
   );

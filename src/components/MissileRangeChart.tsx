@@ -1,6 +1,5 @@
 import {
-  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid,
-  ResponsiveContainer, type DotProps,
+  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, type DotProps,
 } from "recharts";
 import { useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
@@ -130,39 +129,37 @@ export function MissileRangeChart({ series, unit, timeDomain, ticks, yMax, swatc
       <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textFaint, marginBottom: 8 }}>
         {series.combined ? "reported combined · " : ""}{series.points.length} report{series.points.length === 1 ? "" : "s"}
       </div>
-      <ResponsiveContainer width="100%" height={200}>
-        <ComposedChart data={series.points} margin={{ top: 8, right: 12, left: -8, bottom: 0 }} {...pin.chartProps}>
-          <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
-          <XAxis
-            type="number" dataKey="t" scale="time" domain={timeDomain} ticks={ticks}
-            tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-            tickLine={false} axisLine={false}
-            tickFormatter={(v: number) => {
-              const d = new Date(v);
-              return `${MONTHS[d.getUTCMonth() + 1]} '${String(d.getUTCFullYear()).slice(2)}`;
-            }}
-          />
-          <YAxis
-            tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-            tickLine={false} axisLine={false}
-            domain={[0, domainMax]} allowDecimals={false}
-          />
-          {pin.tooltip}
-          {/* Range band — only visibly tall where a report gave a low–high range. */}
-          <Area type="linear" dataKey="range" stroke="none" fill={color} fillOpacity={0.18} isAnimationActive={false} />
-          {/* Central line through the points; gaps between reports are real time
-              spans, never zero-fills. A lone point shows as just its dot. */}
-          <Line
-            type="linear" dataKey="mid" stroke={color} strokeWidth={single ? 0 : 1.8}
-            isAnimationActive={false}
-            dot={({ key, points: _points, ...p }) => <BoundDot key={key} {...p} color={color} />}
-            activeDot={{ r: 5, fill: color }}
-          />
-          {/* Painted last so it reads as a crosshair over the series,
-              not a stub buried under a bar. */}
-          {pin.cursor}
-        </ComposedChart>
-      </ResponsiveContainer>
+      <ComposedChart responsive style={{ width: "100%", height: 200 }} data={series.points} margin={{ top: 8, right: 12, left: -8, bottom: 0 }} {...pin.chartProps}>
+        <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
+        <XAxis
+          type="number" dataKey="t" scale="time" domain={timeDomain} ticks={ticks}
+          tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+          tickLine={false} axisLine={false}
+          tickFormatter={(v: number) => {
+            const d = new Date(v);
+            return `${MONTHS[d.getUTCMonth() + 1]} '${String(d.getUTCFullYear()).slice(2)}`;
+          }}
+        />
+        <YAxis
+          tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+          tickLine={false} axisLine={false}
+          domain={[0, domainMax]} allowDecimals={false}
+        />
+        {pin.tooltip}
+        {/* Range band — only visibly tall where a report gave a low–high range. */}
+        <Area type="linear" dataKey="range" stroke="none" fill={color} fillOpacity={0.18} isAnimationActive={false} />
+        {/* Central line through the points; gaps between reports are real time
+            spans, never zero-fills. A lone point shows as just its dot. */}
+        <Line
+          type="linear" dataKey="mid" stroke={color} strokeWidth={single ? 0 : 1.8}
+          isAnimationActive={false}
+          dot={({ key, points: _points, ...p }) => <BoundDot key={key} {...p} color={color} />}
+          activeDot={{ r: 5, fill: color }}
+        />
+        {/* Painted last so it reads as a crosshair over the series,
+            not a stub buried under a bar. */}
+        {pin.cursor}
+      </ComposedChart>
       {pin.sheet}
     </div>
   );
