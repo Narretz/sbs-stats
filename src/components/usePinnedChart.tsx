@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { ReferenceArea, ReferenceLine, Tooltip } from "recharts";
+import { ReferenceArea, ReferenceLine, Tooltip, type MouseHandlerDataParam } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { useChartPin } from "@/hooks/ChartPinProvider";
 import { ChartSheetContent } from "@/components/ChartSheet";
@@ -66,6 +66,8 @@ interface Options<T> {
   entryOf?: (row: T) => string | number;
 }
 
+const NO_THROTTLE: readonly never[] = [];
+
 export interface PinnedChart {
   isPinned: boolean;
   /** The pinned x value, or null. For charts that also mark the pinned point
@@ -79,13 +81,13 @@ export interface PinnedChart {
     onPointerLeave: () => void;
   };
   /** Spread on the recharts chart element (`<LineChart {...chartProps}>`). */
-  chartProps: { onClick: (state: { activeTooltipIndex?: number | null } | null) => void };
+  chartProps: { onClick: (state: MouseHandlerDataParam) => void; throttledEvents: readonly never[] };
   /** Render as a child of the recharts chart, in place of your own <Tooltip>. */
   tooltip: ReactNode;
   /** Render as a child of the recharts chart — the pinned cursor. Null when
    *  nothing is pinned. */
   cursor: ReactNode;
-  /** Render as a sibling of the ResponsiveContainer. Portals into the sheet. */
+  /** Render as a sibling of the chart. Portals into the sheet. */
   sheet: ReactNode;
 }
 
@@ -149,9 +151,9 @@ export function usePinnedChart<T>({
   const tooltip = (
     <Tooltip
       // Honoured ahead of recharts' internal hover state for both the tooltip
-      // and its cursor (generateCategoricalChart resolves
-      // `element.props.active ?? isTooltipActive`), so one prop silences both.
-      // Without it a cursor would track the pointer with nothing attached.
+      // and its cursor, so one prop silences both — without it a cursor would
+      // track the pointer with nothing attached. It doesn't touch the index a
+      // click reports, so pinning works while it's forced off.
       // The same prop is what keeps touch out of the hover card (see above).
       active={pin.isPinned || !hovering ? false : undefined}
       allowEscapeViewBox={{ x: false, y: true }}
@@ -161,16 +163,11 @@ export function usePinnedChart<T>({
         ...(fitToContent ? { width: "max-content" } : null),
       }}
       cursor={cursor}
-      content={(props) => {
-        const p = props as {
-          active?: boolean;
-          label?: string | number;
-          payload?: Array<{ payload?: T }>;
-        };
-        if (!p.active) return null;
+      content={({ active, label, payload }) => {
+        if (!active) return null;
         // Prefer the payload row; fall back to the axis label, which is all
         // recharts hands over when every series is null at that x.
-        const row = p.payload?.[0]?.payload ?? rowAt(p.label);
+        const row = (payload[0]?.payload as T | undefined) ?? rowAt(label);
         return row ? <DescriptorCard d={describe(row)} /> : null;
       }}
     />
@@ -185,12 +182,20 @@ export function usePinnedChart<T>({
       onPointerLeave,
     },
     chartProps: {
+      // recharts 3 resolves a click to the x-band the last mousemove found,
+      // and throttles mousemove to an animation frame by default — so a click
+      // that follows its move within the frame, which every touch tap does,
+      // reported no index and pinned nothing. Unthrottled, the move has always
+      // landed by the time the click reads it. Only the chart under the pointer
+      // receives moves, so the cost is one chart's hover updates per event.
+      throttledEvents: NO_THROTTLE,
       onClick: (state) => {
-        // recharts recomputes the active index for the click itself, so the
-        // press resolves to the nearest x-band regardless of where vertically
-        // it landed — the whole plot area is a hit target.
-        const i = state?.activeTooltipIndex;
-        if (typeof i === "number" && data[i]) pin.select(rowEntries[i]);
+        // The index is the x-band under the pointer, whatever its height —
+        // the whole plot area is a hit target. recharts 3 reports the index as a number or as its string form
+        // ("3"), so read either; anything else (null, a 2-D index) is no row.
+        const raw = state?.activeTooltipIndex;
+        const i = typeof raw === "number" ? raw : typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : -1;
+        if (data[i]) pin.select(rowEntries[i]);
       },
     },
     tooltip,

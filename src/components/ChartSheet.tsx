@@ -23,7 +23,7 @@ export function ChartSheet() {
 
   // Extend the page's scroll range by the sheet's height so the last chart on
   // the page can still be scrolled clear of it. Padding the scroll container
-  // rather than the charts avoids re-measuring every ResponsiveContainer.
+  // rather than the charts avoids re-measuring every responsive chart.
   useEffect(() => {
     const el = sheetRef.current;
     if (!open || !el) {

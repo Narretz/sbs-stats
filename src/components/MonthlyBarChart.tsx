@@ -1,5 +1,6 @@
 import { useMemo, type ReactNode } from "react";
-import { Bar, Cell, ReferenceLine } from "recharts";
+import { Bar, ReferenceLine } from "recharts";
+import { noteOutline, styledBar } from "@/components/barShape";
 import type { ModelBreakdownEntry, MonthlyDataPoint } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
@@ -109,22 +110,12 @@ export function MonthlyBarChart({
     >
       <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
         label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
-      <Bar dataKey="value" stackId="a" name="Actual" maxBarSize={MAX_BAR_SIZE}>
-        {data.map((d, i) => (
-          <Cell
-            key={`val-${i}`}
-            fill={i === lastIdx ? c.barCurrent : c.barDefault}
-            stroke={d.note ? c.noteText : undefined}
-            strokeWidth={d.note ? 1.5 : undefined}
-            strokeDasharray={d.note ? "3 2" : undefined}
-          />
-        ))}
-      </Bar>
-      <Bar dataKey="gap" stackId="a" name="Projected" radius={[3, 3, 0, 0]} maxBarSize={MAX_BAR_SIZE}>
-        {data.map((_, i) => (
-          <Cell key={`gap-${i}`} fill={i === lastIdx ? projectedFill : "transparent"} />
-        ))}
-      </Bar>
+      <Bar dataKey="value" stackId="a" name="Actual" maxBarSize={MAX_BAR_SIZE}
+        shape={styledBar<MonthlyDataPoint>((d, i) => ({
+          fill: i === lastIdx ? c.barCurrent : c.barDefault, ...noteOutline(d.note, c.noteText),
+        }))} />
+      <Bar dataKey="gap" stackId="a" name="Projected" radius={[3, 3, 0, 0]} maxBarSize={MAX_BAR_SIZE}
+        shape={styledBar((_, i) => ({ fill: i === lastIdx ? projectedFill : "transparent" }))} />
     </MonthlyChartCard>
   );
 }

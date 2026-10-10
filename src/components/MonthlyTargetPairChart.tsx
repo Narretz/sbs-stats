@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Cell, ReferenceLine, ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
+import { noteOutline, styledBar } from "@/components/barShape";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian, pooledRate } from "@/utils/windowStats";
@@ -202,58 +203,40 @@ export function MonthlyTargetPairChart({
         )}
       </div>
       <LazyChartArea height={220}>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart
-            data={data}
-            margin={{ top: 8, right: 8, left: -10, bottom: 0 }}
-            barGap={2}
-            {...pin.chartProps}
-          >
-            <CartesianGrid strokeDasharray="2 4" stroke={c.grid} />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v: string) => v.slice(0, 7).replace("-", "/")}
-            />
-            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
-            <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
-              label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
-            {pin.tooltip}
+        <BarChart responsive style={{ width: "100%", height: 220 }}
+          data={data}
+          margin={{ top: 8, right: 8, left: -10, bottom: 0 }}
+          barGap={2}
+          {...pin.chartProps}
+        >
+          <CartesianGrid strokeDasharray="2 4" stroke={c.grid} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(v: string) => v.slice(0, 7).replace("-", "/")}
+          />
+          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
+          <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
+            label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
+          {pin.tooltip}
   
-            <Bar dataKey="hit_value" stackId="hit" name={primaryLabel}>
-              {data.map((d, i) => (
-                <Cell
-                  key={`hit-val-${i}`}
-                  fill={i === lastIdx ? c.barCurrent : c.damaged}
-                  stroke={d.note ? c.noteText : undefined}
-                  strokeWidth={d.note ? 1.5 : undefined}
-                  strokeDasharray={d.note ? "3 2" : undefined}
-                />
-              ))}
-            </Bar>
-            <Bar dataKey="hit_gap" stackId="hit" name={`${primaryLabel} Projected`} radius={[3, 3, 0, 0]}>
-              {data.map((_, i) => (
-                <Cell key={`hit-gap-${i}`} fill={i === lastIdx ? hitProjectedFill : "transparent"} />
-              ))}
-            </Bar>
-  
-            <Bar dataKey="destroyed_value" stackId="destroyed" name={secondaryLabel}>
-              {data.map((_, i) => (
-                <Cell key={`des-val-${i}`} fill={i === lastIdx ? c.destroyedCurrent : c.destroyed} />
-              ))}
-            </Bar>
-            <Bar dataKey="destroyed_gap" stackId="destroyed" name={`${secondaryLabel} Projected`} radius={[3, 3, 0, 0]}>
-              {data.map((_, i) => (
-                <Cell key={`des-gap-${i}`} fill={i === lastIdx ? destroyedProjectedFill : "transparent"} />
-              ))}
-            </Bar>
-            {/* Painted last so it reads as a crosshair over the series,
-                not a stub buried under a bar. */}
-            {pin.cursor}
-          </BarChart>
-        </ResponsiveContainer>
+          <Bar dataKey="hit_value" stackId="hit" name={primaryLabel}
+            shape={styledBar<MonthlyTargetPairDataPoint>((d, i) => ({
+              fill: i === lastIdx ? c.barCurrent : c.damaged, ...noteOutline(d.note, c.noteText),
+            }))} />
+          <Bar dataKey="hit_gap" stackId="hit" name={`${primaryLabel} Projected`} radius={[3, 3, 0, 0]}
+            shape={styledBar((_, i) => ({ fill: i === lastIdx ? hitProjectedFill : "transparent" }))} />
+
+          <Bar dataKey="destroyed_value" stackId="destroyed" name={secondaryLabel}
+            shape={styledBar((_, i) => ({ fill: i === lastIdx ? c.destroyedCurrent : c.destroyed }))} />
+          <Bar dataKey="destroyed_gap" stackId="destroyed" name={`${secondaryLabel} Projected`} radius={[3, 3, 0, 0]}
+            shape={styledBar((_, i) => ({ fill: i === lastIdx ? destroyedProjectedFill : "transparent" }))} />
+          {/* Painted last so it reads as a crosshair over the series,
+              not a stub buried under a bar. */}
+          {pin.cursor}
+        </BarChart>
       </LazyChartArea>
       {pin.sheet}
     </div>

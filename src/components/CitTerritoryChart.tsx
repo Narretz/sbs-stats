@@ -1,4 +1,4 @@
-import { Bar, Cell } from "recharts";
+import { Bar } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
 import { FONTS } from "@/theme";
@@ -129,14 +129,9 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
       ]}
     >
       <Bar dataKey="uaControlled" stackId="a" name="Ukrainian-controlled" maxBarSize={MAX_BAR_SIZE}
-           shape={daily ? spanBarShape(c.territoryUaControlled) : undefined}>
-        {!daily && rows.map((_, i) => <Cell key={`ua-${i}`} fill={c.territoryUaControlled} />)}
-      </Bar>
-      <Bar dataKey="ruControlled" stackId="a" name="Russian-controlled"
-           maxBarSize={MAX_BAR_SIZE}
-           shape={daily ? spanBarShape(c.territoryRuControlled) : undefined}>
-        {!daily && rows.map((_, i) => <Cell key={`ru-${i}`} fill={c.territoryRuControlled} />)}
-      </Bar>
+           fill={c.territoryUaControlled} shape={daily ? spanBarShape(c.territoryUaControlled) : undefined} />
+      <Bar dataKey="ruControlled" stackId="a" name="Russian-controlled" maxBarSize={MAX_BAR_SIZE}
+           fill={c.territoryRuControlled} shape={daily ? spanBarShape(c.territoryRuControlled) : undefined} />
     </MonthlyChartCard>
   );
 }

@@ -20,7 +20,7 @@ function monthsBack(n: number): string {
 
 // The first chart's x-axis, as YYYY-MM.
 async function axisMonths(page: Page): Promise<string[]> {
-  const ticks = page.locator(".chart-card").first().locator(".recharts-xAxis .recharts-cartesian-axis-tick-value");
+  const ticks = page.locator(".chart-card").first().locator(".recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value");
   return (await ticks.allTextContents()).map((s) => s.replace("/", "-"));
 }
 

@@ -1,5 +1,5 @@
 import {
-  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
+  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid,
 } from "recharts";
 import { useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
@@ -90,32 +90,30 @@ export function RoleCompositionChart({
           <span key={k} style={{ color: MEDIAZONA_ROLE_GROUPS[k].color }}>● {MEDIAZONA_ROLE_GROUPS[k].label}</span>
         ))}
       </div>
-      <ResponsiveContainer width="100%" height={300}>
-        <ComposedChart data={rows} stackOffset="expand" margin={{ top: 8, right: 12, left: -6, bottom: 0 }} {...pin.chartProps}>
-          <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
-          <XAxis dataKey="week"
-            tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-            tickLine={false} axisLine={false} minTickGap={28} tickFormatter={fmtDate}
-          />
-          {/* Left axis = stack shares (0..100%); right axis = absolute weekly total. */}
-          <YAxis yAxisId="left" tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
-            domain={[0, 1]} tickFormatter={(v: number) => `${Math.round(v * 100)}%`} />
-          <YAxis yAxisId="right" orientation="right" allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
-            tickFormatter={(v: number) => v.toLocaleString()} />
-          {pin.tooltip}
-          {MEDIAZONA_ROLE_GROUP_KEYS.map((k: MediazonaRoleGroupKey) => (
-            <Area key={k} yAxisId="left" type="monotone" dataKey={k} name={MEDIAZONA_ROLE_GROUPS[k].label}
-              stackId="1" stroke={MEDIAZONA_ROLE_GROUPS[k].color} fill={MEDIAZONA_ROLE_GROUPS[k].color}
-              fillOpacity={0.8} strokeWidth={0.5} isAnimationActive={false} />
-          ))}
-          {/* Absolute weekly total on the right axis — restores the scale info lost
-              by 0–100% normalisation and visually shows the tail collapsing. */}
-          <Line yAxisId="right" type="monotone" dataKey="total" stroke={t.text} strokeWidth={1.5} dot={false} isAnimationActive={false} />
-          {/* Painted last so it reads as a crosshair over the series,
-              not a stub buried under a bar. */}
-          {pin.cursor}
-        </ComposedChart>
-      </ResponsiveContainer>
+      <ComposedChart responsive style={{ width: "100%", height: 300 }} data={rows} stackOffset="expand" margin={{ top: 8, right: 12, left: -6, bottom: 0 }} {...pin.chartProps}>
+        <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
+        <XAxis dataKey="week"
+          tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+          tickLine={false} axisLine={false} minTickGap={28} tickFormatter={fmtDate}
+        />
+        {/* Left axis = stack shares (0..100%); right axis = absolute weekly total. */}
+        <YAxis yAxisId="left" tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
+          domain={[0, 1]} tickFormatter={(v: number) => `${Math.round(v * 100)}%`} />
+        <YAxis yAxisId="right" orientation="right" allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
+          tickFormatter={(v: number) => v.toLocaleString()} />
+        {pin.tooltip}
+        {MEDIAZONA_ROLE_GROUP_KEYS.map((k: MediazonaRoleGroupKey) => (
+          <Area key={k} yAxisId="left" type="monotone" dataKey={k} name={MEDIAZONA_ROLE_GROUPS[k].label}
+            stackId="1" stroke={MEDIAZONA_ROLE_GROUPS[k].color} fill={MEDIAZONA_ROLE_GROUPS[k].color}
+            fillOpacity={0.8} strokeWidth={0.5} isAnimationActive={false} />
+        ))}
+        {/* Absolute weekly total on the right axis — restores the scale info lost
+            by 0–100% normalisation and visually shows the tail collapsing. */}
+        <Line yAxisId="right" type="monotone" dataKey="total" stroke={t.text} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+        {/* Painted last so it reads as a crosshair over the series,
+            not a stub buried under a bar. */}
+        {pin.cursor}
+      </ComposedChart>
       {pin.sheet}
     </div>
   );

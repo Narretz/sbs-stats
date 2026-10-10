@@ -1,5 +1,5 @@
 import {
-  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, ReferenceArea, ResponsiveContainer,
+  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, ReferenceArea,
 } from "recharts";
 import { useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
@@ -131,31 +131,29 @@ export function DocumentedVsEstimatedChart({
         <span style={{ color: c.lineSecondary }}>● Estimated losses <span style={{ opacity: 0.8 }}>· {totEst == null ? "no figures in this window" : `total ${fmt(totEst)}`}</span></span>
         <span style={{ color: c.line }}>● Recorded names <span style={{ opacity: 0.8 }}>· {totDoc == null ? "no figures in this window" : `total ${fmt(totDoc)}`}</span></span>
       </div>
-      <ResponsiveContainer width="100%" height={300}>
-        <ComposedChart data={data} margin={{ top: 8, right: 8, left: -6, bottom: 0 }} {...pin.chartProps}>
-          <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
-          <XAxis dataKey="week"
-            tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
-            tickLine={false} axisLine={false} minTickGap={28} tickFormatter={fmtDate}
-          />
-          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
-            tickFormatter={(v: number) => v.toLocaleString()} />
-          {pin.tooltip}
-          {provisionalFrom && lastWeek && (
-            <ReferenceArea x1={provisionalFrom} x2={lastWeek} fill={t.textMuted} fillOpacity={0.12} ifOverflow="extendDomain" />
-          )}
-          {/* Stacked band: names (solid base) + gap (translucent) → top = estimate level */}
-          <Area type="monotone" dataKey="documented" stackId="band" stroke={c.line} strokeWidth={1.5}
-            fill={c.line} fillOpacity={0.14} isAnimationActive={false} connectNulls />
-          <Area type="monotone" dataKey="gap" stackId="band" stroke="none"
-            fill={c.lineSecondary} fillOpacity={0.16} isAnimationActive={false} connectNulls />
-          {/* Estimate line drawn on top so it stays crisp even where it dips below names */}
-          <Line type="monotone" dataKey="estimate" stroke={c.lineSecondary} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
-          {/* Painted last so it reads as a crosshair over the series,
-              not a stub buried under a bar. */}
-          {pin.cursor}
-        </ComposedChart>
-      </ResponsiveContainer>
+      <ComposedChart responsive style={{ width: "100%", height: 300 }} data={data} margin={{ top: 8, right: 8, left: -6, bottom: 0 }} {...pin.chartProps}>
+        <CartesianGrid strokeDasharray="2 4" stroke={t.chartGrid} />
+        <XAxis dataKey="week"
+          tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }}
+          tickLine={false} axisLine={false} minTickGap={28} tickFormatter={fmtDate}
+        />
+        <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false}
+          tickFormatter={(v: number) => v.toLocaleString()} />
+        {pin.tooltip}
+        {provisionalFrom && lastWeek && (
+          <ReferenceArea x1={provisionalFrom} x2={lastWeek} fill={t.textMuted} fillOpacity={0.12} ifOverflow="extendDomain" />
+        )}
+        {/* Stacked band: names (solid base) + gap (translucent) → top = estimate level */}
+        <Area type="monotone" dataKey="documented" stackId="band" stroke={c.line} strokeWidth={1.5}
+          fill={c.line} fillOpacity={0.14} isAnimationActive={false} connectNulls />
+        <Area type="monotone" dataKey="gap" stackId="band" stroke="none"
+          fill={c.lineSecondary} fillOpacity={0.16} isAnimationActive={false} connectNulls />
+        {/* Estimate line drawn on top so it stays crisp even where it dips below names */}
+        <Line type="monotone" dataKey="estimate" stroke={c.lineSecondary} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+        {/* Painted last so it reads as a crosshair over the series,
+            not a stub buried under a bar. */}
+        {pin.cursor}
+      </ComposedChart>
       {pin.sheet}
     </div>
   );

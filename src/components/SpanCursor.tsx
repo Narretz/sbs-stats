@@ -6,8 +6,11 @@ import { entryOfDay, type SpannedDay } from "@/components/spanBarShape";
 // half of it. Pass as the chart's hover `cursor`: recharts clones it with the
 // band it would have drawn for the hovered day (x, width) and the hovered
 // index; everything else passes through, so it looks the same.
-export function SpanCursor(props: { rows: readonly SpannedDay[]; x?: number; width?: number; payloadIndex?: number }) {
-  const { rows, x = 0, width = 0, payloadIndex = -1, ...rest } = props;
+export function SpanCursor(props: { rows: readonly SpannedDay[]; x?: number; width?: number; payloadIndex?: number | string }) {
+  const { rows, x = 0, width = 0, payloadIndex: rawIndex = -1, ...rest } = props;
+  // recharts 3 hands the index over as a string ("3"); arithmetic on that
+  // concatenates ("3" + 1 = "31"), so read it as a number first.
+  const payloadIndex = Number(rawIndex);
   const row = rows[payloadIndex];
   let first = payloadIndex, last = payloadIndex;
   if (row) {

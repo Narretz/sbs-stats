@@ -93,7 +93,7 @@ test.describe("Homepage — SBS sub-unit metrics", () => {
         const ticks = await page
           .locator(".recharts-wrapper")
           .first()
-          .locator(".recharts-yAxis .recharts-cartesian-axis-tick-value")
+          .locator(".recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value")
           .allTextContents();
         const nums = ticks.map((v) => Number(v.replace(/,/g, ""))).filter((n) => !Number.isNaN(n));
         return nums.length ? Math.max(...nums) : null;
