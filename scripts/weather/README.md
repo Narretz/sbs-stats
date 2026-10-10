@@ -8,6 +8,8 @@ before anything is stored.
 ```sh
 python3 scripts/weather/report.py                        # today + tomorrow, all sectors
 python3 scripts/weather/report.py --days 4
+python3 scripts/weather/report.py --date yesterday --days 1   # or --date -2, or YYYY-MM-DD
+python3 scripts/weather/report.py --past 3          # last 3 days + today + tomorrow
 python3 scripts/weather/report.py --date 2025-11-20 --days 3   # any day since 2022
 python3 scripts/weather/report.py --sector Pokrovsk --hourly
 python3 scripts/weather/report.py --json

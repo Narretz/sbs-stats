@@ -4,6 +4,8 @@ for drone and ground operations. Stdlib only.
 
     python3 scripts/weather/report.py                  # today + tomorrow, every sector
     python3 scripts/weather/report.py --days 4         # …four days out
+    python3 scripts/weather/report.py --date yesterday --days 1
+    python3 scripts/weather/report.py --past 3         # the last 3 days, today, tomorrow
     python3 scripts/weather/report.py --date 2026-01-15 --days 3   # any day since 2022
     python3 scripts/weather/report.py --sector Pokrovsk --hourly   # hour by hour
     python3 scripts/weather/report.py --json           # machine-readable
@@ -213,11 +215,29 @@ Model data, not station observations. Drone/ground effects are heuristics — se
 
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
+def report_days(today: date, when: str | None, days: int, past: int) -> list[date]:
+    """The days to report. `when` is YYYY-MM-DD, today/yesterday/tomorrow, or a
+    signed day offset (-1 = yesterday); `past` prepends that many earlier days."""
+    if when is None:
+        start = today
+    elif when in ("today", "yesterday", "tomorrow"):
+        start = today + timedelta(days={"today": 0, "yesterday": -1, "tomorrow": 1}[when])
+    elif when.lstrip("+-").isdigit():
+        start = today + timedelta(days=int(when))
+    else:
+        start = date.fromisoformat(when)
+    start -= timedelta(days=past)
+    return [start + timedelta(days=i) for i in range(days + past)]
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--date", type=date.fromisoformat, help="first day (default: today, Kyiv)")
-    ap.add_argument("--days", type=int, default=2, help="days to report (default 2)")
+    ap.add_argument("--date", help="first day: YYYY-MM-DD, today, yesterday, tomorrow, "
+                                   "or an offset like -2 (default: today, Kyiv)")
+    ap.add_argument("--days", type=int, default=2, help="days to report from --date (default 2)")
+    ap.add_argument("--past", type=int, default=0, metavar="N",
+                    help="also report the N days before --date")
     ap.add_argument("--sector", action="append",
                     help="limit to a direction (repeatable); known: "
                          + ", ".join(s.key for s in SECTORS))
@@ -229,8 +249,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="pretend it is this Kyiv local time (YYYY-MM-DDTHH:MM)")
     args = ap.parse_args(argv)
 
-    if args.days < 1:
-        ap.error("--days must be ≥ 1")
+    if args.days < 1 or args.past < 0:
+        ap.error("--days must be ≥ 1 and --past ≥ 0")
     try:
         sectors = find(args.sector)
     except ValueError as e:
@@ -238,8 +258,10 @@ def main(argv: list[str] | None = None) -> int:
 
     now = args.now or datetime.now(ZoneInfo(TZ)).replace(tzinfo=None, second=0, microsecond=0)
     today = now.date()
-    start = args.date or today
-    days = [start + timedelta(days=i) for i in range(args.days)]
+    try:
+        days = report_days(today, args.date, args.days, args.past)
+    except ValueError:
+        ap.error(f"--date: can't read {args.date!r}")
 
     if args.input:
         saved = json.loads(args.input.read_text())
@@ -249,8 +271,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.now is None and saved.get("fetched"):
                 now = datetime.fromisoformat(saved["fetched"])
                 today = now.date()
-                start = args.date or today
-                days = [start + timedelta(days=i) for i in range(args.days)]
+                days = report_days(today, args.date, args.days, args.past)
         else:
             saved_keys, payload = [s.key for s in SECTORS], saved
         all_series = dict(zip(saved_keys, hourly_rows(payload, len(saved_keys))))
