@@ -35,6 +35,10 @@ in the bundle. Import its code only through there, or it leaks back in. See
 [`DATASETS.md`](DATASETS.md) tracks source research, recency, and candidate
 datasets for future views.
 
+Not yet a view: [`scripts/weather/`](scripts/weather/README.md) is a CLI
+weather report per GSUA direction (Open-Meteo model data, no stations) with
+heuristic drone / ground-ops effects. Nothing is stored or deployed.
+
 ## Architecture
 
 - **Frontend** (`src/`): one `useDatabase*` hook per dataset
