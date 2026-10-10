@@ -260,7 +260,18 @@ async function main() {
   mkdirSync(dirname(out), { recursive: true });
 
   if (opts.full) await page.screenshot({ path: out, fullPage: true });
-  else await page.locator("table").screenshot({ path: out });
+  else {
+    // A table taller than the viewport is shot by scrolling, and the sticky
+    // site header then lands on top of it. Grow the viewport to the whole page
+    // so nothing scrolls.
+    const height = await page.evaluate(() => Math.ceil(document.documentElement.getBoundingClientRect().height));
+    const { width } = page.viewportSize();
+    if (height > page.viewportSize().height) {
+      await page.setViewportSize({ width, height });
+      await page.waitForTimeout(250);
+    }
+    await page.locator("table").screenshot({ path: out });
+  }
 
   await browser.close();
   if (devProc) process.kill(-devProc.pid, "SIGTERM");
