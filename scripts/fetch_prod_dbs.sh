@@ -36,7 +36,22 @@ wanted() {
   return 1
 }
 targets=("$@")
-matched=0
+
+# Check the names before downloading anything, so a typo in a list fails on its
+# own instead of being skipped while the rest download. The known names are
+# what an argument can match: each DB's base name, `.app` dropped.
+known=$(for url in $urls; do b=$(basename "$url" .db); echo "${b%.app}"; done | sort -u)
+unknown=()
+for t in "${targets[@]}"; do
+  t="${t%.db}"
+  grep -qxF "${t%.app}" <<<"$known" || unknown+=("$t")
+done
+if [ "${#unknown[@]}" -gt 0 ]; then
+  echo "no DB in .env.production matches: ${unknown[*]}" >&2
+  echo "known DBs:" >&2
+  sed 's/^/  /' <<<"$known" >&2
+  exit 1
+fi
 
 failed=()
 for url in $urls; do
@@ -58,7 +73,6 @@ for url in $urls; do
     # and report them all at the end. Download beside the target and move it
     # into place only on success, so a failed or cut-off transfer leaves the
     # local copy as it was rather than truncated.
-    matched=$((matched + 1))
     if curl --fail --location --show-error --silent --output "data/$name.part" "$variant"; then
       mv "data/$name.part" "data/$name"
     else
@@ -67,11 +81,6 @@ for url in $urls; do
     fi
   done
 done
-
-if [ "$matched" -eq 0 ]; then
-  echo "no DB in .env.production matches: ${targets[*]}" >&2
-  exit 1
-fi
 
 echo "done — files in data/:"
 ls -lh data/*.db
