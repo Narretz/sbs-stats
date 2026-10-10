@@ -254,3 +254,20 @@ def test_real_open_meteo_response(capsys):
     assert tomorrow["drones"]["rating"] == "POOR"
     assert tomorrow["drones"]["reasons"]["fog"] >= 6
     assert data["Orikhiv"]["days"][1]["drones"]["rating"] == "GOOD"
+
+
+@pytest.mark.parametrize("when,days,past,want", [
+    (None, 2, 0, ["2026-10-10", "2026-10-11"]),
+    ("yesterday", 1, 0, ["2026-10-09"]),
+    ("-2", 1, 0, ["2026-10-08"]),
+    ("+1", 1, 0, ["2026-10-11"]),
+    (None, 2, 3, ["2026-10-07", "2026-10-08", "2026-10-09", "2026-10-10", "2026-10-11"]),
+    ("2025-01-20", 1, 1, ["2025-01-19", "2025-01-20"]),
+])
+def test_report_days(when, days, past, want):
+    assert [d.isoformat() for d in report.report_days(D, when, days, past)] == want
+
+
+def test_report_days_rejects_garbage():
+    with pytest.raises(ValueError):
+        report.report_days(D, "last week", 1, 0)
