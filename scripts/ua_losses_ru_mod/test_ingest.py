@@ -329,3 +329,89 @@ def test_a_partial_fetch_is_refused(tmp_path):
     conn = ingest.connect(tmp_path / "f.db")
     with pytest.raises(RuntimeError, match="floor"):
         ingest_text(conn, sheet(day("01/01/2025")), "2026-10-01T00:00:00+00:00")
+
+
+# ── Corrections and annotations ─────────────────────────────────────────────
+
+PERSONNEL = "Servicemen (daily) Killed and Wounder"
+
+
+def week_of_personnel(friday: int) -> str:
+    """Sat 21/10/2023 – Fri 27/10/2023: six ordinary days and a Friday."""
+    days = [day(f"{d}/10/2023", **{PERSONNEL: 700}) for d in range(21, 27)]
+    return sheet(*days, day("27/10/2023", **{PERSONNEL: friday}))
+
+
+def correction(**over) -> dict:
+    return {"corrections": [{
+        "report_date": "2023-10-27", "section": "personnel", "item": "_total",
+        "sheet_value": 5585, "value": 1150, "note": "weekly total entered as the day", "source": "t.me/x",
+        **over,
+    }]}
+
+
+def test_a_correction_changes_the_daily_view_and_leaves_the_sheet_alone(tmp_path, no_floor):
+    conn = ingest.connect(tmp_path / "f.db")
+    ingest_text(conn, week_of_personnel(5585), "2026-10-01T00:00:00+00:00")
+    assert ingest.curate(conn, correction()) is True
+    assert daily(conn)["2023-10-27"]["personnel"] == 1150
+    assert conn.execute(
+        "SELECT value FROM sheet_claims WHERE report_date = '2023-10-27' AND section = 'personnel'"
+    ).fetchone()[0] == 5585
+    # Its note is on the loss day, the day before the report.
+    assert conn.execute("SELECT loss_date, section, note FROM annotations").fetchall() == [
+        ("2023-10-26", "personnel", "weekly total entered as the day")]
+
+
+def test_a_correction_the_sheet_has_moved_away_from_is_not_applied(tmp_path, no_floor, caplog):
+    conn = ingest.connect(tmp_path / "f.db")
+    # Felix has fixed the cell himself since the correction was written.
+    ingest_text(conn, week_of_personnel(1150), "2026-10-01T00:00:00+00:00")
+    ingest.curate(conn, correction(value=999))
+    assert daily(conn)["2023-10-27"]["personnel"] == 1150
+    assert conn.execute("SELECT COUNT(*) FROM corrections").fetchone()[0] == 0
+    assert "no longer matches the sheet" in caplog.text
+
+
+def test_curating_again_changes_nothing(tmp_path, no_floor):
+    conn = ingest.connect(tmp_path / "f.db")
+    ingest_text(conn, week_of_personnel(5585), "2026-10-01T00:00:00+00:00")
+    assert ingest.curate(conn, correction()) is True
+    assert ingest.curate(conn, correction()) is False
+    assert ingest.curate(conn, {}) is True     # and dropping it is a change too
+
+
+def test_a_note_lands_on_its_weekday_inside_its_range(tmp_path, no_floor):
+    conn = ingest.connect(tmp_path / "f.db")
+    ingest_text(conn, week_of_personnel(700), "2026-10-01T00:00:00+00:00")
+    ingest.curate(conn, {"notes": [{"section": "*", "from": "2023-10-01", "to": "2023-10-31",
+                                    "weekday": "Fri", "note": "weekly report day"}]})
+    assert conn.execute("SELECT loss_date, report_date, section FROM annotations").fetchall() == [
+        ("2023-10-26", "2023-10-27", "*")]
+
+
+def test_a_friday_holding_the_whole_week_is_flagged_until_corrected(tmp_path, no_floor, caplog):
+    conn = ingest.connect(tmp_path / "f.db")
+    ingest_text(conn, week_of_personnel(5585), "2026-10-01T00:00:00+00:00")
+    # 5,585 of 9,785: well past what a weekly-report Friday holds.
+    assert ingest.check_friday_weeks(conn) == ["2023-10-27"]
+    assert "is 57% of its week" in caplog.text
+    ingest.curate(conn, correction())
+    assert ingest.check_friday_weeks(conn) == []
+
+
+def test_an_ordinary_friday_is_not_flagged(tmp_path, no_floor):
+    conn = ingest.connect(tmp_path / "f.db")
+    ingest_text(conn, week_of_personnel(1150), "2026-10-01T00:00:00+00:00")
+    assert ingest.check_friday_weeks(conn) == []
+
+
+def test_the_shipped_corrections_file_is_well_formed():
+    import json
+    spec = json.loads(ingest.CORRECTIONS_PATH.read_text(encoding="utf-8"))
+    for c in spec["corrections"]:
+        assert {"report_date", "section", "sheet_value", "value", "note", "source"} <= c.keys()
+        assert c["sheet_value"] != c["value"]
+    for n in spec["notes"]:
+        assert {"section", "from", "to", "note"} <= n.keys() and n["from"] <= n["to"]
+        assert n.get("weekday") in (None, *ingest.WEEKDAYS)

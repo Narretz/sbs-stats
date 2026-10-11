@@ -127,6 +127,46 @@ Append-only, long format, versioned per cell:
 Guards: fewer than 365 days, or fewer days than already stored, aborts without
 writing.
 
+## Corrections
+
+`claims` is the sheet's record and is never edited. Where the sheet is wrong,
+or right but misleading on a chart, [`corrections.json`](corrections.json)
+says so — reviewed by hand, each entry checked against the MoD's own post:
+
+- **`corrections`**: a cell's value replaced (`value`) while the sheet still
+  holds `sheet_value`. The ingest rebuilds the `corrections` table from the file
+  on every run and the `latest_claims` view (so `daily`, so every chart) takes
+  the corrected value; `sheet_claims` is the sheet as Felix has it. If Felix
+  changes the cell himself, the correction stops applying and the run warns —
+  his fix is reviewed, not overwritten.
+- **`notes`**: a tooltip note on report days in a range (optionally one
+  weekday), for a section or `*` for every metric. Nothing changes.
+
+Both end up in the `annotations` table (keyed by `loss_date`), which the daily
+page shows in the tooltip. A run whose only change is to this file still sets
+`changed=true`, so the DB is uploaded.
+
+**Fridays.** The MoD publishes no daily summary on Fridays, only a weekly one
+(Saturday–Friday), and the sheet's Friday figure is that week's total minus the
+six days already entered: the sheet's weekly sum equals the MoD's weekly total
+exactly, on every week since 03/2025 whose regional figures the scraped posts
+in `ru-mod-ad.db` parse cleanly. So a Friday also carries whatever the weekly
+summary claims beyond the dailies:
+
+- 16/08/2024 – 25/04/2025: the week's **Kursk-area** claims, which the MoD
+  reported only weekly — Fridays at ~2× the surrounding days. Correct, and
+  noted in the tooltip.
+- 22/03/2024: the week's Belgorod-border claims (3,000 of 8,745). Correct.
+- **27/10/2023: wrong.** The sheet holds the whole weekly total (5,585, the sum
+  of the MoD's six regional figures, t.me/mod_russia/31868) instead of the
+  remainder after the six days already counted (4,435): corrected to 1,150.
+
+`check_friday_weeks` flags a Friday holding ≥ 45% of its week's personnel
+figure (a Friday normally holds ~15%, a Kursk-era one up to ~34%, 27/10/2023
+57%) — the likely sign of another whole weekly total — for a correction to be
+checked and added. It reads through the corrections, so a fixed day stops
+warning.
+
 ## Dates
 
 `report_date` is the date the sheet gives the row — the day the MoD published
@@ -146,4 +186,5 @@ and 25th) both land on 24/02 — as GSUA's series starts too. Days are Moscow's.
 ## Tests
 
 `bash scripts/test_python.sh scripts/ua_losses_ru_mod` — header mapping,
-parsing and the `daily` view, on a synthetic miniature of the sheet.
+parsing, the `daily` view, corrections and annotations, and the Friday check,
+on a synthetic miniature of the sheet; plus that `corrections.json` is well formed.

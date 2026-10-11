@@ -1,0 +1,33 @@
+{
+  "_doc": [
+    "Our corrections to John Felix's sheet, and notes on days it gets right but that read wrong.",
+    "Reviewed by hand: each entry is checked against the MoD's own posts (source).",
+    "corrections: report_date (the sheet's row date), section, item ('_total' for the MoD figure),",
+    "  sheet_value (what the sheet holds — the correction applies only while it still does),",
+    "  value, note (shown in the chart tooltip), source.",
+    "notes: section (or '*' for every metric), from/to report dates, weekday (Mon–Sun, optional),",
+    "  note. Nothing changes; the note is shown on those days.",
+    "The ingest loads this on every run; see README 'Corrections'."
+  ],
+  "corrections": [
+    {
+      "report_date": "2023-10-27",
+      "section": "personnel",
+      "item": "_total",
+      "sheet_value": 5585,
+      "value": 1150,
+      "note": "Corrected from 5,585: the sheet holds the MoD's whole weekly figure for 21–27 Oct here (5,585) rather than what is left of it after the six days already counted (4,435).",
+      "source": "https://t.me/mod_russia/31868"
+    }
+  ],
+  "notes": [
+    {
+      "section": "*",
+      "from": "2024-08-16",
+      "to": "2025-04-25",
+      "weekday": "Fri",
+      "note": "Carries the whole week's claims in the Kursk area: the MoD reported those only in its weekly summary.",
+      "source": "https://t.me/mod_russia/44919"
+    }
+  ]
+}

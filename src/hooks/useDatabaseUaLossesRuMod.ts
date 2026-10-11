@@ -50,7 +50,7 @@ export function useDatabaseUaLossesRuMod({ enabled = true }: { enabled?: boolean
       if (!db) return [];
       const todayStr = getMskDateString();
       const end = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
-      return queryRows<Record<string, unknown>>(
+      const rows = queryRows<Record<string, unknown>>(
         db,
         `SELECT loss_date AS date, ${COLS}
          FROM daily
@@ -61,6 +61,25 @@ export function useDatabaseUaLossesRuMod({ enabled = true }: { enabled?: boolean
         for (const k of KEYS) out[k] = typeof row[k] === "number" ? (row[k] as number) : null;
         return out;
       });
+      // The ingest's tooltip notes: its corrections to the sheet, and days the
+      // sheet gets right but that read wrong (the Kursk-era weekly-report
+      // days). Section '*' is every metric. A DB from before the table existed
+      // simply has none.
+      const hasNotes = queryRows<{ n: number }>(
+        db, "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'annotations'",
+      )[0]?.n;
+      if (hasNotes && rows.length) {
+        const byDate = new Map(rows.map((r) => [r.date, r]));
+        for (const a of queryRows<{ loss_date: string; section: string; note: string }>(
+          db,
+          `SELECT loss_date, section, note FROM annotations
+           WHERE loss_date >= '${rows[0].date}' AND loss_date <= '${rows[rows.length - 1].date}'`,
+        )) {
+          const r = byDate.get(a.loss_date);
+          if (r) (r.notes ??= {})[a.section] = a.note;
+        }
+      }
+      return rows;
     },
     [db],
   );

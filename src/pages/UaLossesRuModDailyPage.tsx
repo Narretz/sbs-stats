@@ -125,6 +125,8 @@ export function UaLossesRuModDailyPage({ refreshKey }: Props) {
         date: d.date,
         value: typeof d[key] === "number" ? (d[key] as number) : null,
         is_today: d.is_today,
+        // A correction to this metric, or a note on the whole day.
+        note: [d.notes?.[key], d.notes?.["*"]].filter(Boolean).join(" ") || undefined,
       })),
       startDate,
       endDate,

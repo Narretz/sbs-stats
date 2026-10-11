@@ -49,13 +49,14 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import json
 import os
 import re
 import sqlite3
 import sys
 import urllib.request
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -68,6 +69,13 @@ CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_DB_NAME = "ua-losses-ru-mod-john-felix.db"
+# Our reviewed corrections to the sheet, and notes on days it gets right but
+# that read wrong — see README "Corrections".
+CORRECTIONS_PATH = SCRIPT_DIR / "corrections.json"
+# A Friday normally holds ~15% of its Saturday–Friday week's personnel and the
+# Kursk-era Fridays, which carry the week's Kursk claims, up to ~34%. A whole
+# weekly total entered as the Friday figure (27/10/2023) is >50%.
+FRIDAY_SHARE_WARN = 0.45
 
 # The war started 2022-02-24, so a sane fetch carries well over a year of days.
 MIN_ROWS_FLOOR = 365
@@ -355,15 +363,44 @@ CREATE TABLE IF NOT EXISTS notes (
   text        TEXT,
   PRIMARY KEY (report_date, snapshot)
 ) WITHOUT ROWID;
-DROP VIEW IF EXISTS latest_claims;
-CREATE VIEW latest_claims AS
-SELECT c.report_date, i.section, i.item, i.role, i.subgroup, c.value
+-- Ours, not the sheet's: rebuilt from corrections.json on every run. A
+-- correction is stored only while the sheet still holds `sheet_value`, so a
+-- fix Felix makes himself is never overwritten.
+CREATE TABLE IF NOT EXISTS corrections (
+  report_date TEXT NOT NULL,
+  item_id     INTEGER NOT NULL REFERENCES items (id),
+  sheet_value INTEGER NOT NULL,
+  value       INTEGER NOT NULL,
+  note        TEXT NOT NULL,
+  source      TEXT,
+  PRIMARY KEY (report_date, item_id)
+) WITHOUT ROWID;
+-- Tooltip notes per loss day and section ('*' = every metric): each
+-- correction's note, and corrections.json's notes on days that are right
+-- but read wrong.
+CREATE TABLE IF NOT EXISTS annotations (
+  loss_date   TEXT NOT NULL,       -- the `daily` view's key
+  report_date TEXT NOT NULL,
+  section     TEXT NOT NULL,
+  note        TEXT NOT NULL,
+  PRIMARY KEY (loss_date, section)
+) WITHOUT ROWID;
+-- The sheet as Felix has it: the latest non-null version of every cell.
+DROP VIEW IF EXISTS sheet_claims;
+CREATE VIEW sheet_claims AS
+SELECT c.report_date, c.item_id, i.section, i.item, i.role, i.subgroup, c.value
 FROM claims c
 JOIN (SELECT report_date, item_id, MAX(snapshot) AS ms
       FROM claims GROUP BY report_date, item_id) l
   ON c.report_date = l.report_date AND c.item_id = l.item_id AND c.snapshot = l.ms
 JOIN items i ON i.id = c.item_id
 WHERE c.value IS NOT NULL;
+-- What everything reads: the sheet, with our corrections applied.
+DROP VIEW IF EXISTS latest_claims;
+CREATE VIEW latest_claims AS
+SELECT s.report_date, s.section, s.item, s.role, s.subgroup, COALESCE(k.value, s.value) AS value
+FROM sheet_claims s
+LEFT JOIN corrections k ON k.report_date = s.report_date AND k.item_id = s.item_id;
 """
 
 
@@ -520,6 +557,94 @@ def store(conn: sqlite3.Connection, columns: list[Column],
     return {"cells": len(changes), "notes": len(note_changes), "days": len(data)}
 
 
+def loss_date_of(report_date: str) -> str:
+    """The `daily` view's dating, in Python: the day before the report, except
+    the war's first reports, which are about the 24th itself."""
+    if report_date <= FIRST_REPORTS_THROUGH:
+        return WAR_START
+    return (date.fromisoformat(report_date) - timedelta(days=1)).isoformat()
+
+
+WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def curate(conn: sqlite3.Connection, spec: dict) -> bool:
+    """Rebuild `corrections` and `annotations` from corrections.json's content.
+
+    Returns whether either table changed (for the upload gate). A correction
+    whose cell no longer holds `sheet_value` is skipped and flagged: Felix has
+    changed the cell since, so it wants reviewing, not overriding.
+    """
+    item_ids = {(sec, it): i for i, sec, it in conn.execute("SELECT id, section, item FROM items")}
+    sheet = {(d, i): v for d, i, v in conn.execute("SELECT report_date, item_id, value FROM sheet_claims")}
+    report_dates = [d for (d,) in conn.execute("SELECT DISTINCT report_date FROM sheet_claims ORDER BY 1")]
+
+    corrections: list[tuple] = []
+    notes: dict[tuple[str, str], list[str]] = {}
+    for c in spec.get("corrections", []):
+        key = (c["section"], c.get("item", "_total"))
+        where = f"{c['report_date']} / {key[0]}.{key[1]}"
+        if key not in item_ids:
+            log.warning(f"correction for unknown column: {where}",
+                        extra=ann(title="ua-losses-ru-mod: correction not applied"))
+            continue
+        now = sheet.get((c["report_date"], item_ids[key]))
+        if now != c["sheet_value"]:
+            log.warning(f"correction no longer matches the sheet: {where} holds {now}, "
+                        f"the correction was written against {c['sheet_value']} — review corrections.json",
+                        extra=ann(title="ua-losses-ru-mod: correction not applied"))
+            continue
+        corrections.append((c["report_date"], item_ids[key], c["sheet_value"], c["value"], c["note"], c.get("source")))
+        notes.setdefault((c["report_date"], key[0]), []).append(c["note"])
+    for n in spec.get("notes", []):
+        weekday = WEEKDAYS.index(n["weekday"]) if n.get("weekday") else None
+        for d in report_dates:
+            if n["from"] <= d <= n["to"] and (weekday is None or date.fromisoformat(d).weekday() == weekday):
+                notes.setdefault((d, n["section"]), []).append(n["note"])
+    annotations = sorted((loss_date_of(d), d, sec, " ".join(t)) for (d, sec), t in notes.items())
+
+    before = (conn.execute("SELECT * FROM corrections ORDER BY 1, 2").fetchall(),
+              conn.execute("SELECT * FROM annotations ORDER BY 1, 3").fetchall())
+    conn.execute("DELETE FROM corrections")
+    conn.execute("DELETE FROM annotations")
+    conn.executemany("INSERT INTO corrections VALUES (?, ?, ?, ?, ?, ?)", corrections)
+    conn.executemany("INSERT INTO annotations VALUES (?, ?, ?, ?)", annotations)
+    conn.commit()
+    after = (conn.execute("SELECT * FROM corrections ORDER BY 1, 2").fetchall(),
+             conn.execute("SELECT * FROM annotations ORDER BY 1, 3").fetchall())
+    return before != after
+
+
+def check_friday_weeks(conn: sqlite3.Connection) -> list[str]:
+    """Flag a Friday that holds a whole week's personnel figure.
+
+    On Fridays the MoD publishes only a weekly summary, and the sheet's Friday
+    figure is that total minus the six days already entered. Entering the
+    total itself (27/10/2023) counts the week twice. Read through the
+    corrections, so a fixed day stops warning. Returns the flagged dates.
+    """
+    v = dict(conn.execute(
+        "SELECT report_date, value FROM latest_claims WHERE section = 'personnel' AND item = '_total'"))
+    flagged = []
+    for d, fri in v.items():
+        day = date.fromisoformat(d)
+        if day.weekday() != 4 or not fri:
+            continue
+        week = [v.get((day - timedelta(days=k)).isoformat()) for k in range(7)]
+        if any(x is None for x in week):
+            continue
+        share = fri / sum(week)
+        if share >= FRIDAY_SHARE_WARN:
+            flagged.append(d)
+            log.warning(
+                f"{d}: Friday personnel {fri} is {share:.0%} of its week ({sum(week)}) — the sheet may "
+                f"hold the MoD's whole weekly figure rather than the week minus the six days before it. "
+                f"Check the weekly summary and add a correction to corrections.json.",
+                extra=ann(title="ua-losses-ru-mod: Friday holds a whole week"),
+            )
+    return flagged
+
+
 def fetch() -> str:
     req = urllib.request.Request(CSV_URL, headers={"User-Agent": "sbs-stats-ingest"})
     with urllib.request.urlopen(req, timeout=120) as resp:
@@ -538,6 +663,8 @@ def main() -> int:
     conn = connect(Path(args.out))
     try:
         result = store(conn, columns, data, notes)
+        curated = curate(conn, json.loads(CORRECTIONS_PATH.read_text(encoding="utf-8")))
+        check_friday_weeks(conn)
         latest = conn.execute("SELECT MAX(report_date) FROM latest_claims").fetchone()[0]
     finally:
         conn.close()
@@ -545,13 +672,13 @@ def main() -> int:
     for c in columns:
         per_section[c.section] = per_section.get(c.section, 0) + 1
     print(f"==> {result['days']} days (latest {latest}); inserted {result['cells']} cell versions, "
-          f"{result['notes']} notes → {args.out}")
+          f"{result['notes']} notes → {args.out}" + ("; corrections/annotations changed" if curated else ""))
     # CI uploads only on a change: most runs find the sheet as it was, and a
     # needless upload busts the CDN cache for nothing.
     out = os.environ.get("GITHUB_OUTPUT")
     if out:
         with open(out, "a", encoding="utf-8") as fh:
-            fh.write(f"changed={'true' if result['cells'] or result['notes'] else 'false'}\n")
+            fh.write(f"changed={'true' if result['cells'] or result['notes'] or curated else 'false'}\n")
     print("    columns per section: " + ", ".join(f"{s} {n}" for s, n in per_section.items()))
     return 0
 

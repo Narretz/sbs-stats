@@ -483,6 +483,9 @@ export const UA_LOSSES_RU_MOD_ARMOUR_LABELS: Record<UaLossesRuModArmourKey, stri
 export type UaLossesRuModDailyRow = {
   date: string;        // YYYY-MM-DD, the loss day (report day − 1)
   is_today: boolean;
+  // Tooltip notes from the ingest's `annotations`, by section ('*' = every
+  // metric): a correction to the sheet, or a day that reads wrong otherwise.
+  notes?: Partial<Record<string, string>>;
 } & Record<UaLossesRuModMetricKey | UaLossesRuModArmourKey, number | null>;
 
 export type UaLossesRuModGlobalStats = Record<UaLossesRuModMetricKey, Stat>;
