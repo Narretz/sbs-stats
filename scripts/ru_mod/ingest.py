@@ -84,8 +84,10 @@ MONTHS = {
 _AD_VERB = r"(?:уничтожен|сбит|перехвач)\w*"
 # Unit noun: either the short "БПЛА"/"БпЛА" or the full "беспилотн… летательн…
 # аппарат" noun phrase. The short form became common in late 2024 — its absence
-# from the old COUNT_RE silently dropped every report that used it.
-_UNIT_NOUN = r"(?:БПЛА|БпЛА|беспилотн\w+\s+летательн\w+\s+аппарат\w*)"
+# from the old COUNT_RE silently dropped every report that used it. From
+# 8 Oct 2026 the channel also writes "беспилотных летательных средств[а]"
+# (msgs 68047, 68070, 68079, 68092) — same noun phrase, different head.
+_UNIT_NOUN = r"(?:БПЛА|БпЛА|беспилотн\w+\s+летательн\w+\s+(?:аппарат|средств)\w*)"
 _HEAD_NUM = r"(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+)?)"
 COUNT_VERB_FIRST_RE = re.compile(
     # Leading verb is any _AD_VERB, not just "уничтожен" — msg 50783 (Apr
