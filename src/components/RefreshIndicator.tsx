@@ -51,6 +51,15 @@ export function RefreshIndicator({ lastRefreshed, refreshCount, onRefresh, isLoa
     ? lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
     : "—";
 
+  // Every label the top line can show, so it can reserve the widest: the
+  // countdown loses a digit as it runs down (1440:00 → 9:59) and "refreshing…"
+  // is shorter still, and each change would resize the whole header box. The
+  // font is monospace, so a character count in `ch` is the width.
+  const labelWidth = Math.max(
+    "refreshing…".length,
+    manualOnly ? "refresh".length : `refresh in ${formatTime(intervalMs / 1000)}`.length,
+  );
+
   const size = 28;
   const stroke = 2.5;
   const r = (size - stroke) / 2;
@@ -119,7 +128,7 @@ export function RefreshIndicator({ lastRefreshed, refreshCount, onRefresh, isLoa
       {/* Layout lives in CSS (.refresh-text): an inline `display` would win
           over the media query that hides this in a wrapped header. */}
       <div className="refresh-text">
-        <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, lineHeight: 1 }}>
+        <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, lineHeight: 1, minWidth: `${labelWidth}ch` }}>
           {isLoading
             ? "refreshing…"
             : manualOnly
