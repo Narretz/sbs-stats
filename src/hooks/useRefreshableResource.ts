@@ -93,7 +93,10 @@ export function useRefreshableResource<T>({
   const doRefresh = useCallback(() => {
     cache.promise = null;
     cache.createdAt = null;
-    setResource(null);
+    // The old resource stays up until the new one replaces it: anything that
+    // reads it on render (the "Data Availability" line) would otherwise vanish
+    // for the length of the download and jolt the page. Nothing closes it, and
+    // pages re-query only once loadState is "ready" again.
     setRefreshCount((c) => c + 1);
     doLoad();
   }, [cache, doLoad]);
