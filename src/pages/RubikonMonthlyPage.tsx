@@ -88,7 +88,7 @@ export function RubikonMonthlyPage({ refreshKey }: Props) {
 
   // Time-window picker; the hook hides itself at ≤12 periods, so it stays out
   // of the way until the series is over a year long.
-  const yr = useMonthlyMonthRange(allPeriods.length, "all");
+  const yr = useMonthlyMonthRange({ count: allPeriods.length, first: allPeriods[0] ?? "" }, "all");
   const periods = useMemo(
     () => extendMonthsTo(yr.slice(allPeriods), yr.endMonth),
     [allPeriods, yr],

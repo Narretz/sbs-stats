@@ -48,6 +48,19 @@ export function parseEndMonthParam(raw: string | null): string {
   return raw && /^\d{4}-(0[1-9]|1[0-2])$/.test(raw) ? raw : "";
 }
 
+// The end month a page resolves `end` to, within its own data [first, last]
+// (YYYY-MM, or longer dates cut to their month; "" = not known yet). The
+// end-month= param outlives a site switch, so it can name a month the dataset
+// doesn't cover: one before its first resolves to the first, one at or past
+// its last to live (""). The hook writes the result back to the URL.
+export function clampEndMonth(end: string, first: string, last: string): string {
+  if (!end) return "";
+  const lo = first.slice(0, 7), hi = last.slice(0, 7);
+  if (hi && end >= hi) return "";
+  if (lo && end < lo) return hi && lo >= hi ? "" : lo;
+  return end;
+}
+
 // A monthly page's window: the last `months` rows up to and including
 // `endMonth` ("" = no end, i.e. live). Counts rows rather than calendar months,
 // as the window always has — `key` reads a row's YYYY-MM, which is `date` for

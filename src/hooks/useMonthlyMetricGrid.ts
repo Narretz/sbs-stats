@@ -40,7 +40,7 @@ export function useMonthlyMetricGrid<Row extends { date: string }, K extends str
     }
   }, [loadState, queryMonthly, refreshKey]);
 
-  const yr = useMonthlyMonthRange(allRows.length, undefined, tz);
+  const yr = useMonthlyMonthRange({ count: allRows.length, first: allRows[0]?.date ?? "" }, undefined, tz);
   const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
 
   const allStats = useMemo(() => {

@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   MONTH_OPTIONS,
+  clampEndMonth,
   DEFAULT_MONTHS,
   parseEndMonthParam,
   parseMonthsParam,
@@ -45,8 +46,10 @@ export interface MonthlyMonthRange {
 }
 
 /**
- * @param totalMonths - the dataset's full row count, used to decide whether to
- *   hide the picker. Pass the un-sliced `allRows.length`.
+ * @param span - the dataset's full extent. `count` is its row count, used to
+ *   decide whether to hide the picker (pass the un-sliced `allRows.length`);
+ *   `first` its first month and `last` its live one (defaults to the current
+ *   month), which bound `end` — see clampEndMonth.
  * @param defaultMonths - initial window when the URL carries no `months=`.
  *   Defaults to DEFAULT_MONTHS (12), which is right for the long-running
  *   sources. Short datasets that have only just crossed the 12-month
@@ -57,7 +60,7 @@ export interface MonthlyMonthRange {
  *   Kyiv for most, Moscow for the RU-dated ones).
  */
 export function useMonthlyMonthRange(
-  totalMonths: number,
+  span: { count: number; first: string; last?: string },
   defaultMonths: MonthOption = DEFAULT_MONTHS,
   tz = "Europe/Kyiv",
 ): MonthlyMonthRange {
@@ -68,9 +71,32 @@ export function useMonthlyMonthRange(
   const [endState, setEndState] = useState<string>(() =>
     parseEndMonthParam(new URLSearchParams(window.location.search).get("end-month"))
   );
-  const hidden = totalMonths <= 12;
+  const hidden = span.count <= 12;
+  const liveMonth = resolvedEndMonth(tz);
   // Hidden with the range picker, so it goes with it too.
-  const end = hidden ? "" : endState;
+  const end = hidden ? "" : clampEndMonth(endState, span.first, span.last ?? liveMonth);
+  // A clamped end (one outside this dataset, carried over from another site)
+  // is written back, so the URL says what the picker shows. Replaced, not
+  // pushed: the page we came from keeps its own end-month= in its history
+  // entry. Not while hidden — that is also how a page looks before its data
+  // has loaded, and the param must survive until it has.
+  useEffect(() => {
+    if (!hidden && end !== endState) {
+      setEndState(end);
+      setParam("end-month", end);
+    }
+  }, [hidden, end, endState]);
+  // A clamped end (one outside this dataset, carried over from another site)
+  // is written back, so the URL says what the picker shows. Replaced, not
+  // pushed: the page we came from keeps its own end-month= in its history
+  // entry. Not while hidden — that is also how a page looks before its data
+  // has loaded, and the param must survive until it has.
+  useEffect(() => {
+    if (!hidden && end !== endState) {
+      setEndState(end);
+      setParam("end-month", end);
+    }
+  }, [hidden, end, endState]);
   const setMonths = (m: MonthOption) => {
     setMonthsState(m);
     setParam("months", String(m));
@@ -80,7 +106,6 @@ export function useMonthlyMonthRange(
     setParam("end-month", month);
   };
   const slice = <T,>(rows: T[]): T[] => sliceMonthWindow(rows, hidden ? "all" : months, end);
-  const liveMonth = resolvedEndMonth(tz);
   return { months, monthOptions, setMonths, end, setEnd, liveMonth, endMonth: end || liveMonth, hidden, slice };
 }
 

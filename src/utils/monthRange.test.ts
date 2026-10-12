@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  monthsOfYear, parseEndMonthParam, parseMonthsParam, sliceMonthWindow, switchYear, windowStartMonth, yearsBetween,
+  clampEndMonth, monthsOfYear, parseEndMonthParam, parseMonthsParam, sliceMonthWindow, switchYear, windowStartMonth, yearsBetween,
 } from "@/utils/monthRange";
 import {
   WINDOW_FLOOR, clampDays, daysBetweenInclusive, maxDaysFor, parseDaysParam,
@@ -204,5 +204,28 @@ describe("the end-month picker's year and month", () => {
     expect(switchYear("2023-01", "2022", MIN, MAX)).toBe("2022-02");
     // Onto the latest month — which is live.
     expect(switchYear("2025-12", "2026", MIN, MAX)).toBe("2026-10");
+  });
+});
+
+// end-month= survives a site switch, so a page can be handed a month outside
+// its own data: Mediazona's Dec 2024 on SBS, which starts in Jun 2025.
+describe("an end month outside the dataset", () => {
+  it("before the first month resolves to the first", () => {
+    expect(clampEndMonth("2024-12", "2025-06-01", "2026-10")).toBe("2025-06");
+  });
+
+  it("at or past the last resolves to live", () => {
+    expect(clampEndMonth("2026-10", "2025-06", "2026-10")).toBe("");
+    expect(clampEndMonth("2026-08", "2022-02", "2026-05")).toBe("");
+  });
+
+  it("inside the range, or with the range not loaded yet, is kept", () => {
+    expect(clampEndMonth("2025-09", "2025-06", "2026-10")).toBe("2025-09");
+    expect(clampEndMonth("2024-12", "", "2026-10")).toBe("2024-12");
+    expect(clampEndMonth("", "2025-06", "2026-10")).toBe("");
+  });
+
+  it("a one-month dataset only has live", () => {
+    expect(clampEndMonth("2024-12", "2026-10", "2026-10")).toBe("");
   });
 });

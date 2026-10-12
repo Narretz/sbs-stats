@@ -39,7 +39,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
   const [breakdowns, setBreakdowns] = useState<Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>>({} as Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>);
   const [allBreakdown, setAllBreakdown] = useState<Map<string, ModelBreakdownEntry[]>>(new Map());
   const [hasData, setHasData] = useState(false);
-  const yr = useMonthlyMonthRange(allRows.length);
+  const yr = useMonthlyMonthRange({ count: allRows.length, first: allRows[0]?.date ?? "" });
 
   useEffect(() => {
     if (loadState === "ready") {

@@ -46,7 +46,7 @@ export function MediazonaMonthlyPage({ refreshKey }: Props) {
 
   const span = useMemo(() => unionSpan(roles, estimate), [roles, estimate]);
   // Default "all": the whole war is what this page is about.
-  const yr = useMonthlyMonthRange(span.count, "all");
+  const yr = useMonthlyMonthRange(span, "all");
   const win = useMemo(
     () => mediazonaWindow(roles, estimate, yr.hidden ? "all" : yr.months, yr.end),
     [roles, estimate, yr.hidden, yr.months, yr.end],

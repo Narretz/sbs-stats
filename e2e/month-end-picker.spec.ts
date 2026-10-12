@@ -48,4 +48,20 @@ test.describe("Monthly — end month", () => {
     await expect.poll(() => axisMonths(page)).toEqual([monthsBack(7), monthsBack(6), monthsBack(5)]);
   });
 
+  // end-month= survives a site switch, so it can predate this dataset — it
+  // used to leave the month select empty and every chart blank.
+  test("an end month before the data's first resolves to the first, in the URL too", async ({ page }) => {
+    await page.goto(`${PAGE}&end-month=2000-01`);
+    const end = page.getByTestId(END);
+    const first = await end.locator("option").first().getAttribute("value");
+    await expect(end).not.toHaveValue("");
+    await expect(page.getByTestId("month-end-year")).toHaveValue(first!.slice(0, 4));
+    await expect(end).toHaveValue(first!);
+    // …and the URL says so too.
+    await expect(page).toHaveURL(new RegExp(`end-month=${first}`));
+    // …and the URL says so too.
+    await expect(page).toHaveURL(new RegExp(`end-month=${first}`));
+    await expect.poll(() => axisMonths(page)).toEqual([first]);
+  });
+
 });

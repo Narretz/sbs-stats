@@ -51,7 +51,7 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
     setSelectedDirections(dirs);
     setDirectionParam(dirs);
   };
-  const yr = useMonthlyMonthRange(allRows.length);
+  const yr = useMonthlyMonthRange({ count: allRows.length, first: allRows[0]?.date ?? "" });
   const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
 
   useEffect(() => {

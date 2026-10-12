@@ -83,7 +83,7 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
   // Time-window picker. The hook auto-hides when there are ≤12 periods, so this
   // is a no-op today (3 months) and the picker appears automatically once SBU
   // has published 13+ monthly recaps.
-  const yr = useMonthlyMonthRange(allPeriods.length);
+  const yr = useMonthlyMonthRange({ count: allPeriods.length, first: allPeriods[0] ?? "" });
   const periods = useMemo(
     () => extendMonthsTo(yr.slice(allPeriods), yr.endMonth),
     [allPeriods, yr],
