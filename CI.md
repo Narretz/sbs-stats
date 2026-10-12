@@ -15,7 +15,7 @@ dataset's README, linked from the table.
 | `update-telegram-web-dbs.yml` | GSUA — [README](scripts/gsua/README.md); RU MoD — [README](scripts/ru_mod/README.md) | cron Worker, 09:10 / 23:10 Kyiv (GS reports ~08:00 / 22:00) | `gsua_lookback_days`, `rumod_lookback_days` (default 2) | GSUA: what changed; RU MoD: every run |
 | `update-ru-losses-db.yml` | RU losses — [README](scripts/ru_losses/README.md) | cron Worker, 09:10 Kyiv | — (re-pulls everything) | every run |
 | `update-missile-attacks-db.yml` | RU missile & UAV attacks — [README](scripts/missile_attacks/README.md) | 06:00 / 16:00 UTC | — (re-pulls everything) | every run (append-on-change) |
-| `update-mediazona-db.yml` | Mediazona — [README](scripts/mediazona/README.md) | 07:00 UTC every 3rd day | — (re-pulls everything) | every run (append-on-change) |
+| `update-mediazona-db.yml` | Mediazona — [README](scripts/mediazona/README.md) | 07:00 UTC every 3rd day | `backfill` — past releases (re-pulls the live one anyway) | every run (append-on-change) |
 | `update-sbu-alfa-db.yml` | SBU Alfa — [README](scripts/sbu_alfa/README.md) | 08:00 UTC, days 5–20 | `pages` (default 3) | `changed=true` |
 | `update-rubikon-db.yml` | Rubikon — [README](scripts/rubikon/README.md) | 08:00 UTC, days 2–8 (posts the 3rd–4th) | `pages` (default 3) | `changed=true` |
 | `update-ua-losses-db.yml` | UA losses — [README](scripts/ua_losses/README.md) | 07:00 UTC, 1st & 15th (re-released ~every 2 months) | — (re-pulls everything) | every run (append-on-change) |

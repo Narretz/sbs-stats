@@ -2,6 +2,11 @@ name: Update Mediazona Database
 
 on:
   workflow_dispatch: # allow manual trigger from GitHub UI
+    inputs:
+      backfill:
+        description: "Also add the past releases in scripts/mediazona/releases.csv older than the oldest stored one (backfill.py)"
+        type: boolean
+        default: false
   schedule:
     # Mediazona publishes a fresh release ~every 2 weeks. Running every 3 days
     # catches a new release within a couple of days at most; the in-between
@@ -48,11 +53,22 @@ jobs:
             --file "scripts/mediazona/output/$MEDIAZONA_DB_NAME" \
             --remote
 
+      # Past releases, from the bundles still on S3 (see backfill.py). Only
+      # those older than the oldest stored release are added, each compared
+      # with the release before it; a no-op once done. Never without the
+      # stored DB: into an empty one it would add every listed release, and
+      # the upload would replace R2's history with it.
+      - name: Backfill past Mediazona releases
+        if: inputs.backfill && steps.download.outcome == 'success'
+        run: |
+          python3 scripts/mediazona/backfill.py \
+            --out "scripts/mediazona/output/$MEDIAZONA_DB_NAME"
+
       # ingest.py fetches the article + JS bundle, identifies the data blobs
-      # by shape, runs the drift guard (cross-checks blob 5 indices against
-      # blob 3 totals — aborts on >1 miss), and appends only weeks whose
-      # values changed against the latest stored version. A guard-triggered
-      # abort fails this step and the upload below is skipped, leaving R2
+      # by shape, runs the drift guard (holds each role to its own category
+      # in the summary blob, by name), and appends only weeks whose values
+      # changed against the latest stored version. A guard-triggered abort
+      # fails this step and the upload below is skipped, leaving R2
       # untouched. stdlib only — no pip install needed.
       - name: Build Mediazona DB from the live article
         run: |

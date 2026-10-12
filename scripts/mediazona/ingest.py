@@ -49,6 +49,7 @@ import json
 import os
 import re
 import sqlite3
+import statistics
 import sys
 import urllib.request
 from datetime import date as date_cls, datetime, timedelta, timezone
@@ -67,9 +68,15 @@ ROLE_COLS = [
     "chem", "pmc", "fsb", "groundavia", "inmates",
 ]
 
-# A war that started 2022-02-24 yields ~200 weeks by 2026 — a healthy CSV has
-# well over a year of rows. Far below this means a truncated/empty export.
-MIN_ROWS_FLOOR = 100
+# A healthy export has a row for (nearly) every week of the war up to its
+# release; one with fewer than half of them is truncated. Scaled to the release
+# date because a backfilled 2023 release covers barely a year (55 weeks).
+MAX_DROPPED_WEEKS = 2
+
+
+def min_rows(published_at: str) -> int:
+    days = (date_cls.fromisoformat(published_at) - date_cls(2022, 2, 24)).days
+    return days // 14
 
 # ── Article-fetch mode (--from-article) ───────────────────────────────────────
 # Mediazona republishes the same casualty count under a new date-coded URL
@@ -95,6 +102,38 @@ BLOB5_COLUMN_MAP = [
     "vol", "mob", "signal", "airdef",
     "groundavia", "pmc", "fsb", "chem", "inmates",
 ]
+
+# Releases from Mar 2023 to 06/12/2024 carry 20 roles: "ground aviation
+# services" didn't exist yet (its people sat under `other`), the rest in the
+# same order. Selected by the blob's role count; `groundavia` is 0 there.
+BLOB5_COLUMN_MAP_20 = [c for c in BLOB5_COLUMN_MAP if c != "groundavia"]
+
+# Each role's category in the summary blob, which `_check_blob5_drift` holds
+# the roles blob to. `other` is "другие войска" plus every "(другие войска)"
+# subcategory not listed here. The names have been identical in every release
+# since Mar 2023.
+SUMMARY_NAMES = {
+    "nguard": "нацгвардия", "rifle": "мотострелковые войска", "air": "ВДВ",
+    "pilot": "военные пилоты", "seaman": "моряки", "marine": "морпехи",
+    "tank": "танковые войска", "art": "артиллерия", "eng": "инженерные войска",
+    "nd": "нет данных", "special": "спецназ", "vol": "добровольцы",
+    "mob": "мобилизованные", "signal": "войска связи (другие войска)",
+    "airdef": "войсковая ПВО (другие войска)",
+    "groundavia": "наземные авиаслужбы (другие войска)", "pmc": "ЧВК",
+    "fsb": "ФСБ (другие войска)", "chem": "РХБЗ (другие войска)",
+    "inmates": "заключенные",
+}
+
+
+def column_map(daily: dict[str, list[int]]) -> list[str]:
+    """The role-column order for a roles blob, by its number of roles."""
+    for cmap in (BLOB5_COLUMN_MAP, BLOB5_COLUMN_MAP_20):
+        if len(daily) == len(cmap):
+            return cmap
+    raise RuntimeError(
+        f"roles blob has {len(daily)} roles; known layouts have "
+        f"{len(BLOB5_COLUMN_MAP)} or {len(BLOB5_COLUMN_MAP_20)} — re-validate "
+        f"the column mapping.")
 
 
 def iso(ddmmyyyy: str) -> str:
@@ -281,48 +320,79 @@ def _find_roles_summary_blob(blobs: list[object]) -> list[dict]:
     raise RuntimeError("no roles-summary blob ({k,o,v} list) in bundle")
 
 
-def _check_blob5_drift(daily: dict[str, list[int]], summary: list[dict]) -> None:
-    """Guard: each blob 5 index's all-time sum should match the per-category
-    `v` of some entry in blob 3, within 10%. If not, the column taxonomy or
-    ordering drifted and BLOB5_COLUMN_MAP is no longer trustworthy — abort
-    rather than write a silently-shuffled dataset.
+def _summary_name(k: str) -> str:
+    """A summary category name as Russian text. `_extract_json_blobs` reads the
+    bundle's raw UTF-8 as Latin-1 (`unicode_escape`), so the names arrive as
+    mojibake; undo that, and leave an already-clean name alone."""
+    try:
+        return k.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return k
 
-    A single tolerated miss (currently: index 10 = 'nd' / "нет данных", where
-    blob 5 omits a residual bucket present in blob 3 — ~21% gap) is allowed;
-    more than that means real drift.
+
+def _check_blob5_drift(daily: dict[str, list[int]], summary: list[dict]) -> None:
+    """Guard: hold each role's all-time sum to its own category in the summary
+    blob, matched by name (`SUMMARY_NAMES`). If they disagree, the column
+    taxonomy or ordering drifted and the column map is no longer trustworthy —
+    abort rather than write a silently-shuffled dataset.
+
+    The roles blob counts only deaths with a known date, the summary every
+    name, so a role is compared to its summary total times the release's
+    *dated share* — the median of the per-role ratios. That share has risen
+    from ~0.82 (2023) to ~0.97 (2026); a fixed tolerance against the raw
+    totals rejected every release before 2026. Per-role ratios to the median
+    stay within 0.74–1.14 across every release since Mar 2023, except `nd`
+    ("нет данных"), whose undated share is larger (0.64–0.86); a shuffled
+    column lands far outside either band. Roles under 100 in the summary are
+    too small for a ratio and are held to an absolute margin instead.
     """
-    summary_totals = sorted(r["v"] for r in summary)
+    cmap = column_map(daily)
+    totals = {_summary_name(r["k"]): r["v"] for r in summary}
+    named = {SUMMARY_NAMES[c] for c in cmap if c in SUMMARY_NAMES}
+    missing = sorted(named - totals.keys())
+    if missing:
+        raise RuntimeError(
+            f"summary blob lacks the categories {missing} — the role taxonomy "
+            f"changed upstream; re-validate the column map and SUMMARY_NAMES.")
+    expected = {c: totals[SUMMARY_NAMES[c]] for c in cmap if c in SUMMARY_NAMES}
+    expected["other"] = sum(v for k, v in totals.items() if k not in named)
+    sums = {c: sum(daily[k]) for c, k in zip(cmap, sorted(daily, key=int))}
+    share = statistics.median(
+        sums[c] / expected[c] for c in cmap if expected[c] >= 100)
+
     misses = []
-    for k in sorted(daily.keys(), key=int):
-        s = sum(daily[k])
-        if not any(abs(s - v) <= max(10, 0.10 * max(s, v)) for v in summary_totals):
-            misses.append((k, s))
-    if len(misses) > 1:
-        msg = (f"blob 5 / blob 3 drift: {len(misses)} indices have no within-10% "
-               f"match in the summary blob ({misses}). The role taxonomy or "
-               f"ordering changed upstream — re-validate BLOB5_COLUMN_MAP "
-               f"before re-running.")
-        raise RuntimeError(msg)
+    for c in cmap:
+        want = share * expected[c]
+        if expected[c] < 100:
+            ok = abs(sums[c] - want) <= 40
+        else:
+            lo, hi = (0.5, 1.1) if c == "nd" else (0.65, 1.35)
+            ok = lo <= sums[c] / want <= hi
+        if not ok:
+            misses.append((c, sums[c], expected[c]))
     if misses:
-        print(f"[check] tolerated drift on 1 blob 5 index (expected for nd): {misses}")
+        raise RuntimeError(
+            f"roles blob / summary drift: {len(misses)} roles off their summary "
+            f"category at a dated share of {share:.2f} ({misses}). The role "
+            f"taxonomy or ordering changed upstream — re-validate the column "
+            f"map before re-running.")
+    print(f"[check] roles match the summary by name; dated share {share:.2f}")
 
 
 def _aggregate_roles_blob_to_rows(daily: dict[str, list[int]]) -> list[tuple]:
     """Daily per-role → tuples in the shape `parse_roles()` would produce —
-    `(week_iso, *ROLE_COLS values)`, Thursday-anchored from 2022-02-24."""
+    `(week_iso, *ROLE_COLS values)`, Thursday-anchored from 2022-02-24. A role
+    the release's layout lacks (`groundavia` before 12/2024) is 0."""
+    cmap = column_map(daily)
     keys = sorted(daily.keys(), key=int)
-    if len(keys) != len(BLOB5_COLUMN_MAP):
-        raise RuntimeError(
-            f"blob 5 has {len(keys)} keys but BLOB5_COLUMN_MAP has "
-            f"{len(BLOB5_COLUMN_MAP)} — re-validate the column mapping.")
     n_days = len(next(iter(daily.values())))
     rows: list[tuple] = []
     for wi in range(0, n_days, 7):
         wend = min(wi + 7, n_days)
-        per_col = {col: sum(daily[k][wi:wend]) for col, k in zip(BLOB5_COLUMN_MAP, keys)}
+        per_col = {col: sum(daily[k][wi:wend]) for col, k in zip(cmap, keys)}
         per_col["total"] = sum(per_col.values())
         week_iso = (WAR_START + timedelta(days=wi)).isoformat()
-        rows.append((week_iso, *[per_col[c] for c in ROLE_COLS]))
+        rows.append((week_iso, *[per_col.get(c, 0) for c in ROLE_COLS]))
     return rows
 
 
@@ -343,36 +413,67 @@ def _estimate_blob_to_rows(blob: list[dict]) -> list[tuple]:
     return rows
 
 
-def _published_at_from_blob(blob: list[dict]) -> str:
-    """Derive the article's publication date from the estimate blob's
-    `current_date` metadata row (the `real` field is the article date in
-    DD.MM.YYYY)."""
-    for rec in blob:
-        if rec.get("w") == "current_date":
-            return iso(rec["real"])
-    raise RuntimeError("estimate blob missing the `current_date` metadata row")
+def _published_at(estimate_blob: list[dict] | None, n_days: int) -> str:
+    """The release date: the estimate blob's `current_date` metadata row (DD.MM.YYYY
+    in its `real` field), checked against the roles series, which runs from the
+    war's start to the release day — `WAR_START + n_days` matches `current_date`
+    to within a day on every release that has both.
+
+    The series wins when they disagree by more, and is the only source before
+    Apr 2024, when there was no metadata row (nor, before 24/02/2024, an
+    estimate blob). A disagreement is a bundle rebuilt mid-cycle: Mediazona
+    sometimes extends the data without touching `current_date` (13/05/2025
+    shipped data to 10/05 under the 25/04 date), and taking the stale date
+    would order that newer version before the release it follows.
+    """
+    derived = (WAR_START + timedelta(days=n_days)).isoformat()
+    meta = next((iso(r["real"]) for r in estimate_blob or []
+                 if r.get("w") == "current_date"), None)
+    if meta is None:
+        return derived
+    gap = abs((date_cls.fromisoformat(meta) - date_cls.fromisoformat(derived)).days)
+    if gap <= 1:
+        return meta
+    print(f"[warn] bundle dated {meta} carries data to {derived}; using {derived}",
+          file=sys.stderr)
+    return derived
+
+
+def parse_bundle(bundle: str) -> tuple[list[tuple], list[tuple] | None, str]:
+    """A bundle's source → (roles_rows, estimate_rows, published_at_iso).
+
+    `roles_rows` and `estimate_rows` are in the same shape as `parse_roles()`
+    and `parse_estimate()` return, so they drop straight into build().
+    `estimate_rows` is None for a release from before the probate estimate
+    (24/02/2024).
+    """
+    blobs = _extract_json_blobs(bundle)
+    try:
+        estimate_blob = _find_estimate_blob(blobs)
+    except RuntimeError:
+        estimate_blob = None
+    roles_blob = _find_roles_blob(blobs)
+    summary_blob = _find_roles_summary_blob(blobs)
+    n_days = len(next(iter(roles_blob.values())))
+    print(f"[parse] {len(blobs)} JSON blobs; roles={len(roles_blob)} cats × "
+          f"{n_days} days; estimate="
+          f"{len(estimate_blob) if estimate_blob else 'none'} rows; "
+          f"summary={len(summary_blob)} cats")
+    _check_blob5_drift(roles_blob, summary_blob)
+    return (
+        _aggregate_roles_blob_to_rows(roles_blob),
+        _estimate_blob_to_rows(estimate_blob) if estimate_blob else None,
+        _published_at(estimate_blob, n_days),
+    )
 
 
 def fetch_from_article(article_url: str) -> tuple[list[tuple], list[tuple], str]:
     """End-to-end: article URL → (roles_rows, estimate_rows, published_at_iso).
-
-    `roles_rows` and `estimate_rows` are in the same shape as `parse_roles()`
-    and `parse_estimate()` return, so they drop straight into build().
-    """
-    bundle = fetch_bundle(article_url)
-    blobs = _extract_json_blobs(bundle)
-    estimate_blob = _find_estimate_blob(blobs)
-    roles_blob = _find_roles_blob(blobs)
-    summary_blob = _find_roles_summary_blob(blobs)
-    print(f"[parse] {len(blobs)} JSON blobs; roles={len(roles_blob)} cats × "
-          f"{len(next(iter(roles_blob.values())))} days; "
-          f"estimate={len(estimate_blob)} rows; summary={len(summary_blob)} cats")
-    _check_blob5_drift(roles_blob, summary_blob)
-    return (
-        _aggregate_roles_blob_to_rows(roles_blob),
-        _estimate_blob_to_rows(estimate_blob),
-        _published_at_from_blob(estimate_blob),
-    )
+    The live article always carries the estimate; a bundle without one is broken."""
+    roles, estimate, published_at = parse_bundle(fetch_bundle(article_url))
+    if estimate is None:
+        raise RuntimeError(f"no probate-estimate blob in {article_url}'s bundle")
+    return roles, estimate, published_at
 
 
 def parse_estimate(path: Path) -> list[tuple]:
@@ -391,32 +492,60 @@ def parse_estimate(path: Path) -> list[tuple]:
     return rows
 
 
+def latest_per_week(table: str, as_of: tuple[str, str] | None = None) -> str:
+    """SQL for the latest version of every week in `table`: the one from the
+    newest release (`published_at`), then the newest ingest (`scraped_at`) —
+    a release rebuilt mid-cycle, or a parser fix re-reading the same release.
+    Ordered by release rather than by ingest because releases are not ingested
+    in order: `backfill.py` adds old ones after newer ones are stored.
+
+    `as_of` = (published_at, scraped_at) limits it to the versions up to and
+    including that point, for comparing a release with the one before it.
+    """
+    where = "WHERE (published_at, scraped_at) <= (?, ?)" if as_of else ""
+    return f"""(
+      SELECT * FROM (
+        SELECT d.*, ROW_NUMBER() OVER (
+          PARTITION BY week ORDER BY published_at DESC, scraped_at DESC) AS rn
+        FROM {table} d {where}
+      ) WHERE rn = 1
+    )"""
+
+
 def build(
     db_path: Path,
     roles: list[tuple],
-    estimate: list[tuple],
+    estimate: list[tuple] | None,
     scraped_at: str,
     published_at: str,
 ) -> tuple[dict, dict]:
     """Append changed/new week-versions into db_path. Never mutates/deletes rows.
+
+    A week's values are compared with its latest version *as of this release*
+    — so a release older than what is stored (a backfill) is compared with the
+    release before it, not with a newer one. `estimate` is None for a release
+    from before the probate estimate existed; that table is then left alone.
 
     Returns (roles_summary, estimate_summary), each a dict with:
         new       — count of weeks not in DB before this run
         revised   — count of pre-existing weeks whose values differ from prior
         unchanged — count of pre-existing weeks whose values match prior (skipped)
         distinct  — total distinct weeks in the table after the run
-    new + revised = number of rows actually inserted. Aborts (raises) without
+        removed   — (estimate only) weeks the release no longer has, each stored
+                    as an empty row
+    new + revised (+ removed) = number of rows actually inserted. Aborts (raises) without
     writing if either payload looks broken or would shrink an existing dataset.
     """
-    # Guard 1: absolute floor.
-    if len(roles) < MIN_ROWS_FLOOR:
+    # Guard 1: a floor of half the war's weeks at the release.
+    floor = min_rows(published_at)
+    if len(roles) < floor:
         raise RuntimeError(
-            f"roles CSV parsed only {len(roles)} weeks (< floor {MIN_ROWS_FLOOR}) — "
+            f"roles CSV parsed only {len(roles)} weeks (< floor {floor}) — "
             f"refusing to write {db_path}; the export is probably truncated."
         )
-    if len(estimate) < MIN_ROWS_FLOOR:
+    if estimate is not None and len(estimate) < floor:
         raise RuntimeError(
-            f"estimate CSV parsed only {len(estimate)} weeks (< floor {MIN_ROWS_FLOOR}) — "
+            f"estimate CSV parsed only {len(estimate)} weeks (< floor {floor}) — "
             f"refusing to write {db_path}; the export is probably truncated."
         )
 
@@ -444,29 +573,22 @@ def build(
             """
         )
 
-        # Latest stored version per week, for change detection. Mirrors
-        # ru_losses' LATEST_PER_DATE pattern.
+        # Latest stored version per week as of this release, for change
+        # detection. Mirrors ru_losses' LATEST_PER_DATE pattern.
+        as_of = (published_at, scraped_at)
         role_metric_cols = ", ".join(ROLE_COLS)
         latest_roles = {
             r[0]: tuple(r[1:])
             for r in conn.execute(
-                f"""
-                SELECT d.week, {role_metric_cols}
-                FROM weekly_roles d
-                JOIN (SELECT week, MAX(scraped_at) AS ms FROM weekly_roles GROUP BY week) l
-                  ON d.week = l.week AND d.scraped_at = l.ms
-                """
+                f"SELECT week, {role_metric_cols} FROM {latest_per_week('weekly_roles', as_of)}",
+                as_of,
             ).fetchall()
         }
         latest_estimate = {
             r[0]: (r[1], r[2])
             for r in conn.execute(
-                """
-                SELECT d.week, documented, estimate
-                FROM weekly_estimate d
-                JOIN (SELECT week, MAX(scraped_at) AS ms FROM weekly_estimate GROUP BY week) l
-                  ON d.week = l.week AND d.scraped_at = l.ms
-                """
+                f"SELECT week, documented, estimate FROM {latest_per_week('weekly_estimate', as_of)}",
+                as_of,
             ).fetchall()
         }
 
@@ -477,10 +599,14 @@ def build(
                 f"parsed {len(roles)} role-weeks but DB already has {len(latest_roles)} — "
                 f"refusing to write a shrinking dataset into {db_path}."
             )
-        if len(estimate) < len(latest_estimate):
+        # The estimate may lose a week or two: the 24/04/2026 release dropped
+        # its trailing partial week (2025-08-18), which the release before had
+        # shown. More than that is a broken export.
+        live_estimate = {w for w, v in latest_estimate.items() if v != (None, None)}
+        if estimate is not None and len(estimate) < len(live_estimate) - MAX_DROPPED_WEEKS:
             raise RuntimeError(
                 f"parsed {len(estimate)} estimate-weeks but DB already has "
-                f"{len(latest_estimate)} — refusing to write a shrinking dataset."
+                f"{len(live_estimate)} — refusing to write a shrinking dataset."
             )
 
         # Split the comparison into new vs revised vs unchanged so the CLI can
@@ -503,7 +629,7 @@ def build(
 
         estimate_to_insert: list[list] = []
         est_new = est_revised = est_unchanged = 0
-        for week, documented, estimate_val in estimate:
+        for week, documented, estimate_val in estimate or []:
             prior = latest_estimate.get(week)
             if prior is None:
                 est_new += 1
@@ -513,6 +639,14 @@ def build(
                 estimate_to_insert.append([week, scraped_at, published_at, documented, estimate_val])
             else:
                 est_unchanged += 1
+        # A week the release no longer has gets an empty row, so the latest
+        # version of it is "gone" rather than the last release that showed it.
+        # The frontend skips empty rows.
+        est_removed = 0
+        if estimate is not None:
+            for week in sorted(live_estimate - {w for w, *_ in estimate}):
+                est_removed += 1
+                estimate_to_insert.append([week, scraped_at, published_at, None, None])
 
         if roles_to_insert:
             ph = ", ".join(["?"] * (3 + len(ROLE_COLS)))
@@ -539,7 +673,8 @@ def build(
         conn.close()
     return (
         {"new": roles_new, "revised": roles_revised, "unchanged": roles_unchanged, "distinct": roles_distinct},
-        {"new": est_new, "revised": est_revised, "unchanged": est_unchanged, "distinct": est_distinct},
+        {"new": est_new, "revised": est_revised, "unchanged": est_unchanged,
+         "removed": est_removed, "distinct": est_distinct},
     )
 
 
@@ -585,7 +720,8 @@ def main() -> int:
     r, e = build(out, roles, estimate, scraped_at, published_at)
     fmt = lambda s: (
         f"{s['new']:>4} new, {s['revised']:>4} revised, {s['unchanged']:>4} unchanged "
-        f"-> {s['new'] + s['revised']} inserted; {s['distinct']} distinct weeks"
+        + (f", {s['removed']} removed" if s.get('removed') else "")
+        + f" -> {s['new'] + s['revised'] + s.get('removed', 0)} inserted; {s['distinct']} distinct weeks"
     )
     print(
         f"==> roles:    {fmt(r)}\n"

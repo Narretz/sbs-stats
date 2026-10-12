@@ -9,7 +9,8 @@ import { MEDIAZONA_ROLE_GROUPS, MEDIAZONA_ROLE_GROUP_KEYS, MEDIAZONA_ROLE_COLS }
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 
-// Tiny DB (~40 KB) → fetch whole via sql.js, like the RU-losses loader (no httpvfs).
+// Small DB (~2.7 MB with every release since 2023) → fetch whole via sql.js,
+// like the RU-losses loader (no httpvfs).
 const DB_URL =
   import.meta.env.VITE_MEDIAZONA_DB_URL ??
   `${import.meta.env.BASE_URL}data/mediazona.db`;
@@ -22,21 +23,20 @@ const COL_TO_GROUP = new Map<string, MediazonaRoleGroupKey>();
 for (const key of MEDIAZONA_ROLE_GROUP_KEYS)
   for (const col of MEDIAZONA_ROLE_GROUPS[key].cols) COL_TO_GROUP.set(col, key);
 
-// Both tables are append-only / edit-versioned: a week can have multiple
-// scraped_at rows (one per Mediazona release we ingested). Every read resolves
-// to the latest version per week. Mirrors ru_losses' LATEST_PER_DATE pattern.
-const LATEST_ROLES = `(
-  SELECT d.*
-  FROM weekly_roles d
-  JOIN (SELECT week, MAX(scraped_at) AS ms FROM weekly_roles GROUP BY week) l
-    ON d.week = l.week AND d.scraped_at = l.ms
+// Both tables are append-only / edit-versioned: a week can have multiple rows
+// (one per Mediazona release that changed it). Every read resolves to the
+// latest version per week — by release (`published_at`), then by ingest
+// (`scraped_at`), because releases aren't ingested in order: the backfill adds
+// old ones after newer ones. Same ordering as `latest_per_week` in the ingest.
+const latestPerWeek = (table: string) => `(
+  SELECT * FROM (
+    SELECT d.*, ROW_NUMBER() OVER (
+      PARTITION BY week ORDER BY published_at DESC, scraped_at DESC) AS rn
+    FROM ${table} d
+  ) WHERE rn = 1
 ) latest`;
-const LATEST_ESTIMATE = `(
-  SELECT d.*
-  FROM weekly_estimate d
-  JOIN (SELECT week, MAX(scraped_at) AS ms FROM weekly_estimate GROUP BY week) l
-    ON d.week = l.week AND d.scraped_at = l.ms
-) latest`;
+const LATEST_ROLES = latestPerWeek("weekly_roles");
+const LATEST_ESTIMATE = latestPerWeek("weekly_estimate");
 
 // Weekly data updates at most daily; an hourly poll is plenty (plus on-focus +
 // manual refresh).
@@ -77,7 +77,9 @@ export function useDatabaseMediazona({ enabled = true }: { enabled?: boolean } =
     if (!db) return [];
     const rows = queryRows<Record<string, number | null>>(
       db,
-      `SELECT week, documented, estimate FROM ${LATEST_ESTIMATE} ORDER BY week ASC`
+      // An empty latest version is a week a newer release dropped.
+      `SELECT week, documented, estimate FROM ${LATEST_ESTIMATE}
+       WHERE documented IS NOT NULL OR estimate IS NOT NULL ORDER BY week ASC`
     );
     return rows.map((r) => ({
       week: String(r.week),

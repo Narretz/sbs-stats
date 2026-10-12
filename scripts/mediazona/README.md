@@ -15,6 +15,10 @@ python3 scripts/mediazona/ingest.py --from-article --out data/mediazona.db
 # Or override the URL (Mediazona's previous-release URLs stay alive):
 python3 scripts/mediazona/ingest.py --from-article https://en.zona.media/article/2026/08/14/casualties_eng-trl
 
+# Past releases (Mar 2023 →), from the bundles still on S3 — see "Past releases":
+python3 scripts/mediazona/backfill.py --out data/mediazona.db
+python3 scripts/mediazona/backfill.py --discover   # refresh releases.csv from Wayback
+
 # Local-CSV mode (manual export workflow) — still supported:
 python3 scripts/mediazona/ingest.py \
     --roles source/confirmed_losses_per_week.csv \
@@ -73,12 +77,28 @@ re-verified both against the summary blob (the drift guard still reports its one
 known `nd` miss and nothing else) and against the previously stored weeks, which
 the summed series reproduces to within the ±1–2 per week that ordinary upstream
 revision produces.
-5. **Drift guard** (`_check_blob5_drift`): each role index's all-time sum must
-   match a per-category total in the summary blob within 10 %. One known
-   tolerated miss (the `nd` / "нет данных" index — blob 5 omits a residual
-   bucket present in the summary, ~21 % gap). More than one miss aborts the
-   build — that's the signal Mediazona added/removed/renamed a role category
-   and `BLOB5_COLUMN_MAP` in `ingest.py` needs revalidating.
+5. **Drift guard** (`_check_blob5_drift`): each role's all-time sum is held to
+   its own category in the summary blob, matched by Russian name
+   (`SUMMARY_NAMES`; `other` is "другие войска" plus every unlisted
+   "(другие войска)" subcategory). The roles blob counts only deaths with a
+   known date, the summary every name, so a role is compared with its summary
+   total times the release's **dated share** — the median of the per-role
+   ratios, ~0.82 in 2023 rising to ~0.97 in 2026. Across every release since
+   Mar 2023 the per-role ratios stay within 0.74–1.14 of that median, except
+   `nd` ("нет данных", 0.64–0.86); the guard allows 0.65–1.35 (`nd`:
+   0.5–1.1), and roles under 100 an absolute ±40. A missing category or a role
+   outside its band aborts the build — the signal that Mediazona
+   added/removed/renamed a category and the column map needs revalidating.
+   (It used to match each index to *any* summary total within 10 %, which
+   every release before 2026 failed: their dated share was too low.)
+
+### The 20-role layout (Mar 2023 – 06/12/2024)
+
+Releases before 20/12/2024 carry 20 roles, not 21: "наземные авиаслужбы"
+(`groundavia`) wasn't split out yet and its people sat in `other` — the
+summary blob already listed it, as a "(другие войска)" subcategory. The other
+roles are in the same order (`BLOB5_COLUMN_MAP_20`), picked by the blob's role
+count; `groundavia` is 0 in those releases.
 
 ## Two independent series (two tables)
 
@@ -247,11 +267,64 @@ weeks** each release as more probate filings complete (see the data-cutoff vs.
 publication-date gap discussed below). Append-versioned storage preserves the
 full historical development of the count across releases.
 
-The frontend reads the latest snapshot per week (`MAX(scraped_at)` join).
+The **latest version** of a week is the one from the newest release
+(`published_at`), then the newest ingest (`scraped_at`) — a release rebuilt
+mid-cycle, or a parser fix re-reading the same release. Ordered by release
+rather than by ingest because releases are not ingested in order: the backfill
+adds old ones after newer ones are stored. The frontend (`useDatabaseMediazona`)
+and the ingest's change detection (`latest_per_week`) use the same ordering,
+and the ingest compares a release with the latest version **as of that
+release**, so a backfilled one is compared with the release before it, never
+with a newer one.
 
-Two guards abort the build (without writing) on a broken input, so the R2
-upload step is skipped: an absolute row-count floor (`MIN_ROWS_FLOOR`) and a
-"no fewer weeks than already stored" check.
+A week can also **disappear**: the 24/04/2026 release dropped the estimate's
+trailing partial week (2025-08-18), which the release before had shown. Since
+a row is never deleted, the ingest stores an empty row (`documented` and
+`estimate` both NULL) for a week the release no longer has; the frontend skips
+empty rows. Up to `MAX_DROPPED_WEEKS` (2) per release — more is a broken
+export.
+
+Guards abort the build (without writing) on a broken input, so the R2 upload
+step is skipped: a row floor of half the war's weeks at the release
+(`min_rows` — scaled because a 2023 release covers barely 55 weeks), a "no
+fewer weeks than already stored" check on the roles, and that check less
+`MAX_DROPPED_WEEKS` on the estimate.
+
+## Past releases (backfill)
+
+Every release's chart bundle is still on Mediazona's S3 at its hashed path;
+only the article page moves on. The Wayback Machine captured most of those
+paths: `releases.csv` lists the 133 bundles it knows (May 2022 → today) with
+their first capture, and `backfill.py --discover` refreshes it from Wayback's
+index. `backfill.py` downloads each (S3, Wayback as the fallback; cached in
+`output/bundles/`), parses it with the live ingest's `parse_bundle`, and stores
+those **older than the oldest release in the DB**, in release order. Newer ones
+are the live ingest's; re-running is a no-op. In CI it is the `backfill` input
+of `update-mediazona-db.yml`, which runs it only on the DB downloaded from R2.
+
+- **Coverage.** The 106 bundles from 10/03/2023 on decode. 93 of them predate
+  the first release the live ingest stored (22/05/2026): 77 release dates —
+  a few of them mid-cycle rebuilds — from 10/03/2023 (roles only, 20-role
+  layout) to 09/05/2026. The
+  probate estimate starts 16/02/2024 (published with the 24/02/2024 study).
+  Bundles before Mar 2023 are a different encoding — role totals and
+  per-region day series, no per-role days — and are skipped.
+- **Release date.** The estimate blob's `current_date` row, which exists from
+  Apr 2024. The roles series always runs from the war's start to the release
+  day, so `WAR_START + days` matches `current_date` to within a day on every
+  release that has both, and dates the releases without one. Where they
+  disagree by more, the series wins: Mediazona sometimes rebuilt a bundle
+  mid-cycle with newer data under the old date (13/05/2025 shipped data to
+  10/05 dated 25/04), which would otherwise be ordered before the release it
+  follows. The 24/02/2024 bundle, the estimate's debut, carries data to 16/02
+  and is dated so.
+- **`scraped_at`** of a backfilled row is the bundle's Wayback capture time —
+  when that version was seen live — not the backfill's run time. It orders a
+  release's rebuilds and keeps each bundle's rows apart under the
+  `(week, scraped_at)` key.
+- **Size.** The history multiplies the DB: 0.57 MB → 2.7 MB (12k roles rows, 9k
+  estimate rows), which the app downloads whole and R2 serves uncompressed
+  (gzip would take it to 0.5 MB).
 
 ## Source / refresh
 

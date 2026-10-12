@@ -108,15 +108,158 @@ class TestWeeklyAggregation:
             ig._aggregate_roles_blob_to_rows({str(i): [1] * 7 for i in range(5)})
 
 
+def _named_summary(totals: dict[str, int]) -> list[dict]:
+    """A summary blob with one entry per role, by its Russian name; `other`
+    becomes "другие войска"."""
+    out = [{"k": ig.SUMMARY_NAMES.get(c, "другие войска"), "o": 1, "v": v}
+           for c, v in totals.items()]
+    return out
+
+
 class TestDriftGuard:
-    def _summary(self, totals):
-        return [{"k": f"cat{i}", "o": 1, "v": v} for i, v in enumerate(totals)]
+    TOTALS = {c: 1000 + 100 * i for i, c in enumerate(ig.BLOB5_COLUMN_MAP)}
 
-    def test_matching_totals_pass(self):
-        daily = {"0": [100], "1": [200]}
-        ig._check_blob5_drift(daily, self._summary([205, 99]))
+    def _daily(self, share: float, cmap=ig.BLOB5_COLUMN_MAP, totals=None):
+        totals = totals or self.TOTALS
+        return {str(i): [round(totals[c] * share)] for i, c in enumerate(cmap)}
 
-    def test_two_unmatched_indices_abort(self):
-        daily = {"0": [100], "1": [200], "2": [300]}
+    def test_matching_roles_pass_at_any_dated_share(self):
+        # The roles blob counts only dated deaths: 82% of the summary in 2023,
+        # 97% in 2026. Both are the same match.
+        for share in (0.82, 0.97):
+            ig._check_blob5_drift(self._daily(share), _named_summary(self.TOTALS))
+
+    def test_nd_may_run_lower(self):
+        daily = self._daily(0.9)
+        daily[str(ig.BLOB5_COLUMN_MAP.index("nd"))] = [round(self.TOTALS["nd"] * 0.6)]
+        ig._check_blob5_drift(daily, _named_summary(self.TOTALS))
+
+    def test_swapped_columns_abort(self):
+        totals = dict(self.TOTALS, vol=40000, inmates=16000)
+        daily = self._daily(0.9, totals=totals)
+        v, m = str(ig.BLOB5_COLUMN_MAP.index("vol")), str(ig.BLOB5_COLUMN_MAP.index("rifle"))
+        daily[v], daily[m] = daily[m], daily[v]
         with pytest.raises(RuntimeError, match="drift"):
-            ig._check_blob5_drift(daily, self._summary([100]))
+            ig._check_blob5_drift(daily, _named_summary(totals))
+
+    def test_missing_category_aborts(self):
+        summary = [r for r in _named_summary(self.TOTALS) if r["k"] != "ЧВК"]
+        with pytest.raises(RuntimeError, match="lacks the categories"):
+            ig._check_blob5_drift(self._daily(0.9), summary)
+
+    def test_mojibake_names_are_read(self):
+        # The bundle's names arrive as UTF-8 read as Latin-1.
+        summary = [dict(r, k=r["k"].encode("utf-8").decode("latin-1"))
+                   for r in _named_summary(self.TOTALS)]
+        ig._check_blob5_drift(self._daily(0.9), summary)
+
+    def test_20_role_layout_folds_groundavia_into_other(self):
+        # Before 12/2024 there was no groundavia role; the summary already
+        # listed it, under "(другие войска)", and the roles blob counted it in
+        # `other`.
+        cmap = ig.BLOB5_COLUMN_MAP_20
+        totals = {c: self.TOTALS[c] for c in cmap}
+        summary = _named_summary(totals) + [
+            {"k": "наземные авиаслужбы (другие войска)", "o": 1, "v": 300}]
+        daily = self._daily(0.9, cmap=cmap, totals=dict(totals, other=totals["other"] + 300))
+        ig._check_blob5_drift(daily, summary)
+
+
+class TestTwentyRoleLayout:
+    def test_column_map_by_role_count(self):
+        assert ig.column_map({str(i): [0] for i in range(21)}) == ig.BLOB5_COLUMN_MAP
+        assert ig.column_map({str(i): [0] for i in range(20)}) == ig.BLOB5_COLUMN_MAP_20
+        with pytest.raises(RuntimeError, match="re-validate"):
+            ig.column_map({str(i): [0] for i in range(19)})
+
+    def test_groundavia_is_zero_and_later_roles_shift(self):
+        daily = {str(i): [i + 1] * 7 for i in range(20)}
+        [row] = ig._aggregate_roles_blob_to_rows(daily)
+        cols = dict(zip(["week", *ig.ROLE_COLS], row))
+        assert cols["groundavia"] == 0
+        assert cols["pmc"] == 7 * (ig.BLOB5_COLUMN_MAP_20.index("pmc") + 1)
+        assert cols["inmates"] == 7 * 20
+
+
+class TestPublishedAt:
+    META = [{"w": "current_date", "rnd": "x", "real": "10.10.2025"}]
+
+    def test_series_length_dates_a_release_without_metadata(self):
+        assert ig._published_at(None, 379) == "2023-03-10"
+
+    def test_metadata_wins_within_a_day(self):
+        # 1323 days runs to 09/10; the article says 10/10.
+        assert ig._published_at(self.META, 1323) == "2025-10-10"
+
+    def test_series_wins_over_a_stale_date(self):
+        # A mid-cycle rebuild that extended the data but kept the old date.
+        assert ig._published_at(self.META, 1339) == "2025-10-25"
+
+
+def _roles(weeks: int, value: int = 1) -> list[tuple]:
+    return [(f"w{i:03d}", *[value] * len(ig.ROLE_COLS)) for i in range(weeks)]
+
+
+def _estimate(weeks: int, value: int = 1) -> list[tuple]:
+    return [(f"w{i:03d}", value, float(value)) for i in range(weeks)]
+
+
+def _latest(db, table, col):
+    import sqlite3
+    conn = sqlite3.connect(db)
+    try:
+        return dict(conn.execute(
+            f"SELECT week, {col} FROM {ig.latest_per_week(table)}").fetchall())
+    finally:
+        conn.close()
+
+
+class TestBuildOrder:
+    """Releases arrive out of order: the backfill adds old ones after the live
+    ingest stored newer ones."""
+
+    PUB_OLD, PUB_NEW = "2024-03-01", "2026-05-22"
+
+    def test_an_older_release_never_becomes_latest(self, tmp_path):
+        db = tmp_path / "m.db"
+        ig.build(db, _roles(120, 5), _estimate(120, 5), "2026-05-28T00:00:00+00:00", self.PUB_NEW)
+        ig.build(db, _roles(110, 3), _estimate(110, 3), "2026-10-12T00:00:00+00:00", self.PUB_OLD)
+        assert set(_latest(db, "weekly_roles", "total").values()) == {5}
+        assert set(_latest(db, "weekly_estimate", "documented").values()) == {5}
+
+    def test_an_older_release_is_compared_with_the_one_before_it(self, tmp_path):
+        db = tmp_path / "m.db"
+        ig.build(db, _roles(120, 5), _estimate(120, 5), "2026-05-28T00:00:00+00:00", self.PUB_NEW)
+        ig.build(db, _roles(100, 3), _estimate(100, 3), "2024-02-10T00:00:00+00:00", "2024-02-09")
+        # Same values as the release before it: nothing stored, though they
+        # differ from the newest release.
+        r, e = ig.build(db, _roles(100, 3), _estimate(100, 3), "2024-03-02T00:00:00+00:00", self.PUB_OLD)
+        assert (r["new"], r["revised"], e["new"], e["revised"]) == (0, 0, 0, 0)
+
+    def test_a_release_without_the_estimate_leaves_that_table_alone(self, tmp_path):
+        db = tmp_path / "m.db"
+        r, e = ig.build(db, _roles(60), None, "2023-03-11T00:00:00+00:00", "2023-03-10")
+        assert r["new"] == 60 and e["new"] == 0 and e["distinct"] == 0
+
+    def test_the_floor_scales_with_the_release(self, tmp_path):
+        ig.build(tmp_path / "a.db", _roles(55), None, "2023-03-11T00:00:00+00:00", "2023-03-10")
+        with pytest.raises(RuntimeError, match="floor"):
+            ig.build(tmp_path / "b.db", _roles(55), None, "2026-10-10T00:00:00+00:00", "2026-10-09")
+
+
+class TestDroppedWeek:
+    def test_a_dropped_estimate_week_is_stored_empty(self, tmp_path):
+        db = tmp_path / "m.db"
+        ig.build(db, _roles(120), _estimate(120), "2026-04-11T00:00:00+00:00", "2026-04-10")
+        r, e = ig.build(db, _roles(121), _estimate(119), "2026-04-25T00:00:00+00:00", "2026-04-24")
+        assert e["removed"] == 1
+        assert _latest(db, "weekly_estimate", "documented")["w119"] is None
+        # …once: the next release doesn't re-remove it.
+        r, e = ig.build(db, _roles(122), _estimate(119), "2026-05-10T00:00:00+00:00", "2026-05-09")
+        assert e["removed"] == 0
+
+    def test_dropping_more_than_two_weeks_aborts(self, tmp_path):
+        db = tmp_path / "m.db"
+        ig.build(db, _roles(120), _estimate(120), "2026-04-11T00:00:00+00:00", "2026-04-10")
+        with pytest.raises(RuntimeError, match="shrinking"):
+            ig.build(db, _roles(121), _estimate(117), "2026-04-25T00:00:00+00:00", "2026-04-24")
