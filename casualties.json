@@ -1,0 +1,142 @@
+{
+  "_doc": [
+    "Public statements estimating casualties of the war, one report per statement, each a list of figures.",
+    "report: id, said_on (date said or published), speaker (who said it), attributed_to (whose figure it is,",
+    "  if stated), urls (primary first, then reporting on it), context, figures.",
+    "figure: side (ua | ru | both), population (military | civilian | all), measure (killed | casualties =",
+    "  killed + wounded | wounded | missing | captured), basis (total = over from–to | per_month = a stated rate),",
+    "  from / to (resolved dates; absent when not stated), period_text (the words used, when relative),",
+    "  value, qualifier (absent = as stated | about | at_least | at_most), military_share (0–1, if stated),",
+    "  quote, note."
+  ],
+  "reports": [
+    {
+      "id": "2026-07-28-zelensky-hannity",
+      "said_on": "2026-07-28",
+      "speaker": "Volodymyr Zelensky",
+      "attributed_to": [],
+      "urls": [
+        "https://www.foxnews.com/video/6402377986112",
+        "https://www.foxnews.com/media/zelenskyy-says-putin-lost-initiative-ukraine-tech-industry-reshapes-war"
+      ],
+      "context": "interview with Sean Hannity, Fox News 'Hannity', after Sen. Lindsey Graham's funeral",
+      "figures": [
+        {
+          "side": "ru", "population": "military", "measure": "casualties", "basis": "per_month",
+          "value": 30000,
+          "quote": "Putin is losing 30,000 soldiers per month",
+          "note": "\"Losing\" doesn't say killed or killed + wounded; read as casualties, the scale of the General Staff's monthly figures."
+        }
+      ]
+    },
+    {
+      "id": "2026-07-30-zelensky-baier",
+      "said_on": "2026-07-30",
+      "speaker": "Volodymyr Zelensky",
+      "attributed_to": [],
+      "urls": [
+        "https://www.fox.com/watch/clip/fmc-lyylarw7r8czdrxx/volodymyr-zelenskyy-reveals-casualty-numbers-in-exclusive-interview",
+        "https://www.foxnews.com/video/6402490895112",
+        "https://kyivindependent.com/russian-losses-kia-14-times-higher-than-ukraines-zelensky-says/"
+      ],
+      "context": "interview with Bret Baier, Fox News 'Special Report'",
+      "figures": [
+        {
+          "side": "ua", "population": "military", "measure": "killed", "basis": "total",
+          "from": "2022-02-24", "to": "2026-07-30",
+          "value": 50000, "qualifier": "about",
+          "quote": "We have about 50,000 soldiers killed, and we had about 400,000 wounded."
+        },
+        {
+          "side": "ua", "population": "military", "measure": "wounded", "basis": "total",
+          "from": "2022-02-24", "to": "2026-07-30",
+          "value": 400000, "qualifier": "about",
+          "quote": "We have about 50,000 soldiers killed, and we had about 400,000 wounded."
+        },
+        {
+          "side": "ru", "population": "military", "measure": "casualties", "basis": "total",
+          "from": "2022-02-24", "to": "2026-07-30",
+          "value": 1600000
+        },
+        {
+          "side": "ru", "population": "military", "measure": "killed", "basis": "total",
+          "from": "2022-02-24", "to": "2026-07-30",
+          "value": 700000, "qualifier": "about"
+        }
+      ]
+    },
+    {
+      "id": "2026-09-16-tusk",
+      "said_on": "2026-09-16",
+      "speaker": "Donald Tusk",
+      "attributed_to": ["Ukrainian officials"],
+      "urls": ["https://unn.ua/en/news/ukraines-losses-amount-to-approximately-27000-killed-and-wounded-each-month-tusk"],
+      "figures": [
+        {
+          "side": "ua", "population": "military", "measure": "casualties", "basis": "per_month",
+          "period_text": "each month",
+          "value": 27000, "qualifier": "about"
+        }
+      ]
+    },
+    {
+      "id": "2026-09-26-trump",
+      "said_on": "2026-09-26",
+      "speaker": "Donald Trump",
+      "attributed_to": [],
+      "urls": ["https://www.foxnews.com/politics/trump-reveals-stunning-casualty-numbers-russia-ukraine-war"],
+      "context": "to reporters, White House South Lawn",
+      "figures": [
+        {
+          "side": "both", "population": "all", "measure": "killed", "basis": "total",
+          "period_text": "last month; later: this month",
+          "from": "2026-09-01", "to": "2026-09-26",
+          "value": 25000,
+          "quote": "Last month, 25,000 people died in the Ukraine-Russia war, OK? Twenty-five thousand. … this month, 25,000 people died.",
+          "note": "Called \"last month\" first and \"this month\" when repeated; with August and July following, taken as September to date."
+        },
+        {
+          "side": "both", "population": "all", "measure": "killed", "basis": "total",
+          "period_text": "the month before that",
+          "from": "2026-08-01", "to": "2026-08-31",
+          "value": 32000, "military_share": 0.97,
+          "quote": "The month before that, 32,000 people died … mostly soldiers, 97% soldiers. But whether they're soldiers or civilians, think of it: 32,000."
+        },
+        {
+          "side": "both", "population": "all", "measure": "killed", "basis": "total",
+          "period_text": "two months ago",
+          "from": "2026-07-01", "to": "2026-07-31",
+          "value": 33000,
+          "quote": "Two months ago, 33,000 people"
+        }
+      ]
+    },
+    {
+      "id": "2026-10-11-nato",
+      "said_on": "2026-10-11",
+      "speaker": "",
+      "attributed_to": ["NATO official (unnamed)"],
+      "urls": ["https://www.bloomberg.com/news/articles/2026-10-11/russia-suffered-50-000-casualties-last-month-nato-official-says"],
+      "figures": [
+        {
+          "side": "ru", "population": "military", "measure": "casualties", "basis": "total",
+          "period_text": "last month",
+          "from": "2026-09-01", "to": "2026-09-30",
+          "value": 50000, "qualifier": "at_least"
+        },
+        {
+          "side": "ru", "population": "military", "measure": "killed", "basis": "total",
+          "period_text": "last month",
+          "from": "2026-09-01", "to": "2026-09-30",
+          "value": 28000, "qualifier": "at_most"
+        },
+        {
+          "side": "ua", "population": "military", "measure": "casualties", "basis": "total",
+          "period_text": "last month",
+          "from": "2026-09-01", "to": "2026-09-30",
+          "value": 5000, "qualifier": "about"
+        }
+      ]
+    }
+  ]
+}
