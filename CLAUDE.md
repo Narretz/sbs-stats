@@ -212,8 +212,10 @@ node scripts/setup-dev.cjs
   root; in production the frontend reads from R2 via `VITE_*_DB_URL` env
   vars. Small DBs are fetched whole via sql.js; larger ones (GSUA attacks)
   are range-fetched via sql.js-httpvfs.
-- **GSUA, RU MoD and CIT publish two objects each**: the authoritative
-  `<name>.db` carrying the raw post text, and a stripped `<name>.app.db` that
+- **GSUA, RU MoD, CIT and Mediazona publish two objects each**: the
+  authoritative `<name>.db` carrying the raw post text (Mediazona: every
+  release's version of every week), and a stripped `<name>.app.db` (Mediazona:
+  only each week's latest version, `scripts/mediazona/app_db.sql`) that
   the frontend reads in production, built in CI by `scripts/build_app_db.py`
   (details in [CI.md](CI.md) and each README). `fetch_prod_dbs.sh` downloads
   both. **GSUA and RU MoD read the app copy in dev too**, so local range-fetch
@@ -225,6 +227,6 @@ node scripts/setup-dev.cjs
   reparse with R2's copy. GSUA's app copy carries derived tables
   (`scripts/gsua/app_db.sql`) whose monthly ones must match their live SQL in
   `src/utils/gsuaSql.ts` — `gsuaSql.test.ts` holds them to it; change one,
-  change both. **CIT reads the full DB in dev**, deliberately: it is a whole
+  change both. **CIT and Mediazona read the full DB in dev**, deliberately: each is a whole
   fetch, not a range fetch, so the app copy changes only the download size and
   using it locally would buy that same staleness trap for nothing.

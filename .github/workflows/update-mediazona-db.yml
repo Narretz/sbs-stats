@@ -77,6 +77,15 @@ jobs:
             --from-article "$MEDIAZONA_ARTICLE_URL" \
             --out "scripts/mediazona/output/$MEDIAZONA_DB_NAME"
 
+      # The app copy: only each week's latest version, what the frontend reads
+      # (the full DB keeps every release's, ~25x the size). See app_db.sql.
+      - name: Build Mediazona app DB
+        run: |
+          python3 scripts/build_app_db.py \
+            --in "scripts/mediazona/output/$MEDIAZONA_DB_NAME" \
+            --out "scripts/mediazona/output/mediazona.app.db" \
+            --sql scripts/mediazona/app_db.sql
+
       - name: Upload Mediazona DB to R2
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -85,5 +94,10 @@ jobs:
           npx --yes wrangler@4 r2 object put \
             "$R2_BUCKET/$MEDIAZONA_DB_NAME" \
             --file "scripts/mediazona/output/$MEDIAZONA_DB_NAME" \
+            --content-type application/vnd.sqlite3 \
+            --remote
+          npx --yes wrangler@4 r2 object put \
+            "$R2_BUCKET/mediazona.app.db" \
+            --file "scripts/mediazona/output/mediazona.app.db" \
             --content-type application/vnd.sqlite3 \
             --remote

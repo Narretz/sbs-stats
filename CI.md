@@ -90,11 +90,12 @@ it, and uploads it back — never rebuilt from what the source still shows.
   the frontend reads. GSUA gates each of its two objects on its own change
   (see its README). The append-on-change ones store nothing new for an
   unchanged source, but still upload.
-- **App copies.** GSUA, RU MoD and CIT publish two objects: the authoritative
-  `<name>.db` with the raw post text, and a stripped `<name>.app.db` the
-  frontend reads, built in the same job by `scripts/build_app_db.py` from the
-  same source, so they can't drift on R2. GSUA's also carries derived tables
-  (`scripts/gsua/app_db.sql`).
+- **App copies.** GSUA, RU MoD, CIT and Mediazona publish two objects: the
+  authoritative `<name>.db` with the raw post text, and a stripped
+  `<name>.app.db` the frontend reads, built in the same job by
+  `scripts/build_app_db.py` from the same source, so they can't drift on R2.
+  GSUA's also carries derived tables (`scripts/gsua/app_db.sql`); Mediazona's
+  keeps only each week's latest version (`scripts/mediazona/app_db.sql`).
 
 ## Findings and the triage routine
 

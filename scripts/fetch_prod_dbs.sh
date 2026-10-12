@@ -55,8 +55,8 @@ fi
 
 failed=()
 for url in $urls; do
-  # GSUA / ru-mod-ad publish two objects: the authoritative `<name>.db` with
-  # the raw post text, and a stripped `<name>.app.db` the frontend reads. Pull
+  # GSUA / ru-mod-ad / CIT / Mediazona publish two objects: the authoritative
+  # `<name>.db` with the full data, and a stripped `<name>.app.db` the frontend reads. Pull
   # BOTH. Local ingest and reparse need the full text, and `npm run dev` reads
   # the app copy (matching production), so a checkout with only one of them
   # either can't reparse or serves nothing.

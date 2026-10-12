@@ -15,9 +15,10 @@ a NOT NULL constraint — so post-VACUUM the row layout shrinks either way.
 
 `--sql FILE` (repeatable) runs a SQL script on the copy after blanking, for
 derived tables only the frontend needs — an answer that would otherwise cost
-the frontend a scan of the whole history over HTTP range requests. It runs on
-the copy, so the authoritative DB never carries them. See
-scripts/gsua/app_db.sql.
+the frontend a scan of the whole history over HTTP range requests — or to drop
+what it never reads. It runs on the copy, so the authoritative DB is untouched.
+See scripts/gsua/app_db.sql (derived tables) and scripts/mediazona/app_db.sql
+(only each week's latest version; nothing to blank there).
 
 Usage:
   python scripts/build_app_db.py \\
@@ -29,6 +30,10 @@ Usage:
   python scripts/build_app_db.py \\
     --in data/ru-attacks-gsua.db --out data/ru-attacks-gsua.app.db \\
     --blank posts.text --sql scripts/gsua/app_db.sql
+
+  python scripts/build_app_db.py \\
+    --in data/mediazona.db --out data/mediazona.app.db \\
+    --sql scripts/mediazona/app_db.sql
 """
 import argparse
 import shutil
@@ -42,7 +47,7 @@ def main() -> int:
     p.add_argument("--in", dest="src", required=True, type=Path, help="Input DB path.")
     p.add_argument("--out", dest="dst", required=True, type=Path, help="Output DB path.")
     p.add_argument(
-        "--blank", action="append", required=True, metavar="table.col",
+        "--blank", action="append", default=[], metavar="table.col",
         help="Column to blank out (repeatable). Sentinel auto-picked: '' for "
              "NOT NULL columns, NULL otherwise.",
     )

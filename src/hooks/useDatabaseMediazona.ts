@@ -9,8 +9,9 @@ import { MEDIAZONA_ROLE_GROUPS, MEDIAZONA_ROLE_GROUP_KEYS, MEDIAZONA_ROLE_COLS }
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 
-// Small DB (~2.7 MB with every release since 2023) → fetch whole via sql.js,
-// like the RU-losses loader (no httpvfs).
+// Production reads the app copy (mediazona.app.db, ~0.1 MB: each week's latest
+// version only; dev reads the full DB) → fetch whole via sql.js, like the
+// RU-losses loader (no httpvfs).
 const DB_URL =
   import.meta.env.VITE_MEDIAZONA_DB_URL ??
   `${import.meta.env.BASE_URL}data/mediazona.db`;

@@ -263,3 +263,44 @@ class TestDroppedWeek:
         ig.build(db, _roles(120), _estimate(120), "2026-04-11T00:00:00+00:00", "2026-04-10")
         with pytest.raises(RuntimeError, match="shrinking"):
             ig.build(db, _roles(121), _estimate(117), "2026-04-25T00:00:00+00:00", "2026-04-24")
+
+
+class TestAppCopy:
+    """app_db.sql keeps only each week's latest version — what the app reads.
+    Held to the full DB's latest view, the ordering the app uses on it."""
+
+    def test_app_copy_is_the_latest_view(self, tmp_path):
+        import shutil
+        import sqlite3
+        from pathlib import Path
+
+        db = tmp_path / "m.db"
+        ig.build(db, _roles(120, 5), _estimate(120, 5), "2026-05-28T00:00:00+00:00", "2026-05-22")
+        # a dropped week, then a backfilled older release ingested afterwards
+        ig.build(db, _roles(121, 6), _estimate(119, 6), "2026-06-06T00:00:00+00:00", "2026-06-05")
+        ig.build(db, _roles(110, 3), _estimate(110, 3), "2026-10-12T00:00:00+00:00", "2024-03-01")
+
+        app = tmp_path / "m.app.db"
+        shutil.copy(db, app)
+        conn = sqlite3.connect(app)
+        conn.executescript((Path(ig.__file__).parent / "app_db.sql").read_text())
+        conn.commit()
+        conn.close()
+
+        def view(path):
+            c = sqlite3.connect(path)
+            try:
+                roles = c.execute(
+                    f"SELECT week, total FROM {ig.latest_per_week('weekly_roles')} ORDER BY week").fetchall()
+                est = c.execute(
+                    f"SELECT week, documented FROM {ig.latest_per_week('weekly_estimate')} "
+                    "WHERE documented IS NOT NULL OR estimate IS NOT NULL ORDER BY week").fetchall()
+                rows = c.execute("SELECT (SELECT COUNT(*) FROM weekly_roles), "
+                                 "(SELECT COUNT(*) FROM weekly_estimate)").fetchone()
+                return roles, est, rows
+            finally:
+                c.close()
+
+        full, small = view(db), view(app)
+        assert small[:2] == full[:2]
+        assert small[2] == (121, 119)  # one row per week, the dropped one gone

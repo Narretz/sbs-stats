@@ -323,8 +323,19 @@ of `update-mediazona-db.yml`, which runs it only on the DB downloaded from R2.
   release's rebuilds and keeps each bundle's rows apart under the
   `(week, scraped_at)` key.
 - **Size.** The history multiplies the DB: 0.57 MB → 2.7 MB (12k roles rows, 9k
-  estimate rows), which the app downloads whole and R2 serves uncompressed
-  (gzip would take it to 0.5 MB).
+  estimate rows). The app doesn't read it: it reads the app copy below.
+
+## App copy
+
+CI uploads two objects: `mediazona.db`, the full history above, and
+`mediazona.app.db`, which the frontend reads in production — the same schema
+with only each week's latest version (`app_db.sql`, run by
+`scripts/build_app_db.py`), ~0.1 MB. The app shows nothing else yet; a chart of
+how the count developed across releases would read the full DB. `app_db.sql`
+uses the same ordering as `latest_per_week` and the hook, and `test_ingest.py`
+holds the copy to the full DB's latest view. Dev reads the full DB
+(`data/mediazona.db`): it is a whole fetch either way, and the same query gives
+the same rows.
 
 ## Source / refresh
 
