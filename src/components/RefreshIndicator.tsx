@@ -97,7 +97,11 @@ export function RefreshIndicator({ lastRefreshed, refreshCount, onRefresh, isLoa
             strokeWidth={stroke}
             strokeDasharray={`${isLoading ? circ * 0.25 : dash} ${circ}`}
             strokeLinecap="round"
-            style={isLoading ? { animation: "spin 1s linear infinite" } : { transition: "stroke-dasharray 0.8s linear" }}
+            // No transition on the countdown: stroke-dasharray can't animate
+            // on the compositor, so easing each 1 s tick repainted the ring at
+            // ~50 fps for 0.8 s of every second — measurable CPU on an idle
+            // page, to move the arc a fraction of a pixel.
+            style={isLoading ? { animation: "spin 1s linear infinite" } : undefined}
           />
         )}
         {/* Manual-only mode shows a static spinner during loading, otherwise just the icon glyph. */}
