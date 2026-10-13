@@ -114,7 +114,7 @@ export function MonthlyBarChart({
         shape={styledBar<MonthlyDataPoint>((d, i) => ({
           fill: i === lastIdx ? c.barCurrent : c.barDefault, ...noteOutline(d.note, c.noteText),
         }))} />
-      <Bar dataKey="gap" stackId="a" name="Projected" radius={[3, 3, 0, 0]} maxBarSize={MAX_BAR_SIZE}
+      <Bar dataKey="gap" stackId="a" name="Projected" maxBarSize={MAX_BAR_SIZE}
         shape={styledBar((_, i) => ({ fill: i === lastIdx ? projectedFill : "transparent" }))} />
     </MonthlyChartCard>
   );

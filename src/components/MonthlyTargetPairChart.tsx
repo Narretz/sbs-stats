@@ -236,12 +236,12 @@ export function MonthlyTargetPairChart({
             shape={styledBar<MonthlyTargetPairDataPoint>((d, i) => ({
               fill: i === lastIdx ? c.barCurrent : c.damaged, ...noteOutline(d.note, c.noteText),
             }))} />
-          <Bar dataKey="hit_gap" stackId="hit" name={`${primaryLabel} Projected`} radius={[3, 3, 0, 0]}
+          <Bar dataKey="hit_gap" stackId="hit" name={`${primaryLabel} Projected`}
             shape={styledBar((_, i) => ({ fill: i === lastIdx ? hitProjectedFill : "transparent" }))} />
 
           <Bar dataKey="destroyed_value" stackId="destroyed" name={secondaryLabel}
             shape={styledBar((_, i) => ({ fill: i === lastIdx ? c.destroyedCurrent : c.destroyed }))} />
-          <Bar dataKey="destroyed_gap" stackId="destroyed" name={`${secondaryLabel} Projected`} radius={[3, 3, 0, 0]}
+          <Bar dataKey="destroyed_gap" stackId="destroyed" name={`${secondaryLabel} Projected`}
             shape={styledBar((_, i) => ({ fill: i === lastIdx ? destroyedProjectedFill : "transparent" }))} />
           {/* Painted last so it reads as a crosshair over the series,
               not a stub buried under a bar. */}

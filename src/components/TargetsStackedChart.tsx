@@ -58,7 +58,7 @@ export function TargetsStackedChart({ title, data, wfull }: Props) {
     >
       <Bar dataKey="destroyed" stackId="a" name="Destroyed" maxBarSize={MAX_BAR_SIZE}
         shape={styledBar((_, i) => ({ fill: i === lastIdx ? c.destroyedCurrent : c.destroyed }))} />
-      <Bar dataKey="damaged" stackId="a" name="Damaged" radius={[3, 3, 0, 0]} maxBarSize={MAX_BAR_SIZE}
+      <Bar dataKey="damaged" stackId="a" name="Damaged" maxBarSize={MAX_BAR_SIZE}
         shape={styledBar((_, i) => ({ fill: i === lastIdx ? c.barCurrent : c.damaged }))} />
     </MonthlyChartCard>
   );
