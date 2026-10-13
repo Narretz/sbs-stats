@@ -3,6 +3,7 @@ import { useSbuAlfaDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
+import { monthlySourcesByPeriod } from "@/utils/sources";
 import { TargetsStackedChart, type TargetsStackPoint } from "@/components/TargetsStackedChart";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
@@ -150,6 +151,11 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
     }
     return Array.from(byPeriod.values()).sort((a, b) => a.period.localeCompare(b.period));
   }, [rows]);
+  // The same recaps as the sheet's link for their month (utils/sources).
+  const sources = useMemo(
+    () => monthlySourcesByPeriod(reports.map((r) => ({ period: r.period, url: r.url, publishedOn: r.published_at })), "Europe/Kyiv", "Kyiv"),
+    [reports],
+  );
 
   return (
     <PageScaffold
@@ -216,6 +222,7 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
             globalMax={allStats.targets_enumerated?.max ?? 0}
             globalMedian={allStats.targets_enumerated?.median ?? 0}
             globalTotal={allStats.targets_enumerated?.total ?? 0}
+            sourcesByDate={sources}
           />
         )}
         {presentCategories.map((k) => (
@@ -227,6 +234,7 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
             globalMax={allStats[k]?.max ?? 0}
             globalMedian={allStats[k]?.median ?? 0}
             globalTotal={allStats[k]?.total ?? 0}
+            sourcesByDate={sources}
           />
         ))}
         {hasTargetsData && (
@@ -234,6 +242,7 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
             title="Other targets — destroyed + damaged"
             data={targetsStack}
             wfull
+            sourcesByDate={sources}
           />
         )}
       </>}

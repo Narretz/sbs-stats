@@ -8,6 +8,7 @@ import { DailyMultiLineChart, type LineSeries } from "@/components/DailyMultiLin
 import { CheckboxMultiSelect } from "@/components/CheckboxMultiSelect";
 import { axisLabel, axisSeries, directionColor, directionOptions, directionsTitle, parseDirectionsParam } from "@/utils/gsuaDirections";
 import { DirectionCoverageChart } from "@/components/DirectionCoverageChart";
+import type { SheetSource } from "@/components/TooltipTable";
 import { DataWindow } from "@/components/DataWindow";
 import { ChartGrid } from "@/components/Layout";
 import { PageScaffold } from "@/components/PageScaffold";
@@ -69,7 +70,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
   const {
     loadState, error, queryDaily, queryGlobalStats, queryEodProjection,
-    queryDirectionList, queryDirectionCoverage, queryDataWindow,
+    queryDirectionList, queryDirectionCoverage, querySources, queryDataWindow,
   } = useGsuaDatabaseContext();
   const [dataWindow, setDataWindow] = useState<{ minDate: string | null; maxDate: string | null; latestSnapshotAt: string | null }>({ minDate: null, maxDate: null, latestSnapshotAt: null });
   useEffect(() => { queryDataWindow().then(setDataWindow); }, [queryDataWindow]);
@@ -84,6 +85,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   const [globalStats, setGlobalStats] = useState<GsuaGlobalStats>({} as GsuaGlobalStats);
   const [directionList, setDirectionList] = useState<string[]>([]);
   const [coverageRows, setCoverageRows] = useState<GsuaDirectionCoverageRow[]>([]);
+  const [sources, setSources] = useState<Map<string, SheetSource[]>>(new Map());
   const [eod, setEod] = useState<Partial<Record<GsuaMetricKey, EodEstimate>>>({});
   const [hasData, setHasData] = useState(false);
 
@@ -146,9 +148,14 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       if (cancelled) return;
       setCoverageRows(cov);
       setHasData(true);
+      // The posts behind each day, for the pinned sheet's links — after the
+      // charts' own data, which the page can draw without.
+      const src = await querySources(days, selectedDate || undefined);
+      if (cancelled) return;
+      setSources(src);
     })();
     return () => { cancelled = true; };
-  }, [loadState, days, selectedDate, queryDaily, queryDirectionCoverage, refreshKey]);
+  }, [loadState, days, selectedDate, queryDaily, queryDirectionCoverage, querySources, refreshKey]);
 
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00").getDay();
   const maxSelectableDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
@@ -288,11 +295,12 @@ export function GsuaDailyPage({ refreshKey }: Props) {
                 // raw `data` value. Tell the tooltip to show that explicitly:
                 // Total, With direction, Unattributed as three separate rows.
                 primaryIsDiff={pair ? true : undefined}
+                sourcesByDate={sources}
               />
             );
           })}
           {filteredCoverageRows.length > 0 && (
-            <DirectionCoverageChart data={filteredCoverageRows} wfull />
+            <DirectionCoverageChart data={filteredCoverageRows} wfull sourcesByDate={sources} />
           )}
         </ChartGrid>
       )}
@@ -308,6 +316,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
               globalMedian={sa.median}
               globalTotal={sa.total}
               wfull
+              sourcesByDate={sources}
             />
           </ChartGrid>
         );
@@ -315,7 +324,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       {/* Several directions: overlaid, one line each, to compare them. */}
       {selectedDirections.length > 1 && (
         <ChartGrid>
-          <DailyMultiLineChart title="Attacks by direction" series={directionSeries()} wfull />
+          <DailyMultiLineChart title="Attacks by direction" series={directionSeries()} wfull sourcesByDate={sources} />
         </ChartGrid>
       )}
     </PageScaffold>

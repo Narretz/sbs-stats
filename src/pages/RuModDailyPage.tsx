@@ -4,6 +4,7 @@ import { useRuModDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { DailyMultiLineChart } from "@/components/DailyMultiLineChart";
+import type { SheetSource } from "@/components/TooltipTable";
 import { DataWindow } from "@/components/DataWindow";
 import { PageScaffold } from "@/components/PageScaffold";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
@@ -50,7 +51,7 @@ interface Props {
 
 export function RuModDailyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryDaily, queryGlobalStats, queryDataWindow } = useRuModDatabaseContext();
+  const { loadState, error, queryDaily, querySources, queryGlobalStats, queryDataWindow } = useRuModDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
 
   const initial = useMemo(() => getUrlParams(), []);
@@ -59,6 +60,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
   const [selectedDate, setSelectedDate] = useState<string>(initial.date);
 
   const [rows, setRows] = useState<RuAdDailyRow[]>([]);
+  const [sources, setSources] = useState<Map<string, SheetSource[]>>(new Map());
   const [globalStats, setGlobalStats] = useState<RuAdGlobalStats>(() => {
     const zero = { max: 0, median: 0, total: 0 };
     return { total: zero, night: zero, day: zero };
@@ -91,9 +93,10 @@ export function RuModDailyPage({ refreshKey }: Props) {
   useEffect(() => {
     if (loadState === "ready") {
       setRows(queryDaily(days, selectedDate || undefined));
+      setSources(querySources(days, selectedDate || undefined));
       setHasData(true);
     }
-  }, [loadState, days, selectedDate, queryDaily, refreshKey]);
+  }, [loadState, days, selectedDate, queryDaily, querySources, refreshKey]);
 
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" }) + "T12:00:00").getDay();
   const maxSelectableDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
@@ -166,6 +169,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
           globalMedian={globalStats.total.median}
           globalTotal={globalStats.total.total}
           wfull
+          sourcesByDate={sources}
         />
         <DailyMultiLineChart
           title="By Reporting Window — Overnight vs Daytime"
@@ -176,6 +180,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
               globalMax: globalStats.day.max, globalMedian: globalStats.day.median, globalTotal: globalStats.day.total },
           ]}
           wfull
+          sourcesByDate={sources}
         />
       </>}
     />

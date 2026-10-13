@@ -2,7 +2,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
 import { fmtCount, type SpannedDay } from "@/components/spanBarShape";
 import { CitStackedChart, type CitStackRowBase, type CitStackSeries } from "@/components/CitStackedChart";
-import type { TooltipTableRow } from "@/components/TooltipTable";
+import type { SheetSource, TooltipTableRow } from "@/components/TooltipTable";
 import { CIT_METRIC_KEYS, CIT_METRIC_LABELS, type CitMetricKey, type Stat } from "@/types";
 
 // CIT's headline figures — the total each report states in its closing
@@ -45,11 +45,13 @@ interface Props {
   // two half days).
   globalStats: Partial<Record<CitMetricKey | "all", Stat>>;
   wfull?: boolean;
+  // Each day's report post, linked in the pinned sheet (daily page).
+  sourcesByDate?: Map<string, SheetSource[]>;
 }
 
 const isDaily = (d: Row): d is CitDailyBarRow => "window_days" in d;
 
-export function CitHeadlineChart({ title, data, granularity, globalStats, wfull }: Props) {
+export function CitHeadlineChart({ title, data, granularity, globalStats, wfull, sourcesByDate }: Props) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
   const color: Record<CitMetricKey, string> = {
@@ -101,6 +103,7 @@ export function CitHeadlineChart({ title, data, granularity, globalStats, wfull 
       totalLabel="KILLED + INJURED"
       globalStats={globalStats}
       wfull={wfull}
+      sourcesByDate={sourcesByDate}
     />
   );
 }

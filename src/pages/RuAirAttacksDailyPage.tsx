@@ -3,6 +3,8 @@ import { Temporal } from "temporal-polyfill";
 import { SUBSET_LABEL } from "@/tooltipLabels";
 import { useRuAirAttacksDatabaseContext } from "@/context/databases";
 import { DailyLineChart } from "@/components/DailyLineChart";
+import { airAttackSourcesByDate, type AirAttackRow } from "@/utils/sources";
+import type { SheetSource } from "@/components/TooltipTable";
 import { DataWindow } from "@/components/DataWindow";
 import { PageScaffold } from "@/components/PageScaffold";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
@@ -62,7 +64,7 @@ interface Props {
 }
 
 export function RuAirAttacksDailyPage({ refreshKey }: Props) {
-  const { loadState, error, queryDaily, queryGlobalStats, queryDailyByModel, queryDailyBreakdownByCategory, queryDailyAggBreakdown, queryDataWindow } = useRuAirAttacksDatabaseContext();
+  const { loadState, error, queryDaily, queryGlobalStats, queryDailyByModel, queryDailyBreakdownByCategory, queryDailyAggBreakdown, querySourceRows, queryDataWindow } = useRuAirAttacksDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
 
   const initial = useMemo(() => getUrlParams(), []);
@@ -74,6 +76,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   const [modelRows, setModelRows] = useState<Record<string, RuAirAttacksModelDailyRow[]>>({});
   const [breakdowns, setBreakdowns] = useState<Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>>({} as Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>);
   const [allBreakdown, setAllBreakdown] = useState<Map<string, ModelBreakdownEntry[]>>(new Map());
+  const [sourceRows, setSourceRows] = useState<AirAttackRow[]>([]);
   const [globalStats, setGlobalStats] = useState<RuAirAttacksGlobalStats>({} as RuAirAttacksGlobalStats);
   const [hasData, setHasData] = useState(false);
 
@@ -114,9 +117,18 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
       }
       setBreakdowns(b);
       setAllBreakdown(queryDailyAggBreakdown(days, selectedDate || undefined));
+      setSourceRows(querySourceRows(days, selectedDate || undefined));
       setHasData(true);
     }
-  }, [loadState, days, selectedDate, queryDaily, queryDailyByModel, queryDailyBreakdownByCategory, queryDailyAggBreakdown, refreshKey]);
+  }, [loadState, days, selectedDate, queryDaily, queryDailyByModel, queryDailyBreakdownByCategory, queryDailyAggBreakdown, querySourceRows, refreshKey]);
+
+  // The posts behind each chart's figures: all of them, a category's, a model's
+  // (exact match, as its series counts).
+  const sources = useMemo(() => ({
+    all: airAttackSourcesByDate(sourceRows),
+    ...Object.fromEntries(ATTACK_DB_CATEGORIES.map((cat) => [cat, airAttackSourcesByDate(sourceRows, (r) => r.category === cat)])),
+    ...Object.fromEntries(FEATURED_MODELS.map((model) => [`model:${model}`, airAttackSourcesByDate(sourceRows, (r) => r.model === model)])),
+  }) as Record<string, Map<string, SheetSource[]>>, [sourceRows]);
 
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00").getDay();
   const maxSelectableDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
@@ -203,6 +215,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
             breakdownByDate={allBreakdown}
             subsetLabel={SUBSET_LABEL.intercepted}
             wfull
+            sourcesByDate={sources.all}
           />
           {/* Per category: launched (area) with intercepted as a filled subset.
               Tooltip carries a top-N model breakdown for the hovered date. */}
@@ -224,6 +237,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
               globalTotal2={globalStats[cat]?.intercepted.total ?? 0}
               breakdownByDate={breakdowns[cat]}
               wfull={false}
+              sourcesByDate={sources[cat]}
             />
           ))}
           {/* Per featured model: bundled "X and Y" rows aren't counted here, so
@@ -260,6 +274,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
                 globalMedian2={is.median}
                 globalTotal2={is.total}
                 wfull={false}
+                sourcesByDate={sources[`model:${model}`]}
               />
             );
           })}

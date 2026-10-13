@@ -16,6 +16,8 @@ import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { outcomesFromSql, reportDays, spreadTerritoryReports, territoryTotals } from "@/utils/citTerritory";
 import { attachDailyMedians, dailyMediansByMonth, sumPresent } from "@/utils/dailyMedian";
+import { citSourcesByDate, type CitReportSource } from "@/utils/sources";
+import type { SheetSource } from "@/components/TooltipTable";
 
 // Fetched whole via sql.js, like the RU-losses / UA-losses / Mediazona
 // loaders. In production that points at the stripped `.app.db` (raw post text
@@ -331,6 +333,24 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
     [db]
   );
 
+  // The report post behind each day of the window — the pinned sheet's links
+  // (utils/sources). Every report, not only those with a headline figure: the
+  // controlling-side chart reads the same posts' region lines.
+  const querySources = useCallback(
+    (days: number, endDate?: string): Map<string, SheetSource[]> => {
+      if (!db) return new Map();
+      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : getMskDateString();
+      return citSourcesByDate(queryRows<CitReportSource>(
+        db,
+        `SELECT report_date, window_days, window_start, window_end, url, part_ids, posted_at FROM reports_latest
+         WHERE url IS NOT NULL
+           AND report_date >= date(${windowStartSql(endDateSql, days)}, '-1 day')
+           AND report_date <= date('${endDateSql}')`,
+      ).map((r) => ({ ...r, window_days: typeof r.window_days === "number" && r.window_days > 0 ? r.window_days : 1 })));
+    },
+    [db],
+  );
+
   // How far the region breakdown can be trusted. Surfaced on the page rather
   // than buried, because it is what says how much weight the region table
   // carries — and because one number would misrepresent it. The strict test
@@ -382,7 +402,7 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
 
   return {
     loadState, error,
-    queryDaily, queryGlobalStats, queryMonthly, queryRegions, queryTerritory, queryTerritoryDaily,
+    queryDaily, queryGlobalStats, queryMonthly, queryRegions, queryTerritory, queryTerritoryDaily, querySources,
     queryReconciliation,
     queryDataWindow,
     refresh, lastRefreshed, refreshCount,

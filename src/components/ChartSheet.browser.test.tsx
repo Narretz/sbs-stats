@@ -162,6 +162,31 @@ describe("Chart pin sheet", () => {
     }
   });
 
+  it("links a date's primary sources in the sheet, never in the hover card", async () => {
+    const sources = new Map([[day(7), [{ href: "https://t.me/example/7", linkText: "2026-10-08 08:02 Kyiv", label: "as of 2026-10-08 08:00 Kyiv" }]]]);
+    await mount(
+      <Shell>
+        <DailyLineChart title={FIRST} data={rows(1, 7)} globalMax={0} globalMedian={0} wfull sourcesByDate={sources} />
+      </Shell>,
+    );
+    await hover(FIRST);
+    await expect.poll(() => tooltipText(FIRST)).not.toBe("");
+    expect(card(FIRST).querySelector(".recharts-tooltip-wrapper a")).toBeNull();
+
+    await pinAt(FIRST, 0.95);
+    expect(sheetLabel()).toBe(label(day(7)));
+    const link = doc.querySelector<HTMLAnchorElement>(".chart-sheet-sources a");
+    expect(link?.href).toBe("https://t.me/example/7");
+    expect(link?.target).toBe("_blank");
+    // The link reads as when the post went up; what it is follows it.
+    expect(link?.textContent).toBe("2026-10-08 08:02 Kyiv ↗");
+    await expect.element(sheet()).toMatchTextContent(/as of 2026-10-08 08:00 Kyiv/);
+
+    // A date with none has no source line.
+    await page.getByRole("button", { name: "Previous point" }).click();
+    expect(doc.querySelector(".chart-sheet-sources")).toBeNull();
+  });
+
   it("the stepper is disabled at both ends — it never wraps", async () => {
     await mount(<Charts />);
     await pinAt(FIRST, 0.08);

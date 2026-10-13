@@ -43,3 +43,19 @@ test("the monthly composition chart projects the month in progress", async ({ pa
   await expect(sheet).toContainText("Projected");
   await expect(sheet).toContainText(/\d+ of \d+ days complete/);
 });
+
+// The posts behind a pinned day, linked in the sheet: the one the figures
+// come from first. The ordering and labels are src/utils/sources.test.ts.
+test("a pinned GSUA day links the report its figures come from", async ({ page }) => {
+  await page.goto("/?site=ru-attacks-gsua&page=daily&days=7");
+  const card = page.locator(".chart-card#combat-engagements");
+  await card.scrollIntoViewIfNeeded();
+  const svg = card.locator("svg.recharts-surface").first();
+  const box = (await svg.boundingBox())!;
+  await svg.click({ position: { x: box.width * 0.5, y: box.height * 0.5 } });
+  const sources = page.locator(".chart-sheet[data-open] .chart-sheet-sources");
+  await expect(sources.locator("a").first()).toHaveAttribute("href", "https://t.me/test");
+  // Linked as when it went up, then the report's "as of" time.
+  await expect(sources.locator("a").first()).toHaveText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2} Kyiv ↗$/);
+  await expect(sources).toContainText(/as of \d{4}-\d{2}-\d{2} \d{2}:\d{2} Kyiv/);
+});

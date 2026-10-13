@@ -12,6 +12,8 @@ import { GSUA_METRIC_KEYS, directionAxis } from "@/types";
 import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
 import { projectFromDays } from "@/utils/monthProjection";
 import { attachDailyMedians, dailyMediansByMonth } from "@/utils/dailyMedian";
+import { gsuaSourcesByDate, type GsuaPostSource } from "@/utils/sources";
+import type { SheetSource } from "@/components/TooltipTable";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
@@ -465,6 +467,24 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
     [worker, hasTable, queryDirectionCoverage]
   );
 
+  // Every post behind each day of the window — the pinned sheet's links, the
+  // one the day's figures come from first (utils/sources). The latest version
+  // of each post; the date window pushes down onto idx_posts_date, so over
+  // httpvfs this reads the window's few dozen rows, not the history.
+  const querySources = useCallback(
+    async (days: number, endDate?: string): Promise<Map<string, SheetSource[]>> => {
+      if (!worker) return new Map();
+      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : getKyivDateString();
+      const rows = (await worker.db.query(
+        `SELECT date, source, source_id, snapshot_at, message_date, url FROM ${LATEST_POSTS} posts
+         WHERE date >= ${windowStartSql(endDateSql, days)} AND date <= '${endDateSql}'
+           AND url IS NOT NULL AND url != ''`,
+      )) as GsuaPostSource[];
+      return gsuaSourcesByDate(rows);
+    },
+    [worker],
+  );
+
   // Full covered date range (first/last day) plus the newest snapshot on the last
   // day, for the "Data … – …" freshness note in the page header — the latest
   // snapshot's time tells a finished day (≥22:00 post in) from a partial one.
@@ -493,7 +513,7 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
     loadState, error,
     queryDaily, queryGlobalStats, queryMonthly, queryEodProjection, queryDataWindow,
     queryDirectionList,
-    queryDirectionCoverage, queryDirectionCoverageMonthly,
+    queryDirectionCoverage, queryDirectionCoverageMonthly, querySources,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs,
   };

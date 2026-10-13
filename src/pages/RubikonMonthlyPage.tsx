@@ -3,6 +3,7 @@ import { useRubikonDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
+import { monthlySourcesByPeriod } from "@/utils/sources";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
@@ -138,6 +139,11 @@ export function RubikonMonthlyPage({ refreshKey }: Props) {
     }
     return Array.from(byPeriod.values()).sort((a, b) => a.period.localeCompare(b.period));
   }, [rows]);
+  // The same recaps as the sheet's link for their month (utils/sources).
+  const sources = useMemo(
+    () => monthlySourcesByPeriod(reports.map((r) => ({ period: r.period, url: r.url, postedAt: r.posted_at })), "Europe/Moscow", "Moscow"),
+    [reports],
+  );
 
   const chartFor = (k: RubikonCategoryKey, wfull: boolean) => (
     <MonthlyBarChart
@@ -148,6 +154,7 @@ export function RubikonMonthlyPage({ refreshKey }: Props) {
       globalMax={allStats[k]?.max ?? 0}
       globalMedian={allStats[k]?.median ?? 0}
       globalTotal={allStats[k]?.total ?? 0}
+      sourcesByDate={sources}
     />
   );
 

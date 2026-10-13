@@ -12,7 +12,7 @@ import {
   dayTick, entryOfDay, fmtCount, formatEntry, spanBarShape, type SpannedDay,
 } from "@/components/spanBarShape";
 import { SpanCursor } from "@/components/SpanCursor";
-import type { TooltipDescriptor } from "@/components/TooltipTable";
+import type { SheetSource, TooltipDescriptor } from "@/components/TooltipTable";
 import type { Stat } from "@/types";
 import { formatMonth } from "@/utils/dateFormat";
 
@@ -64,10 +64,13 @@ interface Props<K extends string, Row extends CitStackRowBase & Partial<Record<K
   // A line under the header.
   caveat?: ReactNode;
   wfull?: boolean;
+  // The primary sources behind each date (the posts its figures were read
+  // from), linked in the pinned sheet only — see TooltipDescriptor.sources.
+  sourcesByDate?: Map<string, SheetSource[]>;
 }
 
 export function CitStackedChart<K extends string, Row extends CitStackRowBase & Partial<Record<K, number | null>>>({
-  title, data, granularity, series, describe, header, totalLabel, globalStats, caveat, wfull,
+  title, data, granularity, series, describe, header, totalLabel, globalStats, caveat, wfull, sourcesByDate,
 }: Props<K, Row>) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
@@ -95,7 +98,7 @@ export function CitStackedChart<K extends string, Row extends CitStackRowBase & 
         <span style={{ fontSize: 10, marginLeft: 6 }}>{projectionBasis(p.coveredDays, p.daysInMonth)}</span>
       </div>
     ) : label(d);
-    return { header: head, formatValue: fmtCount, ...describe(d, label(d)) };
+    return { header: head, formatValue: fmtCount, sources: sourcesByDate?.get(d.date), ...describe(d, label(d)) };
   };
 
   const top = [...series].reverse();

@@ -334,6 +334,16 @@ export function TooltipCard({ header, footer, children, minWidth = 220 }: CardPr
 // Every field means the same thing in both, `header` included — the renderers
 // differ in their chrome, not in what a descriptor is.
 
+/** One primary source in the pinned sheet: where to go, the link's own text —
+ *  when the post went up, "2026-10-12 21:34 MSK" — and what it is beside it
+ *  ("as of 2026-10-13 08:00 Kyiv"). */
+export interface SheetSource {
+  href: string;
+  /** The link text; "Source" without one. */
+  linkText?: string;
+  label: string;
+}
+
 export interface TooltipDescriptor {
   /** The line above the body — usually the formatted date, sometimes more
    *  (the hourly overlay adds the hour's median and the current day's distance
@@ -356,6 +366,10 @@ export interface TooltipDescriptor {
    *  column would be thirty rows tall. When set it replaces the table in both
    *  renderers, and `rows` is ignored. */
   content?: ReactNode;
+  /** Sheet-only: the primary sources behind this x — the posts its figures
+   *  were read from. Only the pinned sheet shows them: the hover card can't be
+   *  clicked, so a link there would be a promise it can't keep. */
+  sources?: SheetSource[];
   /** Sheet-only. Rendered in place of the table when `rows` is empty — a
    *  pinned sheet that says nothing reads as broken, whereas an empty hover
    *  tooltip is just silence the reader didn't ask for. */
@@ -383,18 +397,35 @@ export function DescriptorCard({ d }: { d: TooltipDescriptor | null }) {
   );
 }
 
+// The sheet's source links, one line each: "2026-10-12 21:34 MSK ↗ as of …".
+function SourceLinks({ sources }: { sources: SheetSource[] }) {
+  const { theme: t } = useTheme();
+  return (
+    <div className="chart-sheet-sources" style={{ marginTop: 6, flex: "none", display: "flex", flexDirection: "column", gap: 2, fontSize: "0.917em" }}>
+      {sources.map((s) => (
+        <div key={s.href} style={{ color: t.textMuted }}>
+          <a href={s.href} target="_blank" rel="nofollow external noreferrer" style={{ color: t.primary }}>
+            {s.linkText ?? "Source"} ↗
+          </a>{s.label && <>{" "}{s.label}</>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Sheet-body rendering: no card chrome (the sheet supplies it), and
  *  `emptyState` honoured so a no-data date explains itself. */
 export function DescriptorBody({ d }: { d: TooltipDescriptor | null }) {
   const { theme: t } = useTheme();
   if (!d) return null;
+  const sources = d.sources?.length ? <SourceLinks sources={d.sources} /> : null;
   // `flex: none`, because the sheet's body is a flex column and everything in
   // it is a flex item — without it this line would be stretched or squeezed by
   // whatever the body is making room for below it.
   const header = d.header == null ? null : (
     <div style={{ color: t.textMuted, marginBottom: 4, flex: "none" }}>{d.header}</div>
   );
-  if (d.content != null) return <>{header}{d.content}{d.footer}</>;
+  if (d.content != null) return <>{header}{d.content}{d.footer}{sources}</>;
   if (d.rows.length === 0) {
     return (
       <>
@@ -403,6 +434,7 @@ export function DescriptorBody({ d }: { d: TooltipDescriptor | null }) {
           <div style={{ color: t.textMuted }}>{d.emptyState}</div>
         )}
         {d.footer}
+        {sources}
       </>
     );
   }
@@ -418,6 +450,7 @@ export function DescriptorBody({ d }: { d: TooltipDescriptor | null }) {
         extraColumns={d.extraColumns}
       />
       {d.footer}
+      {sources}
     </>
   );
 }

@@ -11,7 +11,7 @@ import { LazyChartArea } from "@/components/LazyChartArea";
 import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { chartAnchor } from "@/utils/chartAnchor";
 import { usePinnedChart } from "@/components/usePinnedChart";
-import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
+import type { SheetSource, TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 import { chartColors } from "@/chartColors";
 import { formatWeekRange } from "@/utils/weekRange";
 import { formatDay, formatMonth } from "@/utils/dateFormat";
@@ -57,6 +57,9 @@ interface Props {
   // better than lines at the weekly and monthly grains, where each point is a
   // total for a span rather than a sample on a trend. Default "line".
   style?: ChartStyle;
+  // The primary sources behind each date (daily grain), linked in the pinned
+  // sheet only — see TooltipDescriptor.sources.
+  sourcesByDate?: Map<string, SheetSource[]>;
 }
 
 // Cap so a short window (3 months, 4 weeks) doesn't draw slabs.
@@ -145,7 +148,7 @@ function describeMulti({
 }
 
 export function DailyMultiLineChart({
-  title, series, wfull = false, yMode = "linear", cumulative = false, granularity = "daily", style = "line",
+  title, series, wfull = false, yMode = "linear", cumulative = false, granularity = "daily", style = "line", sourcesByDate,
 }: Props) {
   const { theme: t } = useTheme();
   const anchor = chartAnchor(title);
@@ -219,7 +222,7 @@ export function DailyMultiLineChart({
     title,
     data: rows,
     xOf: (r) => r.date,
-    describe: (row) => describeMulti({ row, t, series, granularity }),
+    describe: (row) => ({ ...describeMulti({ row, t, series, granularity }), sources: sourcesByDate?.get(row.date) }),
     formatLabel: (r) => formatX(granularity, r.date),
     cursor: { stroke: t.textMuted, strokeWidth: 1 },
   });

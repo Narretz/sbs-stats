@@ -19,6 +19,7 @@ import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { projectFromDays } from "@/utils/monthProjection";
 import { attachDailyMedians, dailyMediansByMonth } from "@/utils/dailyMedian";
+import type { AirAttackRow } from "@/utils/sources";
 
 // Small DB (~2 MB) → fetch whole via sql.js, like the RU-losses loader (no httpvfs).
 const DB_URL =
@@ -788,9 +789,28 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
     return rows[0] ?? { minDate: null, maxDate: null };
   }, [db]);
 
+
+  // The attack rows of the window with the post each came from — the pinned
+  // sheet's links, built per chart (utils/sources airAttackSourcesByDate).
+  const querySourceRows = useCallback(
+    (days: number, endDate?: string): AirAttackRow[] => {
+      if (!db) return [];
+      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : getKyivDateString();
+      return queryRows<AirAttackRow>(
+        db,
+        `SELECT attack_date AS date, category, model, source, time_start, time_end, launched, destroyed,
+                CASE WHEN status_data = 'hidden' THEN 1 ELSE 0 END AS hidden
+         FROM missile_attacks_latest
+         WHERE source IS NOT NULL AND source != ''
+           AND attack_date >= ${windowStartSql(endDateSql, days)}
+           AND attack_date <= date('${endDateSql}')`,
+      );
+    },
+    [db],
+  );
   return {
     loadState, error,
-    queryDaily, queryGlobalStats, queryMonthly,
+    queryDaily, queryGlobalStats, queryMonthly, querySourceRows,
     queryDailyByModel, queryMonthlyByModel,
     queryDailyBreakdownByCategory, queryMonthlyBreakdownByCategory,
     queryDailyAggBreakdown, queryMonthlyAggBreakdown,

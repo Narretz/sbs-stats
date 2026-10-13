@@ -124,6 +124,12 @@ test.describe("CIT daily page", () => {
     await expect(label).toHaveText("2026-01-09");
     await sheet.getByRole("button", { name: "Next point" }).click();
     await expect(label).toHaveText("2026-01-10/11");
+    // The report the weekend's figures came from, linked — one post, both days.
+    const source = sheet.locator(".chart-sheet-sources a");
+    await expect(source).toHaveCount(1);
+    await expect(source).toHaveAttribute("href", /^https:\/\/t\.me\/CIT_shellings\/\d+$/);
+    // Linked as when it went up (the fixture has no window; the format is sources.test.ts).
+    await expect(source).toHaveText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2} Moscow ↗$/);
     expect(await sheet.innerText()).toMatch(/Civilians killed\s+6/);
     // The weekend is the window's last entry, so there is nowhere further.
     await expect(sheet.getByRole("button", { name: "Next point" })).toBeDisabled();

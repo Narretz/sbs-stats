@@ -11,7 +11,7 @@ import { chartAnchor } from "@/utils/chartAnchor";
 // deep-link anchor are derived from one string.
 const TITLE = "Combat Engagements — Composition by Direction";
 import { chartColors, qualitativeColor } from "@/chartColors";
-import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
+import type { SheetSource, TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 import { usePinnedChart } from "@/components/usePinnedChart";
 import { DIRECTION_AXIS_JOINT_LABEL } from "@/types";
 import type { GsuaCoverageProjection, GsuaDirectionCoverageRow } from "@/types";
@@ -32,6 +32,9 @@ interface Props {
   // x-axis tick format, the sub-title copy, and the units in the summary
   // line ("days with a breakdown" vs "months").
   granularity?: "daily" | "monthly";
+  // The primary sources behind each date (the posts its figures were read
+  // from), linked in the pinned sheet only — see TooltipDescriptor.sources.
+  sourcesByDate?: Map<string, SheetSource[]>;
 }
 
 const MAX_BAR_SIZE = 32;
@@ -52,7 +55,7 @@ interface FlatRow {
   [dataKey: string]: number | string | null | GsuaCoverageProjection | undefined;
 }
 
-export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: Props) {
+export function DirectionCoverageChart({ data, wfull, granularity = "daily", sourcesByDate }: Props) {
   const { theme: t } = useTheme();
   const anchor = chartAnchor(TITLE);
   const c = chartColors(t);
@@ -219,7 +222,7 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
         )}
       </>
     );
-    return { header, rows, minWidth: 240 };
+    return { header, rows, minWidth: 240, sources: sourcesByDate?.get(d.date) };
   };
 
   const pin = usePinnedChart({

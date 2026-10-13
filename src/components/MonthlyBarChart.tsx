@@ -8,7 +8,7 @@ import { maxMedian } from "@/utils/windowStats";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { MonthlyChartCard } from "@/components/MonthlyChartCard";
-import { breakdownToRows, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
+import { breakdownToRows, type SheetSource, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
 import { projectionBasis } from "@/utils/monthProjection";
 
 interface Props {
@@ -39,6 +39,9 @@ interface Props {
   /** Keep the tooltip over a null bar, for series whose gaps the header
    *  explains (the weekly tally's "no tally posted"). */
   explainGaps?: boolean;
+  // The primary source behind each month ("YYYY-MM"), linked in the pinned
+  // sheet only — see TooltipDescriptor.sources.
+  sourcesByDate?: Map<string, SheetSource[]>;
 }
 
 // Cap bar width so a chart with few data points (e.g. SBU Alfa's 3 months)
@@ -48,7 +51,7 @@ const MAX_BAR_SIZE = 70;
 
 export function MonthlyBarChart({
   title, data, wfull, breakdownByMonth,
-  globalMax, globalMedian, globalTotal, subsetLabel, formatTick, xTicks, formatHeader, explainGaps,
+  globalMax, globalMedian, globalTotal, subsetLabel, formatTick, xTicks, formatHeader, explainGaps, sourcesByDate,
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
@@ -95,7 +98,7 @@ export function MonthlyBarChart({
         ⚠ {d.note}
       </div>
     ) : null;
-    return { header, rows, footer, subsetLabel, minWidth: 200 };
+    return { header, rows, footer, subsetLabel, minWidth: 200, sources: sourcesByDate?.get(d.date.slice(0, 7)) };
   };
 
   const statsHeader = (

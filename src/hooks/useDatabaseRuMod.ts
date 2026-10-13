@@ -6,6 +6,8 @@ import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { projectNightDay } from "@/utils/monthProjection";
 import { attachDailyMedians, dailyMediansByMonth } from "@/utils/dailyMedian";
+import { ruModSourcesByDate, type RuModReportSource } from "@/utils/sources";
+import type { SheetSource } from "@/components/TooltipTable";
 
 // Tiny DB → fetch whole via sql.js, like the SBS / RU-losses loaders (no httpvfs).
 // Dev default is the `.app.db` copy for the same reason as GSUA — see
@@ -228,6 +230,25 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
     });
   }, [db]);
 
+  // The MoD posts behind each report day of the window — the pinned sheet's
+  // links (utils/sources): the latest version of every report, overnight and
+  // daytime, with the window and count each one gave.
+  const querySources = useCallback(
+    (days: number, endDate?: string): Map<string, SheetSource[]> => {
+      if (!db) return new Map();
+      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : getMskDateString();
+      return ruModSourcesByDate(queryRows<RuModReportSource>(
+        db,
+        `SELECT report_date, post_id, window_kind, window_start, window_end, drones, posted_at,
+                ${hasUnitColumn(db) ? "unit" : "NULL AS unit"}
+         FROM ad_latest
+         WHERE report_date >= ${windowStartSql(endDateSql, days)}
+           AND report_date <= date('${endDateSql}')`,
+      ));
+    },
+    [db],
+  );
+
   // Full covered date range (first/last report day, MSK), for the "Data … – …"
   // freshness note in the page header.
   const queryDataWindow = useCallback((): { minDate: string | null; maxDate: string | null } => {
@@ -241,7 +262,7 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
 
   return {
     loadState, error,
-    queryDaily, queryGlobalStats, queryMonthly, queryDataWindow,
+    queryDaily, queryGlobalStats, queryMonthly, queryDataWindow, querySources,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs,
   };

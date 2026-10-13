@@ -1,7 +1,7 @@
 import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
 import { CitStackedChart } from "@/components/CitStackedChart";
-import type { TooltipTableRow } from "@/components/TooltipTable";
+import type { SheetSource, TooltipTableRow } from "@/components/TooltipTable";
 import type { ReactNode } from "react";
 import type { CitKilledInjured, CitTerritoryDailyRow, CitTerritoryRow, Stat } from "@/types";
 import { scaleOutcomes } from "@/utils/citTerritory";
@@ -25,7 +25,7 @@ function isDaily(d: Row): d is CitTerritoryDailyRow {
   return "window_days" in d;
 }
 
-export function CitTerritoryChart({ data, granularity, globalStats, wfull, caveat }: {
+export function CitTerritoryChart({ data, granularity, globalStats, wfull, caveat, sourcesByDate }: {
   data: CitTerritoryRow[] | CitTerritoryDailyRow[];
   granularity: "daily" | "monthly";
   // The all-data stat of the two bands' sum, for the median line in the "all"
@@ -35,6 +35,8 @@ export function CitTerritoryChart({ data, granularity, globalStats, wfull, cavea
   // A line under the legend, for a page that has no room for the monthly
   // page's paragraph on how far the breakdown can be trusted.
   caveat?: ReactNode;
+  // Each day's report post, linked in the pinned sheet (daily page).
+  sourcesByDate?: Map<string, SheetSource[]>;
 }) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
@@ -109,6 +111,7 @@ export function CitTerritoryChart({ data, granularity, globalStats, wfull, cavea
       globalStats={globalStats}
       caveat={caveat}
       wfull={wfull}
+      sourcesByDate={sourcesByDate}
     />
   );
 }

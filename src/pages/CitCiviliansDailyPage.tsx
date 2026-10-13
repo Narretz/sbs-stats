@@ -13,6 +13,7 @@ import {
 } from "@/utils/dayRange";
 import { maxMedian } from "@/utils/windowStats";
 import { stackTotal } from "@/utils/citTerritory";
+import type { SheetSource } from "@/components/TooltipTable";
 import {
   type CitDailyRow,
   type CitGlobalStats,
@@ -50,7 +51,7 @@ interface Props {
 }
 
 export function CitCiviliansDailyPage({ refreshKey }: Props) {
-  const { loadState, error, queryDaily, queryTerritoryDaily, queryGlobalStats, queryDataWindow } =
+  const { loadState, error, queryDaily, queryTerritoryDaily, querySources, queryGlobalStats, queryDataWindow } =
     useCitCiviliansDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
 
@@ -60,6 +61,7 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
 
   const [rows, setRows] = useState<CitDailyRow[]>([]);
   const [territory, setTerritory] = useState<CitTerritoryDailyRow[]>([]);
+  const [sources, setSources] = useState<Map<string, SheetSource[]>>(new Map());
   const [globalStats, setGlobalStats] = useState<CitGlobalStats>({} as CitGlobalStats);
   const [territoryStats, setTerritoryStats] = useState<{ all?: Stat }>({});
   const [hasData, setHasData] = useState(false);
@@ -89,9 +91,10 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
     if (loadState === "ready") {
       setRows(queryDaily(days, selectedDate || undefined));
       setTerritory(queryTerritoryDaily(days, selectedDate || undefined));
+      setSources(querySources(days, selectedDate || undefined));
       setHasData(true);
     }
-  }, [loadState, days, selectedDate, queryDaily, queryTerritoryDaily, refreshKey]);
+  }, [loadState, days, selectedDate, queryDaily, queryTerritoryDaily, querySources, refreshKey]);
 
   const maxSelectableDate = mskToday();
   const shiftSelectedDate = (delta: number) => {
@@ -144,6 +147,7 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
           data={territory}
           granularity="daily"
           globalStats={territoryStats}
+          sourcesByDate={sources}
           wfull
           caveat={<>Killed + injured, from each report's per-region lines — accurate to about a percent in aggregate, but rarely to the person on a given day. A double-width bar is one weekend report spanning its two days, at the daily average.</>}
         />
@@ -151,7 +155,7 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
             they sum; killed sits at the bottom of the stack, anchored to the
             baseline, which is the only place a band that small stays
             readable against an injured count roughly six times larger. */}
-        <CitHeadlineChart title="All civilian casualties" data={bars} granularity="daily" globalStats={globalStats} wfull />
+        <CitHeadlineChart title="All civilian casualties" data={bars} granularity="daily" globalStats={globalStats} wfull sourcesByDate={sources} />
       </>}
     />
   );

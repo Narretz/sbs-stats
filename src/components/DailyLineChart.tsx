@@ -14,7 +14,7 @@ import { FONTS, type Theme } from "@/theme";
 import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { chartAnchor } from "@/utils/chartAnchor";
 import { AREA_FILL_OPACITY, chartColors } from "@/chartColors";
-import { breakdownToRows, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
+import { breakdownToRows, type SheetSource, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
 import { formatDay as formatDate } from "@/utils/dateFormat";
 
 interface Props {
@@ -57,6 +57,9 @@ interface Props {
    *  Personnel). TooltipTable renders `<label>` for the count and
    *  `<label> %` for the derived rate. Undefined on non-subset charts. */
   subsetLabel?: string;
+  // The primary sources behind each date (the posts its figures were read
+  // from), linked in the pinned sheet only — see TooltipDescriptor.sources.
+  sourcesByDate?: Map<string, SheetSource[]>;
 }
 
 function CustomDot(props: DotProps & {
@@ -279,7 +282,7 @@ function describePaired(ctx: DescribeCtx, d: PairedRow): TooltipDescriptor {
 export function DailyLineChart({
   title, data, globalMax, globalMedian, globalTotal, wfull,
   data2, primaryLabel, label2, globalMax2, globalMedian2, globalTotal2, pairMode = "subset",
-  eod, eod2, breakdownByDate, primaryIsDiff = false, subsetLabel, drillAnchor,
+  eod, eod2, breakdownByDate, primaryIsDiff = false, subsetLabel, drillAnchor, sourcesByDate,
 }: Props) {
   const { theme: t } = useTheme();
   const anchor = chartAnchor(title);
@@ -379,11 +382,11 @@ export function DailyLineChart({
       pairMode, primaryIsDiff, breakdownByDate, subsetLabel, noteByDate,
     };
     const allNull = row.value == null && (!hasPair || row.value2 == null);
-    if (allNull) return describeGap(ctx, row.date);
-    return hasPair ? describePaired(ctx, row) : describeSingle(ctx, row);
+    const desc = allNull ? describeGap(ctx, row.date) : hasPair ? describePaired(ctx, row) : describeSingle(ctx, row);
+    return { ...desc, sources: sourcesByDate?.get(row.date) };
   }, [
     t, primaryColor, resolvedPrimaryLabel, resolvedSecondaryLabel, pairMode,
-    primaryIsDiff, breakdownByDate, subsetLabel, noteByDate, hasPair,
+    primaryIsDiff, breakdownByDate, subsetLabel, noteByDate, hasPair, sourcesByDate,
   ]);
 
   const pin = usePinnedChart({
