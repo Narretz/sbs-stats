@@ -81,13 +81,23 @@ function describeMonth({
   // The subset/hit rate is derived by TooltipTable from `subset/value`,
   // so `showRatio=false` needs to explicitly null out `subset` to hide it.
   const useCollapsedSubset = subsetLabel !== undefined;
+  // The month-end projection gets a row of its own rather than the Projected
+  // column: a column holds one figure per row, and the collapsed row carries
+  // two (hit + subset). As a row it fills the same Value / subset / rate
+  // columns, so the projected killed/destroyed and its rate come for free.
   const rows: TooltipTableRow[] = useCollapsedSubset
-    ? [{
-        label: primaryLabel, color: c.damaged,
-        value: d.hit_value ?? null,
-        subset: showRatio ? (d.destroyed_value ?? null) : null,
-        projected: d.hit_projected ?? null,
-      }]
+    ? [
+        {
+          label: primaryLabel, color: c.damaged,
+          value: d.hit_value ?? null,
+          subset: showRatio ? (d.destroyed_value ?? null) : null,
+        },
+        ...(d.hit_projected != null ? [{
+          label: "Projected", color: c.damaged,
+          value: d.hit_projected,
+          subset: showRatio ? (d.destroyed_projected ?? null) : null,
+        }] : []),
+      ]
     : [
         {
           label: primaryLabel, color: c.damaged,
