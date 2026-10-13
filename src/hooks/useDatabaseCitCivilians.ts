@@ -14,7 +14,8 @@ import { CIT_METRIC_KEYS } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
-import { outcomesFromSql, spreadTerritoryReports, territoryTotals } from "@/utils/citTerritory";
+import { outcomesFromSql, reportDays, spreadTerritoryReports, territoryTotals } from "@/utils/citTerritory";
+import { attachDailyMedians, dailyMediansByMonth, sumPresent } from "@/utils/dailyMedian";
 
 // Fetched whole via sql.js, like the RU-losses / UA-losses / Mediazona
 // loaders. In production that points at the stripped `.app.db` (raw post text
@@ -189,6 +190,22 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
     );
 
     const mskDateStr = getMskDateString();
+    // Each month's median day, per series and for their sum — on the daily
+    // page's per-day basis (reportDays).
+    const medians = dailyMediansByMonth(
+      reportDays(queryRows<Record<string, unknown>>(
+        db, "SELECT report_date, killed, injured, window_days FROM daily_stated",
+      ).map((r) => {
+        const values = Object.fromEntries(CIT_METRIC_KEYS.map((k) => [k, typeof r[k] === "number" ? r[k] : null])) as Partial<Record<CitMetricKey, number | null>>;
+        return {
+          report_date: String(r.report_date),
+          window_days: typeof r.window_days === "number" ? r.window_days : 1,
+          values: { ...values, total: sumPresent(values, CIT_METRIC_KEYS) },
+        };
+      })),
+      [...CIT_METRIC_KEYS, "total"] as const,
+      mskDateStr,
+    );
     const currentMonth = mskDateStr.slice(0, 7);
     const dayOfMonth = parseInt(mskDateStr.slice(8, 10), 10);
     const [y, m] = currentMonth.split("-").map(Number);
@@ -197,7 +214,7 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
     return rows.map((row) => {
       const month = String(row.month);
       const isCurrent = month === currentMonth;
-      return {
+      const out = {
         date: month,
         is_current_month: isCurrent,
         projection_day: isCurrent ? dayOfMonth : null,
@@ -208,6 +225,8 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
           return acc;
         }, {} as Record<CitMetricKey, number>)),
       } as CitMonthlyRow;
+      attachDailyMedians(out, medians);
+      return out;
     });
   }, [db]);
 
@@ -257,12 +276,32 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
   // alternative but it is NULL on corrections naming several dates at once.
   const queryTerritory = useCallback((): CitTerritoryRow[] => {
     if (!db) return [];
+    // Each month's median day per band and part, from the per-report split
+    // laid out per day (reportDays) — the daily page's basis.
+    const parts = ["uaControlled", "ruControlled", "occupiedUkraine", "russia"] as const;
+    const medians = dailyMediansByMonth(
+      reportDays(queryRows<Record<string, number | string>>(db, territorySql("r.report_date")).map((row) => {
+        const t = territoryTotals(outcomesFromSql(row));
+        return {
+          report_date: String(row.bucket),
+          window_days: typeof row.window_days === "number" && row.window_days > 0 ? row.window_days : 1,
+          values: {
+            uaControlled: t.uaControlled, ruControlled: t.ruControlled,
+            occupiedUkraine: t.occupiedUkraine, russia: t.russia,
+            total: t.uaControlled + t.ruControlled,
+          },
+        };
+      })),
+      [...parts, "total"] as const,
+      getMskDateString(),
+    );
     return queryRows<Record<string, number | string>>(
       db,
       territorySql("substr(r.report_date, 1, 7)"),
     ).map((row) => {
       const outcomes = outcomesFromSql(row);
-      return { date: String(row.bucket), ...territoryTotals(outcomes), outcomes };
+      const date = String(row.bucket);
+      return { date, ...territoryTotals(outcomes), outcomes, dailyMedian: medians.get(date) };
     });
   }, [db]);
 

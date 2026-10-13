@@ -4,6 +4,7 @@ import type { DailyRow, MonthlyRow, StatKey, EodEstimate, GlobalStats } from "@/
 import { TARGET_IDS } from "@/types";
 import { computeEodProjection, computeEodSteps, type EodReading } from "@/utils/eodProjection";
 import { projectMonthEnd, type IntradayReading } from "@/utils/monthProjection";
+import { attachDailyMedians, dailyMediansByMonth } from "@/utils/dailyMedian";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
@@ -276,6 +277,27 @@ export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
       }));
     };
 
+    // Each month's median day, over the day's final figure — its latest
+    // reading, as the daily chart shows it (hour >= 24 rows are next-day
+    // corrections, so they win). The daily series starts later than the
+    // monthly one; its earlier months simply have no median.
+    const dayCols = statKeys.filter((k) => dailyCols.includes(k));
+    const finalOfDay = new Map<string, Partial<Record<StatKey, number | null>>>();
+    if (dayCols.length) {
+      for (const r of queryRows<Record<string, unknown>>(
+        db,
+        `SELECT date, ${dayCols.join(", ")} FROM daily_stats ORDER BY date ASC, hour DESC`,
+      )) {
+        const date = String(r.date);
+        if (!finalOfDay.has(date)) finalOfDay.set(date, r as Partial<Record<StatKey, number | null>>);
+      }
+    }
+    const medians = dailyMediansByMonth(
+      [...finalOfDay].map(([date, values]) => ({ date, values })),
+      dayCols,
+      getKyivDateString(),
+    );
+
     return queryRows<Record<string, unknown>>(db, sql).map(({ data_collected_at: snapshotAt, ...row }) => {
       const dateStr = String(row["date"]).slice(0, 7);
       const isCurrentMonth = dateStr === currentMonth;
@@ -306,6 +328,7 @@ export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
       for (const [key, value] of Object.entries(projection?.projected ?? {})) {
         typedRow[`${key as StatKey}_projected`] = value;
       }
+      attachDailyMedians(typedRow, medians);
       return typedRow;
     });
   }, [db]);

@@ -111,7 +111,7 @@ export type MonthlyRow = {
   projection_day: number | null;
   projection_days_in_month: number | null;
   projection_partial_day?: boolean;
-} & Record<StatKey, number> & Partial<Record<ProjectedKey, number>>;
+} & Record<StatKey, number> & Partial<Record<ProjectedKey | `${StatKey}_daily_median`, number>>;
 
 // ─── SBS sub-units ───────────────────────────────────────────────────────────
 // The units publish the same counters the grouping total does, so their rows
@@ -190,6 +190,8 @@ export interface MonthlyDataPoint {
   projection_day?: number;
   projection_days_in_month?: number;
   projection_partial_day?: boolean;
+  // The month's median day (utils/dailyMedian), for a source with daily figures.
+  daily_median?: number;
   note?: string; // optional caveat (e.g. possible double-count); shown in tooltip + flags the bar
 }
 
@@ -372,7 +374,7 @@ export type GsuaMonthlyRow = {
   projection_day: number | null;
   projection_days_in_month: number | null;
   projection_partial_day?: boolean;
-} & Record<GsuaMetricKey, number> & Partial<Record<`${GsuaMetricKey}_projected`, number>>;
+} & Record<GsuaMetricKey, number> & Partial<Record<`${GsuaMetricKey}_projected` | `${GsuaMetricKey}_daily_median`, number>>;
 
 // ─── RU Losses (PetroIvaniuk dataset → ru-losses-gsua-petroivaniuk.db) ─────────
 // Daily Russian losses (personnel + equipment) as reported by the Ukrainian
@@ -396,6 +398,8 @@ export const RU_LOSSES_METRIC_KEYS = [
   "ugs",
   "captive",
 ] as const;
+// The losses pages' synthetic "all targets" total: every category but POWs.
+export const RU_LOSSES_TARGET_KEYS = RU_LOSSES_METRIC_KEYS.filter((k) => k !== "captive");
 export type RuLossesMetricKey = (typeof RU_LOSSES_METRIC_KEYS)[number];
 
 export const RU_LOSSES_METRIC_LABELS: Record<RuLossesMetricKey, string> = {
@@ -429,7 +433,8 @@ export type RuLossesMonthlyRow = {
   projection_day: number | null;
   projection_days_in_month: number | null;
   projection_partial_day?: boolean;
-} & Record<RuLossesMetricKey, number> & Partial<Record<`${RuLossesMetricKey}_projected`, number>>;
+} & Record<RuLossesMetricKey, number>
+  & Partial<Record<`${RuLossesMetricKey}_projected` | `${RuLossesMetricKey | "targets"}_daily_median`, number>>;
 
 // ─── UA Losses claimed by the RU MoD (John Felix's sheet → ua-losses-ru-mod-john-felix.db) ─
 // The categories are the MoD's own "since the start" tally — plus radars, EW
@@ -457,6 +462,8 @@ export const UA_LOSSES_RU_MOD_METRIC_KEYS = [
   "intercepted_mlrs_rockets",
   "intercepted_guided_bombs",
 ] as const;
+// As RU_LOSSES_TARGET_KEYS: every category but POWs.
+export const UA_LOSSES_RU_MOD_TARGET_KEYS = UA_LOSSES_RU_MOD_METRIC_KEYS.filter((k) => k !== "captured");
 export type UaLossesRuModMetricKey = (typeof UA_LOSSES_RU_MOD_METRIC_KEYS)[number];
 
 export const UA_LOSSES_RU_MOD_METRIC_LABELS: Record<UaLossesRuModMetricKey, string> = {
@@ -509,7 +516,7 @@ export type UaLossesRuModMonthlyRow = {
   projection_days_in_month: number | null;
   projection_partial_day?: boolean;
 } & Record<UaLossesRuModMetricKey | UaLossesRuModArmourKey, number>
-  & Partial<Record<`${UaLossesRuModMetricKey}_projected`, number>>;
+  & Partial<Record<`${UaLossesRuModMetricKey}_projected` | `${UaLossesRuModMetricKey | "targets"}_daily_median`, number>>;
 
 // ─── UA Losses (ualosses.org daily personnel losses → ua-losses.db) ───────────
 // Confirmed, named Ukrainian military losses aggregated per day, broken out by
@@ -546,7 +553,7 @@ export type UaLossesMonthlyRow = {
   projection_day: number | null;
   projection_days_in_month: number | null;
   projection_partial_day?: boolean;
-} & Record<UaLossesMetricKey, number> & Partial<Record<`${UaLossesMetricKey}_projected`, number>>;
+} & Record<UaLossesMetricKey, number> & Partial<Record<`${UaLossesMetricKey}_projected` | `${UaLossesMetricKey}_daily_median`, number>>;
 
 // ─── RU Air Attacks (piterfm Kaggle → ru-air-attacks-gsua.db) ─────────────────
 // Russian missile/UAV strikes on Ukraine, digitized by piterfm from the UA Air
@@ -668,6 +675,8 @@ export type RuAirAttacksModelMonthlyRow = {
   intercepted: number;
   launched_projected?: number;
   intercepted_projected?: number;
+  launched_daily_median?: number;
+  intercepted_daily_median?: number;
 };
 
 export type RuAirAttacksDailyRow = {
@@ -700,7 +709,7 @@ export type RuAirAttacksMonthlyRow = {
   undisclosed?: AttackDbCategory[];
 } & Record<AttackCategoryKey, number>
   & Record<`${AttackCategoryKey}_intercepted`, number>
-  & Partial<Record<`${AttackCategoryKey}_projected` | `${AttackCategoryKey}_intercepted_projected`, number>>;
+  & Partial<Record<`${AttackCategoryKey}${"" | "_intercepted"}_${"projected" | "daily_median"}`, number>>;
 
 // ─── RU Air Defense (MoD Telegram → ru-mod-ad.db) ─────────────────────────────
 // Russian MoD claims of Ukrainian UAVs intercepted/downed over Russia, parsed
@@ -755,7 +764,7 @@ export type RuAdMonthlyRow = {
   // not a pure drone count) and the drones they contributed — see ad_reports.unit.
   air_target_reports: number;
   air_target_drones: number;
-} & Partial<Record<"total_projected" | "night_projected" | "day_projected", number>>;
+} & Partial<Record<`${"total" | "night" | "day"}_${"projected" | "daily_median"}`, number>>;
 
 // ─── SBU Alfa (ssu.gov.ua monthly recap → sbu-alfa.db) ─────────────────────────
 // SBU's "TOP-1 серед підрозділів Сил оборони" monthly recap (running since
@@ -1256,7 +1265,7 @@ export type CitMonthlyRow = {
   // Days in the month actually covered by a report, so a partial month is
   // visible as such rather than reading as a quiet one.
   covered_days: number;
-} & Record<CitMetricKey, number>;
+} & Record<CitMetricKey, number> & Partial<Record<`${CitMetricKey | "total"}_daily_median`, number>>;
 
 // One region's share of the casualties in a period, from the breakdown rows.
 // Occupied and government-held parts of the same oblast are separate entries —
@@ -1337,6 +1346,9 @@ export interface CitTerritoryRow {
   // come, which the chart stacks on top.
   projection?: { total: number; coveredDays: number; daysInMonth: number };
   projectedGap?: number;
+  // Monthly only: the month's median day per band and part, and for the two
+  // bands' sum (utils/dailyMedian).
+  dailyMedian?: Partial<Record<"total" | "uaControlled" | "ruControlled" | "occupiedUkraine" | "russia", number>>;
 }
 
 // Where a casualty row falls by controlling side. Russian-controlled is

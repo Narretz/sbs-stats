@@ -28,6 +28,10 @@ export interface MonthlyTargetPairDataPoint {
   projection_day?: number;
   projection_days_in_month?: number;
   projection_partial_day?: boolean;
+  /** Each series' median day of the month (utils/dailyMedian), for a source
+   *  with daily figures. */
+  hit_daily_median?: number;
+  destroyed_daily_median?: number;
   /** Optional caveat (e.g. this month contains attacks reported without
    *  figures). Outlines the bar and shows the text under the tooltip rows —
    *  same treatment MonthlyBarChart gives its notes. */
@@ -81,10 +85,11 @@ function describeMonth({
   // The subset/hit rate is derived by TooltipTable from `subset/value`,
   // so `showRatio=false` needs to explicitly null out `subset` to hide it.
   const useCollapsedSubset = subsetLabel !== undefined;
-  // The month-end projection gets a row of its own rather than the Projected
-  // column: a column holds one figure per row, and the collapsed row carries
-  // two (hit + subset). As a row it fills the same Value / subset / rate
-  // columns, so the projected killed/destroyed and its rate come for free.
+  // The month-end projection and the median day get rows of their own rather
+  // than columns: a column holds one figure per row, and the collapsed row
+  // carries two (hit + subset). As rows they fill the same Value / subset /
+  // rate columns, so the subset's projection and median, and their rates,
+  // come for free.
   const rows: TooltipTableRow[] = useCollapsedSubset
     ? [
         {
@@ -97,17 +102,24 @@ function describeMonth({
           value: d.hit_projected,
           subset: showRatio ? (d.destroyed_projected ?? null) : null,
         }] : []),
+        ...(d.hit_daily_median != null ? [{
+          label: "Daily median", color: c.damaged,
+          value: d.hit_daily_median,
+          subset: showRatio ? (d.destroyed_daily_median ?? null) : null,
+        }] : []),
       ]
     : [
         {
           label: primaryLabel, color: c.damaged,
           value: d.hit_value ?? null,
           projected: d.hit_projected ?? null,
+          dailyMedian: d.hit_daily_median ?? null,
         },
         {
           label: secondaryLabel, color: c.destroyed,
           value: d.destroyed_value ?? null,
           projected: d.destroyed_projected ?? null,
+          dailyMedian: d.destroyed_daily_median ?? null,
         },
       ];
   rows.push(...breakdownToRows(entries, t.textMuted, { totalForShare: d.hit_value ?? undefined }));

@@ -6,11 +6,12 @@ import type {
   RuLossesMetricKey,
   RuLossesMonthlyRow,
 } from "@/types";
-import { RU_LOSSES_METRIC_KEYS } from "@/types";
+import { RU_LOSSES_METRIC_KEYS, RU_LOSSES_TARGET_KEYS } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { projectFromDays } from "@/utils/monthProjection";
+import { attachDailyMedians, dailyMediansByMonth, sumPresent } from "@/utils/dailyMedian";
 
 // Tiny DB (~100 KB) → fetch whole via sql.js, like the SBS loader (no httpvfs).
 const DB_URL =
@@ -106,14 +107,15 @@ export function useDatabaseRuLosses({ enabled = true }: { enabled?: boolean } = 
 
     const today = getKyivDateString();
     const currentMonth = today.slice(0, 7);
-    const projection = projectFromDays(
-      currentMonth,
+    // Every day, not just this month's: each month's median day reads them.
+    const days = queryRows<Record<string, number | null>>(
+      db, `SELECT date, ${METRIC_COLS} FROM ${LATEST_PER_DATE}`,
+    ).map((r) => ({ date: String(r.date), values: r as Partial<Record<RuLossesMetricKey, number | null>> }));
+    const projection = projectFromDays(currentMonth, today, days, RU_LOSSES_METRIC_KEYS);
+    const medians = dailyMediansByMonth(
+      days.map((d) => ({ date: d.date, values: { ...d.values, targets: sumPresent(d.values, RU_LOSSES_TARGET_KEYS) } })),
+      [...RU_LOSSES_METRIC_KEYS, "targets"] as const,
       today,
-      queryRows<Record<string, number | null>>(
-        db,
-        `SELECT date, ${METRIC_COLS} FROM ${LATEST_PER_DATE} WHERE date >= '${currentMonth}-01'`,
-      ).map((r) => ({ date: String(r.date), values: r as Partial<Record<RuLossesMetricKey, number | null>> })),
-      RU_LOSSES_METRIC_KEYS,
     );
 
     return rows.map((row) => {
@@ -134,6 +136,7 @@ export function useDatabaseRuLosses({ enabled = true }: { enabled?: boolean } = 
       for (const [k, v] of Object.entries(p?.projected ?? {})) {
         out[`${k as RuLossesMetricKey}_projected`] = v;
       }
+      attachDailyMedians(out, medians);
       return out;
     });
   }, [db]);

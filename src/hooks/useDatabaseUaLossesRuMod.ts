@@ -6,11 +6,12 @@ import type {
   UaLossesRuModMetricKey,
   UaLossesRuModMonthlyRow,
 } from "@/types";
-import { UA_LOSSES_RU_MOD_ARMOUR_KEYS, UA_LOSSES_RU_MOD_METRIC_KEYS } from "@/types";
+import { UA_LOSSES_RU_MOD_ARMOUR_KEYS, UA_LOSSES_RU_MOD_METRIC_KEYS, UA_LOSSES_RU_MOD_TARGET_KEYS } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { projectFromDays } from "@/utils/monthProjection";
+import { attachDailyMedians, dailyMediansByMonth, sumPresent } from "@/utils/dailyMedian";
 
 // ~1 MB → fetched whole via sql.js. Only ever built with SHOW_UA_LOSSES_RU_MOD
 // (see src/sites/uaLossesRuMod): in dev that's data/, in a build that sets the
@@ -108,15 +109,16 @@ export function useDatabaseUaLossesRuMod({ enabled = true }: { enabled?: boolean
     );
     const today = getMskDateString();
     const currentMonth = today.slice(0, 7);
-    const projection = projectFromDays(
-      currentMonth,
+    // Every day, not just this month's: each month's median day reads them.
+    const days = queryRows<Record<string, number | null>>(
+      db,
+      `SELECT loss_date AS date, ${UA_LOSSES_RU_MOD_METRIC_KEYS.join(", ")} FROM daily`,
+    ).map((r) => ({ date: String(r.date), values: r as Partial<Record<UaLossesRuModMetricKey, number | null>> }));
+    const projection = projectFromDays(currentMonth, today, days, UA_LOSSES_RU_MOD_METRIC_KEYS);
+    const medians = dailyMediansByMonth(
+      days.map((d) => ({ date: d.date, values: { ...d.values, targets: sumPresent(d.values, UA_LOSSES_RU_MOD_TARGET_KEYS) } })),
+      [...UA_LOSSES_RU_MOD_METRIC_KEYS, "targets"] as const,
       today,
-      queryRows<Record<string, number | null>>(
-        db,
-        `SELECT loss_date AS date, ${UA_LOSSES_RU_MOD_METRIC_KEYS.join(", ")}
-         FROM daily WHERE loss_date >= '${currentMonth}-01'`,
-      ).map((r) => ({ date: String(r.date), values: r as Partial<Record<UaLossesRuModMetricKey, number | null>> })),
-      UA_LOSSES_RU_MOD_METRIC_KEYS,
     );
 
     return rows.map((row) => {
@@ -133,6 +135,7 @@ export function useDatabaseUaLossesRuMod({ enabled = true }: { enabled?: boolean
       for (const [k, v] of Object.entries(p?.projected ?? {})) {
         out[`${k as UaLossesRuModMetricKey}_projected`] = v;
       }
+      attachDailyMedians(out, medians);
       return out;
     });
   }, [db]);

@@ -10,6 +10,7 @@ import { padTrailingMonthly } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import {
   RU_LOSSES_METRIC_KEYS,
+  RU_LOSSES_TARGET_KEYS,
   RU_LOSSES_METRIC_LABELS,
   type RuLossesMetricKey,
   type MonthlyDataPoint,
@@ -23,7 +24,7 @@ interface Props {
 // personnel casualties plus all equipment (per request; POW is the sole
 // exclusion). Both are large: equipment (UAVs, vehicles) is typically the
 // bigger share, so neither swamps the other.
-const TARGETS_KEYS: RuLossesMetricKey[] = RU_LOSSES_METRIC_KEYS.filter((k) => k !== "captive");
+const TARGETS_KEYS = RU_LOSSES_TARGET_KEYS;
 const sumTargets = (r: Partial<Record<RuLossesMetricKey, number>>): number =>
   TARGETS_KEYS.reduce((s, k) => s + (typeof r[k] === "number" ? (r[k] as number) : 0), 0);
 
@@ -59,6 +60,7 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
           projection_day: d.projection_day ?? undefined,
           projection_days_in_month: d.projection_days_in_month ?? undefined,
           projection_partial_day: d.projection_partial_day,
+          daily_median: d.targets_daily_median,
         };
       }),
       endMonth,
@@ -76,6 +78,7 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
           projection_day: d.projection_day ?? undefined,
           projection_days_in_month: d.projection_days_in_month ?? undefined,
           projection_partial_day: d.projection_partial_day,
+          daily_median: d[`${key}_daily_median`],
         };
       }),
       endMonth,

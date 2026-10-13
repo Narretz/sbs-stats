@@ -111,3 +111,25 @@ export function stackTotal<K extends string>(row: Partial<Record<K, number | nul
   const parts = keys.map((k) => row[k]).filter((v): v is number => typeof v === "number");
   return parts.length ? parts.reduce((a, b) => a + b, 0) : null;
 }
+
+// Reports laid out one figure per day for each month's median day: a weekend
+// report is two days at half its figures each, as on the daily page. Each day
+// stays in its REPORT's month, the key the monthly sums use — so a Saturday
+// whose report ends on the 1st counts toward the 1st's month, not its own.
+export function reportDays<K extends string>(
+  reports: readonly { report_date: string; window_days: number; values: Partial<Record<K, number | null>> }[],
+): { date: string; values: Partial<Record<K, number | null>> }[] {
+  const out: { date: string; values: Partial<Record<K, number | null>> }[] = [];
+  for (const r of reports) {
+    const span = r.window_days > 0 ? r.window_days : 1;
+    const values = Object.fromEntries(
+      Object.entries(r.values).map(([k, v]) => [k, typeof v === "number" ? v / span : null]),
+    ) as Partial<Record<K, number | null>>;
+    const end = Temporal.PlainDate.from(r.report_date);
+    for (let back = span - 1; back >= 0; back--) {
+      const day = end.subtract({ days: back }).toString();
+      out.push({ date: day.slice(0, 7) === r.report_date.slice(0, 7) ? day : r.report_date, values });
+    }
+  }
+  return out;
+}

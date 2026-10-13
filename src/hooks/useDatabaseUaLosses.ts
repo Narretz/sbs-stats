@@ -11,6 +11,7 @@ import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshabl
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { projectFromDays } from "@/utils/monthProjection";
+import { attachDailyMedians, dailyMediansByMonth } from "@/utils/dailyMedian";
 
 // Tiny DB (~180 KB) → fetch whole via sql.js, like the RU-losses / SBS loaders.
 const DB_URL =
@@ -104,15 +105,12 @@ export function useDatabaseUaLosses({ enabled = true }: { enabled?: boolean } = 
 
     const today = getKyivDateString();
     const currentMonth = today.slice(0, 7);
-    const projection = projectFromDays(
-      currentMonth,
-      today,
-      queryRows<Record<string, number | null>>(
-        db,
-        `SELECT date, ${METRIC_COLS} FROM ${LATEST_PER_DATE} WHERE date >= '${currentMonth}-01'`,
-      ).map((r) => ({ date: String(r.date), values: r as Partial<Record<UaLossesMetricKey, number | null>> })),
-      UA_LOSSES_METRIC_KEYS,
-    );
+    // Every day, not just this month's: each month's median day reads them.
+    const days = queryRows<Record<string, number | null>>(
+      db, `SELECT date, ${METRIC_COLS} FROM ${LATEST_PER_DATE}`,
+    ).map((r) => ({ date: String(r.date), values: r as Partial<Record<UaLossesMetricKey, number | null>> }));
+    const projection = projectFromDays(currentMonth, today, days, UA_LOSSES_METRIC_KEYS);
+    const medians = dailyMediansByMonth(days, UA_LOSSES_METRIC_KEYS, today);
 
     return rows.map((row) => {
       const month = String(row.month);
@@ -132,6 +130,7 @@ export function useDatabaseUaLosses({ enabled = true }: { enabled?: boolean } = 
       for (const [k, v] of Object.entries(p?.projected ?? {})) {
         out[`${k as UaLossesMetricKey}_projected`] = v;
       }
+      attachDailyMedians(out, medians);
       return out;
     });
   }, [db]);

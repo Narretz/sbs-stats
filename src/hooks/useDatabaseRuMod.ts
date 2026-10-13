@@ -5,6 +5,7 @@ import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshabl
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { projectNightDay } from "@/utils/monthProjection";
+import { attachDailyMedians, dailyMediansByMonth } from "@/utils/dailyMedian";
 
 // Tiny DB → fetch whole via sql.js, like the SBS / RU-losses loaders (no httpvfs).
 // Dev default is the `.app.db` copy for the same reason as GSUA — see
@@ -181,19 +182,22 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
     // Per report date, split by window: see projectNightDay.
     const today = getMskDateString();
     const currentMonth = today.slice(0, 7);
-    const projection = projectNightDay(
-      currentMonth,
+    // Every report date, not just this month's: each month's median day reads
+    // them.
+    const days = queryRows<{ report_date: string; night: number; day: number; night_done: number }>(
+      db,
+      `SELECT report_date,
+              SUM(CASE WHEN window_kind = 'night' THEN drones ELSE 0 END) AS night,
+              SUM(CASE WHEN window_kind = 'night' THEN 0 ELSE drones END) AS day,
+              MAX(window_kind = 'night' AND substr(window_end, 1, 10) = report_date) AS night_done
+       FROM ${LATEST_PER_POST}
+       GROUP BY report_date`,
+    ).map((d) => ({ date: String(d.report_date), night: d.night, day: d.day, nightDone: d.night_done === 1 }));
+    const projection = projectNightDay(currentMonth, today, days.filter((d) => d.date >= `${currentMonth}-01`));
+    const medians = dailyMediansByMonth(
+      days.map((d) => ({ date: d.date, values: { night: d.night, day: d.day, total: d.night + d.day } })),
+      ["total", "night", "day"] as const,
       today,
-      queryRows<{ report_date: string; night: number; day: number; night_done: number }>(
-        db,
-        `SELECT report_date,
-                SUM(CASE WHEN window_kind = 'night' THEN drones ELSE 0 END) AS night,
-                SUM(CASE WHEN window_kind = 'night' THEN 0 ELSE drones END) AS day,
-                MAX(window_kind = 'night' AND substr(window_end, 1, 10) = report_date) AS night_done
-         FROM ${LATEST_PER_POST}
-         WHERE report_date >= '${currentMonth}-01'
-         GROUP BY report_date`,
-      ).map((d) => ({ date: String(d.report_date), night: d.night, day: d.day, nightDone: d.night_done === 1 })),
     );
 
     return rows.map((r) => {
@@ -219,6 +223,7 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
         out.day_projected = p.day;
         out.total_projected = p.night + p.day;
       }
+      attachDailyMedians(out, medians);
       return out;
     });
   }, [db]);

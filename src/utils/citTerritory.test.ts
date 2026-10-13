@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   outcomesFromSql,
   projectCitMonth,
+  reportDays,
   scaleOutcomes,
   stackTotal,
   spreadTerritoryReports,
@@ -91,5 +92,19 @@ describe("stackTotal", () => {
     expect(stackTotal({ a: 2, b: 3 }, ["a", "b"])).toBe(5);
     expect(stackTotal({ a: 2, b: null }, ["a", "b"])).toBe(2);
     expect(stackTotal({ a: null, b: null }, ["a", "b"])).toBeNull();
+  });
+});
+
+describe("reportDays", () => {
+  it("halves a weekend report over its two days, in the report's month", () => {
+    expect(reportDays([
+      { report_date: "2026-01-09", window_days: 1, values: { killed: 3 } },
+      { report_date: "2026-02-01", window_days: 2, values: { killed: 8 } },
+    ])).toEqual([
+      { date: "2026-01-09", values: { killed: 3 } },
+      // Saturday 31 Jan belongs to the report ending 1 Feb.
+      { date: "2026-02-01", values: { killed: 4 } },
+      { date: "2026-02-01", values: { killed: 4 } },
+    ]);
   });
 });

@@ -23,6 +23,7 @@ import type { ModelBreakdownEntry } from "@/types";
 //   trend    — linear-regression trend over the row's series (day-to-day
 //              charts).
 //   projected — end-of-period projection (current tile on projection charts).
+//   dailyMedian — a month's median day (monthly charts of daily sources).
 
 /** One row in a tooltip table. */
 export interface TooltipTableRow {
@@ -48,6 +49,9 @@ export interface TooltipTableRow {
    *  current month's bar). Only populated on the tile-in-progress, so the
    *  column auto-drops on all other tooltips. */
   projected?: number | null;
+  /** The period's median day (utils/dailyMedian) — on a monthly chart of a
+   *  source with daily figures. Column "Daily med", auto-dropped elsewhere. */
+  dailyMedian?: number | null;
   /** Bold this row — typically the "Total" row above component rows. */
   emphasis?: "bold" | "normal";
   /** Draw a thin separator above this row (e.g., between Total and its
@@ -143,6 +147,7 @@ export function TooltipTable({
   const hasSubsetRate = subsetLabel !== undefined && rows.some((r) => subsetRate(r) != null);
   const hasTrend = rows.some((r) => r.trend != null);
   const hasProjected = rows.some((r) => r.projected != null);
+  const hasDailyMedian = rows.some((r) => r.dailyMedian != null);
 
   // One grid for the whole table, not a flex row per line. Flex rows size their
   // columns independently, so a header whose text runs wider than the column
@@ -158,6 +163,7 @@ export function TooltipTable({
     ...(hasSubset ? [`minmax(${SUBSET_MIN}, max-content)`] : []),
     ...(hasSubsetRate ? [`minmax(${PCT_MIN}, max-content)`] : []),
     ...(hasProjected ? [`minmax(${PROJ_MIN}, max-content)`] : []),
+    ...(hasDailyMedian ? [`minmax(${PROJ_MIN}, max-content)`] : []),
     ...(hasTrend ? [`minmax(${TREND_MIN}, max-content)`] : []),
   ].join(" ");
 
@@ -166,7 +172,7 @@ export function TooltipTable({
     fontVariantNumeric: "tabular-nums",
     padding: "1px 0",
   };
-  const showHeader = extraColumns.length > 0 || hasShare || hasSubset || hasSubsetRate || hasTrend || hasProjected;
+  const showHeader = extraColumns.length > 0 || hasShare || hasSubset || hasSubsetRate || hasTrend || hasProjected || hasDailyMedian;
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: cols, columnGap: GAP, alignItems: "baseline" }}>
@@ -179,6 +185,7 @@ export function TooltipTable({
           {hasSubset && <HeaderCell>{subsetLabel}</HeaderCell>}
           {hasSubsetRate && <HeaderCell>{subsetLabel} %</HeaderCell>}
           {hasProjected && <HeaderCell>Projected</HeaderCell>}
+          {hasDailyMedian && <HeaderCell>Daily med</HeaderCell>}
           {hasTrend && <HeaderCell>Trend</HeaderCell>}
           <div style={{ gridColumn: "1 / -1", borderBottom: `1px solid ${t.border}`, marginBottom: 3 }} />
         </div>
@@ -218,6 +225,11 @@ export function TooltipTable({
             {hasProjected && (
               <span style={{ ...num, color: t.textMuted }}>
                 {r.projected != null ? formatValue(r.projected) : ""}
+              </span>
+            )}
+            {hasDailyMedian && (
+              <span style={{ ...num, color: t.textMuted }}>
+                {r.dailyMedian != null ? formatValue(r.dailyMedian) : ""}
               </span>
             )}
             {hasTrend && (

@@ -5,6 +5,7 @@ import { TARGET_IDS } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { projectMonthEnd, type IntradayReading } from "@/utils/monthProjection";
+import { attachDailyMedians, dailyMediansByMonth } from "@/utils/dailyMedian";
 
 // Separate DB from sbs.db on purpose: that one is fetched whole by every SBS
 // page including the hourly one, and this is read only by the monthly view
@@ -143,6 +144,21 @@ export function useDatabaseSbsUnits({ enabled = true }: { enabled?: boolean } = 
       }));
     };
 
+    // Each month's median day, over the unit's daily rows (latest capture per
+    // day). The daily series starts later than the monthly backfill; earlier
+    // months have no median.
+    const dayCols = statKeys.filter((k) => dailyCols.includes(k));
+    const medians = dailyMediansByMonth(
+      dayCols.length
+        ? queryRows<Record<string, unknown>>(
+            db,
+            latestPerBucket("unit_daily_stats", dayCols.map((k) => `t.${k}`).join(", "), `t.unit_slug = '${safeSlug}'`),
+          ).map((r) => ({ date: String(r.date), values: r as Partial<Record<StatKey, number | null>> }))
+        : [],
+      dayCols,
+      getKyivDateString(),
+    );
+
     return rows.map(({ data_collected_at: snapshotAt, ...row }) => {
       // The stored date is "YYYY-MM-01" (the column is typed DATE); the app's
       // monthly contract is "YYYY-MM". Spread first so the raw `date` can't
@@ -169,6 +185,7 @@ export function useDatabaseSbsUnits({ enabled = true }: { enabled?: boolean } = 
       for (const [key, value] of Object.entries(projection?.projected ?? {})) {
         typedRow[`${key as StatKey}_projected`] = value;
       }
+      attachDailyMedians(typedRow, medians);
       return typedRow;
     });
   }, [db]);

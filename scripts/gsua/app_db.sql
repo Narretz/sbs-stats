@@ -28,46 +28,42 @@ CREATE TABLE direction_totals AS
   GROUP BY d.direction
   HAVING total > 0;
 
--- Monthly sums of each metric over the canonical day — per date the latest
--- snapshot, telegram first, then by source name. The twin of the frontend's
--- canonicalDailySql + pickCanonicalDaily + sumMetricsByMonth
--- (src/utils/gsuaSql.ts), which gsuaSql.test.ts holds it to. A metric no day
--- reported sums to 0, as there. The frontend reads only completed months from
--- here: the recent ones, which a scrape can still change, it queries live.
-DROP TABLE IF EXISTS gsua_monthly;
-CREATE TABLE gsua_monthly AS
-  WITH latest AS (
-    SELECT p.* FROM posts p
-    WHERE NOT EXISTS (
-      SELECT 1 FROM posts n
-      WHERE n.source = p.source AND n.source_id = p.source_id
-        AND n.scraped_at > p.scraped_at
-    )
-  ),
-  per_date_source AS (
-    SELECT date, source, MAX(snapshot_at) AS latest_snapshot,
-           MAX(combat_engagements) AS combat_engagements, MAX(missile_strikes) AS missile_strikes,
-           MAX(missiles_used) AS missiles_used, MAX(air_strikes) AS air_strikes,
-           MAX(kabs_dropped) AS kabs_dropped, MAX(kamikaze_drones) AS kamikaze_drones,
-           MAX(shellings) AS shellings, MAX(mlrs_shellings) AS mlrs_shellings,
-           MAX(targets_destroyed) AS targets_destroyed
-    FROM latest
-    GROUP BY date, source, snapshot_at
-  ),
-  last_per_date_source AS (
-    SELECT date, source, MAX(latest_snapshot) AS latest_snapshot
-    FROM per_date_source
+-- The canonical day: daily_combined (schema.sql — the latest version of each
+-- post, continuation parts merged) narrowed to one row per date: each source's
+-- latest snapshot, telegram first, then by source name. The twin of the
+-- frontend's canonicalDailySql + pickCanonicalDaily (src/utils/gsuaSql.ts),
+-- which gsuaSql.test.ts holds it to. The monthly page reads its completed
+-- months' days from here for each month's median day (utils/dailyMedian.ts);
+-- the recent ones, which a scrape can still change, it queries live.
+DROP TABLE IF EXISTS gsua_daily;
+CREATE TABLE gsua_daily AS
+  WITH last_snapshot AS (
+    SELECT date, source, MAX(snapshot_at) AS snapshot_at
+    FROM daily_combined
     GROUP BY date, source
   ),
   canonical AS (
-    SELECT p.*, ROW_NUMBER() OVER (
-             PARTITION BY p.date
-             ORDER BY CASE p.source WHEN 'telegram' THEN 0 ELSE 1 END, p.source
+    SELECT d.*, ROW_NUMBER() OVER (
+             PARTITION BY d.date
+             ORDER BY CASE d.source WHEN 'telegram' THEN 0 ELSE 1 END, d.source
            ) AS rn
-    FROM per_date_source p
-    INNER JOIN last_per_date_source l
-      ON p.date = l.date AND p.source = l.source AND p.latest_snapshot = l.latest_snapshot
+    FROM daily_combined d
+    INNER JOIN last_snapshot l
+      ON d.date = l.date AND d.source = l.source AND d.snapshot_at = l.snapshot_at
   )
+  SELECT date, combat_engagements, missile_strikes, missiles_used, air_strikes,
+         kabs_dropped, kamikaze_drones, shellings, mlrs_shellings, targets_destroyed
+  FROM canonical
+  WHERE rn = 1
+  ORDER BY date;
+CREATE INDEX idx_gsua_daily_date ON gsua_daily(date);
+
+-- Monthly sums of each metric over the canonical day (gsua_daily) — the twin
+-- of the frontend's sumMetricsByMonth, which gsuaSql.test.ts holds it to. A
+-- metric no day reported sums to 0, as there. The frontend reads only
+-- completed months from here: the recent ones it queries live.
+DROP TABLE IF EXISTS gsua_monthly;
+CREATE TABLE gsua_monthly AS
   SELECT substr(date, 1, 7) AS month,
          COALESCE(SUM(combat_engagements), 0) AS combat_engagements,
          COALESCE(SUM(missile_strikes), 0) AS missile_strikes,
@@ -78,8 +74,7 @@ CREATE TABLE gsua_monthly AS
          COALESCE(SUM(shellings), 0) AS shellings,
          COALESCE(SUM(mlrs_shellings), 0) AS mlrs_shellings,
          COALESCE(SUM(targets_destroyed), 0) AS targets_destroyed
-  FROM canonical
-  WHERE rn = 1
+  FROM gsua_daily
   GROUP BY substr(date, 1, 7);
 
 -- Per month: the canonical days' combat engagements and each direction's

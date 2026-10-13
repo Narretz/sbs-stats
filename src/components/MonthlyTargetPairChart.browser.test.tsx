@@ -34,6 +34,7 @@ const DATA: MonthlyTargetPairDataPoint[] = [
     date: "2026-10-01",
     hit_value: 500, hit_gap: 1050, hit_projected: 1550,
     destroyed_value: 200, destroyed_gap: 420, destroyed_projected: 620,
+    hit_daily_median: 52, destroyed_daily_median: 13,
     projection_day: 10, projection_days_in_month: 31,
   },
 ];
@@ -60,11 +61,16 @@ describe("MonthlyTargetPairChart tooltip", () => {
     const sheet = await pinCurrentMonth("Killed");
     await expect.poll(() => sheet.innerText).toMatch(/Projected\s+1,550\s+620\s+40\.0%/);
     expect(sheet.innerText).toMatch(/Hit\s+500\s+200\s+40\.0%/);
+    // The median day is a row the same way, with its own rate.
+    expect(sheet.innerText).toMatch(/Daily median\s+52\s+13\s+25\.0%/);
   });
 
   it("separate rows: each series carries its own projection", async () => {
     const sheet = await pinCurrentMonth(undefined);
     await expect.poll(() => sheet.innerText).toMatch(/Hit\s+500\s+1,550/);
     expect(sheet.innerText).toMatch(/Killed\s+200\s+620/);
+    // …and its own median day, in the Daily med column.
+    expect(sheet.innerText).toMatch(/Daily med/);
+    expect(sheet.innerText).toMatch(/Killed\s+200\s+620\s+13/);
   });
 });

@@ -18,6 +18,7 @@ import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshabl
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { projectFromDays } from "@/utils/monthProjection";
+import { attachDailyMedians, dailyMediansByMonth } from "@/utils/dailyMedian";
 
 // Small DB (~2 MB) → fetch whole via sql.js, like the RU-losses loader (no httpvfs).
 const DB_URL =
@@ -453,16 +454,19 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
       }
     }
 
-    // The month's days, pivoted into the same keys as the monthly row, so the
-    // projection can tell the complete days from today's partial.
+    // Every day, pivoted into the same keys as the monthly row: the projection
+    // tells this month's complete days from today's partial, and each month's
+    // median day reads them all. A category with no row on a day another
+    // category reported is 0, as on the daily chart; a withheld figure is a
+    // gap there, so the median leaves it out (the sums read it as 0).
     const today = getKyivDateString();
     const currentMonth = today.slice(0, 7);
     const projKeys = ATTACK_CATEGORY_KEYS.flatMap((c) => [c, `${c}_intercepted`] as const);
     const byDay = new Map<string, Record<string, number>>();
-    for (const r of queryRows<{ date: string; category: string; launched: number | null; destroyed: number | null }>(
+    const withheld = new Map<string, Set<string>>();
+    for (const r of queryRows<{ date: string; category: string; launched: number | null; destroyed: number | null; hidden: number | null }>(
       db,
-      `SELECT date, category, launched, destroyed FROM daily_by_category
-       WHERE date >= '${currentMonth}-01'`,
+      `SELECT date, category, launched, destroyed, hidden FROM daily_by_category`,
     )) {
       const v = byDay.get(r.date) ?? Object.fromEntries(projKeys.map((k) => [k, 0]));
       v.all += num(r.launched);
@@ -470,14 +474,24 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
       if ((ATTACK_DB_CATEGORIES as readonly string[]).includes(r.category)) {
         v[r.category] += num(r.launched);
         v[`${r.category}_intercepted`] += num(r.destroyed);
+        if (num(r.hidden) > 0) {
+          const w = withheld.get(r.date) ?? new Set<string>();
+          if (r.launched == null) w.add(r.category);
+          if (r.destroyed == null) w.add(`${r.category}_intercepted`);
+          withheld.set(r.date, w);
+        }
       }
       byDay.set(r.date, v);
     }
-    const projection = projectFromDays(
-      currentMonth,
-      today,
-      [...byDay].map(([date, values]) => ({ date, values })),
+    const days = [...byDay].map(([date, values]) => ({ date, values }));
+    const projection = projectFromDays(currentMonth, today, days, projKeys);
+    const medians = dailyMediansByMonth(
+      days.map(({ date, values }) => {
+        const w = withheld.get(date);
+        return { date, values: w ? Object.fromEntries(Object.entries(values).map(([k, v]) => [k, w.has(k) ? null : v])) : values };
+      }),
       projKeys,
+      today,
     );
 
     return [...byMonth.values()]
@@ -492,6 +506,7 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
         for (const [k, v] of Object.entries(p?.projected ?? {})) {
           row[`${k}_projected` as `${AttackCategoryKey}_projected`] = v;
         }
+        attachDailyMedians(row, medians);
         return row;
       });
   }, [db]);
@@ -567,6 +582,21 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
         ).map(({ date, ...values }) => ({ date, values })),
         ["launched", "intercepted"] as const,
       );
+      // Each month's median day over the daily chart's own days: every date
+      // any category reported, 0 where this model had none, a gap where its
+      // figure was withheld (queryDailyByModel).
+      const medians = dailyMediansByMonth(
+        queryRows<{ date: string; launched: number | null; intercepted: number | null }>(
+          db,
+          `SELECT d.date,
+                  CASE WHEN m.hidden > 0 AND m.launched  IS NULL THEN NULL ELSE COALESCE(m.launched, 0)  END AS launched,
+                  CASE WHEN m.hidden > 0 AND m.destroyed IS NULL THEN NULL ELSE COALESCE(m.destroyed, 0) END AS intercepted
+           FROM (SELECT DISTINCT date FROM daily_by_category) d
+           LEFT JOIN daily_by_model m ON m.date = d.date AND m.model = '${safeModel}'`,
+        ).map(({ date, ...values }) => ({ date, values })),
+        ["launched", "intercepted"] as const,
+        today,
+      );
 
       return raw.map((r) => {
         const month = String(r.month);
@@ -587,6 +617,7 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
           row.launched_projected = p.projected.launched;
           row.intercepted_projected = p.projected.intercepted;
         }
+        attachDailyMedians(row, medians);
         return row;
       });
     },

@@ -11,6 +11,7 @@ import type {
 import { GSUA_METRIC_KEYS, directionAxis } from "@/types";
 import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
 import { projectFromDays } from "@/utils/monthProjection";
+import { attachDailyMedians, dailyMediansByMonth } from "@/utils/dailyMedian";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
@@ -196,6 +197,24 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
       }
     }
 
+    // Each month's median day. The live query above holds the recent months'
+    // days (or every day, without the precomputed tables); completed months'
+    // come from gsua_daily, an app copy built before it existed has none, and
+    // those months simply show no median until it's rebuilt.
+    const settledDays = precomputed && await hasTable("gsua_daily")
+      ? (await worker.db.query(
+          `SELECT * FROM gsua_daily WHERE date < '${floor}'`,
+        )) as Record<string, unknown>[]
+      : [];
+    const medians = dailyMediansByMonth(
+      [...settledDays, ...daily].map((row) => ({
+        date: String(row["date"]),
+        values: row as Partial<Record<GsuaMetricKey, number | null>>,
+      })),
+      GSUA_METRIC_KEYS,
+      today,
+    );
+
     const currentMonth = today.slice(0, 7);
     const projection = projectFromDays(
       currentMonth,
@@ -220,6 +239,7 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
         for (const [k, v] of Object.entries(p?.projected ?? {})) {
           row[`${k as GsuaMetricKey}_projected`] = v;
         }
+        attachDailyMedians(row, medians);
         return row;
       });
   }, [worker, hasTable]);

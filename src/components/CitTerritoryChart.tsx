@@ -66,18 +66,20 @@ export function CitTerritoryChart({ data, granularity, globalStats, wfull, cavea
         share: total > 0 ? (n / total) * 100 : null, ...extra,
       };
     };
+    const med = !isDaily(row) ? row.dailyMedian : undefined;
     const rows: TooltipTableRow[] = [
       {
         ...line("Total", t.text, all, { emphasis: "bold" }), share: null,
         projected: !isDaily(row) ? (row.projection?.total ?? null) : null,
+        dailyMedian: med?.total ?? null,
       },
-      line("Ukrainian-controlled", c.territoryUaControlled, o.uaControlled, { separatorAbove: true }),
-      line("Russian-controlled", c.territoryRuControlled, ruControlled),
+      line("Ukrainian-controlled", c.territoryUaControlled, o.uaControlled, { separatorAbove: true, dailyMedian: med?.uaControlled ?? null }),
+      line("Russian-controlled", c.territoryRuControlled, ruControlled, { dailyMedian: med?.ruControlled ?? null }),
       // The halves of the band above, indented by their labels rather than by
       // layout — the table has no nesting, and inventing one here would cost
       // more than it explains.
-      line("— occupied Ukraine", t.textMuted, o.occupiedUkraine),
-      line("— Russia", t.textMuted, o.russia),
+      line("— occupied Ukraine", t.textMuted, o.occupiedUkraine, { dailyMedian: med?.occupiedUkraine ?? null }),
+      line("— Russia", t.textMuted, o.russia, { dailyMedian: med?.russia ?? null }),
     ];
     const unrec = o.unattributed;
     if (unrec.killed + unrec.injured > 0) {

@@ -81,6 +81,9 @@ The derived tables are answers the frontend would otherwise compute from the
 whole history over HTTP range requests, on every page view:
 
 - `direction_totals` — the direction picker's list, ranked by all-time attacks.
+- `gsua_daily` — the canonical day, one row per date; `gsua_monthly` sums
+  it. The monthly page reads completed months' days from it for each month's
+  median day.
 - `gsua_monthly`, `gsua_direction_monthly` — the monthly page's sums and
   direction coverage. The frontend reads completed months from them and the
   current and previous month live (a scrape can still change those).

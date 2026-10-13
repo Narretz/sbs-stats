@@ -42,7 +42,7 @@ const dateFrom = (col: string, floor?: string) => (floor ? `${col} >= '${floor}'
 // One row per (date, source) — the source's latest snapshot of that day — with
 // telegram first among a date's rows, then by source name so a date with two
 // other sources picks the same one every time (and the same one app_db.sql's
-// gsua_monthly picks). `pickCanonicalDaily` keeps the first per date.
+// gsua_daily picks). `pickCanonicalDaily` keeps the first per date.
 export function canonicalDailySql(floor?: string): string {
   return `
     WITH per_date_source AS (

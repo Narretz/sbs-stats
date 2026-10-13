@@ -30,6 +30,8 @@ export interface CitMonthlyStackRow extends CitStackRowBase {
     coveredDays: number;
     daysInMonth: number;
   };
+  // The month's median day, per series and for their sum (utils/dailyMedian).
+  dailyMedian?: Partial<Record<CitMetricKey | "total", number>>;
 }
 
 type Row = CitDailyBarRow | CitMonthlyStackRow;
@@ -68,13 +70,17 @@ export function CitHeadlineChart({ title, data, granularity, globalStats, wfull 
     const span = isDaily(d) ? d.window_days : 1;
     const whole = (v: number | null) => (v == null ? null : Math.round(v * span));
     const p = isDaily(d) ? undefined : d.projection;
+    const med = isDaily(d) ? undefined : d.dailyMedian;
     const total = d.killed == null && d.injured == null ? null : (whole(d.killed) ?? 0) + (whole(d.injured) ?? 0);
     // Top of the stack first, as it reads on the chart.
     const rows: TooltipTableRow[] = [
-      { label: "Total", color: t.text, value: total, emphasis: "bold", projected: p?.total ?? null },
+      {
+        label: "Total", color: t.text, value: total, emphasis: "bold",
+        projected: p?.total ?? null, dailyMedian: med?.total ?? null,
+      },
       ...[...CIT_METRIC_KEYS].reverse().map((k, i) => ({
         label: CIT_METRIC_LABELS[k], color: color[k], value: whole(d[k]),
-        projected: p?.[k] ?? null, separatorAbove: i === 0,
+        projected: p?.[k] ?? null, dailyMedian: med?.[k] ?? null, separatorAbove: i === 0,
       })),
     ];
     const footer = span > 1

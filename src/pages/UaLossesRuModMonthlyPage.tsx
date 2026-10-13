@@ -11,6 +11,7 @@ import { maxMedian } from "@/utils/windowStats";
 import { armourBreakdown } from "@/utils/armourBreakdown";
 import {
   UA_LOSSES_RU_MOD_METRIC_KEYS,
+  UA_LOSSES_RU_MOD_TARGET_KEYS,
   UA_LOSSES_RU_MOD_METRIC_LABELS,
   type ModelBreakdownEntry,
   type UaLossesRuModMetricKey,
@@ -24,7 +25,7 @@ interface Props {
 // Synthetic "all targets" total, as on the GSUA losses page: every category
 // except POWs. That includes the munitions shot down — GSUA's total counts its
 // cruise missiles and UAVs (mostly shot down too) the same way.
-const TARGETS_KEYS: UaLossesRuModMetricKey[] = UA_LOSSES_RU_MOD_METRIC_KEYS.filter((k) => k !== "captured");
+const TARGETS_KEYS = UA_LOSSES_RU_MOD_TARGET_KEYS;
 const sumTargets = (r: Partial<Record<UaLossesRuModMetricKey, number>>): number =>
   TARGETS_KEYS.reduce((s, k) => s + (typeof r[k] === "number" ? (r[k] as number) : 0), 0);
 
@@ -67,6 +68,7 @@ export function UaLossesRuModMonthlyPage({ refreshKey }: Props) {
           projection_day: d.projection_day ?? undefined,
           projection_days_in_month: d.projection_days_in_month ?? undefined,
           projection_partial_day: d.projection_partial_day,
+          daily_median: d.targets_daily_median,
         };
       }),
       endMonth,
@@ -84,6 +86,7 @@ export function UaLossesRuModMonthlyPage({ refreshKey }: Props) {
           projection_day: d.projection_day ?? undefined,
           projection_days_in_month: d.projection_days_in_month ?? undefined,
           projection_partial_day: d.projection_partial_day,
+          daily_median: d[`${key}_daily_median`],
         };
       }),
       endMonth,

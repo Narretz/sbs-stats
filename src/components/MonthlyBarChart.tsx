@@ -84,7 +84,10 @@ export function MonthlyBarChart({
       </div>
     ) : (formatHeader ? formatHeader(d) : d.date);
     const rows: TooltipTableRow[] = [
-      { label: "Actual", color: c.barDefault, value: d.value ?? null, projected: d.projected ?? null },
+      {
+        label: "Actual", color: c.barDefault, value: d.value ?? null,
+        projected: d.projected ?? null, dailyMedian: d.daily_median ?? null,
+      },
       ...breakdownToRows(entries, t.textMuted, { totalForShare: d.value ?? undefined }),
     ];
     const footer = d.note ? (

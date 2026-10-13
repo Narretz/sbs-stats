@@ -51,16 +51,19 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
   // covered by a report — see projectCitMonth. The month in progress only: a
   // past month with days no report covered is partial too, but finished.
   const stackRows = useMemo((): CitMonthlyStackRow[] =>
-    padTrailingMonthly(
+    padTrailingMonthly<CitMonthlyStackRow>(
       rows.map((d) => {
         const killed = typeof d.killed === "number" ? d.killed : null;
         const injured = typeof d.injured === "number" ? d.injured : null;
         const covered = d.is_current_month ? d.covered_days : 0;
         const total = killed == null && injured == null ? null : (killed ?? 0) + (injured ?? 0);
         const p = projectCitMonth(d.date, total, covered);
-        if (!p || total == null) return { date: d.date, killed, injured };
+        const dailyMedian = {
+          killed: d.killed_daily_median, injured: d.injured_daily_median, total: d.total_daily_median,
+        };
+        if (!p || total == null) return { date: d.date, killed, injured, dailyMedian };
         return {
-          date: d.date, killed, injured,
+          date: d.date, killed, injured, dailyMedian,
           projection: {
             killed: projectCitMonth(d.date, killed, covered)?.projected ?? null,
             injured: projectCitMonth(d.date, injured, covered)?.projected ?? null,

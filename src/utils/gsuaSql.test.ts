@@ -80,6 +80,15 @@ beforeAll(async () => {
 
 const byKey = (r: Record<string, unknown>) => `${r.date}|${r.direction ?? ""}`;
 
+describe("gsua_daily", () => {
+  it("is the live canonical day, date for date", () => {
+    const pick = (r: Record<string, unknown>) =>
+      Object.fromEntries(["date", ...GSUA_METRIC_KEYS].map((k) => [k, r[k] ?? null]));
+    const live = pickCanonicalDaily(rows(db, canonicalDailySql())).map(pick);
+    expect(rows(db, "SELECT * FROM gsua_daily ORDER BY date").map(pick)).toEqual(live);
+  });
+});
+
 describe("gsua_monthly", () => {
   it("is the live monthly sums, month for month", () => {
     const live = sumMetricsByMonth(pickCanonicalDaily(rows(db, canonicalDailySql())));
