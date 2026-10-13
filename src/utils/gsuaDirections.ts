@@ -9,8 +9,10 @@
 import { qualitativeColor } from "@/chartColors";
 import type { MultiSelectOption } from "@/components/CheckboxMultiSelect";
 import {
-  DIRECTION_AXIS_JOINT_LABEL, directionAxis, type DailyDataPoint, type GsuaDirectionCoverageRow,
+  DIRECTION_AXIS_JOINT_LABEL, directionAxis, type DailyDataPoint, type GsuaCoverageProjection,
+  type GsuaDirectionCoverageRow,
 } from "@/types";
+import { projectFromDays } from "@/utils/monthProjection";
 
 // The axes in `list` (directions ranked by all-time attacks), in that order.
 export function axesOf(list: string[]): string[] {
@@ -64,4 +66,40 @@ export function axisSeries(
     is_today: r.is_today,
     note: note?.(r),
   }));
+}
+
+// The composition stack's end-of-month projection, from the month's DAILY
+// coverage rows: every direction, the total and the unattributed gap each
+// extrapolated by projectFromDays — the same rule as the page's metric charts,
+// so the projected total reads like Combat Engagements'. Days from `today` on
+// are partial (the wrap-up report comes the next morning). Null when the month
+// has no complete day yet.
+export function projectCoverageMonth(
+  month: string,
+  today: string,
+  days: GsuaDirectionCoverageRow[],
+): GsuaCoverageProjection | null {
+  // Prefixed so a direction can never collide with the two fixed stacks.
+  const dirs = [...new Set(days.flatMap((d) => Object.keys(d.byDirection)))];
+  const keys = ["total", "unattributed", ...dirs.map((d) => `dir:${d}`)];
+  const p = projectFromDays(month, today, days.map((d) => ({
+    date: d.date,
+    values: {
+      total: d.total,
+      unattributed: d.total == null ? null : d.unattributed,
+      ...Object.fromEntries(dirs.map((dir) => [`dir:${dir}`, d.byDirection[dir] ?? 0])),
+    },
+  })), keys);
+  if (!p) return null;
+  return {
+    completedDays: p.completedDays,
+    daysInMonth: p.daysInMonth,
+    partialDay: p.partialDay,
+    total: p.projected.total ?? null,
+    unattributed: p.projected.unattributed ?? null,
+    byDirection: Object.fromEntries(dirs.flatMap((dir) => {
+      const v = p.projected[`dir:${dir}`];
+      return v != null && v > 0 ? [[dir, v]] : [];
+    })),
+  };
 }

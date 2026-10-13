@@ -102,6 +102,9 @@ export interface ChartColors {
 
   // De-emphasised / unattributed slices of an otherwise colored chart
   neutral: string;
+  // The month-end projection atop a multi-colored stack (GSUA composition by
+  // direction): no series hue, which a direction could be read into.
+  stackProjected: string;
 
   // Reference lines + trend overlays
   grid: string;
@@ -147,6 +150,7 @@ export function chartColors(t: Theme): ChartColors {
     territoryRuControlled: t.territoryRu,
 
     neutral: t.seriesNeutral,
+    stackProjected: withFillAlpha(t.text, 0.2),
 
     grid: t.chartGrid,
     maxReference: t.accent,

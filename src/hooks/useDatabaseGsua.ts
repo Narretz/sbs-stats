@@ -14,6 +14,7 @@ import { projectFromDays } from "@/utils/monthProjection";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
+import { projectCoverageMonth } from "@/utils/gsuaDirections";
 import {
   LATEST_POSTS, METRIC_COLS, canonicalDailySql, coverageMonthlySql, pickCanonicalDaily,
   pivotCoverageMonthly, recentFloor, sumMetricsByMonth,
@@ -430,9 +431,18 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
             `SELECT date, total, direction, attacks FROM gsua_direction_monthly WHERE date < '${floor.slice(0, 7)}'`,
           )) as Record<string, unknown>[])
         : [];
-      return pivotCoverageMonthly([...settled, ...recent]);
+      const months = pivotCoverageMonthly([...settled, ...recent]);
+      // The month in progress also carries its end-of-month projection, which
+      // needs the month's days rather than its sum — a window of at most 31.
+      const today = getKyivDateString();
+      const current = months.find((r) => r.date === today.slice(0, 7));
+      if (current) {
+        const days = await queryDirectionCoverage(Number(today.slice(8, 10)), today);
+        current.projection = projectCoverageMonth(current.date, today, days) ?? undefined;
+      }
+      return months;
     },
-    [worker, hasTable]
+    [worker, hasTable, queryDirectionCoverage]
   );
 
   // Full covered date range (first/last day) plus the newest snapshot on the last

@@ -350,6 +350,18 @@ export interface GsuaDirectionCoverageRow {
   // morning) isn't in yet, so the figures are an interim reading.
   snapshot_at?: string | null;
   is_today: boolean;
+  // Monthly only, on the month in progress: its end-of-month projection, each
+  // stack extrapolated from the month's complete days (projectCoverageMonth).
+  projection?: GsuaCoverageProjection;
+}
+
+export interface GsuaCoverageProjection {
+  completedDays: number;
+  daysInMonth: number;
+  partialDay: boolean;
+  total: number | null;
+  unattributed: number | null;
+  byDirection: Record<string, number>;
 }
 
 export type GsuaGlobalStats = Record<GsuaMetricKey, Stat>;

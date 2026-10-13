@@ -14,8 +14,9 @@ import { chartColors, qualitativeColor } from "@/chartColors";
 import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 import { usePinnedChart } from "@/components/usePinnedChart";
 import { DIRECTION_AXIS_JOINT_LABEL } from "@/types";
-import type { GsuaDirectionCoverageRow } from "@/types";
+import type { GsuaCoverageProjection, GsuaDirectionCoverageRow } from "@/types";
 import { interimReportTime } from "@/utils/gsuaInterim";
+import { projectionBasis } from "@/utils/monthProjection";
 
 // Per-day stacked bar of combat engagements, broken down by direction with
 // an "Other" catch-all for the long tail and an "Unattributed" stack for the
@@ -35,6 +36,8 @@ interface Props {
 
 const MAX_BAR_SIZE = 32;
 const UNATTRIBUTED_KEY = "__unattributed";
+// The month in progress: projected total minus its actual, stacked on top.
+const PROJECTED_GAP_KEY = "__projected_gap";
 
 interface Stack {
   key: string;      // dataKey used on the flattened chart rows
@@ -45,7 +48,8 @@ interface Stack {
 interface FlatRow {
   date: string;
   total: number | null;
-  [dataKey: string]: number | string | null;
+  projection?: GsuaCoverageProjection;
+  [dataKey: string]: number | string | null | GsuaCoverageProjection | undefined;
 }
 
 export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: Props) {
@@ -125,6 +129,11 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
         out[dir] = attacks;
       }
       out[UNATTRIBUTED_KEY] = row.unattributed;
+      const p = row.projection;
+      if (p) {
+        out.projection = p;
+        if (p.total != null && row.total != null) out[PROJECTED_GAP_KEY] = Math.max(0, p.total - row.total);
+      }
       return out;
     });
 
@@ -146,16 +155,21 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
   }, [data, neutral]);
 
 
+  const hasProjection = flat.some((r) => r.projection != null);
+
   // One description per bucket, rendered as the hover card and as the pinned
   // sheet's body.
   const describe = (d: FlatRow): TooltipDescriptor => {
     const totalN = typeof d.total === "number" ? d.total : 0;
+    const p = d.projection;
+    const projectedOf = (key: string): number | null =>
+      !p ? null : key === UNATTRIBUTED_KEY ? p.unattributed : (p.byDirection[key] ?? null);
     // Total (bold) on top, then the breakdown sorted by this bar's own value
     // (highest first), zero-valued entries hidden. Every row surfaces a
     // share-of-total, so each direction's contribution (and the Unattributed
     // gap) is readable at a glance.
     const rows: TooltipTableRow[] = [
-      { label: "Total", color: t.text, value: d.total, emphasis: "bold" },
+      { label: "Total", color: t.text, value: d.total, emphasis: "bold", projected: p?.total ?? null },
       ...stacks
         .filter((st) => {
           const v = d[st.key];
@@ -173,6 +187,7 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
             color: st.color,
             value: v,
             share: totalN > 0 ? (v / totalN) * 100 : null,
+            projected: projectedOf(st.key),
             separatorAbove: i === 0,
           };
         }),
@@ -197,6 +212,11 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
           </span>
         )}
         {" · "}{directionCount} direction{directionCount === 1 ? "" : "s"}
+        {p && (
+          <div style={{ fontSize: 10 }}>
+            {projectionBasis(p.completedDays, p.daysInMonth, p.partialDay)}
+          </div>
+        )}
       </>
     );
     return { header, rows, minWidth: 240 };
@@ -240,6 +260,11 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
         {stacks.map((s) => (
           <span key={s.key} style={{ color: s.color }}>■ {s.label}</span>
         ))}
+        {hasProjection && (
+          <span style={{ color: t.textMuted }}>
+            <span style={{ color: c.stackProjected }}>■</span> Projected (month in progress)
+          </span>
+        )}
         <span style={{ color: t.textMuted, marginLeft: "auto" }}>
           {summary.bucketsWithBreakdown}/{summary.bucketsTotal} {bucketLabel} with a breakdown
           {" · "}{summary.pctAttributed.toFixed(0)}% of attacks attributed
@@ -264,7 +289,7 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
           tickLine={false} axisLine={false}
         />
         {pin.tooltip}
-        {stacks.map((s, i) => (
+        {stacks.map((s) => (
           <Bar
             key={s.key}
             dataKey={s.key}
@@ -272,10 +297,12 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily" }: P
             name={s.label}
             fill={s.color}
             maxBarSize={MAX_BAR_SIZE}
-            // Round only the topmost stack (last in render order).
-            radius={i === stacks.length - 1 ? [3, 3, 0, 0] : undefined}
           />
         ))}
+        {hasProjection && (
+          <Bar dataKey={PROJECTED_GAP_KEY} stackId="a" name="Projected"
+            fill={c.stackProjected} maxBarSize={MAX_BAR_SIZE} />
+        )}
         {/* Painted last so it reads as a crosshair over the series,
             not a stub buried under a bar. */}
         {pin.cursor}
