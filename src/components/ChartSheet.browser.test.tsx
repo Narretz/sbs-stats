@@ -145,6 +145,23 @@ describe("Chart pin sheet", () => {
     expect(sheetLabel()).toBe(start);
   });
 
+  it("the arrow keys keep working after a click re-selects, on this chart or another", async () => {
+    await mount(<Charts />);
+    await pinAt(FIRST, 0.5);
+    await expect.poll(() => doc.activeElement?.classList.contains("chart-sheet")).toBe(true);
+    // The sheet never closes in between, so nothing "opens" it again: a click
+    // on the plot moves focus off it, and it has to take it back.
+    for (const [title, frac] of [[FIRST, 0.3], [FIRST, 0.3], [SECOND, 0.5]] as const) {
+      await pinAt(title, frac);
+      await expect.poll(() => doc.activeElement?.classList.contains("chart-sheet")).toBe(true);
+      const start = sheetLabel();
+      await userEvent.keyboard("{ArrowRight}");
+      expect(sheetLabel()).not.toBe(start);
+      await userEvent.keyboard("{ArrowLeft}");
+      expect(sheetLabel()).toBe(start);
+    }
+  });
+
   it("the stepper is disabled at both ends — it never wraps", async () => {
     await mount(<Charts />);
     await pinAt(FIRST, 0.08);

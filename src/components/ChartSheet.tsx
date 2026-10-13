@@ -77,6 +77,24 @@ export function ChartSheet() {
     sheetRef.current?.focus({ preventScroll: true });
   }, [open, sheetRef]);
 
+  // …and comes back to it after a click on a chart while it stays open — a
+  // re-selection, the same point again, or another chart's pin. The click
+  // moves focus off the sheet, and since the sheet never closes nothing above
+  // would move it back: the arrows would go dead until you clicked the sheet.
+  // A form control the click landed on (a picker inside a card) keeps it.
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      if (!target?.closest?.("[data-chart-pinnable]")) return;
+      const active = document.activeElement;
+      if (active?.matches?.("input, select, textarea, button, a[href], [contenteditable]")) return;
+      sheetRef.current?.focus({ preventScroll: true });
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, [open, sheetRef]);
+
   return (
     <div
       ref={sheetRef}
