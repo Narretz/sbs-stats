@@ -1,13 +1,9 @@
-import { Bar } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
-import { FONTS } from "@/theme";
-import { MonthlyChartCard } from "@/components/MonthlyChartCard";
-import { dayTick, entryOfDay, fmtCount, formatEntry, spanBarShape } from "@/components/spanBarShape";
-import { SpanCursor } from "@/components/SpanCursor";
-import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
+import { CitStackedChart } from "@/components/CitStackedChart";
+import type { TooltipTableRow } from "@/components/TooltipTable";
 import type { ReactNode } from "react";
-import type { CitKilledInjured, CitTerritoryDailyRow, CitTerritoryRow } from "@/types";
+import type { CitKilledInjured, CitTerritoryDailyRow, CitTerritoryRow, Stat } from "@/types";
 import { scaleOutcomes } from "@/utils/citTerritory";
 
 // Where civilians are being hurt, month by month: killed and injured summed
@@ -18,27 +14,23 @@ import { scaleOutcomes } from "@/utils/citTerritory";
 // controlled is two near-equal halves, occupied Ukraine and Russia proper, so
 // the tooltip breaks it out rather than letting one number hide the other.
 //
-// The daily page draws the same chart one bar per day, with a weekend report
-// as ONE bar spanning both its days (spanBarShape, shared with the headline
-// charts in CitDailyBarChart); the tooltip quotes the report's real totals.
-
-const MAX_BAR_SIZE = 70;
-
-function formatMonth(date: string): string {
-  const [y, m] = date.split("-");
-  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${names[Number(m) - 1]} ${y}`;
-}
+// Drawn by CitStackedChart, like the headline chart: on the daily page one
+// bar per day, a weekend report ONE bar spanning both its days; the tooltip
+// quotes the report's real totals.
 
 type Row = CitTerritoryRow | CitTerritoryDailyRow;
+type Band = "uaControlled" | "ruControlled";
 
 function isDaily(d: Row): d is CitTerritoryDailyRow {
   return "window_days" in d;
 }
 
-export function CitTerritoryChart({ data, wfull, caveat }: {
+export function CitTerritoryChart({ data, granularity, globalStats, wfull, caveat }: {
   data: CitTerritoryRow[] | CitTerritoryDailyRow[];
+  granularity: "daily" | "monthly";
+  // The all-data stat of the two bands' sum, for the median line in the "all"
+  // scope.
+  globalStats?: Partial<Record<Band | "all", Stat>>;
   wfull?: boolean;
   // A line under the legend, for a page that has no room for the monthly
   // page's paragraph on how far the breakdown can be trusted.
@@ -46,21 +38,18 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
 }) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
-  const rows: Row[] = data;
-
-  const label = (d: Row) => (isDaily(d) ? formatEntry(d) : formatMonth(d.date));
 
   // A weekend report's days describe the report itself, at its real 48-hour
-  // figures — the same entry from either day (see CitDailyBarChart).
+  // figures — the same entry from either day.
   //
   // The bars draw killed + injured; the tooltip splits each part back into
   // the two. Like the bars, these are the parsed region rows, so they need not
   // match the headline killed / injured charts on a given day.
-  const describe = (row: Row): TooltipDescriptor => {
+  const describe = (row: Row) => {
     if (row.outcomes == null) {
       // A footer rather than `emptyState`, which only the pinned sheet shows:
       // on hover too, an uncovered day has to say it is a gap, not a quiet day.
-      return { header: label(row), rows: [], footer: "No CIT report covers this day." };
+      return { rows: [], footer: "No CIT report covers this day." };
     }
     const span = isDaily(row) ? row.window_days : 1;
     // Whole numbers again: a weekend day carries half of each figure.
@@ -78,7 +67,10 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
       };
     };
     const rows: TooltipTableRow[] = [
-      { ...line("Total", t.text, all, { emphasis: "bold" }), share: null },
+      {
+        ...line("Total", t.text, all, { emphasis: "bold" }), share: null,
+        projected: !isDaily(row) ? (row.projection?.total ?? null) : null,
+      },
       line("Ukrainian-controlled", c.territoryUaControlled, o.uaControlled, { separatorAbove: true }),
       line("Russian-controlled", c.territoryRuControlled, ruControlled),
       // The halves of the band above, indented by their labels rather than by
@@ -92,47 +84,29 @@ export function CitTerritoryChart({ data, wfull, caveat }: {
       rows.push({ ...line("Region unrecognised", t.textMuted, unrec, { separatorAbove: true }), share: null });
     }
     const footer = span > 1
-      ? `One ${span * 24}-hour weekend report. Drawn across its ${span} days at the daily ` +
-        `average \u2014 CIT did not publish a per-day split.`
+      ? `One ${span * 24}-hour report. Drawn across its ${span} days at the daily average.`
       : undefined;
-    return {
-      header: label(row), rows, footer, formatValue: fmtCount, minWidth: 340,
-      extraColumns: ["Killed", "Injured"],
-    };
+    return { rows, footer, minWidth: 340, extraColumns: ["Killed", "Injured"] };
   };
-
-  const daily = rows.length > 0 && isDaily(rows[0]);
 
   // Ukrainian-controlled on the bottom: it is ~73% of the total, so putting it
   // at the baseline keeps the smaller band's own variation readable along a
   // flat edge instead of riding on a much larger one.
   return (
-    <MonthlyChartCard<Row>
+    <CitStackedChart<Band, Row>
       title="Casualties by controlling side"
-      data={rows}
-      wfull={wfull}
-      describe={describe}
-      // The hover card formats the date, so the sheet's stepper must too —
-      // one description rendered two ways is the point of the descriptor, and
-      // "Mar 2026" above a stepper reading "2026-03" would undo it.
-      formatLabel={label}
-      tickFormatter={daily ? dayTick : undefined}
-      showEmptyWrapper
-      entryOf={daily ? (d) => entryOfDay(d as CitTerritoryDailyRow) : undefined}
-      cursor={daily ? <SpanCursor rows={rows as CitTerritoryDailyRow[]} /> : undefined}
-      subheader={caveat && (
-        <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, marginBottom: 10 }}>{caveat}</div>
-      )}
-      legend={[
-        { label: "Ukrainian-controlled", color: c.territoryUaControlled },
-        { label: "Russian-controlled (occupied Ukraine + Russia)", color: c.territoryRuControlled },
+      data={data}
+      granularity={granularity}
+      series={[
+        { key: "uaControlled", label: "Ukrainian-controlled", color: c.territoryUaControlled },
+        { key: "ruControlled", label: "Russian-controlled (occupied Ukraine + Russia)", color: c.territoryRuControlled },
       ]}
-    >
-      <Bar dataKey="uaControlled" stackId="a" name="Ukrainian-controlled" maxBarSize={MAX_BAR_SIZE}
-           fill={c.territoryUaControlled} shape={daily ? spanBarShape(c.territoryUaControlled) : undefined} />
-      <Bar dataKey="ruControlled" stackId="a" name="Russian-controlled" maxBarSize={MAX_BAR_SIZE}
-           fill={c.territoryRuControlled} shape={daily ? spanBarShape(c.territoryRuControlled) : undefined} />
-    </MonthlyChartCard>
+      describe={describe}
+      header="legend"
+      totalLabel="BOTH SIDES"
+      globalStats={globalStats}
+      caveat={caveat}
+      wfull={wfull}
+    />
   );
 }
-

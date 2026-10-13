@@ -103,7 +103,8 @@ export interface ChartColors {
   // De-emphasised / unattributed slices of an otherwise colored chart
   neutral: string;
   // The month-end projection atop a multi-colored stack (GSUA composition by
-  // direction): no series hue, which a direction could be read into.
+  // direction, CIT by controlling side): no series hue, which one of the
+  // stack's own series could be read into.
   stackProjected: string;
 
   // Reference lines + trend overlays

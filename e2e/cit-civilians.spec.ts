@@ -7,10 +7,9 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 // bar across both days, and the missing day is a gap rather than a zero.
 const DAILY = "/?site=cit-civilians&page=daily&days=7&date=2026-01-11";
 const MONTHLY = "/?site=cit-civilians&page=monthly";
-const KILLED = "Civilians killed";
+const ALL_TITLE = "All civilian casualties";
 // Chart cards by their anchor ids (ChartCardTitle slugifies the title).
 const ALL = "#all-civilian-casualties";
-const KILLED_CARD = "#civilians-killed";
 const SIDE = "#casualties-by-controlling-side";
 
 // Every bar a card draws, by width. A weekend report is one bar across two
@@ -41,36 +40,25 @@ async function tooltipAt(page: Page, card: Locator, header: string): Promise<str
 test.describe("CIT daily page", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(DAILY);
-    await expect(page.getByText(KILLED, { exact: true })).toBeVisible();
+    await expect(page.getByText(ALL_TITLE, { exact: true })).toBeVisible();
     await page.waitForTimeout(800);
   });
 
-  test("renders the headline charts and the controlling-side chart", async ({ page }) => {
-    for (const title of ["All civilian casualties", KILLED, "Civilians injured"]) {
-      await expect(page.getByText(title, { exact: true })).toBeVisible();
-    }
-    await expect(page.locator(SIDE)).toBeVisible();
+  test("renders the controlling-side chart, then the stacked headline chart", async ({ page }) => {
+    const ids = await page.locator(".chart-card").evaluateAll((els) => els.map((e) => e.id));
+    expect(ids).toEqual([SIDE.slice(1), ALL.slice(1)]);
+    // Both are CitStackedChart, so both draw the median of their stack.
+    await expect(page.locator(SIDE).getByText(/~ MED BOTH SIDES \d/)).toBeVisible();
+    await expect(page.locator(ALL).getByText(/~ MED KILLED \+ INJURED \d/)).toBeVisible();
   });
 
   test("TOTAL counts the weekend report once, in either stat scope", async ({ page }) => {
     // All data: 5 (Dec) + 2 + 4 + 1 + 3 + 6 (weekend). Window: the January week.
-    const killed = page.locator(KILLED_CARD);
+    const killed = page.locator(ALL);
     await page.getByTestId("stat-scope-select").selectOption("all");
     await expect(killed.getByText("Σ TOTAL 21")).toBeVisible();
     await page.getByTestId("stat-scope-select").selectOption("window");
     await expect(killed.getByText("Σ TOTAL 16")).toBeVisible();
-  });
-
-  test("a weekend report is one bar spanning its two days", async ({ page }) => {
-    // Mon, Tue, Thu, Fri and ONE weekend bar — nothing for the gap on Wed,
-    // nothing of its own for the Saturday.
-    const widths = await barWidths(page, KILLED_CARD);
-    expect(widths).toHaveLength(5);
-    const single = Math.min(...widths);
-    const widest = Math.max(...widths);
-    // Two bar widths plus the gap between the days.
-    expect(widest).toBeGreaterThan(single * 2);
-    expect(widths.filter((w) => w === widest)).toHaveLength(1);
   });
 
   test("the stacked charts span the weekend in every band", async ({ page }) => {
@@ -105,7 +93,7 @@ test.describe("CIT daily page", () => {
   });
 
   test("either half of the weekend bar shows the same entry", async ({ page }) => {
-    const card = page.locator(KILLED_CARD);
+    const card = page.locator(ALL);
     await card.scrollIntoViewIfNeeded();
     const bars = card.locator(".recharts-bar-rectangle path");
     await expect(bars.first()).toBeVisible();
@@ -123,12 +111,12 @@ test.describe("CIT daily page", () => {
   });
 
   test("the pinned sheet steps over the weekend in one step", async ({ page }) => {
-    const card = page.locator(KILLED_CARD);
+    const card = page.locator(ALL);
     await card.scrollIntoViewIfNeeded();
     const bars = card.locator(".recharts-bar-rectangle path");
     await expect(bars.first()).toBeVisible();
     const boxes = await Promise.all((await bars.all()).map((b) => b.boundingBox()));
-    // Bars in x order: Mon, Tue, Thu, Fri, weekend. Pin Friday.
+    // Killed's bars first, in x order: Mon, Tue, Thu, Fri, weekend. Pin Friday.
     const fri = boxes[3]!;
     await page.mouse.click(fri.x + fri.width / 2, fri.y + fri.height / 2);
     const sheet = page.locator(".chart-sheet[data-open]");
@@ -144,7 +132,7 @@ test.describe("CIT daily page", () => {
   });
 
   test("a day with no report is a gap, not a zero", async ({ page }) => {
-    for (const selector of [KILLED_CARD, SIDE]) {
+    for (const selector of [ALL, SIDE]) {
       const tip = await tooltipAt(page, page.locator(selector), "7 Jan 2026");
       expect(tip).toContain("No CIT report covers this day.");
       expect(tip).not.toMatch(/\s0(\s|$)/);
@@ -158,10 +146,21 @@ test.describe("CIT monthly page", () => {
     const card = page.locator(SIDE);
     await expect(card).toBeVisible();
     // January: Ukrainian-controlled 8+18+10+12+34, Russian-controlled 4+6+0+6+12.
-    const tip = await tooltipAt(page, card, "Jan 2026");
+    const tip = await tooltipAt(page, card, "2026-01");
     // Killed: 2+3+1+2+4 and 2+2; injured: 6+15+9+10+30 and 13+11.
     expect(tip).toMatch(/Total\s+110\s+16\s+94/);
     expect(tip).toMatch(/Ukrainian-controlled\s+82\s+12\s+70/);
     expect(tip).toMatch(/Russian-controlled\s+28\s+4\s+24/);
+  });
+
+  test("the stacked headline chart sums each month's reports", async ({ page }) => {
+    await page.goto(MONTHLY);
+    await expect(page.locator(ALL)).toBeVisible();
+    const ids = await page.locator(".chart-card").evaluateAll((els) => els.map((e) => e.id));
+    expect(ids).toEqual([SIDE.slice(1), ALL.slice(1)]);
+    // January's headline killed: 2+4+1+3+6 (the weekend report once).
+    const tip = await tooltipAt(page, page.locator(ALL), "2026-01");
+    expect(tip).toMatch(/Civilians killed\s+16/);
+    expect(tip).toMatch(/Total\s+\d+/);
   });
 });

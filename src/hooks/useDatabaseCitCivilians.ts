@@ -144,12 +144,17 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
       "SELECT killed, injured, window_days FROM daily_stated"
     );
     const result = {} as CitGlobalStats;
-    for (const key of CIT_METRIC_KEYS) {
+    const value = (r: Record<string, number>, key: CitMetricKey | "all"): number | null => {
+      if (key !== "all") return typeof r[key] === "number" ? r[key] : null;
+      const parts = CIT_METRIC_KEYS.map((k) => r[k]).filter((v) => typeof v === "number");
+      return parts.length ? parts.reduce((a, b) => a + b, 0) : null;
+    };
+    for (const key of [...CIT_METRIC_KEYS, "all"] as const) {
       const perDay: number[] = [];
       let total = 0;
       for (const r of rows) {
-        const v = r[key];
-        if (typeof v !== "number") continue;
+        const v = value(r, key);
+        if (v == null) continue;
         const span = typeof r.window_days === "number" ? r.window_days : 1;
         total += v;
         for (let i = 0; i < span; i++) perDay.push(v / span);

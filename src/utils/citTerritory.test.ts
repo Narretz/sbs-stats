@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   outcomesFromSql,
+  projectCitMonth,
   scaleOutcomes,
+  stackTotal,
   spreadTerritoryReports,
   territoryTotals,
   type CitTerritoryReport,
@@ -69,5 +71,25 @@ describe("outcomes", () => {
   it("scales back to a weekend report's whole", () => {
     const half = scaleOutcomes(report("2026-09-06", 2, ki(4, 26), ki(2, 6), ki(0, 12)).outcomes, 0.5);
     expect(scaleOutcomes(half, 2).uaControlled).toEqual(ki(4, 26));
+  });
+});
+
+describe("projectCitMonth", () => {
+  it("scales by the days reports covered, not the calendar", () => {
+    expect(projectCitMonth("2026-09", 90, 9)).toEqual({ projected: 300, coveredDays: 9, daysInMonth: 30 });
+  });
+
+  it("leaves a complete month, or one with no report yet, unprojected", () => {
+    expect(projectCitMonth("2026-09", 900, 30)).toBeNull();
+    expect(projectCitMonth("2026-09", 0, 0)).toBeNull();
+    expect(projectCitMonth("2026-09", null, 9)).toBeNull();
+  });
+});
+
+describe("stackTotal", () => {
+  it("sums the series present, and is a gap when none is", () => {
+    expect(stackTotal({ a: 2, b: 3 }, ["a", "b"])).toBe(5);
+    expect(stackTotal({ a: 2, b: null }, ["a", "b"])).toBe(2);
+    expect(stackTotal({ a: null, b: null }, ["a", "b"])).toBeNull();
   });
 });

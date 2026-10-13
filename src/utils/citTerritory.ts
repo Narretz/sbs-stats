@@ -91,3 +91,23 @@ export function spreadTerritoryReports(
   }
   return out;
 }
+
+// A CIT month's end-of-month projection. Scaled by the days a report actually
+// covered, not by today's date: CIT can be a day or two behind, and a weekend
+// post covers two days at once, so "day 9 of 30" is the wrong denominator.
+// Null for a month that is complete, or has no report yet.
+export function projectCitMonth(
+  month: string, value: number | null, coveredDays: number,
+): { projected: number; coveredDays: number; daysInMonth: number } | null {
+  const [y, m] = month.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  if (value == null || coveredDays <= 0 || coveredDays >= daysInMonth) return null;
+  return { projected: Math.round((value * daysInMonth) / coveredDays), coveredDays, daysInMonth };
+}
+
+// A stacked bar's height: the sum of its series, or null when it has none —
+// a day no report covers, which is a gap rather than a zero.
+export function stackTotal<K extends string>(row: Partial<Record<K, number | null>>, keys: readonly K[]): number | null {
+  const parts = keys.map((k) => row[k]).filter((v): v is number => typeof v === "number");
+  return parts.length ? parts.reduce((a, b) => a + b, 0) : null;
+}

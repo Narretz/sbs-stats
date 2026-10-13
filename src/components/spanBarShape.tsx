@@ -1,8 +1,8 @@
 import { Rectangle } from "recharts";
 
 // Day bars for a source that reports some days in one multi-day post — CIT's
-// 48-hour weekend summary. Shared by CitDailyBarChart (the headline figures)
-// and CitTerritoryChart (the controlling-side split on the daily page).
+// 48-hour weekend summary. Drawn by CitStackedChart, for both the headline
+// figures and the controlling-side split on the daily page.
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

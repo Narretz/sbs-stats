@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Temporal } from "temporal-polyfill";
 import { useCitCiviliansDatabaseContext } from "@/context/databases";
-import { CitDailyBarChart, type CitDailyBarRow } from "@/components/CitDailyBarChart";
+import { CitHeadlineChart, type CitDailyBarRow } from "@/components/CitHeadlineChart";
 import { CitTerritoryChart } from "@/components/CitTerritoryChart";
 import { DataWindow } from "@/components/DataWindow";
 import { PageScaffold } from "@/components/PageScaffold";
@@ -11,11 +11,13 @@ import { DayRangeSelect } from "@/components/DayRangeSelect";
 import {
   DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR,
 } from "@/utils/dayRange";
+import { maxMedian } from "@/utils/windowStats";
+import { stackTotal } from "@/utils/citTerritory";
 import {
-  CIT_METRIC_LABELS,
   type CitDailyRow,
   type CitGlobalStats,
   type CitTerritoryDailyRow,
+  type Stat,
 } from "@/types";
 
 function parseDate(raw: string | null): string {
@@ -59,6 +61,7 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
   const [rows, setRows] = useState<CitDailyRow[]>([]);
   const [territory, setTerritory] = useState<CitTerritoryDailyRow[]>([]);
   const [globalStats, setGlobalStats] = useState<CitGlobalStats>({} as CitGlobalStats);
+  const [territoryStats, setTerritoryStats] = useState<{ all?: Stat }>({});
   const [hasData, setHasData] = useState(false);
 
   const updateDays = (d: DayOption) => {
@@ -71,6 +74,16 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
   useEffect(() => {
     if (loadState === "ready") setGlobalStats(queryGlobalStats());
   }, [loadState, queryGlobalStats, refreshKey]);
+
+  // The controlling-side chart's median line in the "all" scope: every day
+  // since the first report, on the bars' own per-day basis.
+  useEffect(() => {
+    if (loadState !== "ready" || !dataWindow.minDate) return;
+    const today = mskToday();
+    const span = Temporal.PlainDate.from(dataWindow.minDate).until(Temporal.PlainDate.from(today)).days + 1;
+    const all = queryTerritoryDaily(span, today);
+    setTerritoryStats({ all: maxMedian(all.map((r) => stackTotal(r, ["uaControlled", "ruControlled"] as const))) });
+  }, [loadState, dataWindow.minDate, queryTerritoryDaily, refreshKey]);
 
   useEffect(() => {
     if (loadState === "ready") {
@@ -127,21 +140,18 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
       hasData={hasData}
       loadingMessage="Loading CIT civilian-casualties database…"
       gridChildren={<>
+        <CitTerritoryChart
+          data={territory}
+          granularity="daily"
+          globalStats={territoryStats}
+          wfull
+          caveat={<>Killed + injured, from each report's per-region lines — accurate to about a percent in aggregate, but rarely to the person on a given day. A double-width bar is one weekend report spanning its two days, at the daily average.</>}
+        />
         {/* Killed + injured as one stacked total. The two are disjoint, so
             they sum; killed sits at the bottom of the stack, anchored to the
             baseline, which is the only place a band that small stays
             readable against an injured count roughly six times larger. */}
-        <CitDailyBarChart title="All civilian casualties" data={bars}
-                          series={["killed", "injured"]} globalStats={globalStats} wfull />
-        <CitTerritoryChart
-          data={territory}
-          wfull
-          caveat={<>Killed + injured, from each report's per-region lines — accurate to about a percent in aggregate, but rarely to the person on a given day. A double-width bar is one weekend report spanning its two days, at the daily average.</>}
-        />
-        <CitDailyBarChart title={CIT_METRIC_LABELS.killed} data={bars}
-                          series={["killed"]} globalStats={globalStats} wfull />
-        <CitDailyBarChart title={CIT_METRIC_LABELS.injured} data={bars}
-                          series={["injured"]} globalStats={globalStats} wfull />
+        <CitHeadlineChart title="All civilian casualties" data={bars} granularity="daily" globalStats={globalStats} wfull />
       </>}
     />
   );

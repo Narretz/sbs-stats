@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useCitCiviliansDatabaseContext } from "@/context/databases";
 import { useMonthlyMetricGrid } from "@/hooks/useMonthlyMetricGrid";
 import { useTheme } from "@/hooks/useTheme";
-import { MonthlyBarChart } from "@/components/MonthlyBarChart";
+import { CitHeadlineChart, type CitMonthlyStackRow } from "@/components/CitHeadlineChart";
 import { CitTerritoryChart } from "@/components/CitTerritoryChart";
 import { DataWindow } from "@/components/DataWindow";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
@@ -10,24 +10,19 @@ import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
 import { ChartGrid } from "@/components/Layout";
 import { padTrailingMonthly } from "@/utils/padTrailing";
+import { projectCitMonth, stackTotal } from "@/utils/citTerritory";
+import { maxMedian } from "@/utils/windowStats";
 import { FONTS } from "@/theme";
 import {
   CIT_METRIC_KEYS,
-  CIT_METRIC_LABELS,
   type CitMetricKey,
   type CitMonthlyRow,
   type CitReconciliation,
   type CitTerritoryRow,
-  type MonthlyDataPoint,
 } from "@/types";
 
 interface Props {
   refreshKey?: number;
-}
-
-function daysInMonth(month: string): number {
-  const [y, m] = month.split("-").map(Number);
-  return new Date(y, m, 0).getDate();
 }
 
 export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
@@ -52,29 +47,56 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
 
   const endMonth = yr.endMonth;
 
-  // A month is projected from the days actually covered by a report, not from
-  // today's date: CIT can be a day or two behind, and a weekend post covers two
-  // days at once, so "day 9 of 30" is the wrong denominator. `covered_days`
-  // knows what was really reported.
-  const makeDataset = (key: CitMetricKey): MonthlyDataPoint[] =>
+  // Killed + injured, the month in progress projected from the days actually
+  // covered by a report — see projectCitMonth. The month in progress only: a
+  // past month with days no report covered is partial too, but finished.
+  const stackRows = useMemo((): CitMonthlyStackRow[] =>
     padTrailingMonthly(
       rows.map((d) => {
-        const value = typeof d[key] === "number" ? d[key] : null;
-        const total = daysInMonth(d.date);
-        const partial = d.covered_days > 0 && d.covered_days < total;
-        const projected =
-          partial && value != null ? Math.round((value * total) / d.covered_days) : undefined;
+        const killed = typeof d.killed === "number" ? d.killed : null;
+        const injured = typeof d.injured === "number" ? d.injured : null;
+        const covered = d.is_current_month ? d.covered_days : 0;
+        const total = killed == null && injured == null ? null : (killed ?? 0) + (injured ?? 0);
+        const p = projectCitMonth(d.date, total, covered);
+        if (!p || total == null) return { date: d.date, killed, injured };
         return {
-          date: d.date,
-          value,
-          gap: projected != null && value != null ? projected - value : undefined,
-          projected,
-          projection_day: partial ? d.covered_days : undefined,
-          projection_days_in_month: partial ? total : undefined,
+          date: d.date, killed, injured,
+          projection: {
+            killed: projectCitMonth(d.date, killed, covered)?.projected ?? null,
+            injured: projectCitMonth(d.date, injured, covered)?.projected ?? null,
+            total: p.projected, coveredDays: p.coveredDays, daysInMonth: p.daysInMonth,
+          },
+          projectedGap: p.projected - total,
         };
       }),
       endMonth,
-    );
+      (date) => ({ date, killed: null, injured: null }),
+    ), [rows, endMonth]);
+
+  // The series' all-data stats, plus their sum's for the median line.
+  const stackStats = useMemo(() => ({
+    ...allStats,
+    all: maxMedian(allRows.map((r) => r.killed + r.injured)),
+  }), [allStats, allRows]);
+
+  // Every month's, not the window's, for the "all" scope.
+  const territoryStats = useMemo(() => ({
+    all: maxMedian(territory.map((r) => stackTotal(r, ["uaControlled", "ruControlled"] as const))),
+  }), [territory]);
+
+  // The territory chart projects both bands together, on the same basis.
+  const territoryRows = useMemo(() => {
+    const covered = new Map(allRows.filter((r) => r.is_current_month).map((r) => [r.date, r.covered_days]));
+    return yr.slice(territory).map((r) => {
+      const p = projectCitMonth(r.date, r.uaControlled + r.ruControlled, covered.get(r.date) ?? 0);
+      if (!p) return r;
+      return {
+        ...r,
+        projection: { total: p.projected, coveredDays: p.coveredDays, daysInMonth: p.daysInMonth },
+        projectedGap: p.projected - (r.uaControlled + r.ruControlled),
+      };
+    });
+  }, [allRows, territory, yr]);
 
   const pct = (n: number) => Math.round((100 * n) / recon.reports);
   const drift = (v: number) => `${v >= 0 ? "+" : "\u2212"}${Math.abs(v).toFixed(1)}%`;
@@ -96,26 +118,19 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
       loadingMessage="Loading CIT civilian-casualties database…"
     >
       <ChartGrid>
-        {CIT_METRIC_KEYS.map((k) => (
-          <MonthlyBarChart
-            key={k}
-            title={CIT_METRIC_LABELS[k]}
-            data={makeDataset(k)}
-            wfull={false}
-            globalMax={allStats[k]?.max ?? 0}
-            globalMedian={allStats[k]?.median ?? 0}
-            globalTotal={allStats[k]?.total ?? 0}
-          />
-        ))}
+        <CitTerritoryChart data={territoryRows} granularity="monthly" globalStats={territoryStats} wfull />
       </ChartGrid>
 
       <p style={{ fontFamily: FONTS.mono, fontSize: 11, lineHeight: 1.6, color: t.textMuted, margin: "18px 2px 10px" }}>
-        The figures above are each report's own headline — the total CIT states
-        in its closing sentence. The regional split below is a{" "}
-        <b style={{ color: t.text }}>secondary</b> reading of the same posts.
+        The split above sums killed and injured together, since the question it
+        answers is <i>where</i> rather than <i>how</i>, and keeps occupied and
+        government-held parts of the same oblast apart, because they are
+        different places. It is a <b style={{ color: t.text }}>secondary</b>{" "}
+        reading of each report's per-region lines; the chart below is each
+        report's own headline — the total CIT states in its closing sentence.
         {recon.reports > 0 && (
           <>
-            {" "}Across {recon.reports.toLocaleString()} reports its{" "}
+            {" "}Across {recon.reports.toLocaleString()} reports the split's{" "}
             <b style={{ color: t.text }}>killed</b> column matches that headline
             exactly {pct(recon.killedExact)}% of the time and both columns match{" "}
             {pct(recon.bothExact)}% of the time, while the totals land within{" "}
@@ -126,13 +141,9 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
         So the split is good to about a percent in aggregate but rarely exact on
         any one day — older posts describe casualties in free prose, and some
         posts simply disagree with themselves. Read it as a shape, not a count.
-        The chart below sums killed and injured together, since the question it
-        answers is <i>where</i> rather than <i>how</i>, and keeps occupied and
-        government-held parts of the same oblast apart, because they are
-        different places.
       </p>
       <ChartGrid>
-        <CitTerritoryChart data={yr.slice(territory)} wfull />
+        <CitHeadlineChart title="All civilian casualties" data={stackRows} granularity="monthly" globalStats={stackStats} wfull />
       </ChartGrid>
     </PageScaffold>
   );

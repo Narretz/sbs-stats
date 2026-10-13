@@ -1243,7 +1243,9 @@ export type CitDailyRow = {
   reconciled: boolean | null;
 } & Record<CitMetricKey, number | null>;
 
-export type CitGlobalStats = Record<CitMetricKey, Stat>;
+// Per series, plus `all` — killed + injured, what the stacked chart's median
+// line is drawn at.
+export type CitGlobalStats = Record<CitMetricKey | "all", Stat>;
 
 export type CitMonthlyRow = {
   date: string;          // "YYYY-MM"
@@ -1330,6 +1332,11 @@ export interface CitTerritoryRow {
   // The same parts split into killed and injured, for the tooltip — the bars
   // draw only the sums above.
   outcomes: CitOutcomes;
+  // Monthly only, on a month still being reported: both bands' end-of-month
+  // projection (projectCitMonth), and `projectedGap` the part of it still to
+  // come, which the chart stacks on top.
+  projection?: { total: number; coveredDays: number; daysInMonth: number };
+  projectedGap?: number;
 }
 
 // Where a casualty row falls by controlling side. Russian-controlled is

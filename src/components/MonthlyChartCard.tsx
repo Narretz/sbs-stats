@@ -23,6 +23,9 @@ import type { TooltipDescriptor } from "@/components/TooltipTable";
 export interface ChartLegendEntry {
   label: string;
   color: string;
+  // The label's own color, when it shouldn't take the swatch's — a swatch too
+  // faint to read text in (a projected segment's translucent fill).
+  textColor?: string;
 }
 
 interface Props<TData extends { date: string }> {
@@ -95,7 +98,9 @@ export function MonthlyChartCard<TData extends { date: string }>({
       {legend && (
         <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 10 }}>
           {legend.map((l) => (
-            <span key={l.label} style={{ color: l.color }}>■ {l.label}</span>
+            <span key={l.label} style={{ color: l.textColor ?? l.color }}>
+              <span style={{ color: l.color }}>■</span> {l.label}
+            </span>
           ))}
         </div>
       )}
