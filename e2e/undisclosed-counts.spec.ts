@@ -21,10 +21,8 @@ const dayISO = (offset: number) => {
 const WITHHELD = dayISO(-1);   // reported without figures → gap
 const REAL_ZERO = dayISO(-2);  // disclosed, nothing launched → plots at 0
 
-const fmt = (iso: string) => {
-  const [y, m, d] = iso.split("-");
-  return `${d}.${m}.${y}`;
-};
+// Tooltip headers are the ISO date itself (utils/dateFormat).
+const fmt = (iso: string) => iso;
 
 // Hover the chart card titled `title` at the x position of `date`, and return
 // whatever the tooltip renders.

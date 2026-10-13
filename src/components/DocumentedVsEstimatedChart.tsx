@@ -8,6 +8,7 @@ import { chartColors } from "@/chartColors";
 import type { MediazonaEstimateRow } from "@/types";
 import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 import { usePinnedChart } from "@/components/usePinnedChart";
+import { formatDay, formatMonth } from "@/utils/dateFormat";
 
 // The most recent ~6 months are provisional on BOTH series: the estimate is only
 // partly registry-backed there (probate filings take 180+ days to complete) and
@@ -17,10 +18,6 @@ const PROVISIONAL_WEEKS = 26; // ~6 months
 const PROVISIONAL_MONTHS = 6;
 
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
 type Row = {
   week: string;
@@ -33,14 +30,6 @@ function fmtDate(v: string): string {
   const [y, m] = v.split("-");
   return `${m}/${y.slice(2)}`;
 }
-function fmtFullDate(v: string): string {
-  const [y, m, d] = v.split("-");
-  return `${d}.${m}.${y}`;
-}
-function fmtMonthYear(v: string): string {
-  const [y, m] = v.split("-");
-  return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
-}
 function fmt(n: number | null | undefined): string {
   return typeof n === "number" ? Math.round(n).toLocaleString() : "—";
 }
@@ -52,8 +41,8 @@ function describeBand(
 ): TooltipDescriptor {
   const mult = row.documented && row.estimate ? row.estimate / row.documented : null;
   const header = bucket === "monthly"
-    ? `Month of ${fmtMonthYear(row.week)}`
-    : `Week of ${fmtFullDate(row.week)}`;
+    ? `Month of ${formatMonth(row.week)}`
+    : `Week of ${formatDay(row.week)}`;
   const fmtInt = (n: number) => Math.round(n).toLocaleString();
   const rows: TooltipTableRow[] = [
     { label: "Estimated losses", color: c.lineSecondary, value: row.estimate },
@@ -113,7 +102,7 @@ export function DocumentedVsEstimatedChart({
     data,
     xOf: (r) => r.week,
     describe: (r) => describeBand(r, c, bucket),
-    formatLabel: (r) => bucket === "monthly" ? fmtMonthYear(r.week) : fmtFullDate(r.week),
+    formatLabel: (r) => bucket === "monthly" ? formatMonth(r.week) : formatDay(r.week),
     cursor: { stroke: t.textMuted, strokeWidth: 1 },
   });
 

@@ -13,6 +13,7 @@
 import { Temporal } from "temporal-polyfill";
 import type { DailyDataPoint } from "@/types";
 import { WINDOW_FLOOR } from "@/utils/dayRange";
+import { formatSpan } from "@/utils/dateFormat";
 
 export const WEEK_OPTIONS = [4, 8, 13, 26, 52, 104, "all"] as const;
 export type WeekOption = number | "all";
@@ -112,22 +113,14 @@ export function aggregateWeekly(
   });
 }
 
+// A fixed month table, not toLocaleString: ICU versions disagree on the short
+// form ("Sep" vs "Sept").
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const mon = (d: Temporal.PlainDate) => MONTHS[d.month - 1];
 
-// "2026-09-21" → "21–27 Sep 2026"; a week straddling a month or year names
-// both. A fixed month table, not toLocaleString: ICU versions disagree on the
-// short form ("Sep" vs "Sept").
+// "2026-09-21" → "2026-09-21/27", the week as an ISO 8601 interval (formatSpan).
 export function formatWeekRange(monday: string): string {
-  const start = plain(monday);
-  const end = start.add({ days: 6 });
-  if (start.year !== end.year) {
-    return `${start.day} ${mon(start)} ${start.year} – ${end.day} ${mon(end)} ${end.year}`;
-  }
-  if (start.month !== end.month) {
-    return `${start.day} ${mon(start)} – ${end.day} ${mon(end)} ${end.year}`;
-  }
-  return `${start.day}–${end.day} ${mon(end)} ${end.year}`;
+  return formatSpan(monday, plain(monday).add({ days: 6 }).toString());
 }
 
 // A quarter-start axis label for a week: "2025-04-07" → "Apr 2025".

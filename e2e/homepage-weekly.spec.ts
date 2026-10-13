@@ -37,7 +37,7 @@ test.describe("Homepage weekly grain", () => {
     await expect(page.getByText(AIR).first()).toBeVisible();
     await expect(page.locator('select[title="Time granularity for this chart"]').first()).toHaveValue("weekly");
 
-    const tip = await tooltipAt(page, "5–11 Jan 2026");
+    const tip = await tooltipAt(page, "2026-01-05/11");
     expect(tip).toContain("1,000");
   });
 

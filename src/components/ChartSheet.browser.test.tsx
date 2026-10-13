@@ -26,7 +26,7 @@ const day = (n: number) => `2026-10-${String(n).padStart(2, "0")}`;
 const rows = (from: number, to: number, value = (n: number) => n * 10): DailyDataPoint[] =>
   Array.from({ length: to - from + 1 }, (_, i) => from + i)
     .map((n) => ({ date: day(n), value: value(n), is_today: false }));
-const label = (iso: string) => iso.split("-").reverse().join(".");
+const label = (iso: string) => iso;
 
 const FIRST = "First chart", SECOND = "Second chart";
 

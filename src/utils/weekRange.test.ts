@@ -89,13 +89,13 @@ describe("aggregateWeekly", () => {
 
 describe("formatting", () => {
   it("names the month once inside a month", () => {
-    expect(formatWeekRange("2026-09-21")).toBe("21–27 Sep 2026");
+    expect(formatWeekRange("2026-09-21")).toBe("2026-09-21/27");
   });
   it("names both months across a month boundary", () => {
-    expect(formatWeekRange("2026-09-28")).toBe("28 Sep – 4 Oct 2026");
+    expect(formatWeekRange("2026-09-28")).toBe("2026-09-28/10-04");
   });
   it("names both years across New Year", () => {
-    expect(formatWeekRange("2025-12-29")).toBe("29 Dec 2025 – 4 Jan 2026");
+    expect(formatWeekRange("2025-12-29")).toBe("2025-12-29/2026-01-04");
   });
   it("labels quarter starts only", () => {
     expect(quarterTicks(mondaysBetween("2025-12-22", "2026-04-13"))).toEqual([

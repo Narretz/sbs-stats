@@ -40,7 +40,7 @@ test("a daily line chart pins the clicked date, with its values", async ({ page 
   // The last populated day in the fixture; 0.9 across a 7-day window lands on it.
   const d = new Date(`${FIXED_TODAY}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - 1);
-  await expect(label(page)).toHaveText(d.toISOString().slice(0, 10).split("-").reverse().join("."));
+  await expect(label(page)).toHaveText(d.toISOString().slice(0, 10));
   await expect(sheet(page)).toContainText("Launched");
   expect(await hasCursor(card)).toBe(true);
 });

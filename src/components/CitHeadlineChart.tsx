@@ -78,9 +78,8 @@ export function CitHeadlineChart({ title, data, granularity, globalStats, wfull 
       })),
     ];
     const footer = span > 1
-      ? `One ${span * 24}-hour weekend report. Drawn across its ${span} days at the ` +
-        `daily average (${CIT_METRIC_KEYS.map((k) => `${fmtCount(d[k] ?? 0)} ${k}`).join(", ")} a day) ` +
-        `— CIT did not publish a per-day split.`
+      ? `One ${span * 24}-hour report. Drawn across its ${span} days at the ` +
+        `daily average: ${CIT_METRIC_KEYS.map((k) => `${fmtCount(d[k] ?? 0)} ${k}`).join(", ")}.`
       : undefined;
     return { rows, footer, minWidth: 240 };
   };

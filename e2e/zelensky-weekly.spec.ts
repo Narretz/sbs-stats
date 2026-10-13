@@ -46,18 +46,18 @@ test.describe("Zelensky weekly tally", () => {
   });
 
   test("the tooltip quotes the figure as hedged in the post", async ({ page }) => {
-    const tip = await tooltipAt(page, DRONES, "5–11 Jan 2026");
+    const tip = await tooltipAt(page, DRONES, "2026-01-05/11");
     expect(tip).toContain("as posted: > 1,000");
   });
 
   test("a week with no post says so, rather than reading as zero", async ({ page }) => {
-    const tip = await tooltipAt(page, DRONES, "12–18 Jan 2026");
+    const tip = await tooltipAt(page, DRONES, "2026-01-12/18");
     expect(tip).toContain("no weekly tally posted");
     expect(tip).not.toMatch(/Actual\s+0/);
   });
 
   test("a weapon the week's post didn't name is 'not reported'", async ({ page }) => {
-    const tip = await tooltipAt(page, BOMBS, "19–25 Jan 2026");
+    const tip = await tooltipAt(page, BOMBS, "2026-01-19/25");
     expect(tip).toContain("as posted: not reported");
   });
 });

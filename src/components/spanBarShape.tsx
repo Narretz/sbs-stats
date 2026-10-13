@@ -1,16 +1,9 @@
 import { Rectangle } from "recharts";
+import { formatDay, formatSpan } from "@/utils/dateFormat";
 
 // Day bars for a source that reports some days in one multi-day post — CIT's
 // 48-hour weekend summary. Drawn by CitStackedChart, for both the headline
 // figures and the controlling-side split on the daily page.
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-export function formatDay(date: string): string {
-  const [y, m, d] = date.split("-");
-  return `${Number(d)} ${MONTHS[Number(m) - 1]} ${y}`;
-}
 
 export const dayTick = (v: string) => { const [, m, d] = v.split("-"); return `${d}/${m}`; };
 
@@ -24,16 +17,6 @@ export interface SpannedDay {
   date: string;
   report_date: string | null;
   window_days: number;
-}
-
-// "10–11 Jan 2026", "31 Jan – 1 Feb 2026", or one day as formatDay.
-export function formatSpan(first: string, last: string): string {
-  if (first === last) return formatDay(last);
-  const [y1, m1, d1] = first.split("-");
-  const [y2, m2, d2] = last.split("-");
-  if (y1 !== y2) return `${formatDay(first)} \u2013 ${formatDay(last)}`;
-  if (m1 !== m2) return `${Number(d1)} ${MONTHS[Number(m1) - 1]} \u2013 ${Number(d2)} ${MONTHS[Number(m2) - 1]} ${y2}`;
-  return `${Number(d1)}\u2013${Number(d2)} ${MONTHS[Number(m2) - 1]} ${y2}`;
 }
 
 // The entry a day belongs to: its report. The days of one weekend report

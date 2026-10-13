@@ -8,6 +8,7 @@ import { DocumentedVsEstimatedChart } from "@/components/DocumentedVsEstimatedCh
 import { LoadingScreen, ErrorScreen } from "@/components/Layout";
 import type { MediazonaRolesRow, MediazonaEstimateRow } from "@/types";
 import { FONTS, type Theme } from "@/theme";
+import { formatMonth } from "@/utils/dateFormat";
 
 interface Props {
   refreshKey?: number;
@@ -24,20 +25,9 @@ function Note({ t, children }: { t: Theme; children: React.ReactNode }) {
 // Must match PROVISIONAL_WEEKS in DocumentedVsEstimatedChart so the prose label
 // matches the shaded region on the chart.
 const PROVISIONAL_WEEKS = 26;
-const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 function fmtApproxK(n: number): string {
   return `~${Math.round(n / 1000)}k`;
-}
-function fmtYearMonth(week: string | null): string {
-  if (!week) return "";
-  const [y, m] = week.split("-");
-  return `${y}/${m}`;
-}
-function fmtMonthYear(week: string | null): string {
-  if (!week) return "";
-  const [y, m] = week.split("-");
-  return `${MONTHS[parseInt(m, 10) - 1]} ${y}`;
 }
 
 export function MediazonaWeeklyPage({ refreshKey }: Props) {
@@ -87,7 +77,7 @@ export function MediazonaWeeklyPage({ refreshKey }: Props) {
           180+ days to complete) and partly model-based, and will be revised in the next Mediazona release as more filings
           come in. The named list captures an estimated 45–65% of the true toll, so the estimate runs well above it — and
           because it is a modelled redistribution rather than a count built on the named total, it can sit slightly below
-          documented in some early weeks. The provisional window{provisionalFromWeek ? ` (since ${fmtMonthYear(provisionalFromWeek)})` : ""} is <span style={{ background: t.textMuted, opacity: 0.5, padding: "0 4px", borderRadius: 2 }}>shaded</span> on
+          documented in some early weeks. The provisional window{provisionalFromWeek ? ` (since ${formatMonth(provisionalFromWeek)})` : ""} is <span style={{ background: t.textMuted, opacity: 0.5, padding: "0 4px", borderRadius: 2 }}>shaded</span> on
           the names-vs-estimate chart.
         </p>
       </div>
@@ -100,7 +90,7 @@ export function MediazonaWeeklyPage({ refreshKey }: Props) {
           <Note t={t}>
             Note the recorded-names total here ({fmtApproxK(documentedTotal)}) differs from the by-role composition file below ({fmtApproxK(rolesTotal)}); both
             are the same recorded-names dataset, most likely captured at slightly different times / processings:
-            1) The by-role dataset contains data up to {fmtYearMonth(rolesMaxWeek)}; 2) the week start dates are slightly different between the datasets.
+            1) The by-role dataset contains data up to {rolesMaxWeek ? formatMonth(rolesMaxWeek) : ""}; 2) the week start dates are slightly different between the datasets.
           </Note>
           <Note t={t}>
             Share of each week's <i>named</i> deaths by force type. Shown as shares (not counts) so the composition

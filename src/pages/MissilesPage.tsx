@@ -14,6 +14,7 @@ import {
   type MissileCategory,
 } from "@/components/missilePalette";
 import { FONTS } from "@/theme";
+import { fmtAsOfDate } from "@/components/missileFormat";
 
 type View = "production" | "stockpile" | "combined";
 const VIEWS: View[] = ["production", "stockpile", "combined"];
@@ -21,16 +22,6 @@ const VIEW_PARAM = 'missiles-view';
 const KIND: Record<"production" | "stockpile", MissileKind> = { production: "production_monthly", stockpile: "stockpile" };
 const UNIT: Record<"production" | "stockpile", string> = { production: "units / month", stockpile: "in stockpile" };
 
-const MONTH_NAMES = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-// Render `as_of` at its declared precision so a "mid-May 2025" estimate isn't
-// misread as a specific calendar day; mirrors MissileRangeChart.fmtAsOf.
-function fmtAsOf(as_of: string, precision: "day" | "mid_month" | "month"): string {
-  const [y, m, d] = as_of.split("-");
-  if (precision === "day") return `${d}.${m}.${y}`;
-  if (precision === "mid_month") return `mid-${MONTH_NAMES[+m]} ${y}`;
-  return `${MONTH_NAMES[+m]} ${y}`;
-}
 
 // URL-param persistence: mirrors the date/days/weekday pattern used on the
 // other pages so a deep link captures what the user was looking at.
@@ -216,7 +207,7 @@ export function MissilesPage() {
               {MISSILE_REPORTS.map((r, i) => (
                 <li key={r.as_of + r.reported_at} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
                   <span style={{ color: t.textFaint, minWidth: 28 }}>[{i + 1}]</span>
-                  <span style={{ color: t.text, minWidth: 110 }}>{fmtAsOf(r.as_of, r.as_of_precision)}</span>
+                  <span style={{ color: t.text, minWidth: 110 }}>{fmtAsOfDate(r.as_of, r.as_of_precision)}</span>
                   <span style={{ minWidth: 60 }}>{r.source.org}</span>
                   <span style={{ flex: 1 }}>
                     {r.source.via}

@@ -10,28 +10,17 @@ import {
 } from "@/types";
 import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 import { usePinnedChart } from "@/components/usePinnedChart";
+import { formatDay, formatMonth } from "@/utils/dateFormat";
 
 // No forecast region here (forecast belongs to the estimate, not the named list).
 // Recent weeks ARE still sparse — names not yet identified — but that's already
 // visible in the total line collapsing, and called out in the caption, so we
 // don't shade a provisional window on this chart.
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
 function fmtDate(v: string): string {
   const [y, m] = v.split("-");
   return `${m}/${y.slice(2)}`;
-}
-function fmtFullDate(v: string): string {
-  const [y, m, d] = v.split("-");
-  return `${d}.${m}.${y}`;
-}
-function fmtMonthYear(v: string): string {
-  const [y, m] = v.split("-");
-  return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
 }
 
 function describeComposition(
@@ -40,8 +29,8 @@ function describeComposition(
 ): TooltipDescriptor {
   const total = row.total || 1;
   const header = bucket === "monthly"
-    ? `Month of ${fmtMonthYear(row.week)} · ${row.total.toLocaleString()} named`
-    : `Week of ${fmtFullDate(row.week)} · ${row.total.toLocaleString()} named`;
+    ? `Month of ${formatMonth(row.week)} · ${row.total.toLocaleString()} named`
+    : `Week of ${formatDay(row.week)} · ${row.total.toLocaleString()} named`;
   const rows: TooltipTableRow[] = [...MEDIAZONA_ROLE_GROUP_KEYS].reverse().map((k) => {
     const v = row[k] ?? 0;
     const g = MEDIAZONA_ROLE_GROUPS[k];
@@ -68,7 +57,7 @@ export function RoleCompositionChart({
     data: rows,
     xOf: (r) => r.week,
     describe: (r) => describeComposition(r, bucket),
-    formatLabel: (r) => bucket === "monthly" ? fmtMonthYear(r.week) : fmtFullDate(r.week),
+    formatLabel: (r) => bucket === "monthly" ? formatMonth(r.week) : formatDay(r.week),
     cursor: { stroke: t.textMuted, strokeWidth: 1 },
     // Two Y axes on this chart, so the pinned line has to name one.
     cursorProps: { yAxisId: "left" },

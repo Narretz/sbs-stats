@@ -14,6 +14,7 @@ import {
 import { SpanCursor } from "@/components/SpanCursor";
 import type { TooltipDescriptor } from "@/components/TooltipTable";
 import type { Stat } from "@/types";
+import { formatMonth } from "@/utils/dateFormat";
 
 // The CIT pages' one chart shape: a stack of series over days or months, with
 // the median of the stack's total as the reference line. Its two uses —
@@ -84,8 +85,7 @@ export function CitStackedChart<K extends string, Row extends CitStackRowBase & 
   const hasProjection = data.some((d) => d.projectedGap != null);
 
   const label = (d: Row): string =>
-    // A month as "2026-10", like every other monthly chart's header.
-    daily ? formatEntry(d as unknown as SpannedDay) : d.date.slice(0, 7);
+    daily ? formatEntry(d as unknown as SpannedDay) : formatMonth(d.date);
 
   const describeRow = (d: Row): TooltipDescriptor => {
     const p = d.projection;

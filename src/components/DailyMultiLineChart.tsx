@@ -14,6 +14,7 @@ import { usePinnedChart } from "@/components/usePinnedChart";
 import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 import { chartColors } from "@/chartColors";
 import { formatWeekRange } from "@/utils/weekRange";
+import { formatDay, formatMonth } from "@/utils/dateFormat";
 
 export interface LineSeries {
   key: string;
@@ -63,16 +64,7 @@ const MAX_BAR_SIZE = 36;
 
 type Row = { date: string; is_today: boolean } & Record<string, number | null | string | boolean>;
 
-function formatDate(v: string): string {
-  const [y, m, d] = v.split("-");
-  return `${d}.${m}.${y}`;
-}
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-function formatMonth(v: string): string {
-  const [y, m] = v.split("-");
-  const idx = Number(m) - 1;
-  return `${MONTH_NAMES[idx] ?? m} ${y}`;
-}
 function formatMonthTick(v: string): string {
   const [y, m] = v.split("-");
   const idx = Number(m) - 1;
@@ -87,7 +79,7 @@ function formatWeekTick(v: string): string {
 function formatX(granularity: ChartGranularity, v: string): string {
   if (granularity === "monthly") return formatMonth(v);
   if (granularity === "weekly") return formatWeekRange(v);
-  return formatDate(v);
+  return formatDay(v);
 }
 function median(vals: number[]): number {
   const s = [...vals].sort((a, b) => a - b);

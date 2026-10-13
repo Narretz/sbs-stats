@@ -15,6 +15,7 @@ import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { chartAnchor } from "@/utils/chartAnchor";
 import { AREA_FILL_OPACITY, chartColors } from "@/chartColors";
 import { breakdownToRows, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
+import { formatDay as formatDate } from "@/utils/dateFormat";
 
 interface Props {
   title: string;
@@ -97,11 +98,6 @@ type PairedRow = {
 
 function fmt(n: number | null | undefined): string {
   return typeof n === "number" ? n.toLocaleString() : "—";
-}
-
-function formatDate(v: string): string {
-  const [y, m, d] = v.split("-");
-  return `${d}.${m}.${y}`;
 }
 
 // Format an EoD estimate as a single cell node — the value/subset cell

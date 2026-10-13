@@ -74,17 +74,17 @@ test.describe("CIT daily page", () => {
   });
 
   test("the headline weekend tooltip is the report, at its 48-hour totals", async ({ page }) => {
-    const tip = await tooltipAt(page, page.locator(ALL), "10–11 Jan 2026");
+    const tip = await tooltipAt(page, page.locator(ALL), "2026-01-10/11");
     // The report's own figures, not the per-day average the bar is drawn at.
     expect(tip).toMatch(/Total\s+46/);
     expect(tip).toMatch(/Civilians injured\s+40/);
     expect(tip).toMatch(/Civilians killed\s+6/);
-    expect(tip).toContain("One 48-hour weekend report");
-    expect(tip).toContain("3 killed, 20 injured a day");
+    expect(tip).toContain("One 48-hour report");
+    expect(tip).toContain("daily average: 3 killed, 20 injured.");
   });
 
   test("the controlling-side weekend tooltip is the report, at its 48-hour totals", async ({ page }) => {
-    const tip = await tooltipAt(page, page.locator(SIDE), "10–11 Jan 2026");
+    const tip = await tooltipAt(page, page.locator(SIDE), "2026-01-10/11");
     // Total, then killed and injured, per side.
     expect(tip).toMatch(/Total\s+46\s+6\s+40/);
     expect(tip).toMatch(/Ukrainian-controlled\s+34\s+4\s+30/);
@@ -104,7 +104,7 @@ test.describe("CIT daily page", () => {
     const tips: string[] = [];
     for (const frac of [0.2, 0.8]) {
       await page.mouse.move(wide.x + wide.width * frac, wide.y + wide.height / 2);
-      await expect(wrapper).toContainText("10–11 Jan 2026");
+      await expect(wrapper).toContainText("2026-01-10/11");
       tips.push((await wrapper.innerText()).trim());
     }
     expect(tips[0]).toBe(tips[1]);
@@ -121,19 +121,19 @@ test.describe("CIT daily page", () => {
     await page.mouse.click(fri.x + fri.width / 2, fri.y + fri.height / 2);
     const sheet = page.locator(".chart-sheet[data-open]");
     const label = sheet.locator(".chart-sheet-label");
-    await expect(label).toHaveText("9 Jan 2026");
+    await expect(label).toHaveText("2026-01-09");
     await sheet.getByRole("button", { name: "Next point" }).click();
-    await expect(label).toHaveText("10–11 Jan 2026");
+    await expect(label).toHaveText("2026-01-10/11");
     expect(await sheet.innerText()).toMatch(/Civilians killed\s+6/);
     // The weekend is the window's last entry, so there is nowhere further.
     await expect(sheet.getByRole("button", { name: "Next point" })).toBeDisabled();
     await sheet.getByRole("button", { name: "Previous point" }).click();
-    await expect(label).toHaveText("9 Jan 2026");
+    await expect(label).toHaveText("2026-01-09");
   });
 
   test("a day with no report is a gap, not a zero", async ({ page }) => {
     for (const selector of [ALL, SIDE]) {
-      const tip = await tooltipAt(page, page.locator(selector), "7 Jan 2026");
+      const tip = await tooltipAt(page, page.locator(selector), "2026-01-07");
       expect(tip).toContain("No CIT report covers this day.");
       expect(tip).not.toMatch(/\s0(\s|$)/);
     }

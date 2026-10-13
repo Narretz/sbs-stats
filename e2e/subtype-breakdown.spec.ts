@@ -26,10 +26,8 @@ const PLAIN_DAY = dayISO(-3); // no itemization → no sub-type rows at all
 // under its own model, so it must not repeat inside the UAV row.
 const ROWED_SEPARATELY_DAY = dayISO(-ROWED_SEPARATELY_DAY_OFFSET);
 
-const fmt = (iso: string) => {
-  const [y, m, d] = iso.split("-");
-  return `${d}.${m}.${y}`;
-};
+// Tooltip headers are the ISO date itself (utils/dateFormat).
+const fmt = (iso: string) => iso;
 
 function chartCard(page: Page, title: string) {
   return page

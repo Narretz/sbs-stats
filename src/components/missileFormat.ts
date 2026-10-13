@@ -1,15 +1,15 @@
 import type { MissilePoint } from "@/data/missiles";
-
-const MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+import { formatDay, formatMonth } from "@/utils/dateFormat";
 
 // as_of read at its stated precision — a mid-month estimate shouldn't masquerade
-// as a specific day.
-export function fmtAsOf(p: MissilePoint): string {
-  const [y, m, d] = p.as_of.split("-");
-  if (p.as_of_precision === "day") return `${d}.${m}.${y}`;
-  if (p.as_of_precision === "mid_month") return `mid-${MONTHS[+m]} ${y}`;
-  return `${MONTHS[+m]} ${y}`;
+// as a specific day. "2026-10-14", "mid 2026-10", "2026-10".
+export function fmtAsOfDate(asOf: string, precision: MissilePoint["as_of_precision"]): string {
+  if (precision === "day") return formatDay(asOf);
+  if (precision === "mid_month") return `mid ${formatMonth(asOf)}`;
+  return formatMonth(asOf);
 }
+
+export const fmtAsOf = (p: MissilePoint): string => fmtAsOfDate(p.as_of, p.as_of_precision);
 
 // The bound qualifier, made legible. A bar/point alone can't say "≤"; this can.
 export function fmtValue(p: MissilePoint): string {
