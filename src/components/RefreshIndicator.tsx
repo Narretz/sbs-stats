@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useTheme } from "@/hooks/useTheme";
-import { FONTS } from "@/theme";
 
 interface Props {
   lastRefreshed: Date | null;
@@ -51,40 +50,47 @@ export function RefreshIndicator({ lastRefreshed, refreshCount, onRefresh, isLoa
     ? lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
     : "—";
 
-  // Every label the top line can show, so it can reserve the widest: the
+  // Every label the control can show, so it can reserve the widest: the
   // countdown loses a digit as it runs down (1440:00 → 9:59) and "refreshing…"
-  // is shorter still, and each change would resize the whole header box. The
-  // font is monospace, so a character count in `ch` is the width.
+  // is shorter still, and each change would resize the header. The font is
+  // monospace, so a character count in `ch` is the width.
   const labelWidth = Math.max(
     "refreshing…".length,
     manualOnly ? "refresh".length : `refresh in ${formatTime(intervalMs / 1000)}`.length,
   );
 
-  const size = 28;
-  const stroke = 2.5;
-  const r = (size - stroke) / 2;
+  // The ring fits the control's line box (--ctl-line-height × font size), so
+  // the control is exactly as tall as every other .ctl.
+  const size = 20;
+  const stroke = 2;
+  // The arrowhead on the arc's fixed end (below): half its base, its length.
+  // The ring is inset so the head's outer corner stays inside the box.
+  const headHalf = 3.4;
+  const headLength = 4.2;
+  const r = size / 2 - headHalf - 0.4;
   const circ = 2 * Math.PI * r;
-  const dash = circ * progress;
+  // A full countdown ends at the arrowhead's tip rather than going all the way
+  // round: the arc's moving end returns to 12 o'clock from the tip's side, so a
+  // full circle spent its first stretch retreating unseen under the head.
+  // Less the head's length, and half the stroke for the round cap.
+  const fullArc = circ - headLength - stroke / 2;
+  const dash = fullArc * progress;
+  const label = isLoading ? "refreshing…" : manualOnly ? "refresh" : `refresh in ${formatTime(secondsLeft)}`;
+  const updated = lastRefreshed ? `Last updated: ${lastUpdatedStr}` : "Loading…";
 
+  // A standard control (.ctl): one line, the countdown ring as its icon. The
+  // last-updated time, which had a second line of its own, is in the title.
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        marginLeft: 8,
-        padding: "3px 10px 3px 6px",
-        border: `1px solid ${t.border}`,
-        borderRadius: 4,
-        background: t.bgAlt,
-        cursor: "pointer",
-        userSelect: "none",
-        transition: "border-color 0.15s",
-      }}
+    <button
+      type="button"
+      // .refresh-ctl: a square once the wrapped header hides the text (theme.css).
+      className="ctl refresh-ctl"
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, userSelect: "none" }}
       onClick={!isLoading ? onRefresh : undefined}
-      title={`Last updated: ${lastUpdatedStr} · Click to refresh now`}
+      aria-busy={isLoading}
+      title={`${updated} · Click to refresh now`}
     >
-      <svg width={size} height={size} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
+      <svg width={size} height={size} aria-hidden style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={t.border} strokeWidth={stroke} />
         {/* Filled countdown arc — only when there's an interval to count down. */}
         {!manualOnly && (
@@ -104,7 +110,7 @@ export function RefreshIndicator({ lastRefreshed, refreshCount, onRefresh, isLoa
             style={isLoading ? { animation: "spin 1s linear infinite" } : undefined}
           />
         )}
-        {/* Manual-only mode shows a static spinner during loading, otherwise just the icon glyph. */}
+        {/* Manual-only mode shows a spinner during loading, otherwise the bare ring. */}
         {manualOnly && isLoading && (
           <circle
             cx={size / 2}
@@ -118,31 +124,24 @@ export function RefreshIndicator({ lastRefreshed, refreshCount, onRefresh, isLoa
             style={{ animation: "spin 1s linear infinite" }}
           />
         )}
-        <g transform={`rotate(90, ${size / 2}, ${size / 2}) translate(${size / 2}, ${size / 2})`}>
+        {/* An arrowhead on the arc's fixed end — 12 o'clock, where the
+            countdown starts and drains back to — pointing counter-clockwise,
+            so the ring reads as a reload arrow (↺). In this frame the svg is
+            turned −90°: the arc starts at (cx + r, cy) and runs toward +y, so
+            the head points toward −y. Hidden while refreshing, when the ring
+            spins. */}
+        {!isLoading && (
           <path
-            d="M-3.5,0 A3.5,3.5 0 1,1 1.8,3 M1.8,3 L0,5 M1.8,3 L3.8,1.5"
-            fill="none"
-            stroke={isLoading ? t.accent : t.textMuted}
-            strokeWidth={1.4}
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            d={`M${size / 2 + r - headHalf},${size / 2} L${size / 2 + r + headHalf},${size / 2} L${size / 2 + r},${size / 2 - headLength} Z`}
+            fill={manualOnly ? t.textMuted : t.primary}
           />
-        </g>
+        )}
       </svg>
       {/* Layout lives in CSS (.refresh-text): an inline `display` would win
           over the media query that hides this in a wrapped header. */}
-      <div className="refresh-text">
-        <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted, lineHeight: 1, minWidth: `${labelWidth}ch` }}>
-          {isLoading
-            ? "refreshing…"
-            : manualOnly
-              ? "refresh"
-              : `refresh in ${formatTime(secondsLeft)}`}
-        </span>
-        <span style={{ fontFamily: FONTS.mono, fontSize: 9, color: t.textMuted + "99", lineHeight: 1 }}>
-          {lastRefreshed ? `updated ${lastUpdatedStr}` : "loading…"}
-        </span>
-      </div>
-    </div>
+      <span className="refresh-text" style={{ color: t.textMuted, minWidth: `${labelWidth}ch`, textAlign: "left" }}>
+        {label}
+      </span>
+    </button>
   );
 }

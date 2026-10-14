@@ -175,13 +175,13 @@ export function ChartSheetContent({
       <footer className="chart-sheet-footer" style={{ borderTop: `1px solid ${t.border}`, background: t.surface }}>
         <div className="chart-sheet-stepper">
           <button
-            className="ctl" onClick={() => onStep(-1)} disabled={!canPrev}
-            aria-label="Previous point" style={{ color: t.textMuted, height: 25 }}
+            className="ctl ctl-square" onClick={() => onStep(-1)} disabled={!canPrev}
+            aria-label="Previous point" style={{ color: t.textMuted }}
           >&lt;</button>
           <span className="chart-sheet-label" style={{ color: t.text }}>{label}</span>
           <button
-            className="ctl" onClick={() => onStep(1)} disabled={!canNext}
-            aria-label="Next point" style={{ color: t.textMuted, height: 25 }}
+            className="ctl ctl-square" onClick={() => onStep(1)} disabled={!canNext}
+            aria-label="Next point" style={{ color: t.textMuted }}
           >&gt;</button>
         </div>
         <div className="chart-sheet-actions">
@@ -189,7 +189,7 @@ export function ChartSheetContent({
             <a
               className="ctl ctl-dashed" href={link.href} title={link.title}
               // No inline colour: .ctl-dashed's own hover has to win.
-              style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", height: 25, boxSizing: "border-box" }}
+              style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}
               onClick={(e) => {
                 // Anything but a plain click (new tab, new window) is the
                 // browser's to handle, through the href.
@@ -200,8 +200,8 @@ export function ChartSheetContent({
             >{link.label}</a>
           )}
           <button
-            className="ctl" onClick={onClose} aria-label="Close details"
-            style={{ color: t.textMuted, height: 25 }}
+            className="ctl ctl-square" onClick={onClose} aria-label="Close details"
+            style={{ color: t.textMuted }}
           >✕</button>
         </div>
       </footer>

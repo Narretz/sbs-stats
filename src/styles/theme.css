@@ -61,6 +61,15 @@ body {
    site pages and the compare view alike. Base styling lives here rather than
    inline because :hover can't be expressed inline at all, and an inline
    border/background would beat these rules anyway. */
+:root {
+  /* The app header's height; the sticky controls bar sits right below it. */
+  --app-header-height: 46px;
+  /* A control's text size and leading, and the height they give it: the
+     line box plus 5px padding and a 1px border, top and bottom. */
+  --ctl-font-size: 12px;
+  --ctl-line-height: 1.3;
+  --ctl-height: calc(var(--ctl-font-size) * var(--ctl-line-height) + 13px);
+}
 .ctl {
   background: var(--color-surface);
   color: var(--color-text);
@@ -68,10 +77,25 @@ body {
   border-radius: 4px;
   padding: 5px 8px;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.2;
+  font-size: var(--ctl-font-size);
+  line-height: var(--ctl-line-height);
+  /* Pinned to that height rather than left to the content, so every control
+     in a row lines up whatever it is: a date input's own chrome made it ~2px
+     taller than its neighbours, and a glyph from a fallback font (✕ isn't in
+     PT Mono) grows a line box by a fraction of a pixel. A link used as a
+     control needs a display that takes a height (inline-flex). */
+  height: var(--ctl-height);
+  box-sizing: border-box;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+/* A one-glyph control — a < > stepper, a ✕, an icon — as a square: as wide as
+   every control is tall, its glyph centred. */
+.ctl-square {
+  width: var(--ctl-height);
+  padding-left: 0;
+  padding-right: 0;
+  text-align: center;
 }
 .ctl:hover {
   border-color: var(--color-primary);
@@ -155,7 +179,7 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding: 0 24px;
-  height: 52px;
+  height: var(--app-header-height);
 }
 .app-header-group {
   display: flex;
@@ -169,16 +193,16 @@ body {
   display: none;
 }
 .refresh-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 64px;
+  display: inline;
+}
+.refresh-ctl {
+  padding-left: 5px;
 }
 
 @media (max-width: 860px) {
   .app-header {
     height: auto;
-    min-height: 52px;
+    min-height: var(--app-header-height);
     padding: 8px 12px;
     flex-wrap: wrap;
     row-gap: 8px;
@@ -204,6 +228,12 @@ body {
   .refresh-text {
     display: none;
   }
+  /* The ring alone: a square control, like the theme toggle beside it. */
+  .refresh-ctl {
+    width: var(--ctl-height);
+    padding: 0;
+    justify-content: center;
+  }
 }
 
 /* ── Chart cards ─────────────────────────────────────────────────────────────
@@ -214,12 +244,12 @@ body {
 .chart-card {
   position: relative;
   z-index: 1;
-  /* Deep-linked charts (#<slug>) must clear the 52px sticky header AND the
+  /* Deep-linked charts (#<slug>) must clear the sticky header AND the
      sticky controls bar under it, or the card lands behind them. The controls
      bar wraps to a variable height, so this is a generous fixed clearance
      rather than a measured one. Below 640px the controls bar is static
      (see .page-controls-sticky) so only the header needs clearing. */
-  scroll-margin-top: 124px;
+  scroll-margin-top: calc(var(--app-header-height) + 72px);
 }
 .chart-card:hover {
   z-index: 2;
@@ -256,14 +286,14 @@ body {
 }
 
 /* Per-site pages' controls bar (time window, date nav, etc.) pinned right
-   below the 52px SiteHeader. z-index sits below the header (z:10) so the
+   below the SiteHeader (--app-header-height). z-index sits below the header (z:10) so the
    header still covers it when scrolling, but above chart cards (z:1/2).
    Solid bg + subtle bottom border keeps content from showing through.
    On phone-sized screens the bar usually wraps to multiple rows and eats
    too much vertical real estate; let it scroll with the page there. */
 .page-controls-sticky {
   position: sticky;
-  top: 52px;
+  top: var(--app-header-height);
   z-index: 8;
   gap: 12px;
   background: var(--color-bg);

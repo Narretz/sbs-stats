@@ -48,9 +48,9 @@ export function DateNav({
         {label}
       </span>
     <div style={{ display: "flex", gap: "3px" }}>
-      <button className="ctl" onClick={() => onShift(-1)} disabled={!canGoPrev}
+      <button className="ctl ctl-square" onClick={() => onShift(-1)} disabled={!canGoPrev}
         aria-label={`${label}: previous day`}
-        style={{ color: t.textMuted, height: 25 }}>&lt;</button>
+        style={{ color: t.textMuted }}>&lt;</button>
       <input
         type="date"
         data-testid={testId}
@@ -65,9 +65,9 @@ export function DateNav({
         title={title}
         style={{ colorScheme: "dark" }}
       />
-      <button className="ctl" onClick={next} disabled={!canGoNext}
+      <button className="ctl ctl-square" onClick={next} disabled={!canGoNext}
         aria-label={`${label}: next day`}
-        style={{ color: t.textMuted, height: 25 }}>&gt;</button>
+        style={{ color: t.textMuted }}>&gt;</button>
     </div>
     </div>
   );

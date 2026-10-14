@@ -37,9 +37,9 @@ export function MonthNav({ label, value, min, max, onChange, testId }: Props) {
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       <span className="ctl-label">{label}</span>
       <div style={{ display: "flex", gap: "3px" }}>
-        <button className="ctl" onClick={() => step(-1)} disabled={current <= lo}
+        <button className="ctl ctl-square" onClick={() => step(-1)} disabled={current <= lo}
           aria-label={`${label}: previous month`}
-          style={{ color: t.textMuted, height: 25 }}>&lt;</button>
+          style={{ color: t.textMuted }}>&lt;</button>
         <select
           className="ctl"
           data-testid={testId && `${testId}-year`}
@@ -61,9 +61,9 @@ export function MonthNav({ label, value, min, max, onChange, testId }: Props) {
             <option key={m} value={m}>{monthName(m)}{m === max ? " (live)" : ""}</option>
           ))}
         </select>
-        <button className="ctl" onClick={() => step(1)} disabled={current >= max}
+        <button className="ctl ctl-square" onClick={() => step(1)} disabled={current >= max}
           aria-label={`${label}: next month`}
-          style={{ color: t.textMuted, height: 25 }}>&gt;</button>
+          style={{ color: t.textMuted }}>&gt;</button>
       </div>
     </div>
   );

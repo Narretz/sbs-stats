@@ -104,8 +104,8 @@ export function ThemeToggle() {
     <button
       onClick={toggle}
       title={`Switch to ${mode === "light" ? "dark" : "light"} mode`}
-      className="ctl"
-      style={{ padding: "5px 10px", fontSize: 14, lineHeight: 1 }}
+      className="ctl ctl-square"
+      style={{ fontSize: 14, lineHeight: 1 }}
     >
       {mode === "light" ? "🌙" : "☀️"}
     </button>
