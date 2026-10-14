@@ -3,7 +3,7 @@ import { useRoute } from "@/hooks/RouteContext";
 import type { Page, Site } from "@/types";
 import { RefreshIndicator } from "@/components/RefreshIndicator";
 import {
-  AppHeader, AppHeaderGroup, Brand, CompareLink, SitePicker, ThemeToggle,
+  AppHeader, AppHeaderGroup, Brand, SitePicker, ThemeToggle,
 } from "@/components/AppHeaderParts";
 
 interface SiteHeaderProps {
@@ -42,13 +42,9 @@ export function SpecialViewHeader() {
     <AppHeader>
       <AppHeaderGroup>
         <Brand onHome={goHome} />
-        {/* No current site to show, so the picker is a jump menu — the same
-            mode the homepage uses. Without it this view was a cul-de-sac you
-            could only leave via Home. */}
+        {/* No current site: the picker shows this tool, and jumps to any site.
+            Without it this view was a cul-de-sac you could only leave via Home. */}
         <SitePicker value={null} onChange={(s) => goSite(s)} />
-        {/* The same button the site headers carry, in its pressed state — it is
-            what tells you which view you are on. */}
-        <CompareLink />
       </AppHeaderGroup>
       <AppHeaderGroup>
         <ThemeToggle />
@@ -89,10 +85,9 @@ export function SiteHeader({
       <AppHeaderGroup>
         <Brand onHome={homeHandler} />
         <SitePicker value={site} onChange={onSiteChange} />
-        <CompareLink />
       </AppHeaderGroup>
 
-      {/* Nav + compare + refresh + theme */}
+      {/* Nav + refresh + theme */}
       <AppHeaderGroup>
         {pages.map((p) => navBtn(p, PAGE_LABEL[p]))}
         {showRefresh && (

@@ -21,7 +21,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MetricPicker } from "@/components/MetricPicker";
 import { RefreshIndicator } from "@/components/RefreshIndicator";
 import {
-  AppHeader, AppHeaderGroup, Brand, CompareLink, SitePicker, ThemeToggle,
+  AppHeader, AppHeaderGroup, Brand, SitePicker, ThemeToggle,
 } from "@/components/AppHeaderParts";
 import { DAY_OPTIONS, type DayOption, WINDOW_FLOOR, clampDays } from "@/utils/dayRange";
 import { resolvedEndDate } from "@/utils/padTrailing";
@@ -539,7 +539,6 @@ export function HomePage({ onGoToSite }: Props) {
           {/* No home link: this is home. */}
           <Brand />
           <SitePicker value={null} onChange={onGoToSite} />
-          <CompareLink />
         </AppHeaderGroup>
         <AppHeaderGroup>
           <RefreshIndicator

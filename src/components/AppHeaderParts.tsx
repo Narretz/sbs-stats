@@ -72,21 +72,34 @@ const SITE_GROUPS: [SiteTier, string][] = [
   ["secondary", "Other Datasets"],
 ];
 
+// Views that aren't a site, listed after the datasets under "Tools". The
+// value is prefixed so it can't collide with a site key.
+const TOOLS = [{ value: "tool:compare", view: "compare", label: "UNIT COMPARE" }] as const;
+
 // Site switcher. `value` is the site you are on, or null on views that aren't
-// a site — the homepage and the compare view — where it becomes a "browse by
-// site…" jump menu instead of showing an arbitrary site as if it were current.
+// a site. On a tool (the compare view) the picker shows that tool; on the
+// homepage it becomes a "browse by site…" jump menu instead of showing an
+// arbitrary site as if it were current. Picking a tool opens it.
 export function SitePicker({
   value, onChange,
 }: { value: Site | null; onChange: (site: Site) => void }) {
+  const { route, goSpecial } = useRoute();
+  const activeTool = route.kind === "special" ? TOOLS.find((tl) => tl.view === route.view) : undefined;
+  const current = value ?? activeTool?.value ?? "";
   return (
     <select
       data-testid="site-picker"
-      value={value ?? ""}
-      onChange={(e) => { if (e.target.value) onChange(e.target.value as Site); }}
+      value={current}
+      onChange={(e) => {
+        const v = e.target.value;
+        const tool = TOOLS.find((tl) => tl.value === v);
+        if (tool) goSpecial(tool.view);
+        else if (v) onChange(v as Site);
+      }}
       className="ctl"
       style={{ maxWidth: "100%" }}
     >
-      {value === null && <option value="">browse by site…</option>}
+      {current === "" && <option value="">browse by site…</option>}
       {SITE_GROUPS.map(([tier, label]) => (
         <optgroup key={tier} label={label}>
           {LISTED_SITES.filter((s) => s.tier === tier).map((s) => (
@@ -94,6 +107,9 @@ export function SitePicker({
           ))}
         </optgroup>
       ))}
+      <optgroup label="Tools">
+        {TOOLS.map((tl) => <option key={tl.value} value={tl.value}>{tl.label}</option>)}
+      </optgroup>
     </select>
   );
 }
@@ -112,23 +128,3 @@ export function ThemeToggle() {
   );
 }
 
-// Dashed outline so it reads as leaving the current site rather than as another
-// page of it. Stays visible on the compare view itself, in the pressed state —
-// a nav item that vanishes once you arrive gives no sense of where you are.
-export function CompareLink() {
-  const { route, goSpecial } = useRoute();
-  const active = route.kind === "special";
-  return (
-    <button
-      className={active ? "ctl" : "ctl ctl-dashed"}
-      data-testid="nav-compare"
-      onClick={() => goSpecial("compare")}
-      aria-pressed={active || undefined}
-      aria-current={active ? "page" : undefined}
-      title="Compare units side by side"
-      style={{ whiteSpace: "nowrap", letterSpacing: "0.04em" }}
-    >
-      COMPARE
-    </button>
-  );
-}

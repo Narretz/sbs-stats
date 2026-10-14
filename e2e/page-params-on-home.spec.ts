@@ -77,3 +77,13 @@ test.describe("Site-page params survive the trip home", () => {
     expect(new URL(page.url()).searchParams.get("days")).toBe(WINDOW);
   });
 });
+
+// The compare view is a tool in the site picker (no header button): picking it
+// opens the view, and the picker then shows it as where you are.
+test("the site picker opens the unit compare tool, and shows it there", async ({ page }) => {
+  await page.goto("/?site=sbs&page=daily");
+  const picker = page.getByTestId("site-picker");
+  await picker.selectOption("tool:compare");
+  await expect(page).toHaveURL(/[?&]view=compare\b/);
+  await expect(picker.locator("option:checked")).toHaveText("UNIT COMPARE");
+});
