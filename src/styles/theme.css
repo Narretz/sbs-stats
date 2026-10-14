@@ -254,10 +254,13 @@ body {
 .chart-card:hover {
   z-index: 2;
 }
-/* Same elevation trick for the hourly cards, which don't use .chart-card. */
+/* Same elevation trick for the hourly cards, which don't use .chart-card —
+   and the same clearance for an in-page "#" click (a deep link on load is
+   measured instead; see useChartHashScroll). */
 .hourly-card {
   position: relative;
   z-index: 1;
+  scroll-margin-top: calc(var(--app-header-height) + 72px);
 }
 .hourly-card:hover {
   z-index: 2;
@@ -265,10 +268,10 @@ body {
 /* Matches the wrapped header heights measured at these widths — an anchored
    chart has to clear the sticky header, not hide behind it. */
 @media (max-width: 860px) {
-  .chart-card { scroll-margin-top: 104px; }
+  .chart-card, .hourly-card { scroll-margin-top: 104px; }
 }
 @media (max-width: 520px) {
-  .chart-card { scroll-margin-top: 136px; }
+  .chart-card, .hourly-card { scroll-margin-top: 136px; }
 }
 
 /* The "#" deep-link affordance on a chart title: present but silent until the

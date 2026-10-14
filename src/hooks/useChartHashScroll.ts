@@ -13,6 +13,22 @@ const POLL_MS = 50;
 const POLL_ATTEMPTS = 40;   // ≈2s — covers a slow first paint, then gives up
 const SETTLE_MS = 400;      // after charts have sized themselves
 
+const CLEARANCE_PX = 8;
+
+// How much of the window's top the sticky chrome covers once stuck: for each
+// sticky element (the app header, the page's controls bar), its `top` plus its
+// height — where it will sit, not where it is now, since before the scroll the
+// controls bar is still in the flow further down.
+export function stuckHeight(): number {
+  let bottom = 0;
+  for (const el of document.querySelectorAll<HTMLElement>(".app-header, .page-controls-sticky")) {
+    const cs = getComputedStyle(el);
+    if (cs.position !== "sticky" && cs.position !== "fixed") continue;
+    bottom = Math.max(bottom, (parseFloat(cs.top) || 0) + el.getBoundingClientRect().height);
+  }
+  return bottom;
+}
+
 export function useChartHashScroll(ready: boolean) {
   // Only ever fires once per mount: re-scrolling on a later re-render would
   // yank the page back while the reader is scrolling around.
@@ -33,8 +49,17 @@ export function useChartHashScroll(ready: boolean) {
     // animating a jump the reader didn't ask for, from the top of a long page,
     // is slow and disorienting. In-page clicks on the "#" affordance still
     // glide, because those go through CSS.
-    const jump = () =>
-      document.getElementById(id)?.scrollIntoView({ behavior: "auto", block: "start" });
+    //
+    // Lands the target just below what will be stuck at the top once the page
+    // has scrolled — measured, not the CSS scroll-margin estimate, which was
+    // missing on the hourly cards and can't know how far the controls bar
+    // has wrapped on this page at this width.
+    const jump = () => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY - stuckHeight() - CLEARANCE_PX;
+      window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+    };
 
     const tick = () => {
       if (document.getElementById(id)) {
