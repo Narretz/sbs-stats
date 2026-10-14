@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildMetrics, unpairedLabel } from "@/utils/metrics";
+import { buildMetrics, targetPairLabel, unpairedLabel } from "@/utils/metrics";
+import { chartAnchor } from "@/utils/chartAnchor";
+import { TARGET_IDS } from "@/types";
 
 // The SBS pages render one chart per metric, so two entries that can't be told
 // apart become a React duplicate-key warning and, worse, two charts sharing one
@@ -58,5 +60,17 @@ describe("unpairedLabel", () => {
 
   it("resolves every paired chart", () => {
     for (const m of buildMetrics({ paired: true })) expect(unpairedLabel(m.key)).toBeDefined();
+  });
+});
+
+// The SBS monthly page titles a target's chart just "Tanks", while the daily
+// page's is "Tanks — Hit / Destroyed"; the monthly chart's "By day →" link
+// lands on the daily one through targetPairLabel. The two drifting apart broke
+// every per-target link once — this holds the daily titles to the helper.
+describe("targetPairLabel", () => {
+  it("is the daily page's title for every target's paired chart, so its anchor lands", () => {
+    const dailyAnchors = new Set(buildMetrics({ paired: true }).map((m) => chartAnchor(m.label)));
+    const missing = TARGET_IDS.filter((id) => !dailyAnchors.has(chartAnchor(targetPairLabel(id))));
+    expect(missing).toEqual([]);
   });
 });

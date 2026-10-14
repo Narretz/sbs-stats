@@ -62,6 +62,10 @@ interface Props {
   globalMax2?: number;
   globalMedian2?: number;
   globalTotal2?: number;
+  /** The anchor the sheet's "By day →" link lands on, when the daily page
+   *  titles this chart differently. Defaults to this chart's own anchor; ""
+   *  opens the daily page at the top, for a chart it doesn't have. */
+  drillAnchor?: string;
 }
 
 function describeMonth({
@@ -155,6 +159,7 @@ export function MonthlyTargetPairChart({
   globalMax, globalMedian, globalTotal,
   globalMax2, globalMedian2, globalTotal2,
   subsetLabel,
+  drillAnchor,
 }: Props) {
   const { theme: t } = useTheme();
   const anchor = chartAnchor(title);
@@ -195,6 +200,7 @@ export function MonthlyTargetPairChart({
       d, t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth, subsetLabel,
     }),
     periodOf: (d) => d.date.slice(0, 7),
+    drillAnchor,
   });
 
   return (

@@ -46,8 +46,8 @@ test("a daily line chart pins the clicked date, with its values", async ({ page 
 });
 
 test("monthly bar chart pins and marks the bar", async ({ page }) => {
-  // Not the SBS monthly page: its fixture is seven days inside one month and
-  // renders no bars at all, so a click there would prove nothing.
+  // GSUA's monthly page: its fixture covers the days its combat-engagements
+  // bars are summed from, the case this family is about.
   await page.goto("/?site=ru-attacks-gsua&page=monthly");
   await page.waitForSelector(".chart-card");
   const card = page.locator(".chart-card#combat-engagements");

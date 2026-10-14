@@ -42,6 +42,10 @@ interface Props {
   // The primary source behind each month ("YYYY-MM"), linked in the pinned
   // sheet only — see TooltipDescriptor.sources.
   sourcesByDate?: Map<string, SheetSource[]>;
+  /** The anchor the sheet's "By day →" link lands on, when the daily page
+   *  titles this chart differently. Defaults to this chart's own anchor; ""
+   *  opens the daily page at the top, for a chart it doesn't have. */
+  drillAnchor?: string;
 }
 
 // Cap bar width so a chart with few data points (e.g. SBU Alfa's 3 months)
@@ -52,6 +56,7 @@ const MAX_BAR_SIZE = 70;
 export function MonthlyBarChart({
   title, data, wfull, breakdownByMonth,
   globalMax, globalMedian, globalTotal, subsetLabel, formatTick, xTicks, formatHeader, explainGaps, sourcesByDate,
+  drillAnchor,
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
@@ -113,6 +118,7 @@ export function MonthlyBarChart({
     <MonthlyChartCard
       title={title} data={data} wfull={wfull} describe={describe} subheader={statsHeader}
       tickFormatter={formatTick} ticks={xTicks} formatLabel={formatHeader} showEmptyWrapper={explainGaps}
+      drillAnchor={drillAnchor}
     >
       <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
         label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />

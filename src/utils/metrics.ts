@@ -50,7 +50,7 @@ export function buildMetrics(options?: { paired?: boolean }): Metric[] {
   const targetMetrics: MetricSpec[] = paired
     ? TARGET_IDS.map((id) => ({
         key: `hit_${id}` as Metric["key"],
-        label: `${TARGET_LABELS[id]} — Hit / Destroyed`,
+        label: targetPairLabel(id),
         pairedKey: `destroyed_${id}` as Metric["key"],
         primaryLabel: "Hit",
         pairedLabel: "Destroyed",
@@ -63,6 +63,12 @@ export function buildMetrics(options?: { paired?: boolean }): Metric[] {
       ]);
 
   return withIds([...base, ...targetMetrics]);
+}
+
+// A target's paired daily chart: "Tanks — Hit / Destroyed". Exported for the
+// monthly page, whose chart for it is titled just "Tanks" and drills down here.
+export function targetPairLabel(id: (typeof TARGET_IDS)[number]): string {
+  return `${TARGET_LABELS[id]} — Hit / Destroyed`;
 }
 
 // The title of a metric's own chart in the unpaired list — where the hourly

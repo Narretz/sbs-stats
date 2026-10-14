@@ -748,6 +748,11 @@ export type RuAdDailyRow = {
 
 export type RuAdGlobalStats = { total: RuAdStat; night: RuAdStat; day: RuAdStat };
 
+// The RU MoD daily page's two charts, named here because the monthly page's
+// charts drill down to them by these titles' anchors.
+export const RU_MOD_DAILY_TOTAL_TITLE = "UAVs Downed — Daily Total";
+export const RU_MOD_DAILY_WINDOWS_TITLE = "By Reporting Window — Overnight vs Daytime";
+
 export type RuAdMonthlyRow = {
   date: string; // "YYYY-MM"
   is_current_month: boolean;

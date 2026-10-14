@@ -30,6 +30,10 @@ export interface ChartLegendEntry {
 
 interface Props<TData extends { date: string }> {
   title: string;
+  /** The anchor the sheet's "By day →" link lands on, when the daily page
+   *  titles this chart differently. Defaults to this chart's own anchor; ""
+   *  opens the daily page at the top, for a chart it doesn't have. */
+  drillAnchor?: string;
   data: TData[];
   // Optional legend rendered just below the title (matches the bar fills).
   legend?: ChartLegendEntry[];
@@ -64,7 +68,7 @@ interface Props<TData extends { date: string }> {
 const monthTick = (v: string) => v.slice(0, 7).replace("-", "/");
 
 export function MonthlyChartCard<TData extends { date: string }>({
-  title, data, legend, wfull, describe, formatLabel, tickFormatter = monthTick, ticks, showEmptyWrapper, subheader,
+  title, drillAnchor, data, legend, wfull, describe, formatLabel, tickFormatter = monthTick, ticks, showEmptyWrapper, subheader,
   entryOf, cursor, children,
 }: Props<TData>) {
   const { theme: t } = useTheme();
@@ -78,6 +82,7 @@ export function MonthlyChartCard<TData extends { date: string }>({
     describe: describe ?? (() => null),
     formatLabel,
     periodOf: (d) => d.date.slice(0, 7),
+    drillAnchor,
     showEmptyWrapper,
     entryOf,
     cursor,

@@ -8,6 +8,8 @@ import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
 import { padTrailingMonthly } from "@/utils/padTrailing";
 import type { MonthlyDataPoint } from "@/types";
+import { chartAnchor } from "@/utils/chartAnchor";
+import { RU_MOD_DAILY_TOTAL_TITLE, RU_MOD_DAILY_WINDOWS_TITLE } from "@/types";
 
 interface Props {
   refreshKey?: number;
@@ -69,11 +71,11 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
       hasData={hasData}
       loadingMessage="Loading RU air-defense database…"
       gridChildren={<>
-        <MonthlyBarChart title="UAVs Downed — Monthly Total" data={makeDataset("total")} wfull
+        <MonthlyBarChart title="UAVs Downed — Monthly Total" drillAnchor={chartAnchor(RU_MOD_DAILY_TOTAL_TITLE)} data={makeDataset("total")} wfull
           globalMax={allStats.total?.max ?? 0} globalMedian={allStats.total?.median ?? 0} globalTotal={allStats.total?.total ?? 0} />
-        <MonthlyBarChart title="Overnight Reports" data={makeDataset("night")} wfull={false}
+        <MonthlyBarChart title="Overnight Reports" drillAnchor={chartAnchor(RU_MOD_DAILY_WINDOWS_TITLE)} data={makeDataset("night")} wfull={false}
           globalMax={allStats.night?.max ?? 0} globalMedian={allStats.night?.median ?? 0} globalTotal={allStats.night?.total ?? 0} />
-        <MonthlyBarChart title="Daytime Reports" data={makeDataset("day")} wfull={false}
+        <MonthlyBarChart title="Daytime Reports" drillAnchor={chartAnchor(RU_MOD_DAILY_WINDOWS_TITLE)} data={makeDataset("day")} wfull={false}
           globalMax={allStats.day?.max ?? 0} globalMedian={allStats.day?.median ?? 0} globalTotal={allStats.day?.total ?? 0} />
       </>}
     />

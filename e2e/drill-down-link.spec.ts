@@ -87,7 +87,27 @@ test("a paired SBS day lands on the hourly chart of its primary series", async (
   await pin(page, page.locator(".chart-card#tanks-hit-destroyed"), 0.5);
   await byHour(page).click();
   await expect(page).toHaveURL(/#tanks-hit$/);
-  await expect(page.locator(".hourly-card#tanks-hit")).toBeInViewport();
+  const target = page.locator(".hourly-card#tanks-hit");
+  await expect(target).toBeInViewport();
+  // …and its top clear of the sticky header and controls bar, once the jump
+  // has settled (it scrolls twice): the hourly cards once landed behind them.
+  await expect.poll(async () => {
+    const top = (await target.boundingBox())!.y;
+    const stuck = await page.evaluate(() => Math.max(0, ...[...document.querySelectorAll(".app-header, .page-controls-sticky")]
+      .filter((el) => getComputedStyle(el).position === "sticky")
+      .map((el) => el.getBoundingClientRect().bottom)));
+    return top >= stuck - 1;
+  }).toBe(true);
+});
+
+test("a monthly chart the daily page titles differently lands on the daily one", async ({ page }) => {
+  // SBS's monthly "Tanks" is "Tanks — Hit / Destroyed" by day (targetPairLabel).
+  await page.goto("/?site=sbs&page=monthly");
+  await page.waitForSelector(".chart-card");
+  await pin(page, page.locator(".chart-card#tanks"), 0.6);
+  await byDay(page).click();
+  await expect(page).toHaveURL(/#tanks-hit-destroyed$/);
+  await expect(page.locator(".chart-card#tanks-hit-destroyed")).toBeInViewport();
 });
 
 test("a daily page without an hourly one has no hourly link", async ({ page }) => {

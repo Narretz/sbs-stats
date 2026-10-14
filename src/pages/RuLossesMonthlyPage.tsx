@@ -115,6 +115,8 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
         <MonthlyBarChart
           key="targets-total"
           title="All Targets — excl. POWs (synthetic)"
+          // No daily counterpart: "By day →" opens the daily page at the top.
+          drillAnchor=""
           data={makeTargetsDataset()}
           wfull
           globalMax={targetsStats.max}

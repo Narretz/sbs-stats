@@ -15,6 +15,7 @@ import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
 import type { RuAdDailyRow, RuAdGlobalStats } from "@/types";
 import { chartColors } from "@/chartColors";
+import { RU_MOD_DAILY_TOTAL_TITLE, RU_MOD_DAILY_WINDOWS_TITLE } from "@/types";
 
 
 function parseWeekdays(raw: string | null): number[] {
@@ -163,7 +164,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
       loadingMessage="Loading RU air-defense database…"
       gridChildren={<>
         <DailyLineChart
-          title="UAVs Downed — Daily Total"
+          title={RU_MOD_DAILY_TOTAL_TITLE}
           data={makeDataset("total")}
           globalMax={globalStats.total.max}
           globalMedian={globalStats.total.median}
@@ -172,7 +173,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
           sourcesByDate={sources}
         />
         <DailyMultiLineChart
-          title="By Reporting Window — Overnight vs Daytime"
+          title={RU_MOD_DAILY_WINDOWS_TITLE}
           series={[
             { key: "night", label: "Overnight", color: chartColors(t).overnight, data: makeDataset("night"),
               globalMax: globalStats.night.max, globalMedian: globalStats.night.median, globalTotal: globalStats.night.total },

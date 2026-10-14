@@ -10,7 +10,8 @@ import { MonthlyTargetPairChart, type MonthlyTargetPairDataPoint } from "@/compo
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
-import { buildMetrics } from "@/utils/metrics";
+import { buildMetrics, targetPairLabel } from "@/utils/metrics";
+import { chartAnchor } from "@/utils/chartAnchor";
 import { padTrailingMonthly } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import { SBS_UNIT_ALL, TARGET_IDS, TARGET_LABELS, sbsUnitLabel } from "@/types";
@@ -286,6 +287,8 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
             <MonthlyTargetPairChart
               key={`target-pair-${targetId}`}
               title={TARGET_LABELS[targetId]}
+              // The daily page calls it "Tanks — Hit / Destroyed".
+              drillAnchor={chartAnchor(targetPairLabel(targetId))}
               data={makeTargetPairDataset(targetId)}
               subsetLabel={SUBSET_LABEL.destroyed}
               globalMax={allStats[`hit_${targetId}`]?.max ?? 0}
