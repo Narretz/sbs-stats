@@ -110,7 +110,7 @@ export const DARK: Theme = {
   bgAlt:        "#0d1420",
   surface:      "#0d1420",
   surfaceBorder:"#1a2540",
-  border:       "#1a2540",
+  border:       "#263967",
   text:         "#e2e8f0",
   textMuted:    "#64748b",
   textFaint:    "#374151",
