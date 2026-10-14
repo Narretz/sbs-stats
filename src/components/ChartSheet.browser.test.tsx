@@ -162,8 +162,12 @@ describe("Chart pin sheet", () => {
     }
   });
 
-  it("links a date's primary sources in the sheet, never in the hover card", async () => {
-    const sources = new Map([[day(7), [{ href: "https://t.me/example/7", linkText: "2026-10-08 08:02 Kyiv", label: "as of 2026-10-08 08:00 Kyiv" }]]]);
+  it("links a date's primary sources in the sheet, behind a toggle, never in the hover card", async () => {
+    try { localStorage.removeItem("chart-sheet-sources-open"); } catch { /* none */ }
+    const sources = new Map([
+      [day(6), [{ href: "https://t.me/example/6", linkText: "2026-10-07 08:01 Kyiv", label: "as of 2026-10-07 08:00 Kyiv" }]],
+      [day(7), [{ href: "https://t.me/example/7", linkText: "2026-10-08 08:02 Kyiv", label: "as of 2026-10-08 08:00 Kyiv" }]],
+    ]);
     await mount(
       <Shell>
         <DailyLineChart title={FIRST} data={rows(1, 7)} globalMax={0} globalMedian={0} wfull sourcesByDate={sources} />
@@ -171,10 +175,16 @@ describe("Chart pin sheet", () => {
     );
     await hover(FIRST);
     await expect.poll(() => tooltipText(FIRST)).not.toBe("");
-    expect(card(FIRST).querySelector(".recharts-tooltip-wrapper a")).toBeNull();
+    expect(card(FIRST).querySelector(".recharts-tooltip-wrapper .chart-sheet-sources")).toBeNull();
 
     await pinAt(FIRST, 0.95);
     expect(sheetLabel()).toBe(label(day(7)));
+    // Collapsed at first: the toggle, its count, no links.
+    const toggle = page.getByRole("button", { name: /Sources \(1\)/ });
+    await expect.element(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(doc.querySelector(".chart-sheet-sources a")).toBeNull();
+
+    await toggle.click();
     const link = doc.querySelector<HTMLAnchorElement>(".chart-sheet-sources a");
     expect(link?.href).toBe("https://t.me/example/7");
     expect(link?.target).toBe("_blank");
@@ -182,9 +192,14 @@ describe("Chart pin sheet", () => {
     expect(link?.textContent).toBe("2026-10-08 08:02 Kyiv ↗");
     await expect.element(sheet()).toMatchTextContent(/as of 2026-10-08 08:00 Kyiv/);
 
-    // A date with none has no source line.
+    // Stepping keeps it open, with the next date's links.
+    await page.getByRole("button", { name: "Previous point" }).click();
+    expect(doc.querySelector<HTMLAnchorElement>(".chart-sheet-sources a")?.href).toBe("https://t.me/example/6");
+
+    // A date with none has no toggle at all.
     await page.getByRole("button", { name: "Previous point" }).click();
     expect(doc.querySelector(".chart-sheet-sources")).toBeNull();
+    try { localStorage.removeItem("chart-sheet-sources-open"); } catch { /* none */ }
   });
 
   it("the stepper is disabled at both ends — it never wraps", async () => {

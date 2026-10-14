@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
 import type { ModelBreakdownEntry } from "@/types";
@@ -397,18 +397,46 @@ export function DescriptorCard({ d }: { d: TooltipDescriptor | null }) {
   );
 }
 
-// The sheet's source links, one line each: "2026-10-12 21:34 MSK ↗ as of …".
+// Whether the sheet shows its source links — collapsed by default, and the
+// reader's choice kept across dates, charts and visits. A convenience, so
+// storage that's missing or blocked just means starting collapsed.
+const SOURCES_OPEN_KEY = "chart-sheet-sources-open";
+function readSourcesOpen(): boolean {
+  try { return localStorage.getItem(SOURCES_OPEN_KEY) === "1"; } catch { return false; }
+}
+function writeSourcesOpen(open: boolean) {
+  try { localStorage.setItem(SOURCES_OPEN_KEY, open ? "1" : "0"); } catch { /* not kept */ }
+}
+
+// The sheet's source links behind a toggle, one line each when open:
+// "2026-10-12 21:34 Moscow ↗ as of …".
 function SourceLinks({ sources }: { sources: SheetSource[] }) {
   const { theme: t } = useTheme();
+  const [open, setOpen] = useState(readSourcesOpen);
+  const listId = useId();
+  const toggle = () => {
+    setOpen((o) => {
+      writeSourcesOpen(!o);
+      return !o;
+    });
+  };
   return (
-    <div className="chart-sheet-sources" style={{ marginTop: 6, flex: "none", display: "flex", flexDirection: "column", gap: 2, fontSize: "0.917em" }}>
-      {sources.map((s) => (
-        <div key={s.href} style={{ color: t.textMuted }}>
-          <a href={s.href} target="_blank" rel="nofollow external noreferrer" style={{ color: t.primary }}>
-            {s.linkText ?? "Source"} ↗
-          </a>{s.label && <>{" "}{s.label}</>}
+    <div className="chart-sheet-sources" style={{ marginTop: 6, flex: "none", fontSize: "0.917em" }}>
+      {/* The site's standard control (.ctl). + / − (U+2212) are both in PT Mono. */}
+      <button type="button" className="ctl" aria-expanded={open} aria-controls={listId} onClick={toggle}>
+        {open ? "\u2212" : "+"} Sources ({sources.length})
+      </button>
+      {open && (
+        <div id={listId} style={{ marginTop: 3, display: "flex", flexDirection: "column", gap: 2 }}>
+          {sources.map((s) => (
+            <div key={s.href} style={{ color: t.textMuted }}>
+              <a href={s.href} target="_blank" rel="nofollow external noreferrer" style={{ color: t.primary }}>
+                {s.linkText ?? "Source"} ↗
+              </a>{s.label && <>{" "}{s.label}</>}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }

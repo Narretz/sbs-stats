@@ -54,6 +54,7 @@ test("a pinned GSUA day links the report its figures come from", async ({ page }
   const box = (await svg.boundingBox())!;
   await svg.click({ position: { x: box.width * 0.5, y: box.height * 0.5 } });
   const sources = page.locator(".chart-sheet[data-open] .chart-sheet-sources");
+  await sources.getByRole("button", { name: /Sources \(\d+\)/ }).click();
   await expect(sources.locator("a").first()).toHaveAttribute("href", "https://t.me/test");
   // Linked as when it went up, then the report's "as of" time.
   await expect(sources.locator("a").first()).toHaveText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2} Kyiv ↗$/);
