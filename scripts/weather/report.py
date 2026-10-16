@@ -147,7 +147,7 @@ def _split_note(s: assess.DaySummary) -> str:
 
 COLUMNS = (
     ("SECTOR", 22), ("TEMP °C", 9), ("PRECIP", 7), ("WIND/GUST", 10),
-    ("VIS km", 7), ("LOW CLD", 8), ("WET72", 6), ("DRONES", 21), ("GROUND", 0),
+    ("VIS km", 7), ("LOW CLD", 8), ("WET72", 6), ("DRONES", 28), ("GROUND", 0),
 )
 
 
