@@ -304,3 +304,80 @@ class TestAppCopy:
         full, small = view(db), view(app)
         assert small[:2] == full[:2]
         assert small[2] == (121, 119)  # one row per week, the dropped one gone
+
+
+def _releases(db):
+    import sqlite3
+    conn = sqlite3.connect(db)
+    try:
+        return conn.execute(
+            "SELECT published_at, scraped_at, source, bundle_url, note FROM releases "
+            "ORDER BY published_at, scraped_at").fetchall()
+    finally:
+        conn.close()
+
+
+class TestReleasesProvenance:
+    PROV = {"source": "live", "article_url": "https://en.zona.media/a",
+            "bundle_url": "https://s3.zona.media/infographics/bodycount/main.ab.js.br"}
+
+    def test_a_run_that_stores_records_its_source(self, tmp_path):
+        db = tmp_path / "m.db"
+        ig.build(db, _roles(120), _estimate(120), "2026-10-09T14:20:52+00:00", "2026-10-09", self.PROV)
+        assert _releases(db) == [("2026-10-09", "2026-10-09T14:20:52+00:00", "live",
+                                  self.PROV["bundle_url"], None)]
+
+    def test_a_run_that_stores_nothing_records_nothing(self, tmp_path):
+        db = tmp_path / "m.db"
+        ig.build(db, _roles(120), _estimate(120), "2026-10-09T14:20:52+00:00", "2026-10-09", self.PROV)
+        ig.build(db, _roles(120), _estimate(120), "2026-10-12T07:00:00+00:00", "2026-10-09", self.PROV)
+        assert len(_releases(db)) == 1
+
+    def test_without_provenance_it_is_csv(self, tmp_path):
+        db = tmp_path / "m.db"
+        ig.build(db, _roles(120), _estimate(120), "2026-05-28T08:23:05+00:00", "2026-05-22")
+        assert _releases(db)[0][2] == "csv"
+
+
+class TestFillReleases:
+    """backfill.fill_releases: provenance for versions stored before `releases`."""
+
+    BUNDLES = [  # (published_at, capture in scraped_at form, bundle)
+        ("2025-10-10", "2025-10-10T15:55:03+00:00", "main.aa.js.gz"),
+        ("2026-05-23", "2026-05-22T21:23:01+00:00", "main.bb.js.gz"),
+        ("2026-10-09", "2026-10-09T14:32:55+00:00", "main.cc.js.br"),
+    ]
+
+    def _db(self, tmp_path):
+        import sqlite3
+        db = tmp_path / "m.db"
+        for i, (pub, scraped) in enumerate((
+                ("2025-10-10", "2025-10-10T15:55:03+00:00"),    # backfilled
+                ("2026-05-22", "2026-05-28T08:23:05+00:00"),    # CSV, a day off
+                ("2026-10-09", "2026-10-09T14:20:52+00:00"),    # live, captured after
+                ("2026-11-06", "2026-11-07T07:00:00+00:00"))):  # nothing listed
+            ig.build(db, _roles(130), _estimate(130, i + 1), scraped, pub)
+        conn = sqlite3.connect(db)
+        conn.execute("DELETE FROM releases")  # as before the table existed
+        conn.commit()
+        conn.close()
+        return db
+
+    def test_each_kind_of_version_is_matched(self, tmp_path):
+        import backfill
+        db = self._db(tmp_path)
+        assert backfill.fill_releases(db, self.BUNDLES) == 4
+        got = {r[0]: r for r in _releases(db)}
+        assert got["2025-10-10"][2:4] == ("wayback", backfill.S3 + "main.aa.js.gz")
+        # Wayback captured the live bundle minutes after the ingest: still matched
+        assert got["2026-10-09"][2:4] == ("live", backfill.S3 + "main.cc.js.br")
+        # a bundle a day off is named, but not claimed
+        assert got["2026-05-22"][2:4] == ("unknown", backfill.S3 + "main.bb.js.gz")
+        assert got["2026-11-06"][2:4] == ("unknown", None)
+        assert all("not recorded at ingest" in r[4] or "releases.csv" in r[4] for r in got.values())
+
+    def test_filling_twice_adds_nothing(self, tmp_path):
+        import backfill
+        db = self._db(tmp_path)
+        backfill.fill_releases(db, self.BUNDLES)
+        assert backfill.fill_releases(db, self.BUNDLES) == 0

@@ -73,6 +73,23 @@ ROLE_COLS = [
 # date because a backfilled 2023 release covers barely a year (55 weeks).
 MAX_DROPPED_WEEKS = 2
 
+# `releases` — where each stored release version came from, keyed like the
+# weekly rows by (published_at, scraped_at). `source`: `live` (the article, by
+# ingest.py), `wayback` (a past bundle, by backfill.py; scraped_at is then its
+# capture time) or `csv` (local exports). `archive_url` is the Wayback capture;
+# `note` says when a row was filled in after the fact rather than recorded.
+RELEASE_COLS = ["source", "article_url", "bundle_url", "archive_url", "note"]
+RELEASES_DDL = """CREATE TABLE IF NOT EXISTS releases (
+    published_at TEXT NOT NULL,
+    scraped_at TEXT NOT NULL,
+    source TEXT NOT NULL,
+    article_url TEXT,
+    bundle_url TEXT,
+    archive_url TEXT,
+    note TEXT,
+    PRIMARY KEY (published_at, scraped_at)
+);"""
+
 
 def min_rows(published_at: str) -> int:
     days = (date_cls.fromisoformat(published_at) - date_cls(2022, 2, 24)).days
@@ -169,27 +186,34 @@ def parse_roles(path: Path) -> list[tuple]:
     return rows
 
 
+# Cloudflare in front of en.zona.media 403s bare urllib and also custom UA
+# hints like "(sbs-stats-ingest)"; use a full browser-shaped UA.
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+}
+
+
 def _fetch(url: str) -> bytes:
-    # Cloudflare in front of en.zona.media 403s bare urllib and also custom
-    # UA hints like "(sbs-stats-ingest)"; use a full browser-shaped UA.
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": (
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-            ),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-        },
-    )
+    return _fetch_final(url)[0]
+
+
+def _fetch_final(url: str) -> tuple[bytes, str]:
+    """`_fetch`, plus the URL it ended up at after redirects: the dated article
+    URL the workflow points at redirects to the current release's."""
+    req = urllib.request.Request(url, headers=_HEADERS)
     with urllib.request.urlopen(req, timeout=60) as r:
-        return r.read()
+        return r.read(), r.geturl()
 
 
-def fetch_bundle(article_url: str) -> str:
+def fetch_bundle(article_url: str) -> tuple[str, dict]:
     """Resolve the bodycount JS bundle URL from the article HTML and return
-    its decoded source.
+    its decoded source, plus its provenance for the `releases` table: the
+    article URL after redirects and the bundle URL.
 
     The article HTML embeds the bundle via a hashed S3 path
     (`.../main.<hash>.js.<gz|br>`); the hash changes with each release, so we
@@ -200,7 +224,8 @@ def fetch_bundle(article_url: str) -> str:
     `Accept-Encoding: br` — so the response is already plain JS. Detect
     either case: decompress iff the payload looks compressed.
     """
-    html = _fetch(article_url).decode("utf-8", errors="replace")
+    raw_html, final_url = _fetch_final(article_url)
+    html = raw_html.decode("utf-8", errors="replace")
     m = re.search(
         r'(https://s3\.zona\.media/infographics/bodycount/main\.[a-f0-9]+\.js\.(?:gz|br))',
         html,
@@ -208,11 +233,11 @@ def fetch_bundle(article_url: str) -> str:
     if not m:
         raise RuntimeError(f"no bodycount bundle URL found in {article_url}")
     bundle_url = m.group(1)
-    print(f"[fetch] article {article_url}\n         -> bundle {bundle_url}")
+    print(f"[fetch] article {final_url}\n         -> bundle {bundle_url}")
     raw = _fetch(bundle_url)
     if raw[:2] == b"\x1f\x8b":  # gzip magic
         raw = gzip.decompress(raw)
-    return raw.decode("utf-8")
+    return raw.decode("utf-8"), {"source": "live", "article_url": final_url, "bundle_url": bundle_url}
 
 
 def _extract_json_blobs(bundle: str) -> list[object]:
@@ -467,13 +492,15 @@ def parse_bundle(bundle: str) -> tuple[list[tuple], list[tuple] | None, str]:
     )
 
 
-def fetch_from_article(article_url: str) -> tuple[list[tuple], list[tuple], str]:
-    """End-to-end: article URL → (roles_rows, estimate_rows, published_at_iso).
-    The live article always carries the estimate; a bundle without one is broken."""
-    roles, estimate, published_at = parse_bundle(fetch_bundle(article_url))
+def fetch_from_article(article_url: str) -> tuple[list[tuple], list[tuple], str, dict]:
+    """End-to-end: article URL → (roles_rows, estimate_rows, published_at_iso,
+    provenance). The live article always carries the estimate; a bundle without
+    one is broken."""
+    bundle, provenance = fetch_bundle(article_url)
+    roles, estimate, published_at = parse_bundle(bundle)
     if estimate is None:
         raise RuntimeError(f"no probate-estimate blob in {article_url}'s bundle")
-    return roles, estimate, published_at
+    return roles, estimate, published_at, provenance
 
 
 def parse_estimate(path: Path) -> list[tuple]:
@@ -518,8 +545,13 @@ def build(
     estimate: list[tuple] | None,
     scraped_at: str,
     published_at: str,
+    provenance: dict | None = None,
 ) -> tuple[dict, dict]:
     """Append changed/new week-versions into db_path. Never mutates/deletes rows.
+
+    A run that stores anything also records where it came from in `releases`
+    (one row per stored (published_at, scraped_at)): `provenance` gives the
+    `source` and URLs, as `RELEASE_COLS` names them.
 
     A week's values are compared with its latest version *as of this release*
     — so a release older than what is stored (a backfill) is compared with the
@@ -562,6 +594,7 @@ def build(
                 {role_cols_sql},
                 PRIMARY KEY (week, scraped_at)
             );
+            {RELEASES_DDL}
             CREATE TABLE IF NOT EXISTS weekly_estimate (
                 week TEXT NOT NULL,
                 scraped_at TEXT NOT NULL,
@@ -663,6 +696,12 @@ def build(
                 estimate_to_insert,
             )
         if roles_to_insert or estimate_to_insert:
+            prov = provenance or {"source": "csv"}
+            conn.execute(
+                f"INSERT OR REPLACE INTO releases (published_at, scraped_at, {', '.join(RELEASE_COLS)}) "
+                f"VALUES (?, ?, {', '.join('?' * len(RELEASE_COLS))})",
+                [published_at, scraped_at, *[prov.get(c) for c in RELEASE_COLS]],
+            )
             conn.commit()
             conn.execute("VACUUM")
             conn.commit()
@@ -703,7 +742,7 @@ def main() -> int:
     args = ap.parse_args()
 
     if args.from_article:
-        roles, estimate, derived_published_at = fetch_from_article(args.from_article)
+        roles, estimate, derived_published_at, provenance = fetch_from_article(args.from_article)
         published_at = args.published_at or derived_published_at
     else:
         if not args.published_at:
@@ -711,13 +750,14 @@ def main() -> int:
         roles = parse_roles(Path(args.roles))
         estimate = parse_estimate(Path(args.estimate))
         published_at = args.published_at
+        provenance = {"source": "csv"}
 
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", published_at):
         raise SystemExit(f"published_at must be YYYY-MM-DD, got {published_at!r}")
 
     scraped_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     out = Path(args.out)
-    r, e = build(out, roles, estimate, scraped_at, published_at)
+    r, e = build(out, roles, estimate, scraped_at, published_at, provenance)
     fmt = lambda s: (
         f"{s['new']:>4} new, {s['revised']:>4} revised, {s['unchanged']:>4} unchanged "
         + (f", {s['removed']} removed" if s.get('removed') else "")

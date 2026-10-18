@@ -277,6 +277,25 @@ and the ingest compares a release with the latest version **as of that
 release**, so a backfilled one is compared with the release before it, never
 with a newer one.
 
+**Where each version came from** is in `releases`, one row per stored
+`(published_at, scraped_at)` — a run that stores nothing adds none:
+
+| Column | |
+|---|---|
+| `source` | `live` (the article, by `ingest.py`), `wayback` (a past bundle, by `backfill.py`; `scraped_at` is its capture time), `csv` (local exports), or `unknown` |
+| `article_url` | the article after redirects — the workflow's dated URL redirects to the current release's (live runs only) |
+| `bundle_url` | the chart bundle on Mediazona's S3, still downloadable |
+| `archive_url` | its Wayback capture |
+| `note` | set when the row was filled in after the fact rather than recorded |
+
+The table arrived after the backfill and the first live releases; `backfill.py`
+fills in every version without a row, once. A backfilled version matches its
+bundle in `releases.csv` exactly by capture time. One the live ingest stored
+before the table existed (22/05 – 09/10/2026) gets the listed bundle with its
+release date, noted as matched rather than recorded; the first, 22/05/2026, came
+from CSV exports a day before its bundle's date, so it is `unknown` with that
+bundle named. The app copy leaves the table out.
+
 A week can also **disappear**: the 24/04/2026 release dropped the estimate's
 trailing partial week (2025-08-18), which the release before had shown. Since
 a row is never deleted, the ingest stores an empty row (`documented` and

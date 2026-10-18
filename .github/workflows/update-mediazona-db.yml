@@ -55,7 +55,8 @@ jobs:
 
       # Past releases, from the bundles still on S3 (see backfill.py). Only
       # those older than the oldest stored release are added, each compared
-      # with the release before it; a no-op once done. Never without the
+      # with the release before it, and fills in the `releases` provenance
+      # table for versions stored before it existed; a no-op once done. Never without the
       # stored DB: into an empty one it would add every listed release, and
       # the upload would replace R2's history with it.
       - name: Backfill past Mediazona releases

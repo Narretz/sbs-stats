@@ -23,3 +23,7 @@ DELETE FROM weekly_estimate WHERE rowid NOT IN (
 
 -- A week a newer release dropped: its latest version is the empty row.
 DELETE FROM weekly_estimate WHERE documented IS NULL AND estimate IS NULL;
+
+-- Where each release version came from: provenance for the full DB, not read
+-- by the app.
+DROP TABLE IF EXISTS releases;
