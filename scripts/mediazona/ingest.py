@@ -77,8 +77,9 @@ MAX_DROPPED_WEEKS = 2
 # weekly rows by (published_at, scraped_at). `source`: `live` (the article, by
 # ingest.py), `wayback` (a past bundle, by backfill.py; scraped_at is then its
 # capture time) or `csv` (local exports). `archive_url` is the Wayback capture;
-# `note` says when a row was filled in after the fact rather than recorded.
-RELEASE_COLS = ["source", "article_url", "bundle_url", "archive_url", "note"]
+# `note` says when a row was filled in after the fact rather than recorded. The
+# article pages it came in are in `articles`, by `bundle_url`.
+RELEASE_COLS = ["source", "bundle_url", "archive_url", "note"]
 # `articles` — the article pages a release was published in: the English one
 # (dated per release since 28/03/2025, before that one page updated in place)
 # and the Russian zona.media/casualties (updated in place throughout). One row
@@ -200,12 +201,19 @@ RELEASES_DDL = """CREATE TABLE IF NOT EXISTS releases (
     published_at TEXT NOT NULL,
     scraped_at TEXT NOT NULL,
     source TEXT NOT NULL,
-    article_url TEXT,
     bundle_url TEXT,
     archive_url TEXT,
     note TEXT,
     PRIMARY KEY (published_at, scraped_at)
 );"""
+
+
+def ensure_releases(conn: sqlite3.Connection) -> None:
+    """Create `releases`, or bring an older one up to date: until 18/10/2026 it
+    had an `article_url`, which the `articles` table now holds."""
+    conn.execute(RELEASES_DDL)
+    if "article_url" in [r[1] for r in conn.execute("PRAGMA table_info(releases)")]:
+        conn.execute("ALTER TABLE releases DROP COLUMN article_url")
 
 
 def min_rows(published_at: str) -> int:
@@ -712,7 +720,6 @@ def build(
                 {role_cols_sql},
                 PRIMARY KEY (week, scraped_at)
             );
-            {RELEASES_DDL}
             CREATE TABLE IF NOT EXISTS weekly_estimate (
                 week TEXT NOT NULL,
                 scraped_at TEXT NOT NULL,
@@ -723,6 +730,8 @@ def build(
             );
             """
         )
+
+        ensure_releases(conn)
 
         # Latest stored version per week as of this release, for change
         # detection. Mirrors ru_losses' LATEST_PER_DATE pattern.

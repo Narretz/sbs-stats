@@ -283,7 +283,6 @@ with a newer one.
 | Column | |
 |---|---|
 | `source` | `live` (the article, by `ingest.py`), `wayback` (a past bundle, by `backfill.py`; `scraped_at` is its capture time), `csv` (local exports), or `unknown` |
-| `article_url` | the article after redirects — the workflow's dated URL redirects to the current release's (live runs only) |
 | `bundle_url` | the chart bundle on Mediazona's S3, still downloadable |
 | `archive_url` | its Wayback capture |
 | `note` | set when the row was filled in after the fact rather than recorded |
@@ -318,7 +317,7 @@ Russian one (a failure on the latter is a warning). For the past,
 `backfill.py --discover` matches each bundle to an archived capture of each
 article that embeds it — of the five captures nearest the bundle's own, the
 first naming it — and records the pair in `releases.csv`; `backfill.py` then
-stores those pages (cached in `output/articles/`) and sets `releases.article_url`.
+stores those pages (cached in `output/articles/`).
 The headline gives a date and a count for every release, the 2022 ones whose
 bundles aren't decoded too, and it is the article's date: `url_date` is only the
 URL's. Mediazona didn't always open a new dated URL — the 11/04/2025 release

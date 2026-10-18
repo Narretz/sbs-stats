@@ -420,7 +420,7 @@ class TestArticleParsing:
 
 
 class TestFillArticles:
-    def test_pages_are_stored_once_and_releases_get_their_article(self, tmp_path, monkeypatch):
+    def test_pages_are_stored_once(self, tmp_path, monkeypatch):
         import sqlite3
         import backfill
         db = tmp_path / "m.db"
@@ -435,6 +435,20 @@ class TestFillArticles:
         assert backfill.fill_articles(db, listed) == 2
         assert backfill.fill_articles(db, listed) == 0
         conn = sqlite3.connect(db)
-        assert conn.execute("SELECT article_url FROM releases").fetchone()[0] == listed[0]["article_en"]
         assert conn.execute("SELECT COUNT(*) FROM articles WHERE bundle_url LIKE '%1388a5a2%'").fetchone()[0] == 2
         conn.close()
+
+
+def test_an_old_releases_table_loses_article_url(tmp_path):
+    import sqlite3
+    db = tmp_path / "m.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE releases (published_at TEXT NOT NULL, scraped_at TEXT NOT NULL, "
+                 "source TEXT NOT NULL, article_url TEXT, bundle_url TEXT, archive_url TEXT, note TEXT, "
+                 "PRIMARY KEY (published_at, scraped_at))")
+    conn.execute("INSERT INTO releases VALUES ('2026-10-09', 'x', 'live', 'https://a', 'https://b', NULL, NULL)")
+    ig.ensure_releases(conn)
+    assert [r[1] for r in conn.execute("PRAGMA table_info(releases)")] == [
+        "published_at", "scraped_at", "source", "bundle_url", "archive_url", "note"]
+    assert conn.execute("SELECT bundle_url FROM releases").fetchone()[0] == "https://b"
+    conn.close()

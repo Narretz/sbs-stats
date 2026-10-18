@@ -211,7 +211,7 @@ def fill_releases(db: Path, bundles: list[tuple[str, str, str]]) -> int:
     by_capture = {captured_iso(cap): (p, b) for p, cap, b in bundles}
     conn = sqlite3.connect(db)
     try:
-        conn.execute(ingest.RELEASES_DDL)
+        ingest.ensure_releases(conn)
         missing = conn.execute("""
             SELECT DISTINCT published_at, scraped_at FROM (
               SELECT published_at, scraped_at FROM weekly_roles
@@ -266,8 +266,8 @@ def match_live(pub: str, scraped: str, bundles: list[tuple[str, str, str]]) -> d
 
 def fill_articles(db: Path, listed: list[dict]) -> int:
     """Store the archived article pages `releases.csv` matched to each bundle
-    (`articles`), and give `releases` rows their English article URL. Pages
-    come from output/articles/ or Wayback. Skips page versions already stored."""
+    (`articles`). Pages come from output/articles/ or Wayback. Skips page
+    versions already stored."""
     if not db.exists():
         return 0
     conn = sqlite3.connect(db)
@@ -282,9 +282,6 @@ def fill_articles(db: Path, listed: list[dict]) -> int:
                     continue
                 art = ingest.parse_article(article_page(ts, url), url, captured_iso(ts), "wayback")
                 added += ingest.store_article(conn, art)
-            if r.get("article_en"):
-                conn.execute("UPDATE releases SET article_url = ? WHERE article_url IS NULL AND bundle_url = ?",
-                             (r["article_en"], S3 + r["bundle"]))
         conn.commit()
         return added
     finally:
