@@ -40,6 +40,7 @@ data/sbs-units.db
 data/sbu-alfa.db
 data/rubikon.db
 data/mediazona.db
+data/mediazona.app.db
 data/ua-losses.db
 data/cit-civilians.db
 data/cit-civilians.app.db
