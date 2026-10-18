@@ -189,8 +189,9 @@ def captured_ts(iso: str) -> str:
     return re.sub(r"\D", "", iso[:19])
 
 
-def archive_url(ts: str, bundle: str) -> str:
-    return f"https://web.archive.org/web/{ts}/{S3}{bundle}"
+def archive_url(ts: str, target: str) -> str:
+    """The Wayback capture of `target` at `ts`: a full URL, or a bundle name on S3."""
+    return f"https://web.archive.org/web/{ts}/{target if '://' in target else S3 + target}"
 
 
 def fill_releases(db: Path, bundles: list[tuple[str, str, str]]) -> int:
@@ -273,14 +274,15 @@ def fill_articles(db: Path, listed: list[dict]) -> int:
     conn = sqlite3.connect(db)
     added = 0
     try:
-        conn.execute(ingest.ARTICLES_DDL)
+        ingest.ensure_articles(conn)
         have = set(conn.execute("SELECT url, captured FROM articles").fetchall())
         for r in listed:
             for lang in ("en", "ru"):
                 url, ts = r.get(f"article_{lang}"), r.get(f"article_{lang}_captured")
                 if not url or (url, captured_iso(ts)) in have:
                     continue
-                art = ingest.parse_article(article_page(ts, url), url, captured_iso(ts), "wayback")
+                art = ingest.parse_article(article_page(ts, url), url, captured_iso(ts), "wayback",
+                                           archive_url(ts, url))
                 added += ingest.store_article(conn, art)
         conn.commit()
         return added

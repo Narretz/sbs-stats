@@ -84,7 +84,8 @@ RELEASE_COLS = ["source", "bundle_url", "archive_url", "note"]
 # (dated per release since 28/03/2025, before that one page updated in place)
 # and the Russian zona.media/casualties (updated in place throughout). One row
 # per page version (url, captured): a Wayback capture, or the live fetch of a
-# run that stored a release. Linked to `releases` by `bundle_url`, the chart
+# run that stored a release; `archive_url` is the Wayback capture (none for a
+# live fetch). Linked to `releases` by `bundle_url`, the chart
 # bundle the page embeds. `headline` is the page's og:description ("Over 5 801
 # deaths confirmed by August 25"), with its date and count parsed out;
 # `list_updated` / `estimate_updated` the "Last update to the named list / to
@@ -95,6 +96,7 @@ ARTICLES_DDL = """CREATE TABLE IF NOT EXISTS articles (
     captured TEXT NOT NULL,
     source TEXT NOT NULL,
     lang TEXT NOT NULL,
+    archive_url TEXT,
     bundle_url TEXT,
     url_date TEXT,
     headline TEXT,
@@ -107,7 +109,7 @@ ARTICLES_DDL = """CREATE TABLE IF NOT EXISTS articles (
     html BLOB NOT NULL,
     PRIMARY KEY (url, captured)
 );"""
-ARTICLE_COLS = ["source", "lang", "bundle_url", "url_date", "headline", "headline_date",
+ARTICLE_COLS = ["source", "lang", "archive_url", "bundle_url", "url_date", "headline", "headline_date",
                 "headline_count", "list_updated", "estimate_updated", "title", "text", "html"]
 RU_ARTICLE_URL = "https://zona.media/casualties"
 
@@ -151,7 +153,8 @@ def _count_in(text: str) -> int | None:
     return int(re.sub(r"\D", "", num))
 
 
-def parse_article(page: str, url: str, captured: str, source: str) -> dict:
+def parse_article(page: str, url: str, captured: str, source: str,
+                  archive_url: str | None = None) -> dict:
     """One article page → an `articles` row (as a dict, `html` compressed)."""
     import html as htmlmod
     import zlib
@@ -174,6 +177,7 @@ def parse_article(page: str, url: str, captured: str, source: str) -> dict:
     return {
         "url": url, "captured": captured, "source": source,
         "lang": "ru" if "//zona.media" in url else "en",
+        "archive_url": archive_url,
         "bundle_url": bundle.group(1) if bundle else None,
         "url_date": "-".join(url_date.groups()) if url_date else None,
         "headline": headline,
@@ -187,9 +191,16 @@ def parse_article(page: str, url: str, captured: str, source: str) -> dict:
     }
 
 
+def ensure_articles(conn: sqlite3.Connection) -> None:
+    """Create `articles`, or add `archive_url` to one built before it had it."""
+    conn.execute(ARTICLES_DDL)
+    if "archive_url" not in [r[1] for r in conn.execute("PRAGMA table_info(articles)")]:
+        conn.execute("ALTER TABLE articles ADD COLUMN archive_url TEXT")
+
+
 def store_article(conn: sqlite3.Connection, art: dict) -> bool:
     """Insert one `articles` row unless that page version is stored. True if new."""
-    conn.execute(ARTICLES_DDL)
+    ensure_articles(conn)
     cur = conn.execute(
         f"INSERT OR IGNORE INTO articles (url, captured, {', '.join(ARTICLE_COLS)}) "
         f"VALUES (?, ?, {', '.join('?' * len(ARTICLE_COLS))})",

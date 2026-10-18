@@ -301,11 +301,17 @@ bundle the page embeds): the English article, dated per release since
 28/03/2025 (`…/article/2025/03/28/casualties_eng-trl`) and before that one page
 updated in place (`…/article/2022/05/20/casualties_eng`), and the Russian
 `zona.media/casualties`, updated in place throughout and carrying the
-biweekly summary text. Columns:
+biweekly summary text. Russian is the original (the English URLs end in
+`-trl`), and the only article for some releases: May–August 2022, before the
+English page, and a few later ones no English capture shows. On days with two
+bundles Mediazona built one per language (the same data, translated labels), so
+a release's two pages can embed different bundles — `releases` points at the
+one stored first. Columns:
 
 | Column | |
 |---|---|
 | `source`, `lang` | `wayback` / `live`; `en` / `ru` |
+| `archive_url` | the Wayback capture the page was taken from (none for a live fetch) |
 | `url_date` | the date in a dated English URL |
 | `headline`, `headline_date`, `headline_count` | the page's og:description ("Over 5 801 deaths confirmed by August 25", "Больше 6,2 тысяч смертей к 9 сентября") and the date and count parsed from it — a year-less date gets the latest year on or before the capture |
 | `list_updated`, `estimate_updated` | "Last update to the named list / to the Probate Registry estimate" (and the Russian equivalents), where the page has them |

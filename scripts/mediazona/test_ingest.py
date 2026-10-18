@@ -436,6 +436,8 @@ class TestFillArticles:
         assert backfill.fill_articles(db, listed) == 0
         conn = sqlite3.connect(db)
         assert conn.execute("SELECT COUNT(*) FROM articles WHERE bundle_url LIKE '%1388a5a2%'").fetchone()[0] == 2
+        assert conn.execute("SELECT archive_url FROM articles WHERE lang = 'en'").fetchone()[0] == (
+            "https://web.archive.org/web/20261009150000/" + listed[0]["article_en"])
         conn.close()
 
 
