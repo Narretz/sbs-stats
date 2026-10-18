@@ -38,12 +38,14 @@ from __future__ import annotations
 import argparse
 import csv
 import gzip
+import hashlib
 import os
 import re
 import sqlite3
 import sys
+import time
 import urllib.request
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import ingest
@@ -59,6 +61,72 @@ BUNDLE_RE = re.compile(r"https?://s3\.zona\.media/infographics/bodycount/(main\.
 FIRST_DECODED = "20230311"
 
 
+ARTICLE_CACHE = SCRIPT_DIR / "output" / "articles"
+CDX_EN = ("https://web.archive.org/cdx/search/cdx?url=en.zona.media/article/&matchType=prefix"
+          "&fl=timestamp,original,statuscode&filter=original:.*casualties.*&limit=20000")
+CDX_RU = ("https://web.archive.org/cdx/search/cdx?url=zona.media/casualties"
+          "&fl=timestamp,original,statuscode&limit=20000")
+EN_ARTICLE_RE = re.compile(r"https?://(?:www\.)?(en\.zona\.media/article/\d{4}/\d{2}/\d{2}/casualties_eng(?:-trl)?)/?")
+ARTICLE_FIELDS = ["article_en", "article_en_captured", "article_ru", "article_ru_captured"]
+
+
+def _get(url: str, tries: int = 4) -> bytes:
+    """Wayback is slow and drops connections; retry with backoff."""
+    for i in range(tries):
+        try:
+            return ingest._fetch(url)
+        except Exception:  # noqa: BLE001
+            if i == tries - 1:
+                raise
+            time.sleep(3 + 5 * i)
+    raise AssertionError
+
+
+def article_page(ts: str, url: str) -> str:
+    """An archived article page, decoded (Wayback serves some captures still
+    gzipped), cached in output/articles/."""
+    path = ARTICLE_CACHE / f"{ts}_{hashlib.sha1(url.encode()).hexdigest()[:10]}.html"
+    if not path.exists():
+        raw = _get(f"https://web.archive.org/web/{ts}id_/{url}")
+        if raw[:2] == b"\x1f\x8b":
+            raw = gzip.decompress(raw)
+        ARTICLE_CACHE.mkdir(parents=True, exist_ok=True)
+        path.write_text(raw.decode("utf-8", errors="replace"), encoding="utf-8")
+    return path.read_text(encoding="utf-8")
+
+
+def article_captures() -> dict[str, list[tuple[str, str]]]:
+    """Every clean 200 capture of the English and the Russian article."""
+    en, ru = [], []
+    for line in _get(CDX_EN).decode().splitlines():
+        ts, url, status = line.split(" ")
+        m = EN_ARTICLE_RE.fullmatch(url.split("?")[0])
+        if m and status == "200":
+            en.append((ts, "https://" + m.group(1)))
+    for line in _get(CDX_RU).decode().splitlines():
+        ts, url, status = line.split(" ")
+        if status == "200":
+            ru.append((ts, ingest.RU_ARTICLE_URL))
+    return {"en": en, "ru": ru}
+
+
+def match_article(bundle: str, captured: str, pool: list[tuple[str, str]]) -> tuple[str, str]:
+    """The article capture that embeds `bundle`: of the five captures nearest
+    the bundle's own (within three weeks), the first whose page names it."""
+    when = datetime.strptime(captured, "%Y%m%d%H%M%S")
+    near = sorted((abs((datetime.strptime(ts, "%Y%m%d%H%M%S") - when).total_seconds()), ts, url)
+                  for ts, url in pool
+                  if abs((datetime.strptime(ts, "%Y%m%d%H%M%S") - when).days) <= 21)
+    token = bundle.split(".")[1]
+    for _, ts, url in near[:5]:
+        try:
+            if token in article_page(ts, url):
+                return url, ts
+        except Exception as e:  # noqa: BLE001
+            print(f"[discover] {url} @ {ts}: {e}", file=sys.stderr)
+    return "", ""
+
+
 def discover() -> None:
     """Rewrite releases.csv from the Wayback index: each bundle once, at its
     first clean capture (status 200; the index also holds mangled URLs with
@@ -71,12 +139,27 @@ def discover() -> None:
         m = BUNDLE_RE.fullmatch(url)
         if m and status == "200" and (m.group(1) not in first or ts < first[m.group(1)]):
             first[m.group(1)] = ts
+    # Keep matches already made: only new bundles, or ones not matched yet,
+    # cost Wayback fetches.
+    known = {}
+    if RELEASES.exists():
+        with RELEASES.open(newline="") as f:
+            known = {r["bundle"]: r for r in csv.DictReader(f)}
+    pools = article_captures()
+    rows = []
+    for bundle, ts in sorted(first.items(), key=lambda x: x[1]):
+        row = {"captured": ts, "bundle": bundle, **{k: (known.get(bundle) or {}).get(k, "") for k in ARTICLE_FIELDS}}
+        for lang in ("en", "ru"):
+            if not row[f"article_{lang}"]:
+                row[f"article_{lang}"], row[f"article_{lang}_captured"] = match_article(bundle, ts, pools[lang])
+        print(f"[discover] {bundle}: en {row['article_en_captured'] or '-'}, ru {row['article_ru_captured'] or '-'}")
+        rows.append(row)
     with RELEASES.open("w", newline="") as f:
-        w = csv.writer(f, lineterminator="\n")
-        w.writerow(["captured", "bundle"])
-        for bundle, ts in sorted(first.items(), key=lambda x: x[1]):
-            w.writerow([ts, bundle])
-    print(f"[discover] {len(first)} bundles -> {RELEASES}")
+        w = csv.DictWriter(f, ["captured", "bundle", *ARTICLE_FIELDS], lineterminator="\n")
+        w.writeheader()
+        w.writerows(rows)
+    print(f"[discover] {len(rows)} bundles, {sum(1 for r in rows if r['article_en'])} with the English "
+          f"article, {sum(1 for r in rows if r['article_ru'])} with the Russian -> {RELEASES}")
 
 
 def bundle_source(name: str, captured: str) -> str:
@@ -181,6 +264,33 @@ def match_live(pub: str, scraped: str, bundles: list[tuple[str, str, str]]) -> d
     return {"source": "unknown", "note": "not recorded at ingest; no listed bundle with this release date"}
 
 
+def fill_articles(db: Path, listed: list[dict]) -> int:
+    """Store the archived article pages `releases.csv` matched to each bundle
+    (`articles`), and give `releases` rows their English article URL. Pages
+    come from output/articles/ or Wayback. Skips page versions already stored."""
+    if not db.exists():
+        return 0
+    conn = sqlite3.connect(db)
+    added = 0
+    try:
+        conn.execute(ingest.ARTICLES_DDL)
+        have = set(conn.execute("SELECT url, captured FROM articles").fetchall())
+        for r in listed:
+            for lang in ("en", "ru"):
+                url, ts = r.get(f"article_{lang}"), r.get(f"article_{lang}_captured")
+                if not url or (url, captured_iso(ts)) in have:
+                    continue
+                art = ingest.parse_article(article_page(ts, url), url, captured_iso(ts), "wayback")
+                added += ingest.store_article(conn, art)
+            if r.get("article_en"):
+                conn.execute("UPDATE releases SET article_url = ? WHERE article_url IS NULL AND bundle_url = ?",
+                             (r["article_en"], S3 + r["bundle"]))
+        conn.commit()
+        return added
+    finally:
+        conn.close()
+
+
 def oldest_release(db: Path) -> str | None:
     if not db.exists():
         return None
@@ -233,9 +343,12 @@ def main() -> int:
               f"estimate {'+' + str(added[-1]['estimate']) if estimate is not None else '(none)'}")
 
     filled = fill_releases(out, [(p[0], p[1], p[4]) for p in parsed])
+    with RELEASES.open(newline="") as f:
+        articles = fill_articles(out, list(csv.DictReader(f)))
     skipped = len(parsed) - len(added)
     print(f"==> {len(added)} bundles backfilled, {skipped} at or after the oldest "
-          f"stored release ({before}); {filled} releases rows filled in; {out}")
+          f"stored release ({before}); {filled} releases rows filled in; "
+          f"{articles} article pages stored; {out}")
     return 0
 
 

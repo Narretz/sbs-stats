@@ -296,6 +296,43 @@ release date, noted as matched rather than recorded; the first, 22/05/2026, came
 from CSV exports a day before its bundle's date, so it is `unknown` with that
 bundle named. The app copy leaves the table out.
 
+**The articles** each release was published in are in `articles`, one row per
+page version `(url, captured)`, linked to `releases` by `bundle_url` (the chart
+bundle the page embeds): the English article, dated per release since
+28/03/2025 (`…/article/2025/03/28/casualties_eng-trl`) and before that one page
+updated in place (`…/article/2022/05/20/casualties_eng`), and the Russian
+`zona.media/casualties`, updated in place throughout and carrying the
+biweekly summary text. Columns:
+
+| Column | |
+|---|---|
+| `source`, `lang` | `wayback` / `live`; `en` / `ru` |
+| `url_date` | the date in a dated English URL |
+| `headline`, `headline_date`, `headline_count` | the page's og:description ("Over 5 801 deaths confirmed by August 25", "Больше 6,2 тысяч смертей к 9 сентября") and the date and count parsed from it — a year-less date gets the latest year on or before the capture |
+| `list_updated`, `estimate_updated` | "Last update to the named list / to the Probate Registry estimate" (and the Russian equivalents), where the page has them |
+| `title`, `text` | og:title; the visible text from the `<h1>` to the footer |
+| `html` | the whole page, zlib-compressed |
+
+A live run that stores a release keeps the English page it fetched and the
+Russian one (a failure on the latter is a warning). For the past,
+`backfill.py --discover` matches each bundle to an archived capture of each
+article that embeds it — of the five captures nearest the bundle's own, the
+first naming it — and records the pair in `releases.csv`; `backfill.py` then
+stores those pages (cached in `output/articles/`) and sets `releases.article_url`.
+The headline gives a date and a count for every release, the 2022 ones whose
+bundles aren't decoded too, and it is the article's date: `url_date` is only the
+URL's. Mediazona didn't always open a new dated URL — the 11/04/2025 release
+went into the 28/03 page, 09/05 and 23/05/2025 into the 25/04 page, and
+03/07/2026 appeared first on the 19/06 page.
+
+Coverage (the 18/10/2026 discovery): the English article matched 102 of the
+133 bundles and the Russian one 115; every stored release version has at least
+one page (79 English, 84 Russian). The misses are mostly a release's second
+bundle, whose captures show the first. Of the headlines, five carry no
+parseable date ("за 100 дней войны", "к году войны", a "June 39" typo, the May
+2026 estimate headline). The app copy leaves the table out; it is most of
+the full DB's growth (~27 KB a page compressed).
+
 A week can also **disappear**: the 24/04/2026 release dropped the estimate's
 trailing partial week (2025-08-18), which the release before had shown. Since
 a row is never deleted, the ingest stores an empty row (`documented` and

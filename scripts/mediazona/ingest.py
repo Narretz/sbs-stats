@@ -79,6 +79,123 @@ MAX_DROPPED_WEEKS = 2
 # capture time) or `csv` (local exports). `archive_url` is the Wayback capture;
 # `note` says when a row was filled in after the fact rather than recorded.
 RELEASE_COLS = ["source", "article_url", "bundle_url", "archive_url", "note"]
+# `articles` — the article pages a release was published in: the English one
+# (dated per release since 28/03/2025, before that one page updated in place)
+# and the Russian zona.media/casualties (updated in place throughout). One row
+# per page version (url, captured): a Wayback capture, or the live fetch of a
+# run that stored a release. Linked to `releases` by `bundle_url`, the chart
+# bundle the page embeds. `headline` is the page's og:description ("Over 5 801
+# deaths confirmed by August 25"), with its date and count parsed out;
+# `list_updated` / `estimate_updated` the "Last update to the named list / to
+# the Probate Registry estimate" lines (2025 →); `text` the visible article
+# text; `html` the whole page, zlib-compressed.
+ARTICLES_DDL = """CREATE TABLE IF NOT EXISTS articles (
+    url TEXT NOT NULL,
+    captured TEXT NOT NULL,
+    source TEXT NOT NULL,
+    lang TEXT NOT NULL,
+    bundle_url TEXT,
+    url_date TEXT,
+    headline TEXT,
+    headline_date TEXT,
+    headline_count INTEGER,
+    list_updated TEXT,
+    estimate_updated TEXT,
+    title TEXT,
+    text TEXT,
+    html BLOB NOT NULL,
+    PRIMARY KEY (url, captured)
+);"""
+ARTICLE_COLS = ["source", "lang", "bundle_url", "url_date", "headline", "headline_date",
+                "headline_count", "list_updated", "estimate_updated", "title", "text", "html"]
+RU_ARTICLE_URL = "https://zona.media/casualties"
+
+_MONTHS = {m: i + 1 for i, m in enumerate(
+    "january february march april may june july august september october november december".split())}
+_MONTHS.update({m: i + 1 for i, m in enumerate(
+    "января февраля марта апреля мая июня июля августа сентября октября ноября декабря".split())})
+_MONTH_RE = "|".join(_MONTHS)
+
+
+def _date_in(text: str, before: str) -> str | None:
+    """The first date in `text` — "October 9, 2026", "9 октября 2026 года",
+    or one without a year ("August 25", "6 мая"), which gets the latest year
+    that puts it on or before `before` (an ISO date)."""
+    t = text.lower()
+    found = [m for m in (re.search(rf"\b({_MONTH_RE}) (\d{{1,2}})(?!\d)(?:,? (\d{{4}}))?", t),
+                         re.search(rf"\b(\d{{1,2}}) ({_MONTH_RE})(?: (\d{{4}}))?", t)) if m]
+    if not found:
+        return None
+    m = min(found, key=lambda m: m.start())
+    a, b, year = m.groups()
+    month, day = (_MONTHS[a], int(b)) if a in _MONTHS else (_MONTHS[b], int(a))
+    limit = date_cls.fromisoformat(before[:10])
+    try:
+        if year:
+            return date_cls(int(year), month, day).isoformat()
+        d = date_cls(limit.year, month, day)
+        return (d if d <= limit + timedelta(days=1) else date_cls(limit.year - 1, month, day)).isoformat()
+    except ValueError:
+        return None
+
+
+def _count_in(text: str) -> int | None:
+    """The headline's count: "5 801", "2099", "135,100", or "5,8 тысяч" (5,800)."""
+    m = re.search(r"(\d[\d\s\u00a0\u202f,.]*\d|\d)\s*(тысяч|thousand)?", text)
+    if not m:
+        return None
+    num, thousands = m.group(1), m.group(2)
+    if thousands:
+        return round(float(re.sub(r"[\s\u00a0\u202f]", "", num).replace(",", ".")) * 1000)
+    return int(re.sub(r"\D", "", num))
+
+
+def parse_article(page: str, url: str, captured: str, source: str) -> dict:
+    """One article page → an `articles` row (as a dict, `html` compressed)."""
+    import html as htmlmod
+    import zlib
+
+    def meta(name: str) -> str | None:
+        m = re.search(rf'<meta (?:property|name)="{name}" content="([^"]*)"', page)
+        return htmlmod.unescape(m.group(1)).strip() if m else None
+
+    bundle = re.search(r"(https://s3\.zona\.media/infographics/bodycount/main\.[a-f0-9]+\.js(?:\.gz|\.br)?)", page)
+    start, end = page.find("<h1"), page.find("<footer")
+    body = page[start if start >= 0 else 0: end if end > start else len(page)]
+    body = re.sub(r"<(script|style|svg)\b.*?</\1>", " ", body, flags=re.S)
+    text = re.sub(r"[ \t]+", " ", htmlmod.unescape(re.sub(r"<[^>]+>", " ", re.sub(r"</(p|div|h\d|li)>|<br\s*/?>", "\n", body))))
+    text = re.sub(r"\s*\n\s*", "\n", text).strip()
+    flat = re.sub(r"\s+", " ", text)
+    headline = meta("og:description") or meta("description")
+    url_date = re.search(r"/article/(\d{4})/(\d{2})/(\d{2})/", url)
+    lu = re.search(r"(?:Last update to the named list|Последнее обновление списка погибших):?\s*([^.]{0,40})", flat)
+    eu = re.search(r"(?:Last update to the Probate Registry estimate|Последнее обновление оценки общего числа погибших):?\s*([^.;]{0,40})", flat)
+    return {
+        "url": url, "captured": captured, "source": source,
+        "lang": "ru" if "//zona.media" in url else "en",
+        "bundle_url": bundle.group(1) if bundle else None,
+        "url_date": "-".join(url_date.groups()) if url_date else None,
+        "headline": headline,
+        "headline_date": _date_in(headline, captured) if headline else None,
+        "headline_count": _count_in(headline) if headline else None,
+        "list_updated": _date_in(lu.group(1), captured) if lu else None,
+        "estimate_updated": _date_in(eu.group(1), captured) if eu else None,
+        "title": meta("og:title"),
+        "text": text,
+        "html": zlib.compress(page.encode("utf-8"), 9),
+    }
+
+
+def store_article(conn: sqlite3.Connection, art: dict) -> bool:
+    """Insert one `articles` row unless that page version is stored. True if new."""
+    conn.execute(ARTICLES_DDL)
+    cur = conn.execute(
+        f"INSERT OR IGNORE INTO articles (url, captured, {', '.join(ARTICLE_COLS)}) "
+        f"VALUES (?, ?, {', '.join('?' * len(ARTICLE_COLS))})",
+        [art["url"], art["captured"], *[art[c] for c in ARTICLE_COLS]])
+    return cur.rowcount == 1
+
+
 RELEASES_DDL = """CREATE TABLE IF NOT EXISTS releases (
     published_at TEXT NOT NULL,
     scraped_at TEXT NOT NULL,
@@ -237,7 +354,8 @@ def fetch_bundle(article_url: str) -> tuple[str, dict]:
     raw = _fetch(bundle_url)
     if raw[:2] == b"\x1f\x8b":  # gzip magic
         raw = gzip.decompress(raw)
-    return raw.decode("utf-8"), {"source": "live", "article_url": final_url, "bundle_url": bundle_url}
+    return raw.decode("utf-8"), {"source": "live", "article_url": final_url,
+                                 "bundle_url": bundle_url, "article_html": html}
 
 
 def _extract_json_blobs(bundle: str) -> list[object]:
@@ -717,6 +835,25 @@ def build(
     )
 
 
+def store_live_articles(db: Path, provenance: dict, scraped_at: str) -> None:
+    """A run that stored a release keeps the pages it came in: the English
+    article it fetched, and the Russian one (fetched now; a failure there is
+    reported, not fatal — the numbers are stored)."""
+    pages = [(provenance["article_url"], provenance["article_html"])]
+    try:
+        raw, ru_url = _fetch_final(RU_ARTICLE_URL)
+        pages.append((ru_url, raw.decode("utf-8", errors="replace")))
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] Russian article not stored: {e}", file=sys.stderr)
+    conn = sqlite3.connect(db)
+    try:
+        for url, page in pages:
+            store_article(conn, parse_article(page, url, scraped_at, "live"))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Append-version mediazona.db from the live article (default) "
@@ -758,6 +895,8 @@ def main() -> int:
     scraped_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     out = Path(args.out)
     r, e = build(out, roles, estimate, scraped_at, published_at, provenance)
+    if provenance.get("article_html") and (r["new"] + r["revised"] + e["new"] + e["revised"] + e["removed"]):
+        store_live_articles(out, provenance, scraped_at)
     fmt = lambda s: (
         f"{s['new']:>4} new, {s['revised']:>4} revised, {s['unchanged']:>4} unchanged "
         + (f", {s['removed']} removed" if s.get('removed') else "")

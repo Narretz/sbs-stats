@@ -381,3 +381,60 @@ class TestFillReleases:
         db = self._db(tmp_path)
         backfill.fill_releases(db, self.BUNDLES)
         assert backfill.fill_releases(db, self.BUNDLES) == 0
+
+
+PAGE = """<html><head><meta property="og:title" content="Russian casualties in Ukraine. Mediazona count, updated">
+<meta property="og:description" content="Over 5 801 deaths confirmed by August 25"></head>
+<body><nav>menu</nav><h1>Russian casualties</h1><p>Last update to the named list: October 9, 2026.</p>
+<p>Last update to the Probate Registry estimate: May 9, 2026; estimate as of late December 2025</p>
+<script src="https://s3.zona.media/infographics/bodycount/main.1388a5a2a670aa5e8770.js.br"></script>
+<footer>footer</footer></body></html>"""
+
+
+class TestArticleParsing:
+    def test_dates_with_and_without_a_year(self):
+        assert ig._date_in("Last update: October 9, 2026", "2026-10-10") == "2026-10-09"
+        assert ig._date_in("9 октября 2026 года", "2026-10-10") == "2026-10-09"
+        assert ig._date_in("Over 5 801 deaths confirmed by August 25", "2022-08-30T10:00:00") == "2022-08-25"
+        # no year, and the date would be after the capture: last year's
+        assert ig._date_in("на 29 декабря", "2023-01-05") == "2022-12-29"
+
+    def test_counts(self):
+        assert ig._count_in("Over 5 801 deaths confirmed") == 5801
+        assert ig._count_in("Over 7,180 deaths") == 7180
+        assert ig._count_in("Больше 6,2 тысяч смертей") == 6200
+        assert ig._count_in("Как минимум 2099 смертей на 6 мая") == 2099
+
+    def test_page(self):
+        import zlib
+        a = ig.parse_article(PAGE, "https://en.zona.media/article/2026/10/09/casualties_eng-trl",
+                             "2026-10-09T14:32:55+00:00", "wayback")
+        assert a["lang"] == "en" and a["url_date"] == "2026-10-09"
+        assert a["bundle_url"].endswith("main.1388a5a2a670aa5e8770.js.br")
+        assert (a["headline_count"], a["headline_date"]) == (5801, "2026-08-25")
+        assert (a["list_updated"], a["estimate_updated"]) == ("2026-10-09", "2026-05-09")
+        assert "menu" not in a["text"] and "footer" not in a["text"]  # h1 to footer
+        assert zlib.decompress(a["html"]).decode() == PAGE
+        ru = ig.parse_article(PAGE, ig.RU_ARTICLE_URL, "2026-10-09T14:32:55+00:00", "live")
+        assert ru["lang"] == "ru" and ru["url_date"] is None
+
+
+class TestFillArticles:
+    def test_pages_are_stored_once_and_releases_get_their_article(self, tmp_path, monkeypatch):
+        import sqlite3
+        import backfill
+        db = tmp_path / "m.db"
+        bundle = "main.1388a5a2a670aa5e8770.js.br"
+        ig.build(db, _roles(130), _estimate(130), "2026-10-09T14:20:52+00:00", "2026-10-09",
+                 {"source": "live", "bundle_url": backfill.S3 + bundle})
+        monkeypatch.setattr(backfill, "article_page", lambda ts, url: PAGE)
+        listed = [{"captured": "20261009143255", "bundle": bundle,
+                   "article_en": "https://en.zona.media/article/2026/10/09/casualties_eng-trl",
+                   "article_en_captured": "20261009150000",
+                   "article_ru": ig.RU_ARTICLE_URL, "article_ru_captured": "20261009160000"}]
+        assert backfill.fill_articles(db, listed) == 2
+        assert backfill.fill_articles(db, listed) == 0
+        conn = sqlite3.connect(db)
+        assert conn.execute("SELECT article_url FROM releases").fetchone()[0] == listed[0]["article_en"]
+        assert conn.execute("SELECT COUNT(*) FROM articles WHERE bundle_url LIKE '%1388a5a2%'").fetchone()[0] == 2
+        conn.close()
