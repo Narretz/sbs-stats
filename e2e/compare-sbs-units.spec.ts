@@ -127,6 +127,28 @@ test.describe("Compare — SBS sub-units", () => {
     expect(cells[2]).toBeLessThan(1100);
   });
 
+  test("columns move left and right, and the URL keeps the new order", async ({ page }) => {
+    const month = thisMonth();
+    await gotoCompare(page, `sbs:${month},sbs:alpha-unit:${month},sbs:bravo-unit:${month}`);
+    const left = page.getByRole("button", { name: "Move column left" });
+    const right = page.getByRole("button", { name: "Move column right" });
+
+    // Nothing to swap with past either end.
+    await expect(left.first()).toBeDisabled();
+    await expect(right.last()).toBeDisabled();
+    await expect(left.nth(1)).toBeEnabled();
+    await expect(right.nth(1)).toBeEnabled();
+
+    await right.first().click();
+    await expect(columnUnit(page, 0)).toHaveText("SBS · Alpha Unit");
+    await expect(columnUnit(page, 1)).toHaveText("UA SBS (USF)");
+    await expect(page).toHaveURL(new RegExp(`cols=sbs(%3A|:)alpha-unit(%3A|:)${month}(%2C|,)sbs(%3A|:)${month}(%2C|,)`));
+
+    await left.last().click();
+    await expect(columnUnit(page, 1)).toHaveText("SBS · Bravo Unit");
+    await expect(columnUnit(page, 2)).toHaveText("UA SBS (USF)");
+  });
+
   test("the headcount row stays empty for a sub-unit", async ({ page }) => {
     const month = thisMonth();
     await gotoCompare(page, `sbs:${month},sbs:alpha-unit:${month}`);

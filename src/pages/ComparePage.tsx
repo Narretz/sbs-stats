@@ -454,6 +454,19 @@ export function ComparePage({ preset }: Props) {
 
   const removeColumn = (id: number) => setColumns((cs) => cs.filter((c) => c.id !== id));
 
+  // Swap with the neighbour on that side. Order is meaningful, not cosmetic:
+  // the first column is the baseline the "% vs first" mode measures against,
+  // and "% vs previous" reads each column against the one to its left.
+  const moveColumn = (id: number, delta: -1 | 1) =>
+    setColumns((cs) => {
+      const i = cs.findIndex((c) => c.id === id);
+      const j = i + delta;
+      if (i < 0 || j < 0 || j >= cs.length) return cs;
+      const next = [...cs];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+
   // Swapping a column's source keeps its month — "the same month, another
   // unit" is the comparison being made, and a month the new source lacks reads
   // "(no data)" like any other. The projection only survives onto SBS: no
@@ -896,28 +909,51 @@ export function ComparePage({ preset }: Props) {
                       whiteSpace: "nowrap",
                       width: `${99 / columns.length}%`,
                     }}>
-                      {/* Selects to the left, the remove button pinned right. */}
+                      {/* Selects and the move buttons to the left, the remove
+                          button pinned right. */}
                       <div style={{ display: "flex", gap: 4, alignItems: "center", justifyContent: "space-between" }}>
-                        <select
-                          className="ctl"
-                          data-testid="compare-column-unit"
-                          aria-label="Column unit"
-                          value={sourceToken(c)}
-                          onChange={(e) => setColumnSource(c.id, parseSourceToken(e.target.value))}
-                          // A native select is as wide as its longest option —
-                          // here a full "SBS · <unit>" label — which made every
-                          // column that wide. Size it to the selection instead
-                          // (Firefox ignores this and keeps the old width).
-                          style={{ textTransform: "none", color: t.text, fieldSizing: "content" }}
-                        >
-                          {/* Until the sub-unit list loads, a unit column
-                              still needs its own option or the select shows
-                              the first entity instead. */}
-                          {c.unit && !units.some((u) => u.slug === c.unit) && (
-                            <option value={sourceToken(c)}>{labelFor(c)}</option>
-                          )}
-                          {sourceOptions(true)}
-                        </select>
+                        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                          <select
+                            className="ctl"
+                            data-testid="compare-column-unit"
+                            aria-label="Column unit"
+                            value={sourceToken(c)}
+                            onChange={(e) => setColumnSource(c.id, parseSourceToken(e.target.value))}
+                            // A native select is as wide as its longest option —
+                            // here a full "SBS · <unit>" label — which made every
+                            // column that wide. Size it to the selection instead
+                            // (Firefox ignores this and keeps the old width).
+                            style={{ textTransform: "none", color: t.text, fieldSizing: "content" }}
+                          >
+                            {/* Until the sub-unit list loads, a unit column
+                                still needs its own option or the select shows
+                                the first entity instead. */}
+                            {c.unit && !units.some((u) => u.slug === c.unit) && (
+                              <option value={sourceToken(c)}>{labelFor(c)}</option>
+                            )}
+                            {sourceOptions(true)}
+                          </select>
+                          <button
+                            className="ctl ctl-square"
+                            onClick={() => moveColumn(c.id, -1)}
+                            disabled={i === 0}
+                            title="Move column left"
+                            aria-label="Move column left"
+                            style={{ color: t.textMuted }}
+                          >
+                            &lt;
+                          </button>
+                          <button
+                            className="ctl ctl-square"
+                            onClick={() => moveColumn(c.id, 1)}
+                            disabled={i === columns.length - 1}
+                            title="Move column right"
+                            aria-label="Move column right"
+                            style={{ color: t.textMuted }}
+                          >
+                            &gt;
+                          </button>
+                        </div>
                         <button
                           className="ctl"
                           onClick={() => removeColumn(c.id)}
