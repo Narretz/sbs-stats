@@ -66,6 +66,18 @@ class TestGate:
         )
         assert gs.is_operational_report(text)
 
+    def test_bare_mynuloi_doby_without_engagements(self):
+        # kmu.gov.ua republication of the 06:00 03.05.2023 report: counts
+        # "понад 30 атак", not engagements, and says only "Минулої доби" —
+        # no "протягом" before it.
+        text = (
+            "Оперативна інформація Генерального Штабу Збройних Сил України "
+            "станом на 06:00 03.05.2023 щодо російського вторгнення\n"
+            "Минулої доби противник завдав 3 ракетних, 39 авіаційних ударів та "
+            "здійснив 63 обстріли з реактивних систем залпового вогню."
+        )
+        assert gs.is_operational_report(text)
+
     def test_non_report_short(self):
         assert not gs.is_operational_report("Героям слава!")
 
@@ -941,6 +953,27 @@ class TestMetrics:
         # Connector "і" instead of "та" (2025-04-10 etc.).
         s = self._parse("Противник завдав двох ракетних і 106 авіаційних ударів.")
         assert s.missile_strikes == 2
+
+    def test_missile_strikes_shared_noun_comma(self):
+        # Spring/summer 2023 joins the two counts with a comma, ahead of the
+        # MLRS clause (06:00 03.05.2023, 01.08.2023).
+        s = self._parse(
+            "Минулої доби противник завдав 3 ракетних, 39 авіаційних ударів та "
+            "здійснив 63 обстріли з реактивних систем залпового вогню."
+        )
+        assert s.missile_strikes == 3
+        assert s.air_strikes == 39
+        s = self._parse("Ворог завдав 1 ракетного, 49 авіаційних ударів та здійснив 33 обстріли.")
+        assert s.missile_strikes == 1
+        assert s.air_strikes == 49
+
+    def test_missile_strikes_shared_noun_singular(self):
+        # msg 19326 — singular "одного ракетного" with the shared noun. The
+        # singular inference wants "ракетного удар" adjacent, so it misses this.
+        s = self._parse("Загарбники завдали одного ракетного та 51 авіаційний удар.")
+        assert s.missile_strikes == 1
+        s = self._parse("Противник завдав 1 ракетного та 57 авіаційних ударів.")
+        assert s.missile_strikes == 1
 
     def test_missile_strikes_behind_air_clause(self):
         # The missile count can sit behind another clause — its number is still

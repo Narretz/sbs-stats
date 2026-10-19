@@ -183,7 +183,10 @@ OPERATIONAL_REPORT_PATTERNS = [
     # spelling ("боєзіткнення") that the channel uses in shorter updates.
     r"(?i)бо(?:йов(?:их|і|е)\s+зіткнен|єзіткнен)",
     # Daily ("протягом минулої доби") and intraday ("від/з початку (цієї) доби").
-    r"(?i)(?:протягом|від\s+початку|з\s+початку)\s+(?:минулої\s+|цієї\s+)?доби",
+    # Spring-2023 morning reports also open with a bare "Минулої доби" / "за
+    # минулу добу" and count "атак" instead of engagements (06:00 03.05.2023).
+    r"(?i)(?:протягом|від\s+початку|з\s+початку)\s+(?:минулої\s+|цієї\s+)?доби"
+    r"|минулої\s+доби|за\s+минулу\s+добу",
 ]
 # A bare "станом на HH:MM" used to be a 4th signal, but it false-matched
 # non-report posts that *quote* a timestamp (e.g. Сирський's Pokrovsk operation
@@ -851,12 +854,14 @@ def parse_summary(text: str, msg: Message) -> DailySummary | None:
         # no "удар" beside it: "завдав N ракетних та M авіаційних ударів". The
         # missile count is the number right before "ракетн(их) (та|і|й) <air>
         # авіаційн… удар". Very specific, so no false positives; air_strikes
-        # still parses its own "M авіаційних ударів" separately.
+        # still parses its own "M авіаційних ударів" separately. 2023 joins
+        # the two with a comma instead ("3 ракетних, 39 авіаційних ударів",
+        # "1 ракетного, 49 авіаційних ударів").
         s.missile_strikes = _extract_count(
             text,
-            r"(\d[\d\s]*\d|\d)\s+ракетн(?:их|і|е)\s+(?:та|і|й)\s+"
+            r"(\d[\d\s]*\d|\d)\s+ракетн(?:их|і|е|ого)(?:\s+(?:та|і|й)\s+|\s*,\s*)"
             r"(?:\d[\d\s]*\d|\d|[\w'ʼ’]+)\s+авіаційн\w*\s*удар",
-            r"([\w'ʼ’]+)\s+ракетн(?:их|і|е)\s+(?:та|і|й)\s+"
+            r"([\w'ʼ’]+)\s+ракетн(?:их|і|е|ого)(?:\s+(?:та|і|й)\s+|\s*,\s*)"
             r"(?:\d[\d\s]*\d|\d|[\w'ʼ’]+)\s+авіаційн\w*\s*удар",
         )
     # The General Staff often writes the SINGULAR "завдав [одного] ракетного
@@ -2611,7 +2616,7 @@ def _gate_failure_reason(text: str) -> str:
         return "no 'станом на HH:MM DD.MM.YYYY' header"
     other_matches = sum(1 for p in OPERATIONAL_REPORT_PATTERNS[1:] if re.search(p, stripped))
     if other_matches < 1:
-        return "no body markers (бойових зіткнень / протягом доби / від початку доби)"
+        return "no body markers (бойових зіткнень / (протягом) минулої доби / від початку доби)"
     return "(unknown — all gate checks passed?)"
 
 
