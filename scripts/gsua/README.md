@@ -15,6 +15,26 @@ parser and one `upsert_report`, so rows are identical regardless of source;
 | **Telegram web preview** (`t.me/s/GeneralStaffZSU`) | `scrape_general_staff.py --source web` | none (plain HTTP) | yes | **primary CI source** |
 | **Telegram API** (`@GeneralStaffZSU`) | `scrape_general_staff.py --source telethon` | API id/hash + interactive phone login on first run | no (see caveats) | best for backfill |
 | **Nitter → Facebook** | `scrape_twitter.py` → `scrape_facebook.py` | none | yes | legacy fallback (to be removed) |
+| **Facebook + kmu.gov.ua history** | `backfill_history.py` | none | no | one-off, done — see below |
+
+### Before the Telegram archive: the 2023–24 backfill
+
+The Telegram archive starts 2024-05-13. **2023-04-30 – 2024-05-13** comes from
+`backfill_history.py` (its docstring has the steps): 792 Facebook posts
+(`source='facebook'`), fetched as Googlebot from URLs found in the Wayback
+Machine's index, and 65 kmu.gov.ua republications (`source='kmu'`) for the
+mornings Facebook lacked. Every morning report in that span is there except
+the one dated 2024-05-13, covering the 12th (on neither site). The script writes its own DB under
+`data/gsua-fb-backfill/` (gitignored); it was merged into the live DB by hand
+on 2026-10-19 — the backfill DB's `posts` and `directions` inserted by column
+name, then `reparse.py --all` and an upload of both objects. 13 May 2024 is in
+both sources; the frontend reads Telegram's.
+
+That era's wording is its own: the total is attacks until mid-May 2023 (see
+*Metric notes*), the directions include Bakhmut, Avdiivka, Marinka and
+Melitopol, and shellings / KAB / kamikaze drones are rarely or never reported.
+Reposts of the same report (the spokesman's "з уточненнями" version) are kept
+alongside the original, like any double post.
 
 ## Files
 
