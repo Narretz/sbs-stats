@@ -89,9 +89,11 @@ export interface GsuaPostSource {
 // canonical pick of canonicalDailySql: telegram before other sources, then
 // the latest snapshot (the next morning's wrap-up over the 22:00 interim).
 // A report split across posts (same source and snapshot) is numbered by part.
-// Another platform's copy (the legacy Facebook fallback's rows, May 2026) is
-// listed only for a day with no Telegram post: otherwise it is a duplicate
-// nothing reads.
+// Another platform's copy (the legacy Facebook fallback's rows, May 2026, and
+// the 2023–24 backfill from Facebook and kmu.gov.ua) is listed only for a day
+// with no Telegram post: otherwise it is a duplicate nothing reads.
+const GSUA_PLATFORMS: Record<string, string> = { facebook: "Facebook", kmu: "kmu.gov.ua" };
+
 export function gsuaSourcesByDate(posts: readonly GsuaPostSource[]): Map<string, SheetSource[]> {
   const byDate = new Map<string, GsuaPostSource[]>();
   for (const p of posts) byDate.set(p.date, [...(byDate.get(p.date) ?? []), p]);
@@ -115,7 +117,7 @@ export function gsuaSourcesByDate(posts: readonly GsuaPostSource[]): Map<string,
       const i = (seen.get(partKey(p)) ?? 0) + 1;
       seen.set(partKey(p), i);
       const parts = [
-        p.source === "telegram" ? "" : `${p.source[0].toUpperCase()}${p.source.slice(1)}`,
+        p.source === "telegram" ? "" : GSUA_PLATFORMS[p.source] ?? p.source,
         p.snapshot_at ? `as of ${p.snapshot_at.slice(0, 10)} ${p.snapshot_at.slice(11, 16)} Kyiv` : "",
         n > 1 ? `part ${i} of ${n}` : "",
       ].filter(Boolean);

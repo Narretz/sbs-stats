@@ -65,6 +65,11 @@ describe("gsuaSourcesByDate", () => {
     expect(facebookOnly.get("2026-10-12")![0].label).toBe("Facebook, as of 2026-10-13 08:00 Kyiv");
   });
 
+  it("names the Cabinet of Ministers' republication by its site", () => {
+    const kmu = gsuaSourcesByDate([post("kmu", 1, "2023-05-03T06:00:00")]);
+    expect(kmu.get("2026-10-12")![0].label).toBe("kmu.gov.ua, as of 2023-05-03 06:00 Kyiv");
+  });
+
   it("numbers the parts of a report split across posts", () => {
     const m = gsuaSourcesByDate([post("telegram", 11, "2026-10-13T08:00:00"), post("telegram", 10, "2026-10-13T08:00:00")]).get("2026-10-12")!;
     expect(m.map((s) => [s.href, s.label])).toEqual([
