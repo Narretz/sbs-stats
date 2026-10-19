@@ -11,7 +11,7 @@ import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshabl
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { projectFromDays } from "@/utils/monthProjection";
-import { attachDailyMedians, dailyMediansByMonth, sumPresent } from "@/utils/dailyMedian";
+import { attachDailyMedians, attachDayCounts, dailyMediansByMonth, dayCountsByMonth, sumPresent } from "@/utils/dailyMedian";
 
 // Tiny DB (~100 KB) → fetch whole via sql.js, like the SBS loader (no httpvfs).
 const DB_URL =
@@ -112,11 +112,10 @@ export function useDatabaseRuLosses({ enabled = true }: { enabled?: boolean } = 
       db, `SELECT date, ${METRIC_COLS} FROM ${LATEST_PER_DATE}`,
     ).map((r) => ({ date: String(r.date), values: r as Partial<Record<RuLossesMetricKey, number | null>> }));
     const projection = projectFromDays(currentMonth, today, days, RU_LOSSES_METRIC_KEYS);
-    const medians = dailyMediansByMonth(
-      days.map((d) => ({ date: d.date, values: { ...d.values, targets: sumPresent(d.values, RU_LOSSES_TARGET_KEYS) } })),
-      [...RU_LOSSES_METRIC_KEYS, "targets"] as const,
-      today,
-    );
+    const monthDays = days.map((d) => ({ date: d.date, values: { ...d.values, targets: sumPresent(d.values, RU_LOSSES_TARGET_KEYS) } }));
+    const monthKeys = [...RU_LOSSES_METRIC_KEYS, "targets"] as const;
+    const medians = dailyMediansByMonth(monthDays, monthKeys, today);
+    const dayCounts = dayCountsByMonth(monthDays, monthKeys, today);
 
     return rows.map((row) => {
       const month = String(row.month);
@@ -137,6 +136,7 @@ export function useDatabaseRuLosses({ enabled = true }: { enabled?: boolean } = 
         out[`${k as RuLossesMetricKey}_projected`] = v;
       }
       attachDailyMedians(out, medians);
+      attachDayCounts(out, dayCounts);
       return out;
     });
   }, [db]);

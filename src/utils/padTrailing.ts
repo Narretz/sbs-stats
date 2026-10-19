@@ -1,3 +1,4 @@
+import type { MonthlyDataPoint } from "@/types";
 // Helpers that pad a chart's data array with null-valued rows so the chart's
 // x-axis spans the user's selected window even where source data is missing.
 // All padded rows carry `value: null` (and `is_today: false` for daily) so
@@ -60,6 +61,11 @@ export function padTrailingMonthly<T extends { date: string }>(
   }
   return out;
 }
+
+// The padded month of a source summed from days: no day of it has a figure,
+// so its tooltip reads "0 of 31 days" — a feed that has stopped, or the
+// current month before its first row — rather than nothing.
+export const noDaysMonth = (date: string): MonthlyDataPoint => ({ date, value: null, days_available: 0 });
 
 // Extend a sorted YYYY-MM list with any missing months up to `endMonth`.
 // Used by views (e.g. SbuAlfa) whose chart x-axis is driven by a period array

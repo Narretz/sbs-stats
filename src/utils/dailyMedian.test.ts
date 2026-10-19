@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attachDailyMedians, dailyMediansByMonth } from "@/utils/dailyMedian";
+import { attachDailyMedians, attachDayCounts, dailyMediansByMonth, dayCountsByMonth } from "@/utils/dailyMedian";
 
 const day = (date: string, a: number | null, b?: number | null) => ({ date, values: { a, b } });
 
@@ -30,5 +30,24 @@ describe("dailyMediansByMonth", () => {
     const row: { date: string } & Record<string, unknown> = { date: "2026-09" };
     attachDailyMedians(row, new Map([["2026-09", { a: 20 }]]));
     expect(row.a_daily_median).toBe(20);
+  });
+});
+
+describe("dayCountsByMonth", () => {
+  it("counts each month's days with a figure, per metric, before today", () => {
+    const m = dayCountsByMonth([
+      day("2023-04-30", 36, null),
+      day("2023-05-01", 41, null), day("2023-05-02", null, 3), day("2023-05-02", 30, null),
+      day("2023-05-19", 7, 2), // today: still filling in
+    ], ["a", "b"], "2023-05-19");
+    expect(m.get("2023-04")).toEqual({ a: 1, b: 0 });
+    // A date seen twice (two sources) counts once.
+    expect(m.get("2023-05")).toEqual({ a: 2, b: 1 });
+  });
+
+  it("writes them as <key>_days", () => {
+    const row: { date: string } & Record<string, unknown> = { date: "2023-04" };
+    attachDayCounts(row, new Map([["2023-04", { a: 1, b: 0 }]]));
+    expect(row).toEqual({ date: "2023-04", a_days: 1, b_days: 0 });
   });
 });

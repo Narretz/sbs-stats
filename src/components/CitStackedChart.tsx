@@ -6,7 +6,9 @@ import { chartColors } from "@/chartColors";
 import { FONTS } from "@/theme";
 import { maxMedian } from "@/utils/windowStats";
 import { stackTotal } from "@/utils/citTerritory";
-import { projectionBasis } from "@/utils/monthProjection";
+import { monthCoverage, projectionBasis } from "@/utils/monthProjection";
+import { monthHeader } from "@/components/monthHeader";
+import { getKyivDateString } from "@/hooks/sqlLoader";
 import { MonthlyChartCard } from "@/components/MonthlyChartCard";
 import {
   dayTick, entryOfDay, fmtCount, formatEntry, spanBarShape, type SpannedDay,
@@ -42,6 +44,8 @@ export interface CitStackRowBase {
   date: string;
   projection?: { coveredDays: number; daysInMonth: number };
   projectedGap?: number;
+  // A monthly row's days with a figure — "X of Y days" (monthCoverage).
+  daysAvailable?: number;
 }
 
 interface Props<K extends string, Row extends CitStackRowBase & Partial<Record<K, number | null>>> {
@@ -92,12 +96,11 @@ export function CitStackedChart<K extends string, Row extends CitStackRowBase & 
 
   const describeRow = (d: Row): TooltipDescriptor => {
     const p = d.projection;
-    const head = p ? (
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <span>{label(d)}</span>
-        <span style={{ fontSize: 10, marginLeft: 6 }}>{projectionBasis(p.coveredDays, p.daysInMonth)}</span>
-      </div>
-    ) : label(d);
+    // A monthly row's days with a figure, the current month's included; the
+    // territory rows carry none and name their projection's basis.
+    const head = monthHeader(label(d), d.daysAvailable != null
+      ? monthCoverage(d.date, getKyivDateString(), d.daysAvailable)
+      : p ? projectionBasis(p.coveredDays, p.daysInMonth) : undefined);
     return { header: head, formatValue: fmtCount, sources: sourcesByDate?.get(d.date), ...describe(d, label(d)) };
   };
 

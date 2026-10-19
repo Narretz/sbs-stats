@@ -127,7 +127,7 @@ function describeMonth({
         },
       ];
   rows.push(...breakdownToRows(entries, t.textMuted, { totalForShare: d.hit_value ?? undefined }));
-  // "X of Y days complete" is appended to the date so it reads as month-in-progress
+  // "X of Y days" is appended to the date so it reads as month-in-progress
   // context alongside the tile label, not as a bolted-on footer caption.
   // Rendered smaller (fontSize 10) so the primary date stays the anchor.
   const header = d.projection_day != null && d.projection_days_in_month != null ? (

@@ -5,7 +5,7 @@ import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshabl
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { projectNightDay } from "@/utils/monthProjection";
-import { attachDailyMedians, dailyMediansByMonth } from "@/utils/dailyMedian";
+import { attachDailyMedians, attachDayCounts, dailyMediansByMonth, dayCountsByMonth } from "@/utils/dailyMedian";
 import { ruModSourcesByDate, type RuModReportSource } from "@/utils/sources";
 import type { SheetSource } from "@/components/TooltipTable";
 
@@ -196,11 +196,10 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
        GROUP BY report_date`,
     ).map((d) => ({ date: String(d.report_date), night: d.night, day: d.day, nightDone: d.night_done === 1 }));
     const projection = projectNightDay(currentMonth, today, days.filter((d) => d.date >= `${currentMonth}-01`));
-    const medians = dailyMediansByMonth(
-      days.map((d) => ({ date: d.date, values: { night: d.night, day: d.day, total: d.night + d.day } })),
-      ["total", "night", "day"] as const,
-      today,
-    );
+    const monthDays = days.map((d) => ({ date: d.date, values: { night: d.night, day: d.day, total: d.night + d.day } }));
+    const monthKeys = ["total", "night", "day"] as const;
+    const medians = dailyMediansByMonth(monthDays, monthKeys, today);
+    const dayCounts = dayCountsByMonth(monthDays, monthKeys, today);
 
     return rows.map((r) => {
       const month = String(r.month);
@@ -226,6 +225,7 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
         out.total_projected = p.night + p.day;
       }
       attachDailyMedians(out, medians);
+      attachDayCounts(out, dayCounts);
       return out;
     });
   }, [db]);

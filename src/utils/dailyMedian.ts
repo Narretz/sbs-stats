@@ -57,3 +57,36 @@ export function sumPresent<K extends string>(values: Partial<Record<K, number | 
   }
   return any ? sum : null;
 }
+
+// Each month's days with a figure, per metric — what "X of Y days"
+// counts. A date is counted once however many rows carry it (a day reported
+// by two sources), and, as for the medians, only before `incompleteFrom`.
+export function dayCountsByMonth<K extends string>(
+  days: readonly DayTotals<K>[],
+  keys: readonly K[],
+  incompleteFrom: string,
+): Map<string, Record<K, number>> {
+  const dated = new Map<string, Map<K, Set<string>>>();
+  for (const d of days) {
+    if (d.date >= incompleteFrom) continue;
+    const month = d.date.slice(0, 7);
+    let perKey = dated.get(month);
+    if (!perKey) dated.set(month, perKey = new Map(keys.map((k) => [k, new Set<string>()])));
+    for (const k of keys) if (typeof d.values[k] === "number") perKey.get(k)!.add(d.date);
+  }
+  const out = new Map<string, Record<K, number>>();
+  for (const [month, perKey] of dated) {
+    out.set(month, Object.fromEntries(keys.map((k) => [k, perKey.get(k)!.size])) as Record<K, number>);
+  }
+  return out;
+}
+
+// Copies each month's counts onto its row as `<key>_days`.
+export function attachDayCounts<K extends string>(
+  row: { date: string } & Record<string, unknown>,
+  counts: Map<string, Partial<Record<K, number>>>,
+): void {
+  for (const [k, v] of Object.entries(counts.get(row.date.slice(0, 7)) ?? {})) {
+    row[`${k}_days`] = v;
+  }
+}

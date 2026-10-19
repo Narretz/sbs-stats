@@ -11,7 +11,7 @@ import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshabl
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { projectFromDays } from "@/utils/monthProjection";
-import { attachDailyMedians, dailyMediansByMonth, sumPresent } from "@/utils/dailyMedian";
+import { attachDailyMedians, attachDayCounts, dailyMediansByMonth, dayCountsByMonth, sumPresent } from "@/utils/dailyMedian";
 
 // ~1 MB → fetched whole via sql.js. Only ever built with SHOW_UA_LOSSES_RU_MOD
 // (see src/sites/uaLossesRuMod): in dev that's data/, in a build that sets the
@@ -115,11 +115,10 @@ export function useDatabaseUaLossesRuMod({ enabled = true }: { enabled?: boolean
       `SELECT loss_date AS date, ${UA_LOSSES_RU_MOD_METRIC_KEYS.join(", ")} FROM daily`,
     ).map((r) => ({ date: String(r.date), values: r as Partial<Record<UaLossesRuModMetricKey, number | null>> }));
     const projection = projectFromDays(currentMonth, today, days, UA_LOSSES_RU_MOD_METRIC_KEYS);
-    const medians = dailyMediansByMonth(
-      days.map((d) => ({ date: d.date, values: { ...d.values, targets: sumPresent(d.values, UA_LOSSES_RU_MOD_TARGET_KEYS) } })),
-      [...UA_LOSSES_RU_MOD_METRIC_KEYS, "targets"] as const,
-      today,
-    );
+    const monthDays = days.map((d) => ({ date: d.date, values: { ...d.values, targets: sumPresent(d.values, UA_LOSSES_RU_MOD_TARGET_KEYS) } }));
+    const monthKeys = [...UA_LOSSES_RU_MOD_METRIC_KEYS, "targets"] as const;
+    const medians = dailyMediansByMonth(monthDays, monthKeys, today);
+    const dayCounts = dayCountsByMonth(monthDays, monthKeys, today);
 
     return rows.map((row) => {
       const month = String(row.month);
@@ -136,6 +135,7 @@ export function useDatabaseUaLossesRuMod({ enabled = true }: { enabled?: boolean
         out[`${k as UaLossesRuModMetricKey}_projected`] = v;
       }
       attachDailyMedians(out, medians);
+      attachDayCounts(out, dayCounts);
       return out;
     });
   }, [db]);

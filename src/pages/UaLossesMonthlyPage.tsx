@@ -7,7 +7,7 @@ import { MoreControls } from "@/components/MoreControls";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
-import { padTrailingMonthly } from "@/utils/padTrailing";
+import { noDaysMonth, padTrailingMonthly } from "@/utils/padTrailing";
 import {
   UA_LOSSES_METRIC_KEYS,
   UA_LOSSES_METRIC_LABELS,
@@ -28,9 +28,10 @@ export function UaLossesMonthlyPage({ refreshKey }: Props) {
 
   const endMonth = yr.endMonth;
   const makeDataset = (key: UaLossesMetricKey): MonthlyDataPoint[] =>
-    padTrailingMonthly(
+    padTrailingMonthly<MonthlyDataPoint>(
       rows.map((d) => {
-        const value = typeof d[key] === "number" ? d[key] : null;
+        // A month with no day of this metric is a gap, not the 0 its sum reads.
+        const value = typeof d[key] === "number" && d[`${key}_days`] !== 0 ? d[key] : null;
         const projected = d[`${key}_projected`];
         return {
           date: d.date,
@@ -41,9 +42,11 @@ export function UaLossesMonthlyPage({ refreshKey }: Props) {
           projection_days_in_month: d.projection_days_in_month ?? undefined,
           projection_partial_day: d.projection_partial_day,
           daily_median: d[`${key}_daily_median`],
+          days_available: d[`${key}_days`],
         };
       }),
       endMonth,
+      noDaysMonth,
     );
 
   return (

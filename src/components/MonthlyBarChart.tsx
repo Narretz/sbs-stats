@@ -9,7 +9,9 @@ import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
 import { MonthlyChartCard } from "@/components/MonthlyChartCard";
 import { breakdownToRows, type SheetSource, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
-import { projectionBasis } from "@/utils/monthProjection";
+import { monthCoverage, projectionBasis } from "@/utils/monthProjection";
+import { monthHeader } from "@/components/monthHeader";
+import { getKyivDateString } from "@/hooks/sqlLoader";
 
 interface Props {
   title: string;
@@ -76,21 +78,24 @@ export function MonthlyBarChart({
   const median = win ? windowStats.median : (globalMedian ?? windowStats.median);
   const total = win ? windowStats.total : (globalTotal ?? windowStats.total);
 
+  const today = getKyivDateString();
+  // A source summed from days says how many of the month's it covers — the
+  // current month's included, projected or not. One whose month is its own
+  // figure (SBS) names its projection's basis.
+  const basisOf = (d: MonthlyDataPoint) =>
+    d.days_available != null
+      ? monthCoverage(d.date, today, d.days_available)
+      : d.projected != null && d.projection_day != null && d.projection_days_in_month != null
+        ? projectionBasis(d.projection_day, d.projection_days_in_month, d.projection_partial_day)
+        : undefined;
+  // A null bar with something to say — a month with no day of this metric —
+  // keeps its tooltip.
+  const explainEmpty = explainGaps || data.some((d) => d.value == null && basisOf(d));
+
   const describe = (d: MonthlyDataPoint): TooltipDescriptor => {
     const entries = breakdownByMonth?.get(d.date.slice(0, 7)) ?? [];
-    // "X of Y days complete" pushed to the right of the header — smaller (fontSize 10)
-    // suffix aligned to the tooltip's trailing edge. See the sibling
-    // MonthlyTargetPairChart comment for why width:100% is required (recharts
-    // wraps tooltips in a shrink-to-fit container so space-between needs an
-    // explicit width to distribute).
-    const header = d.projected != null && d.projection_day != null && d.projection_days_in_month != null ? (
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", width: "100%" }}>
-        <span>{d.date}</span>
-        <span style={{ fontSize: 10, marginLeft: 15 }}>
-          {projectionBasis(d.projection_day, d.projection_days_in_month, d.projection_partial_day)}
-        </span>
-      </div>
-    ) : (formatHeader ? formatHeader(d) : d.date);
+    // How many days the figure covers — see basisOf.
+    const header = monthHeader(formatHeader ? formatHeader(d) : d.date, basisOf(d));
     const rows: TooltipTableRow[] = [
       {
         label: "Actual", color: c.barDefault, value: d.value ?? null,
@@ -117,7 +122,7 @@ export function MonthlyBarChart({
   return (
     <MonthlyChartCard
       title={title} data={data} wfull={wfull} describe={describe} subheader={statsHeader}
-      tickFormatter={formatTick} ticks={xTicks} formatLabel={formatHeader} showEmptyWrapper={explainGaps}
+      tickFormatter={formatTick} ticks={xTicks} formatLabel={formatHeader} showEmptyWrapper={explainEmpty}
       drillAnchor={drillAnchor}
     >
       <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}

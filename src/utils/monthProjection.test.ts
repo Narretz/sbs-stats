@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { projectFromDays, projectionBasis, projectMonthEnd, projectNightDay, type IntradayReading } from "@/utils/monthProjection";
+import { monthCoverage, projectFromDays, projectionBasis, projectMonthEnd, projectNightDay, type IntradayReading } from "@/utils/monthProjection";
 
 type K = "hits";
 
@@ -108,12 +108,12 @@ describe("projectFromDays", () => {
 
 describe("projectionBasis", () => {
   it("says how many days the projection rests on", () => {
-    expect(projectionBasis(25, 30)).toBe("25 of 30 days complete");
-    expect(projectionBasis(25, 30, false)).toBe("25 of 30 days complete");
+    expect(projectionBasis(25, 30)).toBe("25 of 30 days");
+    expect(projectionBasis(25, 30, false)).toBe("25 of 30 days");
   });
 
   it("owns up to the day still filling in", () => {
-    expect(projectionBasis(29, 30, true)).toBe("29 of 30 days complete, one day partial");
+    expect(projectionBasis(29, 30, true)).toBe("29 of 30 days, one day partial");
   });
 });
 
@@ -145,5 +145,34 @@ describe("projectNightDay", () => {
 
   it("gives no estimate before a daytime is complete", () => {
     expect(projectNightDay("2026-09", "2026-09-01", [d("2026-09-01", 100, 0)])).toBeNull();
+  });
+});
+
+describe("monthCoverage", () => {
+  const today = "2026-10-19";
+
+  it("counts the current month's days with a figure against the whole month", () => {
+    expect(monthCoverage("2026-10", today, 18)).toBe("18 of 31 days");
+    // A lagging source, a feed that stopped: the same rule says so.
+    expect(monthCoverage("2026-10", today, 17)).toBe("17 of 31 days");
+    expect(monthCoverage("2026-10", today, 0)).toBe("0 of 31 days");
+  });
+
+  it("names a past month only when days of it have no figure", () => {
+    expect(monthCoverage("2023-04", today, 1)).toBe("1 of 30 days");
+    expect(monthCoverage("2023-05", today, 0)).toBe("0 of 31 days");
+    expect(monthCoverage("2023-05", today, 31)).toBeUndefined();
+  });
+
+  it("counts February 2022 from the invasion", () => {
+    expect(monthCoverage("2022-02", today, 5)).toBeUndefined();
+    expect(monthCoverage("2022-02", today, 3)).toBe("3 of 5 days");
+  });
+
+  it("says nothing without a day count, for a future month or a non-month key", () => {
+    expect(monthCoverage("2026-10", today)).toBeUndefined();
+    expect(monthCoverage("2023-04", today)).toBeUndefined();
+    expect(monthCoverage("2026-11", today, 0)).toBeUndefined();
+    expect(monthCoverage("2026-10-12", today, 3)).toBeUndefined();
   });
 });

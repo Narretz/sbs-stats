@@ -62,9 +62,10 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
         const dailyMedian = {
           killed: d.killed_daily_median, injured: d.injured_daily_median, total: d.total_daily_median,
         };
-        if (!p || total == null) return { date: d.date, killed, injured, dailyMedian };
+        const daysAvailable = d.total_days;
+        if (!p || total == null) return { date: d.date, killed, injured, dailyMedian, daysAvailable };
         return {
-          date: d.date, killed, injured, dailyMedian,
+          date: d.date, killed, injured, dailyMedian, daysAvailable,
           projection: {
             killed: projectCitMonth(d.date, killed, covered)?.projected ?? null,
             injured: projectCitMonth(d.date, injured, covered)?.projected ?? null,
@@ -74,7 +75,7 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
         };
       }),
       endMonth,
-      (date) => ({ date, killed: null, injured: null }),
+      (date) => ({ date, killed: null, injured: null, daysAvailable: 0 }),
     ), [rows, endMonth]);
 
   // The series' all-data stats, plus their sum's for the median line.

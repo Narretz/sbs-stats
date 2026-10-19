@@ -11,7 +11,7 @@ import type {
 import { GSUA_METRIC_KEYS, directionAxis } from "@/types";
 import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
 import { projectFromDays } from "@/utils/monthProjection";
-import { attachDailyMedians, dailyMediansByMonth } from "@/utils/dailyMedian";
+import { attachDailyMedians, attachDayCounts, dailyMediansByMonth, dayCountsByMonth } from "@/utils/dailyMedian";
 import { gsuaSourcesByDate, type GsuaPostSource } from "@/utils/sources";
 import type { SheetSource } from "@/components/TooltipTable";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
@@ -208,14 +208,15 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
           `SELECT * FROM gsua_daily WHERE date < '${floor}'`,
         )) as Record<string, unknown>[]
       : [];
-    const medians = dailyMediansByMonth(
-      [...settledDays, ...daily].map((row) => ({
-        date: String(row["date"]),
-        values: row as Partial<Record<GsuaMetricKey, number | null>>,
-      })),
-      GSUA_METRIC_KEYS,
-      today,
-    );
+    const allDays = [...settledDays, ...daily].map((row) => ({
+      date: String(row["date"]),
+      values: row as Partial<Record<GsuaMetricKey, number | null>>,
+    }));
+    const medians = dailyMediansByMonth(allDays, GSUA_METRIC_KEYS, today);
+    // …and how many days each metric was reported on — the 2023 backfill's
+    // reports carry no shellings or KAB counts at all, and drones on a handful
+    // of days, which a month's sum alone can't tell from a quiet month.
+    const dayCounts = dayCountsByMonth(allDays, GSUA_METRIC_KEYS, today);
 
     const currentMonth = today.slice(0, 7);
     const projection = projectFromDays(
@@ -242,6 +243,7 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
           row[`${k as GsuaMetricKey}_projected`] = v;
         }
         attachDailyMedians(row, medians);
+        attachDayCounts(row, dayCounts);
         return row;
       });
   }, [worker, hasTable]);

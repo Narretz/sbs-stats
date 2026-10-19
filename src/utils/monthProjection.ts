@@ -1,3 +1,5 @@
+import { WINDOW_FLOOR } from "@/utils/dayRange";
+
 // End-of-month projection from a month-to-date snapshot, extrapolated from the
 // days that are complete. Today's running total is subtracted rather than
 // counted as a full day: counting it made the projection drop by ~1/d every
@@ -24,7 +26,28 @@ export interface MonthEndProjection<K extends string> {
 
 // The tooltip / compare caption for a projection's basis.
 export const projectionBasis = (completedDays: number, daysInMonth: number, partialDay?: boolean) =>
-  `${completedDays} of ${daysInMonth} days complete${partialDay ? ", one day partial" : ""}`;
+  `${completedDays} of ${daysInMonth} days${partialDay ? ", one day partial" : ""}`;
+
+// How much of a month a sum of days covers: "1 of 30 days" for a past month
+// summed from fewer days than it has — a source's first month (GSUA's backfill
+// starts 2023-04-30), a scrape gap — and "18 of 31 days" for the current one,
+// where the days still to come and any missing so far read the same way.
+// `daysAvailable` is the month's days with a figure, today's excluded
+// (dailyMedian's dayCountsByMonth). Without one — a source whose month is its
+// own figure (SBS, the monthly recaps) — there is nothing to say. February 2022
+// counts from the invasion, so its five days are the whole month. Undefined
+// for a complete past month, a future one, or a key that isn't "YYYY-MM".
+export function monthCoverage(month: string, today: string, daysAvailable?: number | null): string | undefined {
+  if (daysAvailable == null || !/^\d{4}-\d{2}$/.test(month)) return undefined;
+  const current = today.slice(0, 7);
+  const floorMonth = WINDOW_FLOOR.slice(0, 7);
+  if (month > current || month < floorMonth) return undefined;
+  const [y, m] = month.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const days = month === floorMonth ? daysInMonth - Number(WINDOW_FLOOR.slice(8, 10)) + 1 : daysInMonth;
+  if (month < current && daysAvailable >= days) return undefined;
+  return `${daysAvailable} of ${days} days`;
+}
 
 const kyivDate = (iso: string) =>
   new Date(iso).toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });

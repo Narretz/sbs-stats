@@ -192,6 +192,9 @@ export interface MonthlyDataPoint {
   projection_partial_day?: boolean;
   // The month's median day (utils/dailyMedian), for a source with daily figures.
   daily_median?: number;
+  // The month's days with a figure, for a source summed from days — the
+  // tooltip's "X of Y days" (utils/monthProjection monthCoverage).
+  days_available?: number;
   note?: string; // optional caveat (e.g. possible double-count); shown in tooltip + flags the bar
 }
 
@@ -374,7 +377,7 @@ export type GsuaMonthlyRow = {
   projection_day: number | null;
   projection_days_in_month: number | null;
   projection_partial_day?: boolean;
-} & Record<GsuaMetricKey, number> & Partial<Record<`${GsuaMetricKey}_projected` | `${GsuaMetricKey}_daily_median`, number>>;
+} & Record<GsuaMetricKey, number> & Partial<Record<`${GsuaMetricKey}_projected` | `${GsuaMetricKey}_daily_median` | `${GsuaMetricKey}_days`, number>>;
 
 // ─── RU Losses (PetroIvaniuk dataset → ru-losses-gsua-petroivaniuk.db) ─────────
 // Daily Russian losses (personnel + equipment) as reported by the Ukrainian
@@ -434,7 +437,7 @@ export type RuLossesMonthlyRow = {
   projection_days_in_month: number | null;
   projection_partial_day?: boolean;
 } & Record<RuLossesMetricKey, number>
-  & Partial<Record<`${RuLossesMetricKey}_projected` | `${RuLossesMetricKey | "targets"}_daily_median`, number>>;
+  & Partial<Record<`${RuLossesMetricKey}_projected` | `${RuLossesMetricKey | "targets"}_daily_median` | `${RuLossesMetricKey | "targets"}_days`, number>>;
 
 // ─── UA Losses claimed by the RU MoD (John Felix's sheet → ua-losses-ru-mod-john-felix.db) ─
 // The categories are the MoD's own "since the start" tally — plus radars, EW
@@ -516,7 +519,7 @@ export type UaLossesRuModMonthlyRow = {
   projection_days_in_month: number | null;
   projection_partial_day?: boolean;
 } & Record<UaLossesRuModMetricKey | UaLossesRuModArmourKey, number>
-  & Partial<Record<`${UaLossesRuModMetricKey}_projected` | `${UaLossesRuModMetricKey | "targets"}_daily_median`, number>>;
+  & Partial<Record<`${UaLossesRuModMetricKey}_projected` | `${UaLossesRuModMetricKey | "targets"}_daily_median` | `${UaLossesRuModMetricKey | "targets"}_days`, number>>;
 
 // ─── UA Losses (ualosses.org daily personnel losses → ua-losses.db) ───────────
 // Confirmed, named Ukrainian military losses aggregated per day, broken out by
@@ -553,7 +556,7 @@ export type UaLossesMonthlyRow = {
   projection_day: number | null;
   projection_days_in_month: number | null;
   projection_partial_day?: boolean;
-} & Record<UaLossesMetricKey, number> & Partial<Record<`${UaLossesMetricKey}_projected` | `${UaLossesMetricKey}_daily_median`, number>>;
+} & Record<UaLossesMetricKey, number> & Partial<Record<`${UaLossesMetricKey}_projected` | `${UaLossesMetricKey}_daily_median` | `${UaLossesMetricKey}_days`, number>>;
 
 // ─── RU Air Attacks (piterfm Kaggle → ru-air-attacks-gsua.db) ─────────────────
 // Russian missile/UAV strikes on Ukraine, digitized by piterfm from the UA Air
@@ -769,7 +772,7 @@ export type RuAdMonthlyRow = {
   // not a pure drone count) and the drones they contributed — see ad_reports.unit.
   air_target_reports: number;
   air_target_drones: number;
-} & Partial<Record<`${"total" | "night" | "day"}_${"projected" | "daily_median"}`, number>>;
+} & Partial<Record<`${"total" | "night" | "day"}_${"projected" | "daily_median" | "days"}`, number>>;
 
 // ─── SBU Alfa (ssu.gov.ua monthly recap → sbu-alfa.db) ─────────────────────────
 // SBU's "TOP-1 серед підрозділів Сил оборони" monthly recap (running since
@@ -1270,7 +1273,7 @@ export type CitMonthlyRow = {
   // Days in the month actually covered by a report, so a partial month is
   // visible as such rather than reading as a quiet one.
   covered_days: number;
-} & Record<CitMetricKey, number> & Partial<Record<`${CitMetricKey | "total"}_daily_median`, number>>;
+} & Record<CitMetricKey, number> & Partial<Record<`${CitMetricKey | "total"}_${"daily_median" | "days"}`, number>>;
 
 // One region's share of the casualties in a period, from the breakdown rows.
 // Occupied and government-held parts of the same oblast are separate entries —

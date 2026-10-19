@@ -41,7 +41,7 @@ test("the monthly composition chart projects the month in progress", async ({ pa
   await svg.click({ position: { x: box.width - 12, y: box.height * 0.5 } });
   const sheet = page.locator(".chart-sheet[data-open]");
   await expect(sheet).toContainText("Projected");
-  await expect(sheet).toContainText(/\d+ of \d+ days complete/);
+  await expect(sheet).toContainText(/\d+ of \d+ days/);
 });
 
 // The posts behind a pinned day, linked in the sheet: the one the figures

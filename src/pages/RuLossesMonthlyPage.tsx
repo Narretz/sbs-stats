@@ -7,7 +7,7 @@ import { MoreControls } from "@/components/MoreControls";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
-import { padTrailingMonthly } from "@/utils/padTrailing";
+import { noDaysMonth, padTrailingMonthly } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import {
   RU_LOSSES_METRIC_KEYS,
@@ -46,7 +46,7 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
   // current-month projections (sum of the per-metric linear / weekday-weighted
   // projections), so the projected segment and the tooltip comparison carry over.
   const makeTargetsDataset = (): MonthlyDataPoint[] =>
-    padTrailingMonthly(
+    padTrailingMonthly<MonthlyDataPoint>(
       rows.map((d) => {
         const value = sumTargets(d);
         const isCurrent = d.projection_day != null;
@@ -62,14 +62,17 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
           projection_days_in_month: d.projection_days_in_month ?? undefined,
           projection_partial_day: d.projection_partial_day,
           daily_median: d.targets_daily_median,
+          days_available: d.targets_days,
         };
       }),
       endMonth,
+      noDaysMonth,
     );
   const makeDataset = (key: RuLossesMetricKey): MonthlyDataPoint[] =>
-    padTrailingMonthly(
+    padTrailingMonthly<MonthlyDataPoint>(
       rows.map((d) => {
-        const value = typeof d[key] === "number" ? d[key] : null;
+        // A month with no day of this metric is a gap, not the 0 its sum reads.
+        const value = typeof d[key] === "number" && d[`${key}_days`] !== 0 ? d[key] : null;
         const projected = d[`${key}_projected`];
         return {
           date: d.date,
@@ -80,9 +83,11 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
           projection_days_in_month: d.projection_days_in_month ?? undefined,
           projection_partial_day: d.projection_partial_day,
           daily_median: d[`${key}_daily_median`],
+          days_available: d[`${key}_days`],
         };
       }),
       endMonth,
+      noDaysMonth,
     );
 
   return (

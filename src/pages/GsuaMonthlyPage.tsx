@@ -8,7 +8,7 @@ import { MoreControls } from "@/components/MoreControls";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
-import { padTrailingMonthly } from "@/utils/padTrailing";
+import { noDaysMonth, padTrailingMonthly } from "@/utils/padTrailing";
 import { CheckboxMultiSelect } from "@/components/CheckboxMultiSelect";
 import { DailyMultiLineChart, type LineSeries } from "@/components/DailyMultiLineChart";
 import { axisLabel, axisSeries, directionColor, directionOptions, directionsTitle, parseDirectionsParam } from "@/utils/gsuaDirections";
@@ -94,9 +94,10 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
 
   const endMonth = yr.endMonth;
   const makeDataset = (key: GsuaMetricKey): MonthlyDataPoint[] =>
-    padTrailingMonthly(
+    padTrailingMonthly<MonthlyDataPoint>(
       rows.map((d) => {
-        const value = typeof d[key] === "number" ? d[key] : null;
+        // A month with no day of this metric is a gap, not the 0 its sum reads.
+        const value = typeof d[key] === "number" && d[`${key}_days`] !== 0 ? d[key] : null;
         const projected = d[`${key}_projected`];
         return {
           date: d.date,
@@ -107,9 +108,11 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
           projection_days_in_month: d.projection_days_in_month ?? undefined,
           projection_partial_day: d.projection_partial_day,
           daily_median: d[`${key}_daily_median`],
+          days_available: d[`${key}_days`],
         };
       }),
       endMonth,
+      noDaysMonth,
     );
 
   // A picked direction's months: its share of the coverage stack the page

@@ -7,7 +7,7 @@ import { MoreControls } from "@/components/MoreControls";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
-import { padTrailingMonthly } from "@/utils/padTrailing";
+import { noDaysMonth, padTrailingMonthly } from "@/utils/padTrailing";
 import type { MonthlyDataPoint } from "@/types";
 import { chartAnchor } from "@/utils/chartAnchor";
 import { RU_MOD_DAILY_TOTAL_TITLE, RU_MOD_DAILY_WINDOWS_TITLE } from "@/types";
@@ -28,7 +28,7 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
 
   const endMonth = yr.endMonth;
   const makeDataset = (key: MetricKey): MonthlyDataPoint[] =>
-    padTrailingMonthly(
+    padTrailingMonthly<MonthlyDataPoint>(
       rows.map((d) => {
         const value = d[key];
         const projected = d[`${key}_projected`];
@@ -49,10 +49,12 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
           projection_days_in_month: d.projection_days_in_month ?? undefined,
           projection_partial_day: d.projection_partial_day,
           daily_median: d[`${key}_daily_median`],
+          days_available: d[`${key}_days`],
           note,
         };
       }),
       endMonth,
+      noDaysMonth,
     );
 
   return (

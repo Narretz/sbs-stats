@@ -15,7 +15,7 @@ import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshabl
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { outcomesFromSql, reportDays, spreadTerritoryReports, territoryTotals } from "@/utils/citTerritory";
-import { attachDailyMedians, dailyMediansByMonth, sumPresent } from "@/utils/dailyMedian";
+import { attachDailyMedians, attachDayCounts, dailyMediansByMonth, dayCountsByMonth, sumPresent } from "@/utils/dailyMedian";
 import { citSourcesByDate, type CitReportSource } from "@/utils/sources";
 import type { SheetSource } from "@/components/TooltipTable";
 
@@ -194,20 +194,21 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
     const mskDateStr = getMskDateString();
     // Each month's median day, per series and for their sum — on the daily
     // page's per-day basis (reportDays).
-    const medians = dailyMediansByMonth(
-      reportDays(queryRows<Record<string, unknown>>(
-        db, "SELECT report_date, killed, injured, window_days FROM daily_stated",
-      ).map((r) => {
-        const values = Object.fromEntries(CIT_METRIC_KEYS.map((k) => [k, typeof r[k] === "number" ? r[k] : null])) as Partial<Record<CitMetricKey, number | null>>;
-        return {
-          report_date: String(r.report_date),
-          window_days: typeof r.window_days === "number" ? r.window_days : 1,
-          values: { ...values, total: sumPresent(values, CIT_METRIC_KEYS) },
-        };
-      })),
-      [...CIT_METRIC_KEYS, "total"] as const,
-      mskDateStr,
-    );
+    const monthDays = reportDays(queryRows<Record<string, unknown>>(
+      db, "SELECT report_date, killed, injured, window_days FROM daily_stated",
+    ).map((r) => {
+      const values = Object.fromEntries(CIT_METRIC_KEYS.map((k) => [k, typeof r[k] === "number" ? r[k] : null])) as Partial<Record<CitMetricKey, number | null>>;
+      return {
+        report_date: String(r.report_date),
+        window_days: typeof r.window_days === "number" ? r.window_days : 1,
+        values: { ...values, total: sumPresent(values, CIT_METRIC_KEYS) },
+      };
+    }));
+    const monthKeys = [...CIT_METRIC_KEYS, "total"] as const;
+    const medians = dailyMediansByMonth(monthDays, monthKeys, mskDateStr);
+    // Days with a figure, on the same per-day basis: `covered_days` books a
+    // report straddling two months wholly in the month it ends in.
+    const dayCounts = dayCountsByMonth(monthDays, monthKeys, mskDateStr);
     const currentMonth = mskDateStr.slice(0, 7);
     const dayOfMonth = parseInt(mskDateStr.slice(8, 10), 10);
     const [y, m] = currentMonth.split("-").map(Number);
@@ -228,6 +229,7 @@ export function useDatabaseCitCivilians({ enabled = true }: { enabled?: boolean 
         }, {} as Record<CitMetricKey, number>)),
       } as CitMonthlyRow;
       attachDailyMedians(out, medians);
+      attachDayCounts(out, dayCounts);
       return out;
     });
   }, [db]);
