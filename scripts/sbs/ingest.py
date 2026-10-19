@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-fetch_and_update.py
--------------------
+ingest.py
+---------
 Fetches latest battlefield data from sbs-group.army and writes it into data/sbs.db.
 Runs on a cron schedule via GitHub Actions (.github/workflows/update-db.yml).
 """
@@ -9,14 +9,20 @@ Runs on a cron schedule via GitHub Actions (.github/workflows/update-db.yml).
 import argparse
 import os
 import sqlite3
+import sys
 import time
 import zoneinfo
 import requests
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
-# `scripts/` is this file's own directory, so it is already sys.path[0] — no
-# shim needed here, unlike the ingests that live a level down.
-from ingest_log import ann, get_logger
+SCRIPT_DIR = Path(__file__).resolve().parent
+# `scripts/` isn't a package, so the parent goes on sys.path for the shared
+# diagnostics sink.
+if str(SCRIPT_DIR.parent) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR.parent))
+
+from ingest_log import ann, get_logger  # noqa: E402
 
 log = get_logger("sbs")
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-download_foosint_db.py
-----------------------
-Downloads the foosint sbs.db snapshot from GitHub to data/sbs-foosint.db.
+foosint_download.py
+-------------------
+Downloads the foosint/sbs-stats sbs.db snapshot from GitHub to
+data/sbs-foosint.db — the source for foosint_backfill.py / foosint_refresh.py.
 """
 
 import time

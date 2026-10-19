@@ -55,7 +55,7 @@ jobs:
 
       # pytest and requests, which is the whole of it — verified by running the
       # suites with openpyxl, telethon, playwright and python-dotenv all blocked
-      # at import. requests is NOT avoidable: `scripts/fetch_and_update.py`
+      # at import. requests is NOT avoidable: `scripts/sbs/ingest.py`
       # imports it at module level, and six suites reach it transitively
       # (`sbs_units/discover.py` imports its HTTP helpers, and so on), so
       # leaving it out fails collection rather than skipping a test.

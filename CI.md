@@ -46,7 +46,7 @@ secret that survives deploys — set it with `wrangler secret put`.
 
 ### SBS (`update-db.yml`)
 
-The SBS grouping total has no README of its own (`scripts/fetch_and_update.py`).
+The SBS grouping total — [README](scripts/sbs/README.md).
 One run at a time (`concurrency: sbs-db`): each run uploads the whole DB, so
 overlapping runs would drop each other's hours. `all_months` bypasses the
 10-day / 6-hour refresh thresholds. Hours a run never happened for (an expired
@@ -120,7 +120,7 @@ ingest, no reparse, no dataset mutation, no PR for a step that flaked once.
   `pull_request`: a push matches its paths against that push alone, so a PR
   whose last commit is docs-only would show no checks at all, while a
   pull_request event matches the whole PR diff and runs against the merge
-  commit. Installs pytest and `requests` and nothing else — `fetch_and_update.py`
+  commit. Installs pytest and `requests` and nothing else — `sbs/ingest.py`
   imports requests at module level and several suites reach it transitively,
   so leaving it out fails collection; the rest of `scripts/requirements.txt`
   is imported lazily. The scheduled ingests are not a substitute: they

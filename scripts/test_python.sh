@@ -37,7 +37,7 @@ cd "$(dirname "$0")/.."
 # Discovered, not listed: a new dataset's suite joins in by existing. `dirname`
 # per match, deduplicated, so several test files in one directory are one run.
 #
-# The top-level suites (scripts/test_ingest_log.py, scripts/test_fetch_and_update.py)
+# The top-level suites (scripts/test_ingest_log.py, scripts/test_build_app_db.py, …)
 # are a group of their own, passed as FILES rather than as `scripts/`: the
 # directory would recurse into every dataset subdirectory and hit exactly the
 # sibling-name collision described above.

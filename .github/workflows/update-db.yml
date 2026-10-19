@@ -69,8 +69,8 @@ jobs:
       - name: Backfill missing hours from foosint
         if: inputs.backfill_from_foosint
         run: |
-          python3 scripts/download_foosint_db.py
-          python3 scripts/generate_hourly_backfill_sql.py \
+          python3 scripts/sbs/foosint_download.py
+          python3 scripts/sbs/foosint_backfill.py \
             --target-db data/sbs.db --source-db data/sbs-foosint.db \
             --start-date 2022-01-01 --output /tmp/backfill.sql \
             | tee -a "$GITHUB_STEP_SUMMARY"
@@ -80,7 +80,7 @@ jobs:
         env:
           DB_PATH: data/sbs.db
           SUMMARY_PATH: /tmp/update-summary.txt
-        run: python scripts/fetch_and_update.py ${{ inputs.all_months && '--all-months' || '' }}
+        run: python scripts/sbs/ingest.py ${{ inputs.all_months && '--all-months' || '' }}
 
       # Upload to Cloudflare R2 — the frontend reads the DB from there, so it
       # has to be browser-fetchable with CORS. One-time setup of the bucket +

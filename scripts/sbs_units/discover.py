@@ -30,13 +30,15 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 # `scripts/` isn't a package, so the parent goes on sys.path for the shared
-# helpers. `fetch_and_update` owns the HTTP retry loop, the Kyiv month
+# helpers. The SBS grouping ingest owns the HTTP retry loop, the Kyiv month
 # conversion and the payload guards; duplicating any of them here would mean
-# two behaviours to keep in step.
+# two behaviours to keep in step. It is reached as `sbs.ingest`: every dataset
+# directory has an `ingest` module — this one included — so the bare name would
+# resolve to the wrong file.
 if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
-from fetch_and_update import (  # noqa: E402
+from sbs.ingest import (  # noqa: E402
     BASE_PUBLIC_URL,
     _is_month_period,
     _period_month,
@@ -55,7 +57,7 @@ SUBDIVISIONS_URL = f"{BASE_PUBLIC_URL}/subdivisions?limit=500"
 PERIODS_URL = f"{BASE_PUBLIC_URL}/periods?limit=500"
 
 # The grouping-level subdivision. It is the sum of (most of) the others and is
-# already tracked in its own right by `scripts/fetch_and_update.py` -> sbs.db,
+# already tracked in its own right by `scripts/sbs/ingest.py` -> sbs.db,
 # so this ingest skips it rather than storing a second, differently-versioned
 # copy of the same numbers.
 GROUPING_SUBDIVISION_ID = "68b0c85589944c4bfb2a5edc"

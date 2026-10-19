@@ -1,4 +1,4 @@
-# SBS scraper (scripts/fetch_and_update.py)
+# SBS scraper (scripts/sbs/ingest.py)
 requests>=2.31.0
 
 # GSUA scrapers (scripts/gsua/*)

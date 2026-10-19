@@ -3,7 +3,7 @@
 Snapshots each sub-unit of the Unmanned Systems Forces from the public
 `sbs-group.army` API into `data/sbs-units.db`.
 
-The grouping total (Угруповання СБС) is **not** here — `scripts/fetch_and_update.py`
+The grouping total (Угруповання СБС) is **not** here — `scripts/sbs/ingest.py`
 tracks it into `sbs.db`. The split is deliberate: `sbs.db` is fetched whole by
 every SBS page including the hourly one, and unit data is only read by the
 monthly / compare / combined views.
@@ -41,7 +41,7 @@ Two consequences, both load-bearing:
    the `startDate` the payload itself states, and `read_period` refuses a
    payload whose stated month isn't the one it is about to be filed under.
    This is not theoretical: the hardcoded fallback map that used to live in
-   `fetch_and_update.py` had an id filed under "2025-06" that now serves **June
+   `sbs/ingest.py` had an id filed under "2025-06" that now serves **June
    2026**.
 2. **Months older than the window are gone.** When this was first backfilled
    (2026-09) the live units reached back only to 2025-10. Anything earlier is

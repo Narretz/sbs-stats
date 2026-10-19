@@ -10,7 +10,7 @@ via sql.js / sql.js-httpvfs.
 
 | View | Site key | Source | Pipeline |
 |---|---|---|---|
-| SBS STATISTICS | `sbs` | sbs-group.army public API | `scripts/fetch_and_update.py` → `sbs.db` |
+| SBS STATISTICS | `sbs` | sbs-group.army public API | [`scripts/sbs/`](scripts/sbs/README.md) → `sbs.db` |
 | SBS SUB-UNITS | (SBS monthly filter · compare column · `sbs-unit.*` metrics) | sbs-group.army public API, per subdivision | [`scripts/sbs_units/`](scripts/sbs_units/README.md) → `sbs-units.db` |
 | RU ATTACKS — GSUA | `ru-attacks-gsua` | Ukrainian General Staff operational reports (Telegram) | [`scripts/gsua/`](scripts/gsua/README.md) → `ru-attacks-gsua.db` |
 | RU LOSSES — GSUA | `ru-losses-gsua` | Ukrainian General Staff national totals (PetroIvaniuk dataset) | [`scripts/ru_losses/`](scripts/ru_losses/README.md) → `ru-losses-gsua-petroivaniuk.db` |

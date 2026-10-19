@@ -4,7 +4,7 @@ ingest.py
 ---------
 Snapshots each SBS sub-unit's published statistics into data/sbs-units.db.
 
-The grouping total (Угруповання СБС) is NOT here — `scripts/fetch_and_update.py`
+The grouping total (Угруповання СБС) is NOT here — `scripts/sbs/ingest.py`
 already tracks it into sbs.db, and the two are kept in separate files so the
 hourly SBS pages don't pay for data only the unit views read.
 
@@ -67,7 +67,9 @@ if str(SCRIPT_DIR.parent) not in sys.path:
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from fetch_and_update import (  # noqa: E402
+# `sbs.ingest`, not `ingest`: that name is this file's own (and every other
+# dataset directory's). See discover.py for what is shared and why.
+from sbs.ingest import (  # noqa: E402
     KYIV_TZ,
     BASE_STAT_COLS,
     _payload_is_usable,
