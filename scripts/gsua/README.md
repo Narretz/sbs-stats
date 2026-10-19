@@ -306,6 +306,17 @@ subagent — the per-msg work is read-only (compare bold headers against the
   matched (`kamikaze_drones`) or when it appears earlier in the post
   (`shellings` — see `_parse_shellings`).
 
+- **Spring-2023 `combat_engagements` are attack counts.** Until 11 May 2023,
+  and again 27 May – 1 Jun, the morning report gave the day's total as
+  attacks ("…напрямках – відбито 41 атаку", "відбили 19 ворожих атак"), with
+  "бойових зіткнень" from 12 May. The series runs straight through the switch
+  (11 May: 44 attacks, 12 May: 47 engagements), so `_parse_attacks_total`
+  stores it as `combat_engagements`, as a fallback after every engagement
+  branch. Those rows carry a `notes` marker (`ATTACKS_NOTE`, plus
+  `APPROX_NOTE` for "понад / близько"). Unlike a header-typo note, these
+  describe the source's wording and are not raised as warnings. Only the
+  Facebook / kmu.gov.ua backfill reaches back that far.
+
 ## Multipart posts — a known, bounded gap
 
 **Dead format.** The channel split long reports into `(1/2)` / `(2/2)` between

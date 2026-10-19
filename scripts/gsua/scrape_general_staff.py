@@ -800,6 +800,51 @@ def _parse_combat_engagements(
     )
 
 
+# Spring 2023 gave the day's total as attacks repelled / made, not engagements:
+# "…напрямках - відбито 41 атаку", "Протягом минулої доби підрозділи сил
+# оборони відбили 19 ворожих атак" — through 11 May 2023, and again 27 May –
+# 1 Jun, with "бойових зіткнень" from 12 May. Same quantity under an older
+# label: the series runs straight through the switch (11 May: 44 attacks,
+# 12 May: 47 engagements), so it is stored as combat_engagements, with
+# ATTACKS_NOTE on the row. Only tried when no engagement branch matched.
+#
+# Per-direction prose uses the same verbs ("На Мар'їнському напрямку … відбили
+# 12 атак", "лише в районі Мар'їнки … відбито близько 20"), and so do sector
+# sub-totals ("відбили понад 30 ворожих атак на зазначеній ділянці фронту"),
+# so a sentence only counts when it carries a whole-day scope marker and none
+# that ties it to one direction or place.
+_ATTACKS_TOTAL = re.compile(
+    r"(?:відбит|відбил|здійснив)\w*\s+(понад\s+|близько\s+|майже\s+)?"
+    r"(\d[\d\s]*\d|\d)\s+(?:ворож\w+\s+)?атак",
+    re.IGNORECASE | re.UNICODE,
+)
+_ATTACKS_TOTAL_SCOPE = re.compile(
+    r"протягом\s+(?:минулої\s+)?доби|за\s+минулу\s+добу|загалом|основні\s+зусилля",
+    re.IGNORECASE | re.UNICODE,
+)
+_ATTACKS_TOTAL_LOCAL = re.compile(
+    r"^(?:На|У|В)\s|напрямку\b|в\s+районі|ділянці\s+фронту",
+    re.IGNORECASE | re.UNICODE,
+)
+ATTACKS_NOTE = "combat_engagements counted from attacks (spring-2023 wording)"
+APPROX_NOTE = "approximate (понад / близько / майже)"
+# Notes that describe the source's wording rather than a parser correction —
+# kept on the row, but not raised as a warning on every parse.
+WORDING_NOTES = {ATTACKS_NOTE, APPROX_NOTE}
+
+
+def _parse_attacks_total(text: str) -> tuple[int, bool] | None:
+    """The spring-2023 attacks total → (count, approximate)."""
+    for sentence in re.split(r"(?<=[.!?])\s+|\n", text):
+        sentence = sentence.strip()
+        if _ATTACKS_TOTAL_LOCAL.search(sentence) or not _ATTACKS_TOTAL_SCOPE.search(sentence):
+            continue
+        m = _ATTACKS_TOTAL.search(sentence)
+        if m:
+            return int(_digits(m.group(2))), m.group(1) is not None
+    return None
+
+
 def parse_summary(text: str, msg: Message) -> DailySummary | None:
     """Parse top-level aggregate numbers from an operational report."""
     if not is_operational_report(text):
@@ -834,6 +879,10 @@ def parse_summary(text: str, msg: Message) -> DailySummary | None:
             return s
 
     s.combat_engagements = _parse_combat_engagements(text)
+    if s.combat_engagements is None and (attacks := _parse_attacks_total(text)):
+        s.combat_engagements, approximate = attacks
+        notes = [s.notes, ATTACKS_NOTE, APPROX_NOTE if approximate else None]
+        s.notes = "; ".join(n for n in notes if n)
 
     # --- Missile strikes ---
     # "2 ракетних удари" / "ракетних ударів — 2" / "одного ракетного удару".
@@ -1499,14 +1548,16 @@ _ATTACK_CONTEXT = re.compile(
 # to a "в бік / в районі" target clause, so plural forms ("відбили атаки",
 # "зупинили штурми") and the ongoing-only phrasings can't match. The `(?<!не )`
 # lookbehind keeps the negated variants out ("атакувальних дій не проводили") —
-# those the no-activity sentinel above doesn't always cover.
+# those the no-activity sentinel above doesn't always cover. The "продовжує"
+# ones keep out "противник продовжує атакувати позиції сил оборони" (spring
+# 2023): ongoing pressure on a whole sector, which says nothing about how many.
 _SINGLE_ASSAULT = re.compile(
     r"(?<!не )(?:здійсн|провод|провів|провел)\w*\s+"
     r"(?:одну\s+)?(?:атаку\b|штурм\b|штурмову\s+дію|наступальну\s+дію)"
     r"|(?<!не )(?:зупин|відбил|відбив|відбито)\w*\s+"
     r"(?:ворожий\s+)?(?:атаку\b|штурм\b|спробу\b)"
     r"|(?<!не )(?:штурмува|атакува)\w*\s+(?:в|у)\s+(?:бік|районі|напрямку)"
-    r"|(?<!не )атакува\w*\s+позиц",
+    r"|(?<!не )(?<!продовжує )(?<!продовжують )атакува\w*\s+позиц",
     re.IGNORECASE | re.UNICODE,
 )
 
@@ -1528,7 +1579,14 @@ _FRONT_WIDE = re.compile(
     # Краматорському і Курахівському напрямках" (msg 14714) gave all three 44,
     # "…де провів МАЙЖЕ ПОЛОВИНУ від усіх атак" (msg 19290) gave both the 131.
     # Either way the number named is not this direction's count.
-    r"|найбільше\s*[–—-]|більшість|половин|відсотк|третин",
+    r"|найбільше\s*[–—-]|більшість|половин|відсотк|третин"
+    # spring-2023 opener: "Противник зосереджує основні зусилля на … Лиманському,
+    # Бахмутському та Мар'їнському напрямках, де … відбили близько 60 атак" —
+    # names the main directions and gives the whole day's total.
+    # Plural "напрямках" only: 2024 opens a single direction's own paragraph
+    # the same way ("Основні зусилля ворог концентрує на Покровському
+    # напрямку, тут … 55 разів"), and that 55 is Pokrovsk's.
+    r"|основні\s+зусилля[^.]*напрямках",
     re.IGNORECASE | re.UNICODE,
 )
 
@@ -2469,8 +2527,9 @@ def _sanity_check(
             f"{prefix}: combat_engagements out of expected range "
             f"({summary.combat_engagements})"
         )
-    if summary.notes:
-        log.warning(f"{prefix}: {summary.notes}")
+    corrections = [n for n in (summary.notes or "").split("; ") if n and n not in WORDING_NOTES]
+    if corrections:
+        log.warning(f"{prefix}: {'; '.join(corrections)}")
     # Surface direction labels that fell through _normalize_direction's
     # DIRECTION_NAMES lookup — those still contain Cyrillic and likely need
     # a new dict entry.

@@ -338,6 +338,78 @@ class TestCombatEngagements:
         )
         assert s.combat_engagements == 45
 
+    # Spring 2023 gave the day's total as attacks, not engagements (until 11
+    # May, and again 27 May – 1 Jun). Same quantity, older label — the series
+    # runs straight through the switch (11 May: 44 attacks, 12 May: 47
+    # engagements). Stored as combat_engagements with a note saying so.
+    def _parse_2023(self, body: str):
+        text = (
+            "Оперативна інформація станом на 06:00 03.05.2023 щодо російського вторгнення\n"
+            f"{body}\n"
+            "На Покровському напрямку триває одне боєзіткнення."
+        )
+        # Posted 07:05 Kyiv, as the real report was — a header far from the
+        # message date would be "corrected" as a typo and noted.
+        return gs.parse_summary(text, _msg(text, posted_utc="2023-05-03T04:05:00+00:00"))
+
+    def test_attacks_total_main_effort_dash(self):
+        # 06:00 02.05.2023 (kmu.gov.ua)
+        s = self._parse_2023(
+            "Окупанти продовжують зосереджувати основні зусилля на веденні "
+            "наступальних дій на Лиманському, Бахмутському, Авдіївському та "
+            "Мар’їнському напрямках - відбито 41 атаку противника."
+        )
+        assert s.combat_engagements == 41
+        assert s.notes == gs.ATTACKS_NOTE
+
+    def test_attacks_total_approximate(self):
+        # 06:00 05.05.2023: "близько 60"; 06:00 01.05.2023: "понад 36".
+        s = self._parse_2023(
+            "Противник зосереджує основні зусилля на веденні наступальних дій на "
+            "Лиманському, Бахмутському та Мар’їнському напрямках, де, протягом "
+            "доби, підрозділи сил оборони відбили близько 60 атак."
+        )
+        assert s.combat_engagements == 60
+        assert s.notes == f"{gs.ATTACKS_NOTE}; {gs.APPROX_NOTE}"
+        s = self._parse_2023(
+            "Підрозділами сил оборони України протягом минулої доби відбито понад "
+            "36 атак противника на зазначених ділянках фронту."
+        )
+        assert s.combat_engagements == 36
+
+    def test_attacks_total_day_marker(self):
+        # 06:00 28.05.2023 and 08.05.2023 — the late-May relapse and the
+        # "Загалом" form.
+        s = self._parse_2023("Протягом минулої доби підрозділи сил оборони відбили 19 ворожих атак.")
+        assert s.combat_engagements == 19
+        s = self._parse_2023(
+            "Загалом, протягом минулої доби було відбито 42 атаки противника на "
+            "зазначених ділянках фронту."
+        )
+        assert s.combat_engagements == 42
+
+    def test_attacks_total_ignores_per_direction_counts(self):
+        # A direction's own "відбили 12 атак" (06:00 29.05.2023) and a
+        # sector sub-total (06:00 10.04.2023) are not the day's total.
+        s = self._parse_2023(
+            "На Мар’їнському напрямку наші захисники відбили 12 атак противника "
+            "в районі міста Мар’їнка.\n"
+            "Підрозділи сил оборони відбили понад 30 ворожих атак на зазначеній "
+            "ділянці фронту.\n"
+            "Минулої доби, лише в районі Мар’їнки військовослужбовцями Сил "
+            "оборони було відбито близько 20 ворожих атак."
+        )
+        assert s.combat_engagements is None
+        assert s.notes is None
+
+    def test_attacks_total_never_beats_engagements(self):
+        s = self._parse_2023(
+            "Загалом, протягом минулої доби відбулось 47 бойових зіткнень. "
+            "Протягом минулої доби підрозділи сил оборони відбили 19 ворожих атак."
+        )
+        assert s.combat_engagements == 47
+        assert s.notes is None
+
     def test_daily_aggregate_compound_form(self):
         # msg 32131: "зафіксовано 201 боєзіткнення" (compound spelling in the
         # daily aggregate; earlier months alternate between this and the
@@ -1482,6 +1554,29 @@ class TestDirections:
         text = _wrap_evening("На окремих напрямках ситуація стабільна.")
         dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
         assert all(d.direction.lower() != "окремих" for d in dirs)
+
+    def test_main_effort_sentence_total_is_front_wide(self):
+        # 06:00 05.05.2023: the "основні зусилля" sentence names the main
+        # directions and gives the whole day's total — it handed each of the
+        # three 60 (as a shared group) before.
+        text = _wrap_evening(
+            "Противник зосереджує основні зусилля на веденні наступальних дій на "
+            "Лиманському, Бахмутському та Мар’їнському напрямках, де, протягом "
+            "доби, підрозділи сил оборони відбили близько 60 атак."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        assert all(d.attacks != 60 for d in dirs)
+
+    def test_continues_attacking_is_not_one_assault(self):
+        # 06:00 01.05.2023: "продовжує атакувати позиції" is ongoing pressure
+        # with no count, not the single-assault floor of 1.
+        text = _wrap_evening(
+            "На Лиманському напрямку противник продовжує атакувати позиції сил "
+            "оборони. Тривають бої за Мар’їнку."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        lyman = next(d for d in dirs if d.direction == "Lyman")
+        assert lyman.attacks is None
 
     def test_attacks_digit(self):
         text = _wrap_evening(
