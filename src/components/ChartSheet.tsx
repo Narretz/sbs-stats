@@ -7,6 +7,11 @@ import type { SheetLink } from "@/hooks/useDrillDownLink";
 
 const TITLE_ID = "chart-sheet-title";
 
+// What counts as a control for outside-click dismissal. `[popover]` covers the
+// padding of the native popovers (weekday filter, metric picker) around their
+// checkboxes, and `label` the text of a checkbox row.
+const CONTROL = "button, select, input, textarea, label, a[href], summary, [role=button], [popover]";
+
 // The singleton bottom sheet. Mounted once, above the pages (several pages
 // bypass PageScaffold, so this can't live there), and empty until some chart
 // pins itself and portals its header + body into `host`.
@@ -42,7 +47,12 @@ export function ChartSheet() {
 
   // Outside-click dismissal. Clicks anywhere inside a chart card are exempt:
   // on the pinned chart that's a re-selection, on another chart it's a new
-  // pin, and neither should be raced by a close.
+  // pin, and neither should be raced by a close. So are clicks on controls —
+  // a button, a select, a popover's contents: adjusting the page around a
+  // selection shouldn't throw it away. Whatever the control does to the pin
+  // is settled downstream instead: a window that drops the pinned date drops
+  // the pin (useChartPin), so does a control that removes the pinned chart,
+  // and navigating to another page clears it (ChartPinProvider).
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {
@@ -57,6 +67,7 @@ export function ChartSheet() {
       if (e.clientX > doc.clientWidth || e.clientY > doc.clientHeight) return;
       if (sheetRef.current?.contains(target)) return;
       if (target.closest?.("[data-chart-pinnable]")) return;
+      if (target.closest?.(CONTROL)) return;
       setPin(null);
     };
     document.addEventListener("pointerdown", onPointerDown);

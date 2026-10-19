@@ -50,10 +50,25 @@ const chart = (title: string, data: DailyDataPoint[]) => (
 // The first chart's data can be swapped from outside, as a page does when its
 // window changes.
 let setFirst: (d: DailyDataPoint[]) => void = () => {};
+// And it can be removed, by a control above the charts, as a page's filter or
+// a homepage chart's delete does.
 function Charts({ first = rows(1, 7) }: { first?: DailyDataPoint[] }) {
   const [data, setData] = useState(first);
+  const [showFirst, setShowFirst] = useState(true);
+  const [mode, setMode] = useState("a");
   setFirst = setData;
-  return <Shell>{chart(FIRST, data)}{chart(SECOND, rows(1, 7, (n) => 100 - n))}</Shell>;
+  return (
+    <Shell>
+      <button onClick={() => setShowFirst(!showFirst)}>Toggle first</button>
+      <button onClick={() => setMode(mode === "a" ? "b" : "a")}>Nudge</button>
+      <select aria-label="Mode" value={mode} onChange={(e) => setMode(e.target.value)}>
+        <option value="a">A</option>
+        <option value="b">B</option>
+      </select>
+      {showFirst && chart(FIRST, data)}
+      {chart(SECOND, rows(1, 7, (n) => 100 - n))}
+    </Shell>
+  );
 }
 
 // The document the charts render into — not necessarily the test's global
@@ -242,6 +257,25 @@ describe("Chart pin sheet", () => {
     await pinAt(FIRST, 0.3);
     expect(isOpen()).toBe(true);
     expect(sheetLabel()).not.toBe(before);
+  });
+
+  it("a click on a control outside the sheet keeps it open", async () => {
+    await mount(<Charts />);
+    await pinAt(SECOND, 0.5);
+    await page.getByRole("combobox", { name: "Mode" }).click();
+    await userEvent.keyboard("{Escape}");
+    await page.getByRole("button", { name: "Nudge" }).click();
+    expect(isOpen()).toBe(true);
+    await expect.element(sheet()).toMatchTextContent(SECOND);
+  });
+
+  it("a control that removes the pinned chart closes the sheet", async () => {
+    // Exempt from dismissal as a control, so it is the chart's unmount that
+    // has to close it — otherwise the sheet stays open with nothing in it.
+    await mount(<Charts />);
+    await pinAt(FIRST, 0.95);
+    await page.getByRole("button", { name: "Toggle first" }).click();
+    await expect.poll(isOpen).toBe(false);
   });
 
   it("pinning a second chart releases the first", async () => {

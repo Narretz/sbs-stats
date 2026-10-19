@@ -198,6 +198,14 @@ export function useChartPin(
     if (isPinned && index === -1) setPin(null);
   }, [isPinned, index, setPin]);
 
+  // The chart itself went away while pinned — a control that removes it
+  // (the GSUA direction picker, a homepage chart's delete, a view switch)
+  // without a navigation to clear the pin. Its sheet content goes with it, so
+  // close rather than leave an empty sheet open.
+  useEffect(() => () => {
+    if (store.get()?.chartId === chartId) setPin(null);
+  }, [store, chartId, setPin]);
+
   // Only on the transition into pinned — not on every step, which would fight
   // the reader's own scrolling.
   const wasPinned = useRef(false);
