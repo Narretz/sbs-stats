@@ -1,3 +1,4 @@
+/// <reference types="node" />
 // The GSUA app copy's precomputed tables (scripts/gsua/app_db.sql) against
 // the live SQL they stand in for (gsuaSql.ts): the frontend reads completed
 // months from the tables and recent ones live, so the two must give the same
