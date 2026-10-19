@@ -9,7 +9,7 @@ import { test, expect } from "@playwright/test";
 const day = (name: string) => new RegExp(`^${name}( \\(today\\))?$`);
 
 test("picking weekdays filters, names them, and All clears", async ({ page }) => {
-  await page.goto("/?site=sbs&page=daily");
+  await page.goto("/?site=sbs&page=daily&more=1");
   await page.waitForSelector(".chart-card");
   const button = page.getByRole("button", { name: /^All ▾$/ });
   await button.click();

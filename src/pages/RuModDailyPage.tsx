@@ -10,6 +10,8 @@ import { PageScaffold } from "@/components/PageScaffold";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
+import { WindowStartNav } from "@/components/WindowStartNav";
+import { MoreControls } from "@/components/MoreControls";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows, weekdayPredicate } from "@/utils/dayRange";
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
@@ -153,10 +155,13 @@ export function RuModDailyPage({ refreshKey }: Props) {
       </>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-mod" />}
       controls={<>
-        <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
+        <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} />
         <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} canGoPrev={canGoPrev} />
-        <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
-        <StatScopeToggle />
+        <MoreControls>
+          <WindowStartNav value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
+          <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
+          <StatScopeToggle />
+        </MoreControls>
       </>}
       loadState={loadState}
       error={error}

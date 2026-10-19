@@ -7,6 +7,8 @@ import { PageScaffold } from "@/components/PageScaffold";
 import { WeekdayMultiSelect } from "@/components/WeekdayMultiSelect";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
+import { WindowStartNav } from "@/components/WindowStartNav";
+import { MoreControls } from "@/components/MoreControls";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows, weekdayPredicate } from "@/utils/dayRange";
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
@@ -135,10 +137,13 @@ export function RuLossesDailyPage({ refreshKey }: Props) {
       description={<>Daily Russian losses reported by the Ukrainian General Staff · source: <a href="https://github.com/PetroIvaniuk/2022-Ukraine-Russia-War-Dataset" rel="nofollow external" target="_blank">PetroIvaniuk dataset</a> / <a href="https://mod.gov.ua/en/news" rel="nofollow external" target="_blank">Ukrainian Ministry of Defense</a></>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-losses" />}
       controls={<>
-        <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
+        <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} />
         <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} canGoPrev={canGoPrev} />
-        <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
-        <StatScopeToggle />
+        <MoreControls>
+          <WindowStartNav value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
+          <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
+          <StatScopeToggle />
+        </MoreControls>
       </>}
       loadState={loadState}
       error={error}

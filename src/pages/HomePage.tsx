@@ -783,7 +783,6 @@ function ChartCard({
             value={clampDays(config.window as DayOption, endDate) as DayOption}
             onChange={(w) => onWindowChange(w)}
             endDate={endDate}
-            startField={false}
           />
         )}
         <select

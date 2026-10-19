@@ -7,6 +7,7 @@ import { DataWindow } from "@/components/DataWindow";
 import { PageScaffold } from "@/components/PageScaffold";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
+import { MoreControls } from "@/components/MoreControls";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import {
   DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR,
@@ -136,7 +137,9 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
         <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate}
                  onChange={updateDate} onShift={shiftSelectedDate}
                  canGoNext={canGoNext} canGoPrev={canGoPrev} />
-        <StatScopeToggle />
+        <MoreControls>
+          <StatScopeToggle />
+        </MoreControls>
       </>}
       loadState={loadState}
       error={error}

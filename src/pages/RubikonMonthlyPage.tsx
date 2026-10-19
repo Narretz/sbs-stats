@@ -6,6 +6,7 @@ import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { monthlySourcesByPeriod } from "@/utils/sources";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
+import { MoreControls } from "@/components/MoreControls";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { extendMonthsTo } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
@@ -206,7 +207,9 @@ export function RubikonMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allPeriods[0] ?? ""} />
-          <StatScopeToggle />
+          <MoreControls>
+            <StatScopeToggle />
+          </MoreControls>
         </>
       )}
       loadState={loadState}

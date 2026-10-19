@@ -4,30 +4,35 @@ import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DateNav } from "@/components/DateNav";
+import { WindowStartNav } from "@/components/WindowStartNav";
 import { DAY_OPTIONS, WINDOW_FLOOR } from "@/utils/dayRange";
 
 // The day window's controls on their own: the length (presets + custom
-// input), the start field derived from it, and the end date's DateNav. The
+// input), the start field derived from it (WindowStartNav), and the end date's DateNav. The
 // arithmetic is unit-tested (dayRange.ts); these hold the controls to it —
 // what each field shows, what each gesture reports. That they're wired to one
 // window on a real page, through the URL, is e2e/window-start-date.spec.ts.
 const END = "2026-10-09";
 
-// DayRangeSelect is controlled; this holds `days` the way a page does.
+// Both controls are controlled; this holds `days` the way a page does, and
+// hands it to the two of them as a page does.
 function Window({ initial, endDate = END, minDate, onChange = () => {} }: {
   initial: number; endDate?: string; minDate?: string; onChange?: (d: number) => void;
 }) {
   const [days, setDays] = useState(initial);
+  const set = (d: number) => { setDays(d); onChange(d); };
   return (
-    <DayRangeSelect options={DAY_OPTIONS} value={days} endDate={endDate} minDate={minDate}
-      onChange={(d) => { setDays(d); onChange(d); }} />
+    <>
+      <WindowStartNav value={days} endDate={endDate} minDate={minDate} onChange={set} />
+      <DayRangeSelect options={DAY_OPTIONS} value={days} endDate={endDate} onChange={set} />
+    </>
   );
 }
 
 const start = () => page.getByTestId("window-start");
 const custom = () => page.getByTestId("day-range-custom");
 
-describe("DayRangeSelect — the start field", () => {
+describe("WindowStartNav — the start field", () => {
   it("shows the window's first day, inclusive of both ends", async () => {
     await render(<Window initial={7} />);
     await expect.element(start()).toHaveValue("2026-10-03");

@@ -4,6 +4,7 @@ import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DirectionCoverageChart } from "@/components/DirectionCoverageChart";
 import { DataWindow } from "@/components/DataWindow";
+import { MoreControls } from "@/components/MoreControls";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
@@ -149,7 +150,9 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
-          <StatScopeToggle />
+          <MoreControls>
+            <StatScopeToggle />
+          </MoreControls>
         </>
       )}
       filters={

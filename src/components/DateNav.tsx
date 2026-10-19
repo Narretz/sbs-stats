@@ -31,7 +31,7 @@ interface Props {
 
 // "‹ [date] ›" picker: step a day at a time or jump via the native date input.
 // Shared by all daily & hourly views, by the homepage, and — through
-// DayRangeSelect — by the window's start date, which is derived rather than
+// WindowStartNav — by the window's start date, which is derived rather than
 // stored but steps and jumps exactly like a real one.
 export function DateNav({
   label, value, min, max, onChange, onShift, canGoNext, canGoPrev = true, active, liveAtMax = true, title, testId,

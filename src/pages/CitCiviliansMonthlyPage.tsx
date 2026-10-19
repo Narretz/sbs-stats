@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { CitHeadlineChart, type CitMonthlyStackRow } from "@/components/CitHeadlineChart";
 import { CitTerritoryChart } from "@/components/CitTerritoryChart";
 import { DataWindow } from "@/components/DataWindow";
+import { MoreControls } from "@/components/MoreControls";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
@@ -112,7 +113,9 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
-          <StatScopeToggle />
+          <MoreControls>
+            <StatScopeToggle />
+          </MoreControls>
         </>
       )}
       loadState={loadState}

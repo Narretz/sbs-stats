@@ -5,7 +5,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 // 48-hour weekend report for Sat 10 + Sun 11. What has to reach the screen is
 // what the numbers alone can't say: the weekend is one report, drawn as one
 // bar across both days, and the missing day is a gap rather than a zero.
-const DAILY = "/?site=cit-civilians&page=daily&days=7&date=2026-01-11";
+const DAILY = "/?site=cit-civilians&page=daily&more=1&days=7&date=2026-01-11";
 const MONTHLY = "/?site=cit-civilians&page=monthly";
 const ALL_TITLE = "All civilian casualties";
 // Chart cards by their anchor ids (ChartCardTitle slugifies the title).

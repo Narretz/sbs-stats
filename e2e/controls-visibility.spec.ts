@@ -1,7 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
 
 // The sticky controls row (time window, weekday filter, date nav, MAX/MED/TOTAL
-// scope) must only appear when it can actually do something.
+// scope) must only appear when it can actually do something. The secondary
+// controls sit behind "Show more" (MoreControls); every case here opens it with
+// `more=1`, or a scope count of 0 would pass for the wrong reason.
 //
 // Two ways it used to appear when it couldn't:
 //   a) while the DB was still downloading — controls over a loading screen,
@@ -35,7 +37,7 @@ test.describe("Controls row visibility", () => {
       await route.continue();
     });
 
-    await page.goto("/?site=sbs&page=daily");
+    await page.goto("/?site=sbs&page=daily&more=1");
     await expect(page.getByText(/Loading/i).first()).toBeVisible();
     const loading = await counts(page);
     expect(loading.row, "no controls over the loading screen").toBe(0);
@@ -61,7 +63,7 @@ test.describe("Controls row visibility", () => {
     // Like SBS monthly's unit picker below: the direction filter doesn't
     // depend on the window, so it keeps the row — only the window-dependent
     // controls go.
-    await page.goto("/?site=ru-attacks-gsua&page=monthly");
+    await page.goto("/?site=ru-attacks-gsua&page=monthly&more=1");
     await page.waitForSelector(".recharts-surface");
     const c = await counts(page);
     expect(c.row, "the direction picker keeps the row alive").toBe(1);
@@ -77,7 +79,7 @@ test.describe("Controls row visibility", () => {
     // The rest of the rule is unchanged: with no window to pick, "Window data"
     // and "All data" would compute identical figures, so the scope toggle still
     // has to go.
-    await page.goto("/?site=sbs&page=monthly");
+    await page.goto("/?site=sbs&page=monthly&more=1");
     await page.waitForSelector(".recharts-surface");
     const c = await counts(page);
     expect(c.row, "the unit picker keeps the row alive").toBe(1);
@@ -95,7 +97,7 @@ test.describe("Controls row visibility", () => {
       "ru-air-attacks-gsua&page=daily", "ru-air-attacks-gsua&page=monthly",
     ];
     for (const v of views) {
-      await page.goto(`/?site=${v}`);
+      await page.goto(`/?site=${v}&more=1`);
       await page.waitForSelector(".recharts-surface");
       const c = await counts(page);
       if (c.scope > 0) {
@@ -108,10 +110,34 @@ test.describe("Controls row visibility", () => {
   test("daily pages always keep their controls", async ({ page }) => {
     // Daily views always have a day-range worth offering, so the gate above
     // must not strip them.
-    await page.goto("/?site=ru-air-attacks-gsua&page=daily");
+    await page.goto("/?site=ru-air-attacks-gsua&page=daily&more=1");
     await page.waitForSelector(".recharts-surface");
     const c = await counts(page);
     expect(c.row).toBe(1);
     expect(c.scope).toBe(1);
+  });
+
+  test("secondary controls sit behind Show more, and the URL remembers it", async ({ page }) => {
+    // Collapsed by default: the window's length and end stay, its start, the
+    // weekday filter and the scope go.
+    await page.goto("/?site=sbs&page=daily");
+    await page.waitForSelector(".recharts-surface");
+    await expect(page.getByTestId("day-range")).toBeVisible();
+    await expect(page.getByLabel("End", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("window-start")).toHaveCount(0);
+    await expect(page.getByTestId(SCOPE)).toHaveCount(0);
+
+    await page.getByTestId("more-controls").click();
+    await expect(page).toHaveURL(/[?&]more=1(&|$)/);
+    await expect(page.getByTestId("window-start")).toBeVisible();
+    await expect(page.getByTestId(SCOPE)).toBeVisible();
+
+    await page.reload();
+    await page.waitForSelector(".recharts-surface");
+    await expect(page.getByTestId(SCOPE)).toBeVisible();
+
+    await page.getByTestId("more-controls").click();
+    await expect(page).not.toHaveURL(/[?&]more=/);
+    await expect(page.getByTestId(SCOPE)).toHaveCount(0);
   });
 });

@@ -3,6 +3,7 @@ import { useRuModDatabaseContext } from "@/context/databases";
 import { useMonthlyMetricGrid } from "@/hooks/useMonthlyMetricGrid";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { DataWindow } from "@/components/DataWindow";
+import { MoreControls } from "@/components/MoreControls";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
@@ -63,7 +64,9 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
-          <StatScopeToggle />
+          <MoreControls>
+            <StatScopeToggle />
+          </MoreControls>
         </>
       )}
       loadState={loadState}

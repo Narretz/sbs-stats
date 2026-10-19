@@ -22,7 +22,7 @@ function dayISO(offset: number): string {
 
 test.describe("Daily/hourly pages — window start date", () => {
   test("picking a start sets the time window to match", async ({ page }) => {
-    await page.goto(`/?site=sbs&page=daily&days=7&date=${FIXED_TODAY}`);
+    await page.goto(`/?site=sbs&page=daily&more=1&days=7&date=${FIXED_TODAY}`);
     const start = page.locator('[data-testid="window-start"]');
     await start.fill(dayISO(-2));
 
@@ -37,7 +37,7 @@ test.describe("Daily/hourly pages — window start date", () => {
   test("stepping the end date slides the window instead of stretching it", async ({ page }) => {
     // The case that distinguishes a derived start from a pinned one: with the
     // end date a day earlier, "next day" keeps the length and moves both ends.
-    await page.goto(`/?site=sbs&page=daily&days=7&date=${dayISO(-1)}`);
+    await page.goto(`/?site=sbs&page=daily&more=1&days=7&date=${dayISO(-1)}`);
     const start = page.locator('[data-testid="window-start"]');
     await expect(start).toHaveValue(dayISO(-7));
 
@@ -50,7 +50,7 @@ test.describe("Daily/hourly pages — window start date", () => {
   });
 
   test("picking today as the end goes live — the only way back on a date input with no clear button", async ({ page }) => {
-    await page.goto(`/?site=sbs&page=daily&days=7&date=${dayISO(-3)}`);
+    await page.goto(`/?site=sbs&page=daily&more=1&days=7&date=${dayISO(-3)}`);
     const end = page.getByLabel("End", { exact: true });
     await end.fill(dayISO(-2));
     await page.waitForFunction((d) => location.search.includes(`date=${d}`), dayISO(-2));
@@ -61,12 +61,12 @@ test.describe("Daily/hourly pages — window start date", () => {
   });
 
   test("on the hourly page too", async ({ page }) => {
-    await page.goto(`/?site=sbs&page=hourly&days=7&date=${FIXED_TODAY}`);
+    await page.goto(`/?site=sbs&page=hourly&more=1&days=7&date=${FIXED_TODAY}`);
     await expect(page.locator('[data-testid="window-start"]')).toHaveValue(dayISO(-6));
   });
 
   test("the end nav is labelled as one end of a pair, the homepage's as a date", async ({ page }) => {
-    await page.goto(`/?site=sbs&page=daily&days=7&date=${FIXED_TODAY}`);
+    await page.goto(`/?site=sbs&page=daily&more=1&days=7&date=${FIXED_TODAY}`);
     await expect(page.locator(".page-controls-sticky")).toContainText("Start");
     await expect(page.locator(".page-controls-sticky")).toContainText("End");
 
@@ -80,13 +80,13 @@ test.describe("Daily/hourly pages — window start date", () => {
   test("an absurd `days` in the URL is capped at the floor", async ({ page }) => {
     // Measured against an end date near the floor, so the assertion doesn't
     // cost a chart per day back to 2022.
-    await page.goto("/?site=sbs&page=daily&days=99999&date=2022-03-01");
+    await page.goto("/?site=sbs&page=daily&more=1&days=99999&date=2022-03-01");
     await expect(page.locator('[data-testid="window-start"]')).toHaveValue(WAR_START);
     await expect(page.locator('[data-testid="day-range-custom"]')).toHaveValue("6");
   });
 
   test("moving the end earlier shortens the window rather than crossing the floor", async ({ page }) => {
-    await page.goto("/?site=sbs&page=daily&days=30&date=2022-04-01");
+    await page.goto("/?site=sbs&page=daily&more=1&days=30&date=2022-04-01");
     const start = page.locator('[data-testid="window-start"]');
     await expect(start).toHaveValue("2022-03-03");
 
@@ -108,7 +108,7 @@ test.describe("Daily/hourly pages — window start date", () => {
   test("the homepage's per-chart pickers have no start field", async ({ page }) => {
     // Those windows always end today and live inside the `charts=` spec, so a
     // start date would mean something different there — deliberately out of
-    // scope, and the prop that turns the field on is simply not passed.
+    // scope, and WindowStartNav is simply not rendered there.
     await page.goto("/");
     await page.locator('[data-testid="day-range-custom"]').first().waitFor();
     await expect(page.locator('[data-testid="window-start"]')).toHaveCount(0);

@@ -7,6 +7,7 @@ import { monthlySourcesByPeriod } from "@/utils/sources";
 import { TargetsStackedChart, type TargetsStackPoint } from "@/components/TargetsStackedChart";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
+import { MoreControls } from "@/components/MoreControls";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { extendMonthsTo } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
@@ -205,7 +206,9 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allPeriods[0] ?? ""} />
-          <StatScopeToggle />
+          <MoreControls>
+            <StatScopeToggle />
+          </MoreControls>
         </>
       )}
       loadState={loadState}

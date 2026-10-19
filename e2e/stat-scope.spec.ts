@@ -32,7 +32,7 @@ for (const view of ["daily", "hourly"] as const) {
       // "/" lands on the Custom-charts homepage; site pages are reached via the
       // ?site=…&page=… URL params (or the in-app site-picker once you're inside
       // a site). Tests deep-link to bypass the home → site click.
-      await page.goto(`/?site=sbs&page=${view}`);
+      await page.goto(`/?site=sbs&page=${view}&more=1`);
       await page.waitForSelector(".recharts-surface");
 
       await page.getByTestId("stat-scope-select").selectOption("all");
@@ -48,7 +48,7 @@ for (const view of ["daily", "hourly"] as const) {
       // "/" lands on the Custom-charts homepage; site pages are reached via the
       // ?site=…&page=… URL params (or the in-app site-picker once you're inside
       // a site). Tests deep-link to bypass the home → site click.
-      await page.goto(`/?site=sbs&page=${view}`);
+      await page.goto(`/?site=sbs&page=${view}&more=1`);
       await page.waitForSelector(".recharts-surface");
       await page.getByTestId("stat-scope-select").selectOption("all");
 
@@ -81,7 +81,7 @@ test.describe("SBS hourly — the tooltip's per-hour stats follow the scope", ()
   test("'All data' takes the hour's median / max from every day, 'Window data' from the window", async ({ page }) => {
     // The sentinel is read at hour 23, so it is the 23:00 max under "All data"
     // and nowhere under "Window data".
-    await page.goto("/?site=sbs&page=hourly");
+    await page.goto("/?site=sbs&page=hourly&more=1");
     await page.waitForSelector(".hourly-card");
     await page.getByTestId("stat-scope-select").selectOption("all");
     const card = page.locator(".hourly-card#personnel-casualties");
