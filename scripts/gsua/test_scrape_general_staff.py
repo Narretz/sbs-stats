@@ -1578,6 +1578,19 @@ class TestDirections:
         lyman = next(d for d in dirs if d.direction == "Lyman")
         assert lyman.attacks is None
 
+    def test_prose_directions_are_not_sectors(self):
+        # 2023/24 prose: an Air Force kill "на східному / південному напрямку",
+        # "вибули у невідомому напрямку", and a narrative "на Сватівсько-
+        # Кремінському напрямку" — none of them a report section.
+        text = _wrap_evening(
+            "Також на Східному напрямку Повітряні Сили знищили три літаки. "
+            "Також на південному напрямку знищено три дрони. "
+            "Окупанти викрали КамАЗ та вибули у невідомому напрямку. "
+            "Через втрати на Сватівсько-Кремінському напрямку ворог евакуює поранених."
+        )
+        dirs = gs.parse_directions(text, _msg(text), "2026-05-01")
+        assert {d.direction for d in dirs} == {"Pokrovsk"}
+
     def test_attacks_digit(self):
         text = _wrap_evening(
             "На Покровському напрямку з початку доби окупанти 17 разів намагалися потіснити наших воїнів."
@@ -2758,6 +2771,18 @@ class TestNormalizeDirection:
         # msgs 15719, 15733: "На Шахтарському напрямку" — Shakhtarsk front,
         # near Donetsk.
         assert gs._normalize_direction("Шахтарському") == "Shakhtarsk"
+
+    def test_2023_directions(self):
+        # Spring-2023 – Feb-2024 sectors (Facebook / kmu.gov.ua backfill),
+        # retired before the Telegram archive starts.
+        assert gs._normalize_direction("Бахмутському") == "Bakhmut"
+        assert gs._normalize_direction("Авдіївському") == "Avdiivka"
+        assert gs._normalize_direction("Мар’їнському") == "Marinka"
+        assert gs._normalize_direction("Мелітопольському") == "Melitopol"
+
+    def test_slobozhanskyi_typo(self):
+        # 06:00 11.05.2024: "На Слобажанському напрямку … відбито 9 атак".
+        assert gs._normalize_direction("Слобажанському") == "Slobozhanshchyna"
 
     def test_unknown_falls_back_to_title_case(self):
         # No DIRECTION_NAMES match → returns Title-cased original

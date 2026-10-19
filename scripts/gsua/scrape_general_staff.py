@@ -1480,6 +1480,13 @@ DIRECTION_NAMES = {
     "донецьк": "Donetsk",
     "чернігівськ": "Chernihiv",
     "шахтарськ": "Shakhtarsk",
+    # Spring-2023 – Feb-2024 sectors, retired before the Telegram archive
+    # starts; only the Facebook / kmu.gov.ua backfill has them.
+    "бахмутськ": "Bakhmut",
+    "авдіївськ": "Avdiivka",
+    "мар'їнськ": "Marinka",
+    "мелітопольськ": "Melitopol",  # Sept 2023, the Ukrainian offensive's section
+    "слобажанськ": "Slobozhanshchyna",  # typo, 06:00 11.05.2024
 }
 
 
@@ -1525,6 +1532,10 @@ DIRECTION_STOP_WORDS = {
     # "Northern Front" ever appears in older scrapes it'll need a different
     # disambiguator (bold-header context), not a stop-word removal.
     "північному",
+    # Same in 2023/24 prose: an Air Force kill "на східному / південному
+    # напрямку", a deserter who "вибув у невідомому напрямку", and a one-off
+    # narrative mention of the 2022-era "Сватівсько-Кремінському" axis.
+    "східному", "південному", "невідомому", "сватівсько-кремінському",
 }
 
 
