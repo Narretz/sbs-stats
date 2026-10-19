@@ -93,6 +93,10 @@ test.describe("Compare — month-end projection", () => {
     skipOnFirst();
     await gotoCompare(page, `sbs:${thisMonth()}`);
     await expect.poll(async () => await engaged(page)).toContain(SBS_ENGAGED.toLocaleString());
+    // The header keeps a line for the note whether or not there is one, so
+    // switching it on doesn't push the table down.
+    const bodyTop = async () => (await page.locator("tbody").first().boundingBox())!.y;
+    const before = await bodyTop();
 
     await monthSelect(page).selectOption(`${thisMonth()}:proj`);
 
@@ -100,6 +104,7 @@ test.describe("Compare — month-end projection", () => {
     // last positional one for readers of the old two- and three-token forms.
     await expect(page).toHaveURL(/cols=sbs(%3A|:)\d{4}-\d{2}(%3A|:)proj/);
     await expect(page.locator("thead th").nth(1)).toContainText("month-end projection");
+    expect(await bodyTop()).toBe(before);
     // "~" on the value itself: the header says it once, but cells travel.
     await expect
       .poll(async () => await engaged(page))

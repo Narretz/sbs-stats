@@ -894,6 +894,7 @@ export function ComparePage({ preset }: Props) {
                       textAlign: "right", padding: "8px 16px",
                       borderBottom: `1px solid ${t.border}`, verticalAlign: "top",
                       whiteSpace: "nowrap",
+                      width: `${99 / columns.length}%`,
                     }}>
                       {/* Selects to the left, the remove button pinned right. */}
                       <div style={{ display: "flex", gap: 4, alignItems: "center", justifyContent: "space-between" }}>
@@ -942,17 +943,16 @@ export function ComparePage({ preset }: Props) {
                         </select>
                       </div>
                       {/* Said once per column rather than per cell: the "~" on
-                          every figure is the in-place reminder. */}
-                      {c.proj && (
-                        <div style={{ marginTop: 4, color: t.textFaint, fontSize: 9, textTransform: "none", letterSpacing: 0 }}>
-                          month-end projection
-                        </div>
-                      )}
-                      {i === 0 && columns.length > 1 && pctMode === "first" && (
-                        <div style={{ marginTop: 4, color: t.textFaint, fontSize: 9, textTransform: "none", letterSpacing: 0 }}>
-                          baseline
-                        </div>
-                      )}
+                          every figure is the in-place reminder. Always
+                          rendered, a non-breaking space when there is nothing
+                          to say, so switching a note on or off never moves the
+                          table below. */}
+                      <div style={{ marginTop: 4, textAlign: "left", color: t.textFaint, fontSize: 10, textTransform: "none", letterSpacing: 0 }}>
+                        {[
+                          c.proj && "month-end projection",
+                          i === 0 && columns.length > 1 && pctMode === "first" && "baseline",
+                        ].filter(Boolean).join(", ") || "\u00a0"}
+                      </div>
                     </th>
                   ))}
                 </tr>
