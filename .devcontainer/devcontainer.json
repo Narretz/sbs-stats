@@ -7,9 +7,21 @@
       "version": "3.12"
     }
   },
+  // ~/.claude.json is deliberately NOT mounted. A single-file bind mount is
+  // pinned to an inode, not a path, and Claude Code saves that file by writing
+  // a temp and renaming it over the old one — a new inode every save. The
+  // mount then points at a deleted file: the two sides drift apart silently
+  // (one run had the host at 164 startups and the container at 162), and the
+  // next `docker start` dies with "error mounting … no such file or
+  // directory", which only a rebuild clears. Nothing is lost by leaving it
+  // out: credentials live in ~/.claude/.credentials.json and transcripts,
+  // plugins and settings in ~/.claude, all inside the DIRECTORY mount below,
+  // which has no such problem. The container keeps its own .claude.json —
+  // startup counters, onboarding flags, and one trust prompt per rebuild.
+  // `.gitconfig` is exposed the same way (git config rewrites atomically too);
+  // it is read-only and rarely edited, so it is left as is.
   "mounts": [
     "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached",
-    "source=${localEnv:HOME}/.claude.json,target=/home/node/.claude.json,type=bind,consistency=cached",
     "source=${localEnv:HOME}/.gitconfig,target=/home/node/.gitconfig,type=bind,readonly",
     "source=${localEnv:HOME}/.ssh,target=/home/node/.ssh,type=bind,readonly"
   ],
