@@ -81,7 +81,7 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
   // The series' all-data stats, plus their sum's for the median line.
   const stackStats = useMemo(() => ({
     ...allStats,
-    all: maxMedian(allRows.map((r) => r.killed + r.injured)),
+    all: maxMedian(allRows.map((r) => (r.killed ?? 0) + (r.injured ?? 0))),
   }), [allStats, allRows]);
 
   // Every month's, not the window's, for the "all" scope.

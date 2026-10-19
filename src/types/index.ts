@@ -377,7 +377,7 @@ export type GsuaMonthlyRow = {
   projection_day: number | null;
   projection_days_in_month: number | null;
   projection_partial_day?: boolean;
-} & Record<GsuaMetricKey, number> & Partial<Record<`${GsuaMetricKey}_projected` | `${GsuaMetricKey}_daily_median` | `${GsuaMetricKey}_days`, number>>;
+} & Record<GsuaMetricKey, number | null> & Partial<Record<`${GsuaMetricKey}_projected` | `${GsuaMetricKey}_daily_median` | `${GsuaMetricKey}_days`, number>>;
 
 // ─── RU Losses (PetroIvaniuk dataset → ru-losses-gsua-petroivaniuk.db) ─────────
 // Daily Russian losses (personnel + equipment) as reported by the Ukrainian
@@ -436,7 +436,7 @@ export type RuLossesMonthlyRow = {
   projection_day: number | null;
   projection_days_in_month: number | null;
   projection_partial_day?: boolean;
-} & Record<RuLossesMetricKey, number>
+} & Record<RuLossesMetricKey, number | null>
   & Partial<Record<`${RuLossesMetricKey}_projected` | `${RuLossesMetricKey | "targets"}_daily_median` | `${RuLossesMetricKey | "targets"}_days`, number>>;
 
 // ─── UA Losses claimed by the RU MoD (John Felix's sheet → ua-losses-ru-mod-john-felix.db) ─
@@ -518,7 +518,7 @@ export type UaLossesRuModMonthlyRow = {
   projection_day: number | null;
   projection_days_in_month: number | null;
   projection_partial_day?: boolean;
-} & Record<UaLossesRuModMetricKey | UaLossesRuModArmourKey, number>
+} & Record<UaLossesRuModMetricKey, number | null> & Record<UaLossesRuModArmourKey, number>
   & Partial<Record<`${UaLossesRuModMetricKey}_projected` | `${UaLossesRuModMetricKey | "targets"}_daily_median` | `${UaLossesRuModMetricKey | "targets"}_days`, number>>;
 
 // ─── UA Losses (ualosses.org daily personnel losses → ua-losses.db) ───────────
@@ -556,7 +556,7 @@ export type UaLossesMonthlyRow = {
   projection_day: number | null;
   projection_days_in_month: number | null;
   projection_partial_day?: boolean;
-} & Record<UaLossesMetricKey, number> & Partial<Record<`${UaLossesMetricKey}_projected` | `${UaLossesMetricKey}_daily_median` | `${UaLossesMetricKey}_days`, number>>;
+} & Record<UaLossesMetricKey, number | null> & Partial<Record<`${UaLossesMetricKey}_projected` | `${UaLossesMetricKey}_daily_median` | `${UaLossesMetricKey}_days`, number>>;
 
 // ─── RU Air Attacks (piterfm Kaggle → ru-air-attacks-gsua.db) ─────────────────
 // Russian missile/UAV strikes on Ukraine, digitized by piterfm from the UA Air
@@ -762,9 +762,9 @@ export type RuAdMonthlyRow = {
   projection_day: number | null;
   projection_days_in_month: number | null;
   projection_partial_day?: boolean;
-  total: number;
-  night: number;
-  day: number;
+  total: number | null;
+  night: number | null;
+  day: number | null;
   // count of reports in the month flagged with an overlap caveat (possible
   // double-count) — see ad_reports.notes / scripts/ru_mod.
   overlap_reports: number;
@@ -1273,7 +1273,7 @@ export type CitMonthlyRow = {
   // Days in the month actually covered by a report, so a partial month is
   // visible as such rather than reading as a quiet one.
   covered_days: number;
-} & Record<CitMetricKey, number> & Partial<Record<`${CitMetricKey | "total"}_${"daily_median" | "days"}`, number>>;
+} & Record<CitMetricKey, number | null> & Partial<Record<`${CitMetricKey | "total"}_${"daily_median" | "days"}`, number>>;
 
 // One region's share of the casualties in a period, from the breakdown rows.
 // Occupied and government-held parts of the same oblast are separate entries —

@@ -39,14 +39,20 @@ export const projectionBasis = (completedDays: number, daysInMonth: number, part
 // for a complete past month, a future one, or a key that isn't "YYYY-MM".
 export function monthCoverage(month: string, today: string, daysAvailable?: number | null): string | undefined {
   if (daysAvailable == null || !/^\d{4}-\d{2}$/.test(month)) return undefined;
-  const current = today.slice(0, 7);
+  const days = monthDays(month);
+  if (month > today.slice(0, 7) || days == null) return undefined;
+  if (month < today.slice(0, 7) && daysAvailable >= days) return undefined;
+  return `${daysAvailable} of ${days} days`;
+}
+
+// The days a "YYYY-MM" month of the war has: all of them, except February
+// 2022's, which start on the 24th. Null before the war.
+export function monthDays(month: string): number | null {
   const floorMonth = WINDOW_FLOOR.slice(0, 7);
-  if (month > current || month < floorMonth) return undefined;
+  if (month < floorMonth) return null;
   const [y, m] = month.split("-").map(Number);
   const daysInMonth = new Date(y, m, 0).getDate();
-  const days = month === floorMonth ? daysInMonth - Number(WINDOW_FLOOR.slice(8, 10)) + 1 : daysInMonth;
-  if (month < current && daysAvailable >= days) return undefined;
-  return `${daysAvailable} of ${days} days`;
+  return month === floorMonth ? daysInMonth - Number(WINDOW_FLOOR.slice(8, 10)) + 1 : daysInMonth;
 }
 
 const kyivDate = (iso: string) =>

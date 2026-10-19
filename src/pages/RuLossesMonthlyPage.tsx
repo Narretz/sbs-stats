@@ -26,7 +26,7 @@ interface Props {
 // exclusion). Both are large: equipment (UAVs, vehicles) is typically the
 // bigger share, so neither swamps the other.
 const TARGETS_KEYS = RU_LOSSES_TARGET_KEYS;
-const sumTargets = (r: Partial<Record<RuLossesMetricKey, number>>): number =>
+const sumTargets = (r: Partial<Record<RuLossesMetricKey, number | null>>): number =>
   TARGETS_KEYS.reduce((s, k) => s + (typeof r[k] === "number" ? (r[k] as number) : 0), 0);
 
 export function RuLossesMonthlyPage({ refreshKey }: Props) {
@@ -71,8 +71,7 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
   const makeDataset = (key: RuLossesMetricKey): MonthlyDataPoint[] =>
     padTrailingMonthly<MonthlyDataPoint>(
       rows.map((d) => {
-        // A month with no day of this metric is a gap, not the 0 its sum reads.
-        const value = typeof d[key] === "number" && d[`${key}_days`] !== 0 ? d[key] : null;
+        const value = typeof d[key] === "number" ? d[key] : null;
         const projected = d[`${key}_projected`];
         return {
           date: d.date,

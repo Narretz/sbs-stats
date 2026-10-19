@@ -45,9 +45,9 @@ describe("dayCountsByMonth", () => {
     expect(m.get("2023-05")).toEqual({ a: 2, b: 1 });
   });
 
-  it("writes them as <key>_days", () => {
-    const row: { date: string } & Record<string, unknown> = { date: "2023-04" };
+  it("writes them as <key>_days, and a metric with no day as a gap", () => {
+    const row: { date: string } & Record<string, unknown> = { date: "2023-04", a: 36, b: 0 };
     attachDayCounts(row, new Map([["2023-04", { a: 1, b: 0 }]]));
-    expect(row).toEqual({ date: "2023-04", a_days: 1, b_days: 0 });
+    expect(row).toEqual({ date: "2023-04", a: 36, a_days: 1, b: null, b_days: 0 });
   });
 });

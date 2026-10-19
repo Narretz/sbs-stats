@@ -96,8 +96,7 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
   const makeDataset = (key: GsuaMetricKey): MonthlyDataPoint[] =>
     padTrailingMonthly<MonthlyDataPoint>(
       rows.map((d) => {
-        // A month with no day of this metric is a gap, not the 0 its sum reads.
-        const value = typeof d[key] === "number" && d[`${key}_days`] !== 0 ? d[key] : null;
+        const value = typeof d[key] === "number" ? d[key] : null;
         const projected = d[`${key}_projected`];
         return {
           date: d.date,

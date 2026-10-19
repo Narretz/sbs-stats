@@ -27,7 +27,7 @@ interface Props {
 // except POWs. That includes the munitions shot down — GSUA's total counts its
 // cruise missiles and UAVs (mostly shot down too) the same way.
 const TARGETS_KEYS = UA_LOSSES_RU_MOD_TARGET_KEYS;
-const sumTargets = (r: Partial<Record<UaLossesRuModMetricKey, number>>): number =>
+const sumTargets = (r: Partial<Record<UaLossesRuModMetricKey, number | null>>): number =>
   TARGETS_KEYS.reduce((s, k) => s + (typeof r[k] === "number" ? (r[k] as number) : 0), 0);
 
 export function UaLossesRuModMonthlyPage({ refreshKey }: Props) {
@@ -79,8 +79,7 @@ export function UaLossesRuModMonthlyPage({ refreshKey }: Props) {
   const makeDataset = (key: UaLossesRuModMetricKey): MonthlyDataPoint[] =>
     padTrailingMonthly<MonthlyDataPoint>(
       rows.map((d) => {
-        // A month with no day of this metric is a gap, not the 0 its sum reads.
-        const value = typeof d[key] === "number" && d[`${key}_days`] !== 0 ? d[key] : null;
+        const value = typeof d[key] === "number" ? d[key] : null;
         const projected = d[`${key}_projected`];
         return {
           date: d.date,

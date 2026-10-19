@@ -40,6 +40,7 @@ import type {
 import type { CombinedMetric, MetricSource } from "@/utils/combinedMetrics";
 import { windowStartDate } from "@/utils/dayRange";
 import { type MonthOption, monthOf, windowStartMonth } from "@/utils/monthRange";
+import { monthDays } from "@/utils/monthProjection";
 import { fillDailyRange, padTrailingMonthly, resolvedEndDate } from "@/utils/padTrailing";
 import { type WeekOption, aggregateWeekly, mondaysBetween, weeklyWindow } from "@/utils/weekRange";
 
@@ -166,11 +167,21 @@ function projectMonthly(
     .filter((r) => r.date >= startMonth && r.date <= endMonth)
     .map((r) => {
       const raw = r[key];
-      return {
+      const point: DailyDataPoint = {
         date: r.date,
         value: typeof raw === "number" ? raw : null,
         is_today: r.is_current_month === true,
       };
+      // A finished month summed from fewer days than it has — the note the
+      // weekly grain gives a short week. `<key>_days` is set by the hooks
+      // summed from days (attachDayCounts); a month with none is null already.
+      const reported = r[`${key}_days`];
+      const days = monthDays(r.date);
+      if (!point.is_today && typeof raw === "number" && typeof reported === "number" && days != null && reported < days) {
+        point.note = `Sum of ${reported} of ${days} days — the other ${days - reported} ` +
+          `${days - reported === 1 ? "has" : "have"} no figure, so this month may be undercounted.`;
+      }
+      return point;
     });
 }
 

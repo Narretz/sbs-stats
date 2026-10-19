@@ -81,12 +81,18 @@ export function dayCountsByMonth<K extends string>(
   return out;
 }
 
-// Copies each month's counts onto its row as `<key>_days`.
+// Copies each month's counts onto its row as `<key>_days`, and nulls a metric
+// no day of the month has a figure for: its sum reads 0 (SQL's SUM over
+// nothing, or a COALESCE), and a month the source never reported it — GSUA's
+// shellings before May 2024 — is a gap, not a quiet month. On the row, so
+// every reader of it (the page, its all-data MAX/MED, the combined charts)
+// gets the gap.
 export function attachDayCounts<K extends string>(
   row: { date: string } & Record<string, unknown>,
   counts: Map<string, Partial<Record<K, number>>>,
 ): void {
   for (const [k, v] of Object.entries(counts.get(row.date.slice(0, 7)) ?? {})) {
     row[`${k}_days`] = v;
+    if (v === 0 && k in row) row[k] = null;
   }
 }
