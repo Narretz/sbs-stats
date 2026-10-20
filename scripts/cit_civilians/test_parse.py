@@ -74,6 +74,7 @@ ALL_SUMMARIES = [
     "2026-09-07-post12844.txt",
     "2026-09-08-post12864.txt",
     "2026-09-09-post12886.txt",
+    "2026-10-19-post13492-weekend.txt",
     "nowindow-post2112.txt",
 ]
 
@@ -204,6 +205,28 @@ def test_corrections_land_on_their_own_earlier_dates() -> None:
     assert {r.region_key for r in amendments} == {"kharkiv", "zaporizhzhia", "kherson"}
     assert all(r.event_date == "2026-09-07" for r in amendments)
     assert all(r.injured == 1 and r.killed == 0 for r in amendments)
+
+
+def test_a_correction_clause_naming_an_occupied_region_last_keeps_each_region() -> None:
+    """"… в Донецкой области 13 октября, одном … в Херсонской области 16
+    октября, одном … на оккупированной территории Донецкой области 15 октября".
+
+    The occupied pattern is tried first, so a first-pattern-wins lookup found
+    the LAST region before the first, the clause was never cut, and all three
+    people landed on occupied Donetsk. The total still reconciled, which is why
+    nothing caught it.
+    """
+    report = _parse("2026-10-19-post13492-weekend.txt")
+    amendments = sorted(
+        ((r.event_date, r.region_key, r.occupied, r.injured)
+         for r in report.rows if r.kind == KIND_AMENDMENT))
+    assert amendments == [
+        ("2026-10-13", "donetsk", 0, 1),
+        ("2026-10-15", "donetsk", 1, 1),
+        ("2026-10-16", "belgorod", 0, 1),
+        ("2026-10-16", "kherson", 0, 1),
+    ]
+    assert report.reconciled is True
 
 
 def test_evenly_divisible_multi_date_correction_is_split_one_per_day() -> None:
