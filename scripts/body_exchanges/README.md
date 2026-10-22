@@ -40,5 +40,13 @@ Seeded from a chart by the OSINT account creamy_caprice
 (`sources/body-exchanges.png`, May 2023 – Oct 2026, no sources given), then
 checked exchange by exchange against RBC and the Coordination HQ's posts. The
 chart's values stay in `chart_creamy_caprice` for audit, and how it differs in
-`chart_creamy_caprice_discrepancy` — it dates one exchange wrongly, misses six,
-and cuts off five labels. Open items are in the file's `_doc.todo`.
+`chart_creamy_caprice_discrepancy` — it dates one exchange wrongly, misses six
+in its own range, and cuts off five labels.
+
+The exchanges before the chart come from paging the Coordination HQ channel
+back to its first post (2022-07-21), and, for June–July 2022 and the returns
+the channel didn't repost, from news articles quoting the Ministry of
+Reintegration and its missing-persons commissioner (ArmyInform, Ukrainska
+Pravda, Espreso, Ukrinform, Novaya Gazeta Europe). That record has known gaps:
+its sums fall well short of the cumulative totals Ukraine announced at the
+time. Open items are in the file's `_doc.todo`.

@@ -1,27 +1,93 @@
 {
   "_doc": {
     "what": "Hand-curated repatriations of fallen soldiers' bodies between Russia and Ukraine. Irregular, announced by each side separately — NOT a scrape: this file is edited by hand.",
-    "backfill": "Seeded from a chart by the OSINT account creamy_caprice (sources/body-exchanges.png, May 2023 – Oct 2026, no sources given), then checked against RBC article by article. Every figure here is read from a source (an RBC article or a Coordination HQ post, quoted under sources); the chart's own values are kept under `chart_creamy_caprice` for audit. Ukraine's figures were then checked against the Coordination HQ's own posts (t.me/Koord_shtab, read via the public t.me/s preview — no login).",
+    "backfill": "Seeded from a chart by the OSINT account creamy_caprice (sources/body-exchanges.png, May 2023 – Oct 2026, no sources given), then checked against RBC article by article. Every figure here is read from a source (an RBC article or a Coordination HQ post, quoted under sources); the chart's own values are kept under `chart_creamy_caprice` for audit. Ukraine's figures were then checked against the Coordination HQ's own posts (t.me/Koord_shtab, read via the public t.me/s preview — no login). Exchanges before the Coordination HQ channel starts, and those it didn't repost, come from news articles quoting the Ministry of Reintegration and its missing-persons commissioner (ArmyInform, Ukrainska Pravda, Espreso, Ukrinform, Novaya Gazeta Europe).",
     "fields": {
       "date": "Day of the exchange (YYYY-MM-DD), as reported.",
       "ua_received": "Bodies returned to Ukraine, as Ukraine's Coordination HQ for the Treatment of POWs posts it (t.me/Koord_shtab). Its posts note the bodies are Ukrainian 'according to the Russian side' until identified.",
       "ru_received": "Bodies of Russian servicemen returned to Russia, as the Russian side reports it (Saraliev, Medinsky). null when no figure is known — not the same as 0.",
-      "ua_reported_by / ru_reported_by": "Who the figure comes from.",
+      "ua_reported_by / ru_reported_by": "Who the figure comes from. In 2022 Russia's count is sometimes only Ukraine's formula ('160 for 160'); the reporter says so.",
       "status": "confirmed | partial (one side's figure missing) | discrepancy (sources disagree with each other on a stored figure; see notes). A later article misremembering an exchange is noted but does not count.",
       "sources[]": "{ via, url, published_at, covers, quote } — quote is verbatim (ellipses mark cuts) so the figure can be checked without the page. covers lists what the source supports.",
       "chart_creamy_caprice": "The values on creamy_caprice's chart (an OSINT account; sources/body-exchanges.png, May 2023 – Oct 2026, no sources given): { date, ua_received, ru_received }, or null when the exchange is not on the chart. null inside means the label is cut off.",
       "chart_creamy_caprice_discrepancy": "How the chart differs from the sourced figures, in words; null when it agrees. Does not affect status."
     },
     "todo": [
-      "2023-03-24: only RBC's back-reference (83, Ministry of Reintegration); no Coordination HQ post that day.",
-      "Russian figures missing for 2023-03-24, 2023-04-14, 2023-06-23, 2023-08-29, 2023-12-22.",
-      "Exchanges before March 2023 (e.g. February 2023, 150 bodies to Ukraine) are not covered yet."
+      "Russian figures missing for most exchanges before May 2023, and for 2023-06-23, 2023-08-29, 2023-12-22.",
+      "Early February 2023: ≈150 bodies (the Azov dead) per RBC's 14 Apr 2023 article quoting RBC-Ukraine; no primary source found.",
+      "Gaps are likely in Aug 2022 – Mar 2023: the sums here don't reach the cumulative totals Ukraine announced (522 by 12 Aug 2022, t.me/Koord_shtab/22; 1426 by 3 Mar 2023, ArmyInform). Some of the difference may be bodies recovered by other means than exchanges."
     ]
   },
   "exchanges": [
     {
-      "date": "2023-03-24",
-      "ua_received": 83,
+      "date": "2022-06-02",
+      "ua_received": 160,
+      "ru_received": 160,
+      "ua_reported_by": "UA Ministry of Reintegration",
+      "ru_reported_by": "UA Ministry of Reintegration ('160 for 160')",
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Ukrainska Pravda",
+          "url": "https://www.pravda.com.ua/eng/news/2022/06/4/7350532/",
+          "published_at": "2022-06-04T17:13:15+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received",
+            "date"
+          ],
+          "quote": "On 2 June, Ukraine and the aggressor country, Russia, held an exchange of the bodies of soldiers who have fallen in battle; 160 soldiers were exchanged on each side."
+        },
+        {
+          "via": "Ukrinform",
+          "url": "https://ukrinform.net/rubric-ato/3502561-ukraine-russia-exchange-bodies-of-fallen-soldiers-in-zaporizhzhia-region.html",
+          "published_at": "2022-06-08T17:17:00+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "A reminder that, on June 4, 2022, Ukraine and Russia exchanged the bodies of the fallen soldiers under the ‘160 for 160’ formula."
+        }
+      ],
+      "notes": "The first body exchange, on the Zaporizhzhia front. Announced on 4 June, which Ukrinform later gives as its date. Russia's count is Ukraine's '160 for 160'; no Russian statement found."
+    },
+    {
+      "date": "2022-06-08",
+      "ua_received": 50,
+      "ru_received": 50,
+      "ua_reported_by": "UA Ministry of Reintegration",
+      "ru_reported_by": "UA Ministry of Reintegration ('50 for 50')",
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "ArmyInform",
+          "url": "https://armyinform.com.ua/2022/06/08/ukrayina-ta-rosiya-provely-chergovyj-obmin-tilamy-zagyblyh-vijskovyh/",
+          "published_at": "2022-06-08",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Сьогодні, 8 червня, у Запорізькій області на лінії фронту між Україною та росією відбувся обмін тілами загиблих військових за формулою «50 на 50»."
+        },
+        {
+          "via": "Espreso",
+          "url": "https://espreso.tv/ukraini-povernuli-tila-50-poleglikh-viyskovikh-z-nikh-37-zakhisniki-azovstali",
+          "published_at": "2022-06-08T15:33:00+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "З 50 тіл українських військових 37 – це оборонці Азовсталі."
+        }
+      ],
+      "notes": "37 of the 50 were Azovstal defenders. Russia's count is Ukraine's '50 for 50'; no Russian statement found."
+    },
+    {
+      "date": "2022-06-14",
+      "ua_received": 64,
       "ru_received": null,
       "ua_reported_by": "UA Ministry of Reintegration",
       "ru_reported_by": null,
@@ -29,6 +95,417 @@
       "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
+        {
+          "via": "Ukrainska Pravda",
+          "url": "https://www.pravda.com.ua/rus/news/2022/06/14/7352398/",
+          "published_at": "2022-06-14T12:13:44+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Украина вернула тела 64 павших защитников Мариуполя с \"Азовстали\" для достойного их погребения."
+        },
+        {
+          "via": "Espreso",
+          "url": "https://espreso.tv/na-zaporizhzhi-vidbuvsya-obmin-tilami-zagiblikh-ukraina-povernula-ostanki-64-zakhisnikiv-azovstali",
+          "published_at": "2022-06-14T12:23:00+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Таким чином, Україна повернула тіла 64 захисників Азовсталі для гідного поховання загиблих."
+        }
+      ],
+      "notes": "All 64 Azovstal defenders. No Russian figure found."
+    },
+    {
+      "date": "2022-06-21",
+      "ua_received": 35,
+      "ru_received": 50,
+      "ua_reported_by": "UA Ministry of Reintegration",
+      "ru_reported_by": "UA Ministry of Reintegration ('35 for 50')",
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Espreso",
+          "url": "https://espreso.tv/na-zaporizhzhi-ukraina-zabrala-tila-35-zagiblikh-viyskovikh",
+          "published_at": "2022-06-21T15:54:00+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Повідомляється, що обмін тілами загиблих провели за формулою 35 на 50. Серед полеглих бійців – 25 українських захисників Маріуполя."
+        },
+        {
+          "via": "Novaya Gazeta Europe",
+          "url": "https://novayagazeta.eu/articles/2022/06/28/ukrainskaia-storona-soobshchila-o-novom-obmene-telami-pogibshikh-voennykh-news",
+          "published_at": "2022-06-28T10:47:00Z",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "На прошлой неделе Украина вернула тела 35 своих погибших военных."
+        }
+      ],
+      "notes": "The formula '35 for 50' doesn't say which side got which; Ukraine's received count is 35, so Russia's is taken as 50. No Russian statement found."
+    },
+    {
+      "date": "2022-06-28",
+      "ua_received": 46,
+      "ru_received": null,
+      "ua_reported_by": "UA Ministry of Reintegration",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "ArmyInform",
+          "url": "https://armyinform.com.ua/2022/06/28/ukrayina-ta-rf-provely-shhe-odyn-obmin-tilamy-zagyblyh-vijskovyh/",
+          "published_at": "2022-06-28",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "«Україна повернула тіла 46 героїчних оборонців для гідного їх поховання. З них 21 – захисники «Азовсталі»"
+        },
+        {
+          "via": "Novaya Gazeta Europe",
+          "url": "https://novayagazeta.eu/articles/2022/06/28/ukrainskaia-storona-soobshchila-o-novom-obmene-telami-pogibshikh-voennykh-news",
+          "published_at": "2022-06-28T10:47:00Z",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "В Украину вернули тела 46 военнослужащих, из них 21 — защитники завода «Азовсталь». Сколько тел было передано РФ, украинская сторона не уточнила."
+        }
+      ],
+      "notes": "21 of the 46 were Azovstal defenders. Ukraine didn't say how many it handed over; no Russian figure found."
+    },
+    {
+      "date": "2022-07-19",
+      "ua_received": 45,
+      "ru_received": null,
+      "ua_reported_by": "Kotenko (UA missing-persons commissioner)",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Espreso",
+          "url": "https://espreso.tv/vidbuvsya-chergoviy-obmin-tilami-zagiblikh-viyskovikh-ukraina-povernula-ostanki-shche-45-zakhisnikiv",
+          "published_at": "2022-07-19T12:29:00+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Тіла ще 45 своїх захисників Україна отримала можливість поховати, як належить."
+        }
+      ],
+      "notes": "No Russian figure found."
+    },
+    {
+      "date": "2022-07-26",
+      "ua_received": 25,
+      "ru_received": null,
+      "ua_reported_by": "Kotenko (UA missing-persons commissioner)",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "ArmyInform",
+          "url": "https://armyinform.com.ua/2022/07/26/v-ukrayinu-povernuly-tila-shhe-25-poleglyh-zahysnykiv/",
+          "published_at": "2022-07-26",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Відбулася чергова операція з передачі тіл загиблих військових. Україна повернула тіла ще 25 своїх захисників."
+        }
+      ],
+      "notes": "No Russian figure found."
+    },
+    {
+      "date": "2022-08-09",
+      "ua_received": 17,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/19",
+          "published_at": "2022-08-09T12:48:35+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Координаційний штаб з питань поводження з військовополоненими інформує Сімнадцять тіл полеглих українських захисників вдалося повернути рідним та близьким в Україні."
+        }
+      ],
+      "notes": "No Russian figure found."
+    },
+    {
+      "date": "2022-08-16",
+      "ua_received": 19,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/28",
+          "published_at": "2022-08-16T14:21:48+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Відбулася чергова передача тіл: повернули 19 полеглих Героїв Відбулася чергова операція з передачі тіл загиблих військових."
+        }
+      ],
+      "notes": "No Russian figure found."
+    },
+    {
+      "date": "2022-09-06",
+      "ua_received": 25,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/100",
+          "published_at": "2022-09-06T09:47:08+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Відбулася чергова передача тіл: повернули 25 полеглих Героїв Відбулася чергова операція з передачі тіл загиблих військових."
+        }
+      ],
+      "notes": "No Russian figure found."
+    },
+    {
+      "date": "2022-09-20",
+      "ua_received": 25,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/138",
+          "published_at": "2022-09-20T10:03:03+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "У рамках роботи Координаційного штабу з питань поводження з військовополоненими Україна повернула тіла 25-ти полеглих захисників ➡️ Операція була проведена за співпраці Уповноваженого з питань осіб, зниклих безвісти за особливих обставин, Олега Котенка, Коо…"
+        }
+      ],
+      "notes": "No Russian figure found."
+    },
+    {
+      "date": "2022-10-11",
+      "ua_received": 62,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/194",
+          "published_at": "2022-10-11T10:55:01+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Додому повернули тіла 62-х полеглих героїв ➡️ Сьогодні відбулася чергова процедура репатріації загиблих Захисників."
+        }
+      ],
+      "notes": "No Russian figure found."
+    },
+    {
+      "date": "2022-10-25",
+      "ua_received": 25,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/229",
+          "published_at": "2022-10-25T16:41:54+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Україна повернула 25 полеглих захисників Відбулася чергова операція з передачі тіл загиблих військових."
+        }
+      ],
+      "notes": "No Russian figure found."
+    },
+    {
+      "date": "2022-11-22",
+      "ua_received": 33,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/293",
+          "published_at": "2022-11-22T09:49:12+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Україна повернула додому тіла 33 загиблих героїв 🔹 Відбулася передача тіл військовослужбовців, які віддали свої життя за Україну."
+        }
+      ],
+      "notes": "No Russian figure found."
+    },
+    {
+      "date": "2022-12-06",
+      "ua_received": 49,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/340",
+          "published_at": "2022-12-06T11:50:06+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "В Україну повернули тіла 49 полеглих захисників Офіс Уповноваженого зі зниклих безвісти спільно з силовими структурами продовжує повертати додому загиблих захисників."
+        }
+      ],
+      "notes": "No Russian figure found."
+    },
+    {
+      "date": "2022-12-14",
+      "ua_received": 4,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/373",
+          "published_at": "2022-12-14T10:59:31+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Крім того на рідну землю повернули тіла чотирьох загиблих Захисників."
+        }
+      ],
+      "notes": "Returned with a prisoner exchange (65 freed), not in a separate repatriation. No Russian figure found."
+    },
+    {
+      "date": "2022-12-27",
+      "ua_received": 42,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/402",
+          "published_at": "2022-12-27T13:09:08+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "В Україну повернули тіла 42 полеглих захисників Офіс Уповноваженого зі зниклих безвісти спільно з силовими структурами продовжують повертати додому Героїв, які віддали своє життя за Україну."
+        }
+      ],
+      "notes": "No Russian figure found."
+    },
+    {
+      "date": "2023-02-10",
+      "ua_received": 61,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/551",
+          "published_at": "2023-02-10T11:17:09+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Україна повернула тіла 61 полеглого захисника Сьогодні за сприяння Мінреінтеграції й Офісу Уповноваженого зі зниклих безвісти у співпраці з силовими структурами вдалося повернути рідним тіла 61 захисника України."
+        }
+      ],
+      "notes": "No Russian figure found."
+    },
+    {
+      "date": "2023-03-03",
+      "ua_received": 17,
+      "ru_received": null,
+      "ua_reported_by": "UA Ministry of Reintegration",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "ArmyInform",
+          "url": "https://armyinform.com.ua/2023/03/03/ukrayina-povernula-tila-shhe-17-zagyblyh-zahysnykiv/",
+          "published_at": "2023-03-03",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "В Україну сьогодні вдалося повернути тіла 17 загиблих оборонців України."
+        }
+      ],
+      "notes": "Not in the Coordination HQ channel. The article puts the total returned since the full-scale invasion at 1426. No Russian figure found."
+    },
+    {
+      "date": "2023-03-24",
+      "ua_received": 83,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/720",
+          "published_at": "2023-03-24T09:36:46+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "В Україну повернули тіла 83 загиблих героїв Сьогодні відбулася чергова передача тіл захисників – додому повернули 83 оборонців України."
+        },
         {
           "via": "RBC",
           "url": "https://www.rbc.ru/politics/14/04/2023/64391fc79a794705169f671d",
@@ -39,7 +516,7 @@
           "quote": "В последний раз об обмене телами погибших военных с Россией Минреинтеграции Украины сообщало 24 марта. Тогда Киев вернул тела 83 солдат."
         }
       ],
-      "notes": "Only a later RBC article's mention of it; no Russian figure found. The Coordination HQ channel has no post that day (in 2023 returns were also announced by the Ministry of Reintegration's missing-persons commissioner)."
+      "notes": "No Russian figure found."
     },
     {
       "date": "2023-04-14",
