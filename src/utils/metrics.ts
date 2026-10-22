@@ -34,6 +34,10 @@ export function buildMetrics(options?: { paired?: boolean }): Metric[] {
           pairMode: "subset",
           subsetLabel: SUBSET_LABEL.killed,
         },
+        // Both halves of casualties on their own as well: the pair shows
+        // killed only as a share of the hit, and wounded not at all.
+        { key: "personnel_killed", label: "Personnel Killed" },
+        { key: "personnel_wounded", label: "Personnel Wounded" },
         { key: "flights_strike", label: "Strike Sorties" },
         { key: "flights_recon", label: "Recon Sorties" },
       ]
