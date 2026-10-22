@@ -426,14 +426,14 @@ export function DailyLineChart({
       }}
     >
       <ChartCardTitle title={title} anchor={anchor} marginBottom={4} />
-      <div style={{ display: "flex", gap: 12, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", rowGap: 8, columnGap: 12, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
         {hasPair && <span style={{ color: primaryColor }}>● {resolvedPrimaryLabel}</span>}
         <span style={{ color: c.maxReference }}>▲ MAX {max.toLocaleString()}</span>
         <span style={{ color: c.medReference }}>~ MED {median.toLocaleString()}</span>
         <span style={{ color: t.textMuted }}>Σ TOTAL {total.toLocaleString()}</span>
         {hasPair && (
           <>
-            <span style={{ color: secondaryColor, marginLeft: 8 }}>● {resolvedSecondaryLabel}</span>
+            <span style={{ color: secondaryColor, marginLeft: 12 }}>● {resolvedSecondaryLabel}</span>
             <span style={{ color: secondaryColor }}>▲ MAX {max2.toLocaleString()}</span>
             <span style={{ color: secondaryColor, opacity: 0.7 }}>~ MED {median2.toLocaleString()}</span>
             <span style={{ color: secondaryColor, opacity: 0.7 }}>Σ TOTAL {total2.toLocaleString()}</span>

@@ -215,12 +215,12 @@ export function MonthlyTargetPairChart({
       cursor: "pointer",
     }}>
       <ChartCardTitle title={title} anchor={anchor} marginBottom={4} />
-      <div style={{ display: "flex", gap: 16, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", rowGap: 8, columnGap: 12, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
         <span style={{ color: c.damaged }}>● {primaryLabel}</span>
         <span style={{ color: c.maxReference }}>▲ MAX {max.toLocaleString()}</span>
         <span style={{ color: c.medReference }}>~ MED {median.toLocaleString()}</span>
         <span style={{ color: t.textMuted }}>Σ TOTAL {total.toLocaleString()}</span>
-        <span style={{ color: c.destroyed, marginLeft: 8 }}>● {secondaryLabel}</span>
+        <span style={{ color: c.destroyed, marginLeft: 12 }}>● {secondaryLabel}</span>
         <span style={{ color: c.destroyed }}>▲ MAX {max2.toLocaleString()}</span>
         <span style={{ color: c.destroyed, opacity: 0.7 }}>~ MED {median2.toLocaleString()}</span>
         <span style={{ color: c.destroyed, opacity: 0.7 }}>Σ TOTAL {total2.toLocaleString()}</span>
