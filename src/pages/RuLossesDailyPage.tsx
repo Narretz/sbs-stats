@@ -12,6 +12,7 @@ import { MoreControls } from "@/components/MoreControls";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows, weekdayPredicate } from "@/utils/dayRange";
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
+import { ruLossesNote } from "@/utils/ruLossesNotes";
 import {
   RU_LOSSES_METRIC_KEYS,
   RU_LOSSES_METRIC_LABELS,
@@ -124,6 +125,7 @@ export function RuLossesDailyPage({ refreshKey }: Props) {
         date: d.date,
         value: typeof d[key] === "number" ? (d[key] as number) : null,
         is_today: d.is_today,
+        note: ruLossesNote(d.date, key),
       })),
       startDate,
       endDate,
