@@ -16,7 +16,9 @@ import { TooltipSortSelect } from "@/components/TooltipSortSelect";
 import { DAY_OPTIONS, type DayOption, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows } from "@/utils/dayRange";
 import { resolvedEndDate } from "@/utils/padTrailing";
 import { buildMetrics } from "@/utils/metrics";
-import type { DailyRow, DailyDaySeries, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
+import type { DailyRow, DailyDaySeries, Stat, StatKey, Metric, EodEstimate } from "@/types";
+import { maxMedian } from "@/utils/windowStats";
+import { lastReadingsByDay } from "@/utils/hourlyDayTotal";
 
 // A destroyed chart borrows its hit counterpart's scale so the two are
 // visually comparable (destroyed is always a subset of hit).
@@ -64,13 +66,12 @@ interface HourlyPageProps {
 
 export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryHourly, queryHourlyAll, queryGlobalStats, queryEodSteps, queryDataWindow } = useSbsDatabaseContext();
+  const { loadState, error, queryHourly, queryHourlyAll, queryEodSteps, queryDataWindow } = useSbsDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
   const [rows, setRows] = useState<DailyRow[]>([]);
   const [allRows, setAllRows] = useState<DailyRow[]>([]);
-  const [globalStats, setGlobalStats] = useState<GlobalStats>({} as GlobalStats);
   const [eod, setEod] = useState<Partial<Record<StatKey, EodEstimate[]>>>({});
   const [hasData, setHasData] = useState(false);
   const [tooltipSort, setTooltipSort] = useState<TooltipSortMode>(initial.sort);
@@ -114,11 +115,23 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
 
   useEffect(() => {
     if (loadState === "ready") {
-      setGlobalStats(queryGlobalStats());
       setAllRows(queryHourlyAll());
       setEod(queryEodSteps());
     }
-  }, [loadState, queryGlobalStats, queryHourlyAll, queryEodSteps, refreshKey]);
+  }, [loadState, queryHourlyAll, queryEodSteps, refreshKey]);
+
+  // The ALL scope's stats, read like the window's: each day's last reading on
+  // the chart, as collected — not the settled figure (queryGlobalStats, the
+  // daily page's), whose next-morning revisions the hourly lines never show.
+  // See utils/hourlyDayTotal.
+  const statsFor = useMemo(() => {
+    const cache = new Map<StatKey, Stat>();
+    return (key: StatKey): Stat => {
+      let s = cache.get(key);
+      if (!s) cache.set(key, (s = maxMedian(lastReadingsByDay(allRows, key))));
+      return s;
+    };
+  }, [allRows]);
 
   // Per metric, every reading per hour — built on the first hover that asks
   // for it, since most of the ~60 charts are never hovered.
@@ -202,9 +215,9 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
             key={m.id}
             title={m.label}
             data={makeDataset(m.key)}
-            globalMax={globalStats[m.key]?.max ?? 0}
-            globalMedian={globalStats[m.key]?.median ?? 0}
-            globalTotal={globalStats[m.key]?.total ?? 0}
+            globalMax={statsFor(m.key).max}
+            globalMedian={statsFor(m.key).median}
+            globalTotal={statsFor(m.key).total}
             wfull={m.wfull ?? false}
             tooltipSort={tooltipSort}
             highlight={!!selectedDate}
@@ -212,7 +225,7 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
             eodSteps={eod[m.key] ?? null}
             allHours={() => allHoursFor(m.key)}
             pairedData={srcKey ? makeDataset(srcKey) : undefined}
-            pairedGlobalMax={srcKey ? globalStats[srcKey]?.max ?? 0 : undefined}
+            pairedGlobalMax={srcKey ? statsFor(srcKey).max : undefined}
           />
         );
       })}

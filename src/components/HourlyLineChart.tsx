@@ -6,6 +6,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DailyDaySeries, EodEstimate } from "@/types";
 import { getKyivDateString } from "@/hooks/sqlLoader";
 import { baselineOf, eodAtHour, hourBaseline, type HourHistory } from "@/utils/hourlyTooltip";
+import { lastReading } from "@/utils/hourlyDayTotal";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
 import { maxMedian } from "@/utils/windowStats";
@@ -304,13 +305,10 @@ export function HourlyLineChart({ title, data, globalMax, globalMedian, globalTo
   const c = chartColors(t);
   const { scope } = useStatScope();
   // "window" scopes MAX/MED to the days currently shown. Each day's value is its
-  // end-of-day total (max of its cumulative intraday points).
+  // last reading on the chart — the same as the page's whole-dataset stats
+  // (see utils/hourlyDayTotal).
   const win = scope === "window";
-  const dayEodValues = (series: DailyDaySeries[]) =>
-    series.map((s) => {
-      const vals = s.points.map((p) => p.value).filter((v): v is number => typeof v === "number");
-      return vals.length ? Math.max(...vals) : null;
-    });
+  const dayEodValues = (series: DailyDaySeries[]) => series.map((s) => lastReading(s.points));
   const winStat = useMemo(() => maxMedian(dayEodValues(data)), [data]);
   const pairedWinMax = useMemo(
     () => (pairedData ? maxMedian(dayEodValues(pairedData)).max : 0),
