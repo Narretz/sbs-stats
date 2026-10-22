@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import type { Database } from "sql.js";
 import type { DailyRow, MonthlyRow, StatKey, EodEstimate, GlobalStats } from "@/types";
 import { TARGET_IDS } from "@/types";
-import { computeEodProjection, computeEodSteps, type EodReading } from "@/utils/eodProjection";
+import { computeEodProjection, computeEodSteps, type EodOptions, type EodReading } from "@/utils/eodProjection";
 import { projectMonthEnd, type IntradayReading } from "@/utils/monthProjection";
 import { attachDailyMedians, dailyMediansByMonth } from "@/utils/dailyMedian";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
@@ -13,6 +13,8 @@ const DB_URL = import.meta.env.VITE_DB_URL ?? "/data/sbs.db";
 const loadDatabase = () => loadWholeDb(DB_URL, "SBS");
 
 const dbCache = makeResourceCache<Database>();
+
+const SBS_EOD_OPTIONS: EodOptions = { halfLifeDays: 7 };
 
 function getTableColumns(db: Database, table: string): string[] {
   const result = db.exec(`PRAGMA table_info(${table})`);
@@ -184,8 +186,12 @@ export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
 
   // ── End-of-day projection for today ──────────────────────────────────────────
   // Today's daily value is only a partial running total (latest hour so far);
-  // project where it settles from the last 90 days' intraday curves. Readings are
-  // keyed by hour; the day-final is the max-hour value (incl. next-day revisions).
+  // project where it settles from the last 30 days' intraday curves, recent days
+  // weighted most: the curve drifts over months (mornings carrying ever less of
+  // the day), and an even 90-day median lagged it — 15–25% low before 09:00 and
+  // ~3% high every evening in a backtest, against <1% in the evening this way.
+  // Readings are keyed by hour; the day-final is the max-hour value (incl.
+  // next-day revisions).
   const eodReadings = useCallback((): { byDate: Map<string, EodReading<StatKey>[]>; todayStr: string; keys: StatKey[] } | null => {
     if (!db) return null;
     const todayStr = getKyivDateString();
@@ -208,7 +214,7 @@ export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
     const sql = `
       SELECT date, hour, ${statCols}
       FROM daily_stats
-      WHERE date >= date('${todayStr}', '-90 days')
+      WHERE date >= date('${todayStr}', '-30 days')
       ORDER BY date ASC, hour ASC
     `;
     const byDate = new Map<string, EodReading<StatKey>[]>();
@@ -227,13 +233,13 @@ export function useDatabaseSbs({ enabled = true }: { enabled?: boolean } = {}) {
 
   const queryEodProjection = useCallback((): Partial<Record<StatKey, EodEstimate>> => {
     const r = eodReadings();
-    return r ? computeEodProjection(r.byDate, r.todayStr, r.keys) : {};
+    return r ? computeEodProjection(r.byDate, r.todayStr, r.keys, SBS_EOD_OPTIONS) : {};
   }, [eodReadings]);
 
   // The same estimate re-run at each of today's hours so far (hourly page).
   const queryEodSteps = useCallback((): Partial<Record<StatKey, EodEstimate[]>> => {
     const r = eodReadings();
-    return r ? computeEodSteps(r.byDate, r.todayStr, r.keys) : {};
+    return r ? computeEodSteps(r.byDate, r.todayStr, r.keys, SBS_EOD_OPTIONS) : {};
   }, [eodReadings]);
 
   // ── Monthly ──────────────────────────────────────────────────────────────────

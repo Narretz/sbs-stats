@@ -81,6 +81,23 @@ describe("computeEodProjection", () => {
     byDate.set("2026-08-03", settled(100, 100));
     expect(project(byDate)!.fraction).toBeCloseTo(0.5, 2);
   });
+
+  it("follows the recent days when weighted by a half-life", () => {
+    // Six days a month old at 50%, then the curve shifts: the last three at 40%.
+    const byDate = history(6, 0.5, 40);
+    for (const d of ["2026-08-29", "2026-08-30", "2026-08-31"]) byDate.set(d, settled(100, 40));
+    // Unweighted, the old days are the majority and hold the median.
+    expect(project(byDate)!.fraction).toBeCloseTo(0.5, 2);
+    const weighted = computeEodProjection(byDate, "2026-09-01", ["hits"], { halfLifeDays: 7 }).hits!;
+    expect(weighted.fraction).toBeCloseTo(0.4, 2);
+    expect(weighted.projected).toBe(100);
+  });
+
+  it("still needs five days however little the old ones weigh", () => {
+    // The floor counts samples, not weight: four recent days are not a profile.
+    const byDate = history(4, 0.5, 50);
+    expect(computeEodProjection(byDate, "2026-09-01", ["hits"], { halfLifeDays: 7 }).hits).toBeUndefined();
+  });
 });
 
 describe("computeEodSteps", () => {
