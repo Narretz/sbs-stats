@@ -2,17 +2,16 @@ import { useEffect, useState } from "react";
 import type { Page, Site } from "@/types";
 import { SITE_REGISTRY } from "@/sites/registry";
 import { isSite } from "@/sites/listed";
+import { JSON_SITE_PAGES } from "@/sites/jsonSites";
 
-// HUR missile-stock disclosures: a JSON-backed prototype with its own
-// Production/Stockpile toggle, so no daily/monthly nav (App hides the page
-// buttons for this site). Not in SITE_REGISTRY — handled explicitly here and
-// in App.tsx.
-const RU_MISSILES_PAGES: Page[] = ["daily"];
+// A JSON-backed site has one page and no daily/monthly nav (App hides the page
+// buttons for it); "daily" is only the route's placeholder.
+const JSON_SITE_PAGE_LIST: Page[] = ["daily"];
 
 // A site's page list (in nav order) is its registry entry's `pages` keys; the
-// non-registry missiles prototype is the one special case.
+// JSON-backed sites (sites/jsonSites) are the exception.
 function pagesFor(site: Site): Page[] {
-  if (site === "ru-missiles-hur") return RU_MISSILES_PAGES;
+  if (site in JSON_SITE_PAGES) return JSON_SITE_PAGE_LIST;
   const entry = SITE_REGISTRY[site];
   return entry ? (Object.keys(entry.pages) as Page[]) : ["daily"];
 }

@@ -245,6 +245,7 @@ export const SITES = [
   { key: "ru-missiles-hur", label: "RU MISSILE STOCKS - HUR", tier: "secondary" },
   { key: "ua-losses", label: "UA PERSONNEL LOSSES - UALOSSES.ORG", tier: "secondary" },
   { key: "zelensky-weekly", label: "RU WEEKLY STRIKES - PRESIDENT UA", tier: "secondary" },
+  { key: "body-exchanges", label: "UA+RU BODY EXCHANGES - KOORD. HQ / RBC", tier: "secondary" },
 ] as const satisfies readonly SiteInfo[];
 export type Site = (typeof SITES)[number]["key"];
 export type LoadState = "idle" | "loading" | "ready" | "error";
@@ -1223,6 +1224,38 @@ export interface MissileReport {
 export interface MissileDataset {
   missile_types: Record<string, MissileTypeMeta>;
   reports: MissileReport[];
+}
+
+// ─── Body exchanges (hand-curated scripts/body_exchanges/exchanges.json) ─────
+// Repatriations of fallen soldiers' bodies, one record per exchange. Each
+// side's count is as THAT side reported it; null means no figure is known,
+// which is not 0 (Russia's one-way transfers of June 2025 are real 0s).
+export interface BodyExchangeSource {
+  via: string;            // "RBC" | "Koord_shtab (Telegram)"
+  url: string;
+  published_at: string;
+  covers: ("ua_received" | "ru_received" | "date")[];
+  quote: string;          // verbatim, ellipses marking cuts
+}
+
+export interface BodyExchange {
+  date: string;
+  ua_received: number | null;  // bodies returned to Ukraine
+  ru_received: number | null;  // bodies returned to Russia
+  ua_reported_by: string | null;
+  ru_reported_by: string | null;
+  // creamy_caprice's chart the dataset was seeded from; null when the exchange
+  // is not on it. Kept for audit only — never charted.
+  chart_creamy_caprice: { date: string; ua_received: number | null; ru_received: number | null } | null;
+  chart_creamy_caprice_discrepancy: string | null;
+  // "discrepancy" = sources disagree with each other on a stored figure.
+  status: "confirmed" | "partial" | "discrepancy";
+  sources: BodyExchangeSource[];
+  notes?: string;
+}
+
+export interface BodyExchangeDataset {
+  exchanges: BodyExchange[];
 }
 
 // ─── CIT civilian casualties (Telegram @CIT_shellings → cit-civilians.db) ─────

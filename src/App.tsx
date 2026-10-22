@@ -11,7 +11,7 @@ import { SiteHeader, SpecialViewHeader } from "@/components/SiteHeader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorScreen } from "@/components/Layout";
 import { ComparePage } from "@/pages/ComparePage";
-import { MissilesPage } from "@/pages/MissilesPage";
+import { JSON_SITE_PAGES } from "@/sites/jsonSites";
 import { HomePage } from "@/pages/HomePage";
 import type { Page, Site } from "@/types";
 
@@ -78,12 +78,13 @@ function SiteRoot({
   );
 }
 
-// JSON-backed prototype: no DB provider, no page nav (the page has its own
-// Production/Stockpile toggle), no refresh indicator. Not in SITE_REGISTRY.
-function MissilesRoot({
-  site, setSite, setPage,
+// A JSON-backed site (sites/jsonSites): no DB provider, no page nav, no
+// refresh indicator. Not in SITE_REGISTRY.
+function JsonSiteRoot({
+  site, setSite, setPage, Page: PageComponent,
 }: {
   site: Site; setSite: (s: Site) => void; setPage: (p: Page) => void;
+  Page: React.ComponentType;
 }) {
   return (
     <>
@@ -95,7 +96,7 @@ function MissilesRoot({
         refreshIntervalMs={0} showRefresh={false}
       />
       <PageShell>
-        <MissilesPage />
+        <PageComponent />
       </PageShell>
     </>
   );
@@ -109,6 +110,7 @@ function AppInner() {
   const page = route.kind === "site" ? route.page : "daily";
   const pages = pagesFor(site);
   const siteEntry = route.kind === "site" ? SITE_REGISTRY[route.site] : undefined;
+  const jsonPage = route.kind === "site" ? JSON_SITE_PAGES[route.site] : undefined;
 
   return (
     <RouteProvider value={routeValue}>
@@ -125,9 +127,9 @@ function AppInner() {
             setSite={setSite} setPage={setPage}
           />
         )}
-        {route.kind === "site" && route.site === "ru-missiles-hur" && (
+        {jsonPage && (
           <ErrorShell>
-            <MissilesRoot site={site} setSite={setSite} setPage={setPage} />
+            <JsonSiteRoot site={site} setSite={setSite} setPage={setPage} Page={jsonPage} />
           </ErrorShell>
         )}
         {route.kind === "special" && (

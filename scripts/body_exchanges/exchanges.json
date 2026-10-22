@@ -1,0 +1,1833 @@
+{
+  "_doc": {
+    "what": "Hand-curated repatriations of fallen soldiers' bodies between Russia and Ukraine. Irregular, announced by each side separately — NOT a scrape: this file is edited by hand.",
+    "backfill": "Seeded from a chart by the OSINT account creamy_caprice (sources/body-exchanges.png, May 2023 – Oct 2026, no sources given), then checked against RBC article by article. Every figure here is read from a source (an RBC article or a Coordination HQ post, quoted under sources); the chart's own values are kept under `chart_creamy_caprice` for audit. Ukraine's figures were then checked against the Coordination HQ's own posts (t.me/Koord_shtab, read via the public t.me/s preview — no login).",
+    "fields": {
+      "date": "Day of the exchange (YYYY-MM-DD), as reported.",
+      "ua_received": "Bodies returned to Ukraine, as Ukraine's Coordination HQ for the Treatment of POWs posts it (t.me/Koord_shtab). Its posts note the bodies are Ukrainian 'according to the Russian side' until identified.",
+      "ru_received": "Bodies of Russian servicemen returned to Russia, as the Russian side reports it (Saraliev, Medinsky). null when no figure is known — not the same as 0.",
+      "ua_reported_by / ru_reported_by": "Who the figure comes from.",
+      "status": "confirmed | partial (one side's figure missing) | discrepancy (sources disagree with each other on a stored figure; see notes). A later article misremembering an exchange is noted but does not count.",
+      "sources[]": "{ via, url, published_at, covers, quote } — quote is verbatim (ellipses mark cuts) so the figure can be checked without the page. covers lists what the source supports.",
+      "chart_creamy_caprice": "The values on creamy_caprice's chart (an OSINT account; sources/body-exchanges.png, May 2023 – Oct 2026, no sources given): { date, ua_received, ru_received }, or null when the exchange is not on the chart. null inside means the label is cut off.",
+      "chart_creamy_caprice_discrepancy": "How the chart differs from the sourced figures, in words; null when it agrees. Does not affect status."
+    },
+    "todo": [
+      "2023-03-24: only RBC's back-reference (83, Ministry of Reintegration); no Coordination HQ post that day.",
+      "Russian figures missing for 2023-03-24, 2023-04-14, 2023-06-23, 2023-08-29, 2023-12-22.",
+      "Exchanges before March 2023 (e.g. February 2023, 150 bodies to Ukraine) are not covered yet."
+    ]
+  },
+  "exchanges": [
+    {
+      "date": "2023-03-24",
+      "ua_received": 83,
+      "ru_received": null,
+      "ua_reported_by": "UA Ministry of Reintegration",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/14/04/2023/64391fc79a794705169f671d",
+          "published_at": "2023-04-14T13:21:24+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "В последний раз об обмене телами погибших военных с Россией Минреинтеграции Украины сообщало 24 марта. Тогда Киев вернул тела 83 солдат."
+        }
+      ],
+      "notes": "Only a later RBC article's mention of it; no Russian figure found. The Coordination HQ channel has no post that day (in 2023 returns were also announced by the Ministry of Reintegration's missing-persons commissioner)."
+    },
+    {
+      "date": "2023-04-14",
+      "ua_received": 82,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/835",
+          "published_at": "2023-04-14T09:15:51+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Україна повернула тіла ще 82 полеглих захисників Сьогодні вдалося повернути додому тіла 82 загиблих українських військових."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/14/04/2023/64391fc79a794705169f671d",
+          "published_at": "2023-04-14T13:21:24+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Украина вернула тела 82 погибших военных, сообщает Министерство реинтеграции страны."
+        }
+      ],
+      "notes": "'Российская сторона об обмене телами с Украиной пока не сообщала.' No Russian figure found."
+    },
+    {
+      "date": "2023-05-05",
+      "ua_received": 80,
+      "ru_received": 80,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2023-05-16",
+        "ua_received": 80,
+        "ru_received": null
+      },
+      "chart_creamy_caprice_discrepancy": "Dated 2023-05-16 on the chart; no exchange is reported that day. Russia's label is cut off at '8' (bar ~80).",
+      "status": "discrepancy",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/959",
+          "published_at": "2023-05-05T10:12:53+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "В Україну повернули тіла 80 полеглих захисників Сьогодні за сприяння Мінреінтеграції та Уповноваженого з питань осіб, зниклих безвісти за особливих обставин, в співпраці з силовими структурами вдалося повернути рідним тіла 80 захисників України."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/05/05/2023/645501df9a794738e0afe834",
+          "published_at": "2023-05-05T16:48:51+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "«Состоялась передача тел 80 на 80», — сказал он. … Киеву вернули тела 83 погибших военнослужащих."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/30/05/2023/6475f4989a79471b0be39026",
+          "published_at": "2023-05-30T16:20:42+03:00",
+          "covers": [
+            "date"
+          ],
+          "quote": "В прошлый раз Россия и Украина проводили обмен телами погибших 5 мая."
+        }
+      ],
+      "notes": "Saraliev said '80 for 80'; RBC's same-day article quoted the Ministry of Reintegration with 83, but the Coordination HQ's own post says 80 (as does RBC's 23 Jun 2023 article). RBC's 30 May article calls 5 May the previous exchange."
+    },
+    {
+      "date": "2023-05-30",
+      "ua_received": 79,
+      "ru_received": 80,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2023-05-30",
+        "ua_received": 79,
+        "ru_received": null
+      },
+      "chart_creamy_caprice_discrepancy": "Russia's label is cut off at '8' (bar ~80).",
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/1146",
+          "published_at": "2023-05-30T09:03:02+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Україна повернула тіла ще 79 полеглих захисників Сьогодні вдалося повернути додому тіла 79 загиблих українських оборонців."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/30/05/2023/6475f4989a79471b0be39026",
+          "published_at": "2023-05-30T16:20:42+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "«России было передано 80 тел военных, на Украину передано 79», — сказал он."
+        }
+      ]
+    },
+    {
+      "date": "2023-06-23",
+      "ua_received": 51,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/1310",
+          "published_at": "2023-06-23T09:54:16+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "В Україну повернули тіла 51 полеглого захисника Відбулася передача тіл військовослужбовців, які віддали свої життя за Україну."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/23/06/2023/649571cd9a79473848776989",
+          "published_at": "2023-06-23T13:42:05+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Украине передали тела 51 погибшего в зоне боевых действий военного, сообщило украинское Мининтеграции. … С российской стороны комментариев пока не поступало."
+        }
+      ],
+      "notes": "RBC's same-day article has only Ukraine's figure ('С российской стороны комментариев пока не поступало'); no Russian figure found."
+    },
+    {
+      "date": "2023-07-14",
+      "ua_received": 62,
+      "ru_received": 160,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2023-07-14",
+        "ua_received": 62,
+        "ru_received": 160
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/1627",
+          "published_at": "2023-07-14T11:42:38+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "В Україну повернули тіла 62 полеглих захисників Відбулася передача тіл військовослужбовців, які віддали свої життя за Україну."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/14/07/2023/64b190729a79472bdf667ba8",
+          "published_at": "2023-07-14T21:20:27+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Россия вернула 160 тел погибших … о возвращении на Украину 62 тел погибших военных сообщил … Олег Котенко."
+        }
+      ]
+    },
+    {
+      "date": "2023-08-04",
+      "ua_received": 44,
+      "ru_received": 160,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2023-08-04",
+        "ua_received": 44,
+        "ru_received": 160
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/1871",
+          "published_at": "2023-08-04T09:52:55+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "В Україну повернули тіла 44 полеглих захисників Відбулася передача тіл військовослужбовців, які віддали свої життя за Україну."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/04/08/2023/64cd4b8f9a7947a5a00ac480",
+          "published_at": "2023-08-04T22:29:56+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "«44 тела мы передали украинской стороне и 160 тел вернули», — сказал он."
+        }
+      ]
+    },
+    {
+      "date": "2023-08-29",
+      "ua_received": 84,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/2192",
+          "published_at": "2023-08-29T08:45:13+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Україна повернула тіла ще 84 полеглих захисників Сьогодні відбулася репатріація тіл загиблих українських військовослужбовців із тимчасово окупованих територій України (ТОТ)."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/29/08/2023/64edb4f19a79471c0f8c2856",
+          "published_at": "2023-08-29T12:08:58+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Украина вернула тела 84 военнослужащих, сообщил в своем телеграм-канале … Олег Котенко."
+        }
+      ],
+      "notes": "No Russian figure found."
+    },
+    {
+      "date": "2023-10-06",
+      "ua_received": 64,
+      "ru_received": 60,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2023-10-06",
+        "ua_received": 64,
+        "ru_received": null
+      },
+      "chart_creamy_caprice_discrepancy": "Russia's label is cut off at '6' (bar ~55–60).",
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/2674",
+          "published_at": "2023-10-06T09:27:43+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Українською стороною повернені тіла (останки) 64 полеглих оборонців України."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/06/10/2023/651fda249a794751ca7e2295",
+          "published_at": "2023-10-06T13:07:44+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Киев вернул на подконтрольную территорию тела 64 погибших украинских военных, сообщил Координационный штаб."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/06/10/2023/651fedcf9a79473e499777e7",
+          "published_at": "2023-10-06T14:42:27+03:00",
+          "covers": [
+            "ru_received"
+          ],
+          "quote": "«Подтверждаю. 60 тел получила российская сторона», — сказал Саралиев."
+        }
+      ]
+    },
+    {
+      "date": "2023-11-20",
+      "ua_received": 94,
+      "ru_received": 80,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2023-11-20",
+        "ua_received": 94,
+        "ru_received": null
+      },
+      "chart_creamy_caprice_discrepancy": "Russia's label is cut off at '8' (bar ~80).",
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/3102",
+          "published_at": "2023-11-20T10:49:53+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "На підконтрольну уряду України територію повернено тіла (останки) 94 оборонців України 🙏 Сьогодні вдалося повернути на підконтрольну територію тіла (останки) 94 оборонців України."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/20/11/2023/655b4dcf9a79474cef531a75",
+          "published_at": "2023-11-20T16:11:14+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "На Украину возвращены тела 94 погибших военных … Минобороны вернуло 80 тел погибших российских бойцов."
+        }
+      ]
+    },
+    {
+      "date": "2023-12-22",
+      "ua_received": 66,
+      "ru_received": null,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": null,
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "partial",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/3547",
+          "published_at": "2023-12-22T13:30:35+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "На підконтрольну уряду України територію сьогодні повернено тіла (останки) 66 оборонців України."
+        }
+      ],
+      "notes": "No Russian figure found."
+    },
+    {
+      "date": "2024-01-26",
+      "ua_received": 77,
+      "ru_received": 55,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2024-01-26",
+        "ua_received": 77,
+        "ru_received": 55
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/3994",
+          "published_at": "2024-01-26T12:06:03+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Відбувся черговий репатріаційний захід, за результатами реалізації якого в Україну повернено загиблих військовослужбовців: на підконтрольну уряду України територію сьогодні повернено тіла (останки) 77 Оборонців України."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/31/01/2024/65ba304d9a794765b8bc2a0a",
+          "published_at": "2024-01-31T15:53:59+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received",
+            "date"
+          ],
+          "quote": "26 января депутат Шамсаил Саралиев заявил РБК, что Украина передала России 55 тел погибших военных. … на Украину были доставлены тела 77 погибших военнослужащих."
+        }
+      ],
+      "notes": "No same-day RBC article found; this is a back-reference."
+    },
+    {
+      "date": "2024-02-16",
+      "ua_received": 58,
+      "ru_received": 61,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2024-02-16",
+        "ua_received": 58,
+        "ru_received": null
+      },
+      "chart_creamy_caprice_discrepancy": "Russia's label is cut off at '6'.",
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/4295",
+          "published_at": "2024-02-16T10:35:58+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Відбувся черговий репатріаційний захід, за результатами якого в Україну повернені 58 загиблих Оборонців."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/16/02/2024/65cf59f79a7947a813023bc7",
+          "published_at": "2024-02-16T15:56:20+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "российской стороне вернули тело 61 погибшего. … Украина получила 58 тел."
+        }
+      ]
+    },
+    {
+      "date": "2024-03-15",
+      "ua_received": 100,
+      "ru_received": 69,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2024-03-15",
+        "ua_received": 100,
+        "ru_received": 69
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/4726",
+          "published_at": "2024-03-15T10:07:38+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Відбувся черговий репатріаційний захід, за результатами якого в Україну повернені 100 загиблих Оборонців України."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/15/03/2024/65f43f109a7947c6bbec9155",
+          "published_at": "2024-03-15T15:30:12+03:00",
+          "covers": [
+            "ru_received"
+          ],
+          "quote": "Российская сторона забрала 69 тел погибших солдат, сообщил РБК депутат Госдумы Шамсаил Саралиев."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/15/03/2024/65f421be9a7947249da9bf25",
+          "published_at": "2024-03-15T13:29:16+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Украина вернула 100 тел погибших военных, сообщил … координационный штаб."
+        }
+      ]
+    },
+    {
+      "date": "2024-03-29",
+      "ua_received": 121,
+      "ru_received": 29,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2024-03-29",
+        "ua_received": 121,
+        "ru_received": 29
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/4974",
+          "published_at": "2024-03-29T09:43:11+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами репатріаційних заходів в Україну повернули 121 полеглого Оборонця."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/29/03/2024/6606a2739a794727df1cba4f",
+          "published_at": "2024-03-29T14:14:10+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "«Нам передали 29 тел погибших наших бойцов». … Украина сообщила о возвращении тел 121 погибшего военнослужащего."
+        }
+      ]
+    },
+    {
+      "date": "2024-04-12",
+      "ua_received": 99,
+      "ru_received": 23,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2024-04-12",
+        "ua_received": 99,
+        "ru_received": 23
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/5296",
+          "published_at": "2024-04-12T08:52:27+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами репатріаційних заходів в Україну повернули 99 полеглих Оборонців."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/12/04/2024/6618fc149a794794f079ace7",
+          "published_at": "2024-04-12T12:23:16+03:00",
+          "covers": [
+            "ru_received"
+          ],
+          "quote": "«23 тела забрали», — сказал парламентарий."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/12/04/2024/6618fa579a794769518dc5f4",
+          "published_at": "2024-04-12T12:15:51+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Украина вернула тела 99 погибших служащих ВСУ, сообщил Координационный штаб."
+        }
+      ]
+    },
+    {
+      "date": "2024-04-26",
+      "ua_received": 140,
+      "ru_received": 36,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2024-04-26",
+        "ua_received": 140,
+        "ru_received": 36
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/5603",
+          "published_at": "2024-04-26T09:28:17+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами репатріаційних заходів в Україну повернули 140 полеглих Оборонців."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/26/04/2024/662ba2fb9a7947db31adae4c",
+          "published_at": "2024-04-26T15:51:49+03:00",
+          "covers": [
+            "ru_received"
+          ],
+          "quote": "Россия получила тела 36 погибших военных, сообщил РБК депутат Госдумы … Шамсаил Саралиев."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/26/04/2024/662b9fa99a7947d4ca9c93e2",
+          "published_at": "2024-04-26T15:38:42+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Украина вернула тела 140 погибших военных, сообщил координационный штаб."
+        }
+      ]
+    },
+    {
+      "date": "2024-05-31",
+      "ua_received": 212,
+      "ru_received": 45,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2024-05-31",
+        "ua_received": 212,
+        "ru_received": 45
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/6201",
+          "published_at": "2024-05-31T08:56:37+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами репатріаційних заходів в Україну повернули тіла 212 полеглих Оборонців."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/31/05/2024/665998869a7947ae94d39078",
+          "published_at": "2024-05-31T12:30:11+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Россия вернула 45 тел российских военных … на Украину вернули тела 212 погибших военнослужащих, сообщили в украинском координационном штабе."
+        }
+      ]
+    },
+    {
+      "date": "2024-06-14",
+      "ua_received": 254,
+      "ru_received": 32,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "Not on the chart.",
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/6499",
+          "published_at": "2024-06-14T09:05:25+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами репатріаційних заходів в Україну повернули 254 полеглих Оборонців."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/14/06/2024/666c0d6b9a7947f06a5444be",
+          "published_at": "2024-06-14T12:31:15+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Россия вернула 32 тела погибших, 254 тела передали Украине. Об этом РБК заявил депутат Госдумы Шамсаил Саралиев."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/02/08/2024/66acaf4f9a79473e65d227d7",
+          "published_at": "2024-08-02T13:05:18+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "В мае Украине были возвращены 212 погибших, в июне — 250. России, соответственно, передали тела 45 и 32 погибших."
+        }
+      ],
+      "notes": "Ukraine's post confirms 254; RBC's 2 Aug 2024 article rounds it to 250 when mentioning it."
+    },
+    {
+      "date": "2024-08-02",
+      "ua_received": 250,
+      "ru_received": 38,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2024-08-02",
+        "ua_received": 250,
+        "ru_received": 38
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/7340",
+          "published_at": "2024-08-02T08:59:42+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами репатріаційних заходів в Україну повернули тіла 250 полеглих Оборонців."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/02/08/2024/66acaf4f9a79473e65d227d7",
+          "published_at": "2024-08-02T13:05:18+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "«250 тел отдали, 38 вернули»"
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/02/08/2024/66aca34a9a79477863fece42",
+          "published_at": "2024-08-02T12:16:54+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Украине вернули тела 250 военнослужащих (title)"
+        }
+      ]
+    },
+    {
+      "date": "2024-10-18",
+      "ua_received": 501,
+      "ru_received": 89,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2024-10-18",
+        "ua_received": 501,
+        "ru_received": 89
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/8611",
+          "published_at": "2024-10-18T12:19:10+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами репатріаційних заходів в Україну повернули 501 полеглого Оборонця."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/18/10/2024/671253f49a79472aba372974",
+          "published_at": "2024-10-18T15:30:44+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Украинский координационный штаб сообщил, что им передали 501 тело … Россия получила 89 тел."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/rbcfreenews/671259149a7947daa146474f",
+          "published_at": "2024-10-18T15:48:59+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "России передали 89 тел погибших, Украине — 501, сообщил он РБК."
+        }
+      ]
+    },
+    {
+      "date": "2024-11-08",
+      "ua_received": 563,
+      "ru_received": 37,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2024-11-08",
+        "ua_received": 563,
+        "ru_received": 37
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/8996",
+          "published_at": "2024-11-08T12:33:53+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами репатріаційних заходів в Україну повернули тіла 563 полеглих Оборонців."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/08/11/2024/672e07589a79473a009c92e4",
+          "published_at": "2024-11-08T15:46:38+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Украине передали тела 563 погибших военных … Шамсаил Саралиев сообщил РБК, что в ходе обмена России вернули 37 тел погибших."
+        }
+      ]
+    },
+    {
+      "date": "2024-11-29",
+      "ua_received": 502,
+      "ru_received": 52,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2024-11-29",
+        "ua_received": 502,
+        "ru_received": 52
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "discrepancy",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/9434",
+          "published_at": "2024-11-29T11:22:58+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами проведених репатріаційних заходів до України повернені тіла 502 полеглих Оборонців."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/29/11/2024/6749c4e19a7947e5ac8b1564",
+          "published_at": "2024-11-29T16:44:22+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Россия вернула тела 52 погибших. … Украине вернули тела 502 погибших."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/29/11/2024/6749a70e9a79475119793e1a",
+          "published_at": "2024-11-29T14:35:46+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Украина вернула тела 502 украинских военных … Александр Коц сообщил, что России передали 48 тел погибших военных."
+        }
+      ],
+      "notes": "RBC first quoted Kots (48), then Saraliev (52); later RBC articles repeat '502 на 48'. Kept Saraliev's 52, the official Russian count."
+    },
+    {
+      "date": "2024-12-20",
+      "ua_received": 503,
+      "ru_received": 42,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2024-12-20",
+        "ua_received": 503,
+        "ru_received": 42
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/9831",
+          "published_at": "2024-12-20T10:50:38+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами проведених репатріаційних заходів на підконтрольну Уряду України територію повернені тіла 503 полеглих Оборонців."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/20/12/2024/676556b49a7947effb50cf0f",
+          "published_at": "2024-12-20T14:37:57+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "В Россию вернули тела 42 погибших военных. … Украинской стороне вернули тела 503 погибших украинских военных."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/20/12/2024/67654d6a9a7947201846f15c",
+          "published_at": "2024-12-20T14:00:28+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Российская сторона передала Киеву тела 503 погибших военных, сообщает … Координационный штаб."
+        }
+      ]
+    },
+    {
+      "date": "2025-01-24",
+      "ua_received": 757,
+      "ru_received": 49,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2025-01-24",
+        "ua_received": 757,
+        "ru_received": 49
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/10444",
+          "published_at": "2025-01-24T11:50:45+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами проведених репатріаційних заходів в Україну повернули тіла 757 полеглих Захисників."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/24/01/2025/679390379a794756b787be3b",
+          "published_at": "2025-01-24T16:12:28+03:00",
+          "covers": [
+            "ru_received"
+          ],
+          "quote": "Российской стороне, по его словам, вернули 49 тел погибших военных."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/24/01/2025/679385f79a79478565fba0ee",
+          "published_at": "2025-01-24T15:42:05+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Украина вернула тела 757 погибших военных, сообщил координационный штаб."
+        }
+      ]
+    },
+    {
+      "date": "2025-02-14",
+      "ua_received": 757,
+      "ru_received": 45,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2025-02-14",
+        "ua_received": 757,
+        "ru_received": 45
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/10785",
+          "published_at": "2025-02-14T11:36:51+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами проведених репатріаційних заходів в Україну повернули тіла 757 полеглих Захисників."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/14/02/2025/67af0f209a794788a41f78c6",
+          "published_at": "2025-02-14T12:39:39+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "В Россию во время обмена вернули тела 45 погибших российских военных. … Украине передали тела 757 погибших военных."
+        }
+      ]
+    },
+    {
+      "date": "2025-03-28",
+      "ua_received": 909,
+      "ru_received": 43,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2025-03-28",
+        "ua_received": 909,
+        "ru_received": 43
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/11573",
+          "published_at": "2025-03-28T12:21:41+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами проведених репатріаційних заходів в Україну повернули тіла 909 полеглих Захисників."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/28/03/2025/67e6a3499a7947ef199229c3",
+          "published_at": "2025-03-28T16:26:13+03:00",
+          "covers": [
+            "ru_received"
+          ],
+          "quote": "Россия вернула тела 43 погибших."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/28/03/2025/67e699ef9a794702a659ca36",
+          "published_at": "2025-03-28T15:46:32+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Украине передали тела 909 погибших военных. Об этом сообщил украинский координационный штаб."
+        }
+      ]
+    },
+    {
+      "date": "2025-04-18",
+      "ua_received": 909,
+      "ru_received": 41,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2025-04-18",
+        "ua_received": 909,
+        "ru_received": 41
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/11940",
+          "published_at": "2025-04-18T10:54:03+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами проведених репатріаційних заходів в Україну повернули тіла 909 полеглих Захисників."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/18/04/2025/680231a59a79479a6ffc7585",
+          "published_at": "2025-04-18T14:09:19+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Украина вернула тела 909 погибших украинских военных … Москва получила тела 41 погибшего военного."
+        }
+      ]
+    },
+    {
+      "date": "2025-05-16",
+      "ua_received": 909,
+      "ru_received": 34,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2025-05-16",
+        "ua_received": 909,
+        "ru_received": 34
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/12512",
+          "published_at": "2025-05-16T09:53:59+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами проведених репатріаційних заходів в Україну повернули тіла 909 полеглих Захисників."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/16/05/2025/68270e559a7947766507ec37",
+          "published_at": "2025-05-16T13:10:41+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Власти Украины сообщили о возвращении … 909 тел погибших военнослужащих. Россия получила тела 34 военных."
+        }
+      ]
+    },
+    {
+      "date": "2025-06-11",
+      "ua_received": 1212,
+      "ru_received": 27,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Medinsky",
+      "chart_creamy_caprice": {
+        "date": "2025-06-11",
+        "ua_received": 1212,
+        "ru_received": 27
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/13039",
+          "published_at": "2025-06-11T09:08:59+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами проведених репатріаційних заходів в Україну повернули тіла 1212 полеглих Захисників."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/11/06/2025/684949819a79476bb85d7472",
+          "published_at": "2025-06-11T12:17:33+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Украина вернула тела 1212 погибших военнослужащих, сообщил координационный штаб."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/11/06/2025/6849664d9a7947c1bcc12e1b",
+          "published_at": "2025-06-11T14:20:36+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "«Украинской стороне мы передали 1212 тел солдат ВСУ. Нам вернули 27 погибших бойцов ВС РФ»"
+        }
+      ],
+      "notes": "First Istanbul-agreement stage."
+    },
+    {
+      "date": "2025-06-13",
+      "ua_received": 1200,
+      "ru_received": 0,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "RBC source in the negotiating group",
+      "chart_creamy_caprice": {
+        "date": "2025-06-13",
+        "ua_received": 1200,
+        "ru_received": 0
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/13106",
+          "published_at": "2025-06-13T12:36:59+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами проведених репатріаційних заходів в Україну повернули тіла 1200 загиблих ➡️За твердженням російської сторони тіла належать громадянам України, зокрема військовослужбовцям."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/13/06/2025/684c2c8e9a7947bbd3fcb2c3",
+          "published_at": "2025-06-13T16:55:18+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Россия передала Украине 1200 тел погибших военных, Киев не передавал тела в рамках этого этапа обмена."
+        }
+      ],
+      "notes": "One-way transfer."
+    },
+    {
+      "date": "2025-06-14",
+      "ua_received": 1200,
+      "ru_received": 0,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "RBC source in the negotiating group",
+      "chart_creamy_caprice": {
+        "date": "2025-06-14",
+        "ua_received": 1200,
+        "ru_received": 0
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/13125",
+          "published_at": "2025-06-14T10:36:29+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "В Україну за результатами репатріаційних заходів повернули тіла ще 1200 загиблих  ➡️Сьогодні в рамках домовленостей у Стамбулі відбувся черговий етап репатріаційних заходів."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/14/06/2025/684d52a99a794738dc8b5b71",
+          "published_at": "2025-06-14T13:50:41+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Россия передала Украине 1200 тел погибших солдат ВСУ, и добавил, что Киев не передал ни одного."
+        }
+      ],
+      "notes": "One-way transfer."
+    },
+    {
+      "date": "2025-06-15",
+      "ua_received": 1200,
+      "ru_received": 0,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "RBC source in the negotiating group",
+      "chart_creamy_caprice": {
+        "date": "2025-06-15",
+        "ua_received": 1200,
+        "ru_received": 0
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/13139",
+          "published_at": "2025-06-15T09:28:40+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "В Україну повернули 1200 тіл загиблих - відбувся черговий етап репатріаційних заходів ➡️ Сьогодні відбулося продовження репатріаційних заходів згідно домовленостей у Стамбулі."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/15/06/2025/684e94129a794707791588cf",
+          "published_at": "2025-06-15T12:37:51+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Украинская сторона … получила еще 1,2 тыс. тел погибших военных … Киев не передал России ни одного тела."
+        }
+      ],
+      "notes": "One-way transfer."
+    },
+    {
+      "date": "2025-06-16",
+      "ua_received": 1245,
+      "ru_received": 51,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "derived from Medinsky's totals",
+      "chart_creamy_caprice": {
+        "date": "2025-06-16",
+        "ua_received": 1248,
+        "ru_received": 51
+      },
+      "chart_creamy_caprice_discrepancy": "Ukraine: 1248 on the chart.",
+      "status": "discrepancy",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/13144",
+          "published_at": "2025-06-16T10:19:33+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "В Україну повернули ще 1245 тіл загиблих: репатріаційна частина Стамбульських домовленостей завершена Сьогодні відбувся завершальний етап репатріаційних заходів згідно домовленостей у Стамбулі."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/16/06/2025/684ff1389a79479f1fa27cca",
+          "published_at": "2025-06-16T13:26:09+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Россия передала Украине тела еще 1245 погибших военнослужащих ВСУ, сообщил украинский координационный штаб. … «итого украинской стороне передано 6060 тел … С той стороны получено 78 погибших наших»"
+        }
+      ],
+      "notes": "Last of five June 2025 stages. Ukraine's post says it received 1245. Medinsky gave only totals for the whole operation: 6060 bodies to Ukraine, which after the earlier stages (1212 + 1200 + 1200 + 1200) leaves 1248 for this one; and 78 to Russia, which after the 27 of 11 June leaves 51 — the ru_received here."
+    },
+    {
+      "date": "2025-07-17",
+      "ua_received": 1000,
+      "ru_received": 19,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Medinsky",
+      "chart_creamy_caprice": {
+        "date": "2025-07-17",
+        "ua_received": 1000,
+        "ru_received": 19
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/13806",
+          "published_at": "2025-07-17T09:49:02+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами проведених репатріаційних заходів в Україну повернули тіла 1000 загиблих За твердженням російської сторони тіла належать громадянам України, зокрема військовослужбовцям."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/17/07/2025/6878b1509a7947f7671cec1d",
+          "published_at": "2025-07-17T11:16:55+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Россия вернула 19 тел погибших военных. Взамен Москва передала Киеву 1000 тел солдат ВСУ."
+        }
+      ]
+    },
+    {
+      "date": "2025-08-19",
+      "ua_received": 1000,
+      "ru_received": 19,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Medinsky",
+      "chart_creamy_caprice": {
+        "date": "2025-08-19",
+        "ua_received": 1000,
+        "ru_received": 19
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/14429",
+          "published_at": "2025-08-19T10:59:14+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами репатріаційних заходів в Україну повернули тіла 1000 загиблих  ➡️Сьогодні відбулися репатріаційні заходи в рамках попередніх домовленостей."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/19/08/2025/68a45e3a9a7947b84c75b996",
+          "published_at": "2025-08-19T14:24:13+03:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Координационный штаб Украины сообщил об обмене погибшими с Россией, в ходе которого Киев вернул 1000 тел."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/rbcfreenews/68a47d5a9a794780e778e1a0",
+          "published_at": "2025-08-19T16:37:45+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "«Сегодня мы передали украинской стороне 1000 тел солдат ВСУ. Нам отдали 19. Так же, как месяц назад»"
+        }
+      ]
+    },
+    {
+      "date": "2025-09-18",
+      "ua_received": 1000,
+      "ru_received": 24,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2025-09-18",
+        "ua_received": 1000,
+        "ru_received": 24
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/15070",
+          "published_at": "2025-09-18T11:45:33+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Сьогодні відбулися репатріаційні заходи."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/18/09/2025/68cbe8339a7947a1bd1a33e7",
+          "published_at": "2025-09-18T14:41:47+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Украине были переданы останки 1000 военнослужащих, России — 24."
+        }
+      ]
+    },
+    {
+      "date": "2025-10-23",
+      "ua_received": 1000,
+      "ru_received": 31,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2025-10-23",
+        "ua_received": 1000,
+        "ru_received": 31
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/15735",
+          "published_at": "2025-10-23T10:14:14+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Сьогодні відбулися репатріаційні заходи."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/23/10/2025/68fa01729a7947b538b20a0f",
+          "published_at": "2025-10-23T13:21:40+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Украинская сторона получила от России 1 тыс. тел … «Состоялся обмен 31 на 1000. России вернули 31 тело погибших»"
+        }
+      ]
+    },
+    {
+      "date": "2025-11-20",
+      "ua_received": 1000,
+      "ru_received": 30,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2025-11-20",
+        "ua_received": 1000,
+        "ru_received": 30
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/16325",
+          "published_at": "2025-11-20T10:24:15+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Сьогодні відбулися репатріаційні заходи."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/20/11/2025/691eeee09a794718990801bd",
+          "published_at": "2025-11-20T13:35:59+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Россия передала Украине 1 тыс. тел украинских военнослужащих, сообщает украинский координационный штаб. … России были возвращены 30 тел погибших."
+        }
+      ]
+    },
+    {
+      "date": "2025-12-19",
+      "ua_received": 1003,
+      "ru_received": 26,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Medinsky",
+      "chart_creamy_caprice": {
+        "date": "2025-12-19",
+        "ua_received": 1003,
+        "ru_received": 26
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "discrepancy",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/17020",
+          "published_at": "2025-12-19T09:19:54+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Сьогодні відбулися репатріаційні заходи."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/rbcfreenews/69451a3c9a7947841c1f1754",
+          "published_at": "2025-12-19T12:29:58+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Россия передала Украине тела 1 тыс. погибших украинцев, а Украина передала России тела 26 … Киев получил тела 1003 военных."
+        }
+      ],
+      "notes": "Medinsky said 1000; Ukraine counted 1003."
+    },
+    {
+      "date": "2026-01-29",
+      "ua_received": 1000,
+      "ru_received": 38,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Medinsky",
+      "chart_creamy_caprice": {
+        "date": "2026-01-29",
+        "ua_received": 1000,
+        "ru_received": 38
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/17773",
+          "published_at": "2026-01-29T10:17:23+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Сьогодні відбулися репатріаційні заходи, в рамках реалізації яких в Україну повернуто 1000 тіл (останків) загиблих, які за твердженням російської сторони належать українським оборонцям."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/29/01/2026/697b26739a79475b7180cc18",
+          "published_at": "2026-01-29T12:21:35+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "«Украине переданы тела 1000 погибших украинских военных. России переданы тела 38 погибших российских воинов»"
+        }
+      ]
+    },
+    {
+      "date": "2026-02-26",
+      "ua_received": 1000,
+      "ru_received": 35,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Medinsky",
+      "chart_creamy_caprice": {
+        "date": "2026-02-26",
+        "ua_received": 1000,
+        "ru_received": 35
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/18386",
+          "published_at": "2026-02-26T11:44:29+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Сьогодні відбулися репатріаційні заходи, в рамках реалізації яких в Україну повернуто 1000 тіл (останків) загиблих, які за попереднім інформуванням російської сторони можуть належати українським захисникам."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/26/02/2026/69a00a8a9a794749bf2228b7",
+          "published_at": "2026-02-26T11:56:11+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "«Украине переданы тела 1000 погибших украинских военных. России переданы тела 35 погибших российских воинов»"
+        }
+      ]
+    },
+    {
+      "date": "2026-04-09",
+      "ua_received": 1000,
+      "ru_received": 41,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2026-04-09",
+        "ua_received": 1000,
+        "ru_received": 41
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/19359",
+          "published_at": "2026-04-09T11:46:26+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "Сьогодні відбулися репатріаційні заходи, за результатами яких в Україну повернуто тіла (останки) 1000 загиблих осіб."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/09/04/2026/69d77fe79a79479d5e74d8bd",
+          "published_at": "2026-04-09T13:31:48+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "украинской стороне были переданы 1 тыс. погибших военных, российской — 41."
+        }
+      ],
+      "notes": "RBC's 29 Apr 2026 article gives 35 for 'early April', apparently mixing it up with February; its 15 May article repeats 41."
+    },
+    {
+      "date": "2026-05-15",
+      "ua_received": 528,
+      "ru_received": 41,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2026-05-15",
+        "ua_received": 528,
+        "ru_received": 41
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/20278",
+          "published_at": "2026-05-16T08:10:02+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами репатріаційних заходів в Україну повернули тіла 528 загиблих, які за твердженням російської сторони можуть належати українським військовослужбовцям."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/15/05/2026/6a06edbe9a79477c6ddc1c7a",
+          "published_at": "2026-05-15T13:56:10+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Украинской стороне были переданы 528 тел, российской — 41."
+        }
+      ],
+      "notes": "Ukraine posted it the next morning (16 May, 11:10 Kyiv); RBC reported it on 15 May."
+    },
+    {
+      "date": "2026-06-18",
+      "ua_received": 522,
+      "ru_received": 33,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2026-06-18",
+        "ua_received": 522,
+        "ru_received": 33
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/21139",
+          "published_at": "2026-06-18T10:49:36+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами проведених репатріаційних заходів в Україну повернули тіла 522 загиблих."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/18/06/2026/6a33a27d9a794765723fb8d9",
+          "published_at": "2026-06-18T12:03:56+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Российская сторона передаст 522 тела, украинская — 33."
+        }
+      ]
+    },
+    {
+      "date": "2026-07-16",
+      "ua_received": 501,
+      "ru_received": 31,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2026-07-16",
+        "ua_received": 501,
+        "ru_received": 31
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/21772",
+          "published_at": "2026-07-16T11:53:36+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами репатріаційних заходів в Україну повернули 501 тіло загиблих, які за твердженням російської сторони можуть належати українським військовослужбовцям."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/16/07/2026/6a58ae069a7947e662b2d793",
+          "published_at": "2026-07-16T13:12:44+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "России было передано 31 тело, Украине — 501 тело."
+        }
+      ]
+    },
+    {
+      "date": "2026-08-13",
+      "ua_received": 261,
+      "ru_received": 24,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2026-08-13",
+        "ua_received": 261,
+        "ru_received": 24
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/22452",
+          "published_at": "2026-08-13T10:20:19+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "На щиті: за результатами репатріаційних заходів в Україну повернули тіла 261 загиблого, які, за твердженням російської сторони, належать українським військовослужбовцям."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/13/08/2026/6a7d7e8f9a794769118fc921",
+          "published_at": "2026-08-13T12:18:56+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Российская сторона передала 261 тело погибших, украинская — 24."
+        }
+      ]
+    },
+    {
+      "date": "2026-09-17",
+      "ua_received": 252,
+      "ru_received": 23,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2026-09-17",
+        "ua_received": 252,
+        "ru_received": 23
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/23152",
+          "published_at": "2026-09-17T09:32:03+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "За результатами проведених репатріаційних заходів в Україну повернули тіла 252 загиблих."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/17/09/2026/6aabb5e1bbf383b65c1f8e89",
+          "published_at": "2026-09-17T12:53:21+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Россия передала 252 тела погибших военнослужащих, Украина — 23."
+        }
+      ],
+      "notes": "RBC's 22 Oct 2026 article has the directions swapped ('Москва тогда вернула 23 тела, Киев — 252'); the same-day article is unambiguous."
+    },
+    {
+      "date": "2026-10-22",
+      "ua_received": 252,
+      "ru_received": 25,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": {
+        "date": "2026-10-22",
+        "ua_received": 252,
+        "ru_received": 25
+      },
+      "chart_creamy_caprice_discrepancy": null,
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/23628",
+          "published_at": "2026-10-22T09:56:11+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "На щиті: за результатами репатріаційних заходів в Україну повернули тіла 252 загиблого, які, за твердженням російської сторони, належать українським військовослужбовцям."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/22/10/2026/6ad9b557982c3151665c38ec",
+          "published_at": "2026-10-22T12:24:16+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Обмен телами погибших между Россией и Украиной состоялся сегодня, 22 октября, в формате «252 на 25», сообщил РБК … Шамсаил Саралиев."
+        }
+      ]
+    }
+  ]
+}

@@ -100,6 +100,11 @@ export interface ChartColors {
   civiliansKilled: string;
   civiliansInjured: string;
 
+  // Body exchanges: bodies returned to Ukraine (the main series, by far the
+  // larger) and to Russia — the same blue/red as the source chart.
+  bodiesToUkraine: string;
+  bodiesToRussia: string;
+
   // De-emphasised / unattributed slices of an otherwise colored chart
   neutral: string;
   // The month-end projection atop a multi-colored stack (GSUA composition by
@@ -146,6 +151,9 @@ export function chartColors(t: Theme): ChartColors {
     // shared axis), so the pairing is about meaning, not adjacency.
     civiliansKilled: t.series2,
     civiliansInjured: t.series1,
+
+    bodiesToUkraine: t.series1,
+    bodiesToRussia: t.series2,
 
     territoryUaControlled: t.territoryUa,
     territoryRuControlled: t.territoryRu,
