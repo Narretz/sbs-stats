@@ -157,6 +157,11 @@ export function usePinnedChart<T>({
       // The same prop is what keeps touch out of the hover card (see above).
       active={pin.isPinned || !hovering ? false : undefined}
       allowEscapeViewBox={{ x: false, y: true }}
+      // No slide between positions. While recharts' transform transition
+      // runs, the browser renders the card as its own layer with different
+      // text antialiasing — every regular-weight glyph flashes bold until
+      // the transition ends and it is painted back into the page.
+      isAnimationActive={false}
       wrapperStyle={{
         zIndex: 9999,
         ...(showEmptyWrapper ? { visibility: "visible" as const } : null),
