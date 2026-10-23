@@ -212,7 +212,6 @@ export function MonthlyTargetPairChart({
       gridColumn: wfull ? "1 / -1" : undefined,
       animation: "fadeIn 0.3s ease both",
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-      cursor: "pointer",
     }}>
       <ChartCardTitle title={title} anchor={anchor} marginBottom={4} />
       <div style={{ display: "flex", rowGap: 8, columnGap: 12, marginBottom: 10, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>

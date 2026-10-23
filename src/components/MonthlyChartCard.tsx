@@ -97,7 +97,6 @@ export function MonthlyChartCard<TData extends { date: string }>({
       gridColumn: wfull ? "1 / -1" : undefined,
       animation: "fadeIn 0.3s ease both",
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-      cursor: describe ? "pointer" : undefined,
     }}>
       <ChartCardTitle title={title} anchor={anchor} marginBottom={14} />
       {legend && (

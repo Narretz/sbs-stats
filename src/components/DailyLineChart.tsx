@@ -422,7 +422,6 @@ export function DailyLineChart({
         gridColumn: wfull ? "1 / -1" : undefined,
         animation: "fadeIn 0.3s ease both",
         boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-        cursor: "pointer",
       }}
     >
       <ChartCardTitle title={title} anchor={anchor} marginBottom={4} />

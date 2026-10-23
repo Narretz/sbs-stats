@@ -243,7 +243,6 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily", sou
       gridColumn: wfull ? "1 / -1" : undefined,
       animation: "fadeIn 0.3s ease both",
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-      cursor: "pointer",
     }}>
       <ChartCardTitle title={TITLE} anchor={anchor} marginBottom={6} />
       <div style={{

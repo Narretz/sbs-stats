@@ -265,6 +265,14 @@ body {
 .hourly-card:hover {
   z-index: 2;
 }
+
+/* A pinnable chart is clickable on its plot only — not the title, stats row
+   or legend around it, so the pointer goes there rather than on the card.
+   recharts writes an inline `cursor: default` onto its wrapper, hence the
+   !important. Legends here are our own HTML outside the wrapper. */
+[data-chart-pinnable] .recharts-wrapper {
+  cursor: pointer !important;
+}
 /* Matches the wrapped header heights measured at these widths — an anchored
    chart has to clear the sticky header, not hide behind it. */
 @media (max-width: 860px) {

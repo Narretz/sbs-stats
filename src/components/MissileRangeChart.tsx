@@ -111,7 +111,7 @@ export function MissileRangeChart({ series, unit, timeDomain, ticks, yMax, swatc
     <div className="daily-card" {...pin.cardProps} style={{
       background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8,
       padding: "18px 16px 12px", animation: "fadeIn 0.3s ease both",
-      boxShadow: "0 1px 4px rgba(0,0,0,0.06)", cursor: "pointer",
+      boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
     }}>
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
