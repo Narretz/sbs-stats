@@ -217,6 +217,34 @@ describe("Chart pin sheet", () => {
     try { localStorage.removeItem("chart-sheet-sources-open"); } catch { /* none */ }
   });
 
+  it("steps between dates without piling up links, even where two sources share a post", async () => {
+    try { localStorage.setItem("chart-sheet-sources-open", "1"); } catch { /* none */ }
+    // Day 7's two sources are one post backing two figures (an exchange's
+    // total and its civilians): same href, so the links can't be keyed by it.
+    const sources = new Map([
+      [day(6), [{ href: "https://t.me/example/6", label: "Ukraine" }]],
+      [day(7), [
+        { href: "https://t.me/example/7", label: "Ukraine" },
+        { href: "https://t.me/example/7", label: "Ukraine's civilians" },
+      ]],
+    ]);
+    await mount(
+      <Shell>
+        <DailyLineChart title={FIRST} data={rows(1, 7)} globalMax={0} globalMedian={0} wfull sourcesByDate={sources} />
+      </Shell>,
+    );
+    const links = () => doc.querySelectorAll(".chart-sheet-sources a").length;
+    await pinAt(FIRST, 0.95);
+    expect(links()).toBe(2);
+    for (let i = 0; i < 3; i++) {
+      await page.getByRole("button", { name: "Previous point" }).click();
+      expect(links()).toBe(1);
+      await page.getByRole("button", { name: "Next point" }).click();
+      expect(links()).toBe(2);
+    }
+    try { localStorage.removeItem("chart-sheet-sources-open"); } catch { /* none */ }
+  });
+
   it("the stepper is disabled at both ends — it never wraps", async () => {
     await mount(<Charts />);
     await pinAt(FIRST, 0.08);

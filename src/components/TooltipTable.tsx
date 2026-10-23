@@ -428,8 +428,11 @@ function SourceLinks({ sources }: { sources: SheetSource[] }) {
       </button>
       {open && (
         <div id={listId} style={{ marginTop: 3, display: "flex", flexDirection: "column", gap: 2 }}>
-          {sources.map((s) => (
-            <div key={s.href} style={{ color: t.textMuted }}>
+          {/* Keyed by position as well: two sources can share a post. Keyed
+              by href alone, React can't tell the duplicates apart, and
+              stepping between dates leaves stale links behind. */}
+          {sources.map((s, i) => (
+            <div key={`${i}:${s.href}`} style={{ color: t.textMuted }}>
               <a href={s.href} target="_blank" rel="nofollow external noreferrer" style={{ color: t.primary }}>
                 {s.linkText ?? "Source"} ↗
               </a>{s.label && <>{" "}{s.label}</>}
