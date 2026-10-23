@@ -82,6 +82,8 @@ interface TableProps {
    *  table whose figures don't fit the named columns (the hourly overlay's
    *  median / max for the hovered hour). A header may hold a <br/>. */
   extraColumns?: ReactNode[];
+  /** Header of the Value column, when the table has a header at all. */
+  valueLabel?: string;
 }
 
 // Column minimums are `em`, not px, so the whole table scales from a single
@@ -136,6 +138,7 @@ export function TooltipTable({
   shareLabel = "Share %",
   subsetLabel,
   extraColumns = [],
+  valueLabel = "Value",
 }: TableProps) {
   const { theme: t } = useTheme();
   const trendFmt = formatTrend ?? formatValue;
@@ -179,7 +182,7 @@ export function TooltipTable({
       {showHeader && (
         <div style={{ display: "contents", color: t.textMuted }}>
           <span />
-          <HeaderCell>Value</HeaderCell>
+          <HeaderCell>{valueLabel}</HeaderCell>
           {extraColumns.map((h, i) => <HeaderCell key={i}>{h}</HeaderCell>)}
           {hasShare && <HeaderCell>{shareLabel}</HeaderCell>}
           {hasSubset && <HeaderCell>{subsetLabel}</HeaderCell>}
@@ -359,6 +362,9 @@ export interface TooltipDescriptor {
   formatValue?: (n: number) => string;
   formatTrend?: (n: number) => string;
   extraColumns?: ReactNode[];
+  /** Header of the Value column (default "Value") — "Total" where the extra
+   *  columns are its parts. */
+  valueLabel?: string;
   /** Hover-card minimum width. Ignored by the sheet, which is viewport-wide. */
   minWidth?: number;
   /** Escape hatch for a tooltip that genuinely isn't a row table — the hourly
@@ -391,6 +397,7 @@ export function DescriptorCard({ d }: { d: TooltipDescriptor | null }) {
           shareLabel={d.shareLabel}
           subsetLabel={d.subsetLabel}
           extraColumns={d.extraColumns}
+          valueLabel={d.valueLabel}
         />
       ))}
     </TooltipCard>
@@ -479,6 +486,7 @@ export function DescriptorBody({ d }: { d: TooltipDescriptor | null }) {
         shareLabel={d.shareLabel}
         subsetLabel={d.subsetLabel}
         extraColumns={d.extraColumns}
+        valueLabel={d.valueLabel}
       />
       {d.footer}
       {sources}

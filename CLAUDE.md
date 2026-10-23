@@ -23,6 +23,7 @@ via sql.js / sql.js-httpvfs.
 | UA+RU CIVILIAN CASUALTIES — CIT | `cit-civilians` | Conflict Intelligence Team daily 20:00–20:00 MSK casualty summaries (Telegram) | [`scripts/cit_civilians/`](scripts/cit_civilians/README.md) → `cit-civilians.db` |
 | RU WEEKLY STRIKES — PRESIDENT UA | `zelensky-weekly` | President of Ukraine's weekly strike tally (Telegram): drones / guided bombs (KAB) / missiles | [`scripts/zelensky_weekly/`](scripts/zelensky_weekly/README.md) → `zelensky-weekly.db` |
 | UA+RU BODY EXCHANGES | `body-exchanges` | Ukraine's Coordination HQ for POWs (Telegram) + Russian officials via RBC, hand-curated | [`scripts/body_exchanges/`](scripts/body_exchanges/README.md) → `exchanges.json`, bundled at build time (no DB) |
+| UA+RU POW EXCHANGES | `pow-exchanges` | Ukraine's Coordination HQ for POWs + Russian MoD (Telegram), hand-curated | [`scripts/pow_exchanges/`](scripts/pow_exchanges/README.md) → `exchanges.json`, bundled at build time (no DB) |
 
 The sheet behind UA LOSSES — RU MoD has no licence. CI backs it up to R2, but
 displaying it is a build-time switch, `SHOW_UA_LOSSES_RU_MOD` (on in

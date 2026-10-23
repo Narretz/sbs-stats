@@ -246,6 +246,7 @@ export const SITES = [
   { key: "ua-losses", label: "UA PERSONNEL LOSSES - UALOSSES.ORG", tier: "secondary" },
   { key: "zelensky-weekly", label: "RU WEEKLY STRIKES - PRESIDENT UA", tier: "secondary" },
   { key: "body-exchanges", label: "UA+RU BODY EXCHANGES - KOORD. HQ / RBC", tier: "secondary" },
+  { key: "pow-exchanges", label: "UA+RU POW EXCHANGES - KOORD. HQ / RU MoD", tier: "secondary" },
 ] as const satisfies readonly SiteInfo[];
 export type Site = (typeof SITES)[number]["key"];
 export type LoadState = "idle" | "loading" | "ready" | "error";
@@ -1226,36 +1227,70 @@ export interface MissileDataset {
   reports: MissileReport[];
 }
 
-// ─── Body exchanges (hand-curated scripts/body_exchanges/exchanges.json) ─────
-// Repatriations of fallen soldiers' bodies, one record per exchange. Each
-// side's count is as THAT side reported it; null means no figure is known,
-// which is not 0 (Russia's one-way transfers of June 2025 are real 0s).
-export interface BodyExchangeSource {
-  via: string;            // "RBC" | "Koord_shtab (Telegram)"
+// ─── Exchanges (hand-curated JSON: bodies, prisoners) ────────────────────────
+// One record per exchange. Each side's count is as THAT side reported it;
+// null means no figure is known, which is not 0 (Russia's one-way body
+// transfers of June 2025 are real 0s). src/data/exchanges.ts does the
+// arithmetic both datasets share.
+export interface ExchangeSource {
+  via: string;            // "RBC" | "Koord_shtab (Telegram)" | "mod_russia (Telegram)" | …
   url: string;
   published_at: string;
-  covers: ("ua_received" | "ru_received" | "date")[];
+  covers: string[];       // which of the record's figures the source supports
   quote: string;          // verbatim, ellipses marking cuts
 }
 
-export interface BodyExchange {
+export interface ExchangeRecord {
   date: string;
-  ua_received: number | null;  // bodies returned to Ukraine
-  ru_received: number | null;  // bodies returned to Russia
+  ua_received: number | null;  // returned to Ukraine
+  ru_received: number | null;  // returned to Russia
+  // "discrepancy" = sources disagree with each other on a stored figure.
+  status: "confirmed" | "partial" | "discrepancy";
+  sources: ExchangeSource[];
+  notes?: string;
+}
+
+// ─── Body exchanges (hand-curated scripts/body_exchanges/exchanges.json) ─────
+// Repatriations of fallen soldiers' bodies.
+export interface BodyExchangeSource extends ExchangeSource {
+  covers: ("ua_received" | "ru_received" | "date")[];
+}
+
+export interface BodyExchange extends ExchangeRecord {
   ua_reported_by: string | null;
   ru_reported_by: string | null;
   // creamy_caprice's chart the dataset was seeded from; null when the exchange
   // is not on it. Kept for audit only — never charted.
   chart_creamy_caprice: { date: string; ua_received: number | null; ru_received: number | null } | null;
   chart_creamy_caprice_discrepancy: string | null;
-  // "discrepancy" = sources disagree with each other on a stored figure.
-  status: "confirmed" | "partial" | "discrepancy";
   sources: BodyExchangeSource[];
-  notes?: string;
 }
 
 export interface BodyExchangeDataset {
   exchanges: BodyExchange[];
+}
+
+// ─── Prisoner exchanges (hand-curated scripts/pow_exchanges/exchanges.json) ──
+// One record per day people were returned — a multi-day deal (Istanbul 2025,
+// Geneva 2026) is one record per stage, tied together by `deal`. Counts are
+// people of any kind (soldiers and civilians), as each side reported them.
+export interface PowExchange extends ExchangeRecord {
+  // "exchange" = both sides handed people over; "release" = a one-way return
+  // (the seriously wounded outside an exchange, a return via a third country).
+  kind: "exchange" | "release";
+  ua_received_civilians: number | null;  // of ua_received; null = not stated
+  ru_received_civilians: number | null;  // of ru_received; null = not stated
+  ua_reported_by: string | null;
+  ru_reported_by: string | null;
+  deal: string | null;      // the agreement a stage belongs to, e.g. "Istanbul 2025 · 1000 for 1000"
+  mediator: string | null;  // "UAE", "USA", …, when announced
+  // The Coordination HQ's own running count ("76-й обмін полоненими"), when
+  // its post states one.
+  koord_number: number | null;
+}
+
+export interface PowExchangeDataset {
+  exchanges: PowExchange[];
 }
 
 // ─── CIT civilian casualties (Telegram @CIT_shellings → cit-civilians.db) ─────

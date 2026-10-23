@@ -104,6 +104,11 @@ export interface ChartColors {
   // larger) and to Russia — the same blue/red as the source chart.
   bodiesToUkraine: string;
   bodiesToRussia: string;
+  // Prisoner exchanges: people returned to Ukraine / to Russia. Their own
+  // roles, on the same blue/red: retuning one exchange view should not
+  // silently retune the other.
+  prisonersToUkraine: string;
+  prisonersToRussia: string;
 
   // De-emphasised / unattributed slices of an otherwise colored chart
   neutral: string;
@@ -154,6 +159,8 @@ export function chartColors(t: Theme): ChartColors {
 
     bodiesToUkraine: t.series1,
     bodiesToRussia: t.series2,
+    prisonersToUkraine: t.series1,
+    prisonersToRussia: t.series2,
 
     territoryUaControlled: t.territoryUa,
     territoryRuControlled: t.territoryRu,

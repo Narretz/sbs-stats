@@ -1,9 +1,12 @@
 import { useMemo } from "react";
 import { PageScaffold } from "@/components/PageScaffold";
-import { BodyExchangeChart } from "@/components/BodyExchangeChart";
+import { ExchangeChart } from "@/components/ExchangeChart";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
-import { BODY_EXCHANGES, exchangesInWindow } from "@/data/bodyExchanges";
+import { useTheme } from "@/hooks/useTheme";
+import { chartColors } from "@/chartColors";
+import { BODY_EXCHANGES, bodyExchangeSources } from "@/data/bodyExchanges";
+import { exchangesInWindow } from "@/data/exchanges";
 
 const first = BODY_EXCHANGES[0]?.date ?? "";
 const last = BODY_EXCHANGES[BODY_EXCHANGES.length - 1]?.date ?? "";
@@ -20,6 +23,8 @@ export function BodyExchangesPage() {
     () => exchangesInWindow(BODY_EXCHANGES, yr.months, yr.endMonth),
     [yr.months, yr.endMonth],
   );
+  const c = chartColors(useTheme().theme);
+  const chart = { colors: { ukraine: c.bodiesToUkraine, russia: c.bodiesToRussia }, sources: bodyExchangeSources };
   return (
     <PageScaffold
       title="Body Exchanges between Russia and Ukraine"
@@ -34,9 +39,9 @@ export function BodyExchangesPage() {
       error={null}
       hasData={BODY_EXCHANGES.length > 0}
       gridChildren={<>
-        <BodyExchangeChart title="Bodies returned per exchange" data={rows} />
-        <BodyExchangeChart title="Bodies returned to Ukraine" data={rows} series="ukraine" />
-        <BodyExchangeChart title="Bodies returned to Russia" data={rows} series="russia" />
+        <ExchangeChart title="Bodies returned per exchange" data={rows} {...chart} />
+        <ExchangeChart title="Bodies returned to Ukraine" data={rows} series="ukraine" {...chart} />
+        <ExchangeChart title="Bodies returned to Russia" data={rows} series="russia" {...chart} />
       </>}
     />
   );

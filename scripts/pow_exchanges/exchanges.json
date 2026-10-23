@@ -1,0 +1,3082 @@
+{
+ "_doc": {
+  "what": "Hand-curated returns of people (soldiers and civilians) between Russia and Ukraine: exchanges of prisoners and one-way releases. NOT a scrape: this file is edited by hand. See scripts/pow_exchanges/README.md.",
+  "fields": {
+   "date": "Day of the return (YYYY-MM-DD). A deal carried out over several days is one record per stage.",
+   "kind": "exchange | release (one-way: e.g. the seriously wounded handed over outside an exchange).",
+   "ua_received": "People returned to Ukraine, soldiers and civilians, as Ukraine's Coordination HQ for POWs posts it (t.me/Koord_shtab). Where Ukraine gave no count, Russia's 'взамен переданы N' — ua_reported_by says so. null = no figure known (not 0).",
+   "ua_received_civilians": "Of ua_received, civilians — when stated; null otherwise.",
+   "ru_received": "People returned to Russia, as the Russian MoD posts it (t.me/mod_russia): servicemen plus any civilians it lists. null = no figure known.",
+   "ru_received_civilians": "Of ru_received, civilians — when stated; null otherwise.",
+   "ua_reported_by / ru_reported_by": "Who the figure comes from.",
+   "deal": "The agreement a stage belongs to (Istanbul 2025, Geneva 2026, …); null for a standalone exchange.",
+   "mediator": "Mediator named in the announcement, when one is.",
+   "backfill": "From Sept 2022 every Ukrainian figure is from the Coordination HQ channel, every Russian one from the MoD channel (read via the Telegram API). Mar–Jun 2022, before the HQ channel: Deputy PM Vereshchuk's and GUR's Telegram posts for Ukraine's figures, Russian officials via Interfax / RIA for Russia's. No exchanges took place in July–August 2022.",
+   "koord_number": "The Coordination HQ's own running count ('76-й обмін'), when a post states it. Several days of one exchange share a number.",
+   "status": "confirmed (both sides' figures) | partial (one side's figure missing) | discrepancy (sources disagree on a stored figure; see notes).",
+   "sources[]": "{ via, url, published_at, covers, quote } — quote is verbatim (ellipses mark cuts); covers lists the figures the source supports ('date' = it only attests the exchange took place)."
+  },
+  "todo": [
+   "Russia's figure is missing where the MoD posted none: 2022-09-02, 2022-09-29, 2022-10-11, 2022-11-11, 2022-12-14, 2023-04-03, 2023-04-16, 2023-05-25, 2023-08-07, 2024-06-28, 2024-09-13, 2026-08-24. RBC / TASS may have other Russian officials' figures.",
+   "June–July 2025 Istanbul stages: neither side gave a count per stage.",
+   "Mar–Jun 2022: on 2022-06-22 Vereshchuk counted 14 exchanges and 408 people returned (ArmyInform); the 12 sourced here up to 2022-06-18 sum to 377, so ~2 small exchanges (~31 people) are missing. Russia's figures are missing for most of them.",
+   "The Coordination HQ called 2022-12-31 its 35th exchange, but Kommersant numbered 2022-06-28 the 12th and GUR said 'over 20' by 2022-10-12 — the HQ's count likely includes other returns (bodies, one-way releases)."
+  ]
+ },
+ "exchanges": [
+  {
+   "date": "2022-03-01",
+   "kind": "exchange",
+   "ua_received": 5,
+   "ua_received_civilians": null,
+   "ru_received": 1,
+   "ru_received_civilians": null,
+   "ua_reported_by": "Sumy regional governor",
+   "ru_reported_by": "Sumy regional governor (UA)",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "ArmyInform",
+     "url": "https://armyinform.com.ua/2022/03/01/pershyj-obmin-polonenymy-vidbuvsya-na-sumshhyni-golova-oda/",
+     "published_at": "2022-03-01",
+     "covers": [
+      "ua_received",
+      "ru_received"
+     ],
+     "quote": "«Ми обміняли наших п'ятьох людей із тероборони на одного російського офіцера військової поліції», – написав Дмитро Живицький"
+    }
+   ],
+   "notes": "A local swap in Sumy Oblast, before the Coordination HQ existed. Russia's figure is Ukraine's account; no Russian report found."
+  },
+  {
+   "date": "2022-03-16",
+   "kind": "exchange",
+   "ua_received": 1,
+   "ua_received_civilians": 1,
+   "ru_received": 9,
+   "ru_received_civilians": null,
+   "ua_reported_by": "President's Office (UA)",
+   "ru_reported_by": "Moskalkova (RU ombudsman)",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "texty.org.ua",
+     "url": "https://texty.org.ua/fragments/105999/svoyih-ne-kydayemo-mera-melitopolya-vyminyaly-na-rosijskyh-strokovykiv/",
+     "published_at": "2022-03-17T09:20:35+02:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "За нього Росія отримала 9-х своїх полонених солдат 2002–2003 року народження."
+    },
+    {
+     "via": "Interfax",
+     "url": "https://www.interfax.ru/world/830459",
+     "published_at": "2022-03-21T20:59+03:00",
+     "covers": [
+      "ru_received"
+     ],
+     "quote": "Обмен девяти российских пленных на мэра Мелитополя Ивана Федорова - первый факт обмена между Россией и Украиной"
+    }
+   ],
+   "notes": "Melitopol mayor Ivan Fedorov, a civilian, for nine Russian conscripts."
+  },
+  {
+   "date": "2022-03-24",
+   "kind": "exchange",
+   "ua_received": 29,
+   "ua_received_civilians": 19,
+   "ru_received": 21,
+   "ru_received_civilians": 11,
+   "ua_reported_by": "Vereshchuk (UA Deputy PM)",
+   "ru_reported_by": "Vereshchuk (UA); Moskalkova confirmed the 10 soldiers",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "vereshchuk_iryna (Telegram)",
+     "url": "https://t.me/vereshchuk_iryna/1187",
+     "published_at": "2022-03-24T14:24:07+00:00",
+     "covers": [
+      "ua_received",
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "В обмін на 10 захоплених у полон окупантів ми витягнули 10 наших військовослужбовців. Також, сьогодні ми відправили до росіян 11 цивільних російських моряків"
+    },
+    {
+     "via": "vereshchuk_iryna (Telegram)",
+     "url": "https://t.me/vereshchuk_iryna/1187",
+     "published_at": "2022-03-24T14:24:07+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "додому повертаються 19 українських цивільних моряків із рятувального судна \"Сапфір\""
+    },
+    {
+     "via": "Interfax",
+     "url": "https://www.interfax.ru/world/831156",
+     "published_at": "2022-03-24T19:13+03:00",
+     "covers": [
+      "ru_received"
+     ],
+     "quote": "Подтверждаю информацию об обмене 10 удерживаемых на территории Украины российских военнослужащих на 10 украинских военнослужащих."
+    }
+   ],
+   "notes": "Russia's ombudsman confirmed the 10 soldiers and mentioned the sailors without a number; the 11 Russian sailors are Ukraine's count."
+  },
+  {
+   "date": "2022-04-01",
+   "kind": "exchange",
+   "ua_received": 86,
+   "ua_received_civilians": 0,
+   "ru_received": 86,
+   "ru_received_civilians": null,
+   "ua_reported_by": "Vereshchuk (UA Deputy PM)",
+   "ru_reported_by": "Moskalkova (RU ombudsman)",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "vereshchuk_iryna (Telegram)",
+     "url": "https://t.me/vereshchuk_iryna/1234",
+     "published_at": "2022-04-01T15:16:13+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Додому веземо 86 наших військовослужбовців! 15 із них – жінки!"
+    },
+    {
+     "via": "Interfax",
+     "url": "https://www.interfax.ru/russia/833269",
+     "published_at": "2022-04-05T15:12+03:00",
+     "covers": [
+      "ru_received"
+     ],
+     "quote": "Последний обмен между РФ и Украиной прошел по схеме \"86 на 86\" человек"
+    }
+   ]
+  },
+  {
+   "date": "2022-04-09",
+   "kind": "exchange",
+   "ua_received": 26,
+   "ua_received_civilians": 14,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "Vereshchuk (UA Deputy PM)",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "vereshchuk_iryna (Telegram)",
+     "url": "https://t.me/vereshchuk_iryna/1267",
+     "published_at": "2022-04-09T17:01:40+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Додому повертаються 12 наших військових, з яких одна жінка-офіцер. Також ми звільнили 14 цивільних, включаючи 9 жінок. Всього 26 наших людей."
+    }
+   ],
+   "notes": "Russia's ombudsman reported a separate swap of civilian truck drivers around the same day (32 Russian for 20 Ukrainian, Interfax 834105); not counted here."
+  },
+  {
+   "date": "2022-04-14",
+   "kind": "exchange",
+   "ua_received": 30,
+   "ua_received_civilians": 8,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "Vereshchuk (UA Deputy PM)",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "vereshchuk_iryna (Telegram)",
+     "url": "https://t.me/vereshchuk_iryna/1280",
+     "published_at": "2022-04-14T11:57:29+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Також звільнено 8 цивільних, включаючи 1 жінку. Загалом сьогодні додому їдуть 30 наших громадян."
+    }
+   ]
+  },
+  {
+   "date": "2022-04-19",
+   "kind": "exchange",
+   "ua_received": 76,
+   "ua_received_civilians": 16,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "Vereshchuk (UA Deputy PM)",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "vereshchuk_iryna (Telegram)",
+     "url": "https://t.me/vereshchuk_iryna/1293",
+     "published_at": "2022-04-19T12:10:48+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Сьогодні ми обміняли 60 військовослужбовців, з них 10 офіцерів. Також додому повертаються 16 цивільних осіб. Це був п’ятий обмін полоненими. Всього 76 людей."
+    }
+   ]
+  },
+  {
+   "date": "2022-04-21",
+   "kind": "exchange",
+   "ua_received": 19,
+   "ua_received_civilians": 9,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "Vereshchuk (UA Deputy PM)",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "vereshchuk_iryna (Telegram)",
+     "url": "https://t.me/vereshchuk_iryna/1302",
+     "published_at": "2022-04-21T12:10:22+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Сьогодні ми повертаємо додому 19 людей, з яких 10 військових (включаючи 2 офіцерів) та 9 цивільних."
+    }
+   ]
+  },
+  {
+   "date": "2022-04-28",
+   "kind": "exchange",
+   "ua_received": 45,
+   "ua_received_civilians": 12,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "Vereshchuk (UA Deputy PM)",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "vereshchuk_iryna (Telegram)",
+     "url": "https://t.me/vereshchuk_iryna/1316",
+     "published_at": "2022-04-28T14:58:44+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Сьогодні звільнили з російського полону 45 наших людей. 13 офіцерів та 20 солдатів (з яких 5 поранених). Також повертаємо додому 12 наших цивільних."
+    }
+   ]
+  },
+  {
+   "date": "2022-04-30",
+   "kind": "exchange",
+   "ua_received": 14,
+   "ua_received_civilians": 7,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "Vereshchuk (UA Deputy PM)",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "vereshchuk_iryna (Telegram)",
+     "url": "https://t.me/vereshchuk_iryna/1320",
+     "published_at": "2022-04-30T14:53:39+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Повертаємо додому 14 наших людей: 7 військових та 7 цивільних."
+    }
+   ]
+  },
+  {
+   "date": "2022-05-06",
+   "kind": "exchange",
+   "ua_received": 41,
+   "ua_received_civilians": 13,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "Vereshchuk (UA Deputy PM)",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "vereshchuk_iryna (Telegram)",
+     "url": "https://t.me/vereshchuk_iryna/1336",
+     "published_at": "2022-05-06T14:47:30+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Повернули 41 людину, включаючи 11 жінок. Додому повертаються 28 військових і 13 цивільних."
+    }
+   ]
+  },
+  {
+   "date": "2022-06-18",
+   "kind": "exchange",
+   "ua_received": 5,
+   "ua_received_civilians": 5,
+   "ru_received": 5,
+   "ru_received_civilians": null,
+   "ua_reported_by": "GUR (UA military intelligence)",
+   "ru_reported_by": "GUR's formula \"5 на 5\" (UA)",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "DIUkraine (Telegram)",
+     "url": "https://t.me/DIUkraine/694",
+     "published_at": "2022-06-18T14:18:16+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians",
+      "ru_received"
+     ],
+     "quote": "провів черговий обмін за формулою 5 на 5. Додому повернулись п’ятеро громадян України. Наголошується, що всі звільнені – цивільні особи"
+    }
+   ]
+  },
+  {
+   "date": "2022-06-28",
+   "kind": "exchange",
+   "ua_received": 17,
+   "ua_received_civilians": 1,
+   "ru_received": 15,
+   "ru_received_civilians": null,
+   "ua_reported_by": "GUR (UA military intelligence)",
+   "ru_reported_by": "GUR's formula \"17 на 15\" (UA)",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "DIUkraine (Telegram)",
+     "url": "https://t.me/DIUkraine/772",
+     "published_at": "2022-06-28T11:06:04+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians",
+      "ru_received"
+     ],
+     "quote": "провів черговий обмін за формулою 17 на 15. ▪️Додому повертаються 16 українських військовослужбовців, з яких 2 офіцери та 14 солдат. Також звільнено одного цивільного."
+    },
+    {
+     "via": "Kommersant",
+     "url": "https://www.kommersant.ru/doc/5435372",
+     "published_at": "2022-06-28T18:14:30+03:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Российская сторона обмен не комментировала. … Это 12-й обмен пленными между Россией и Украиной."
+    }
+   ]
+  },
+  {
+   "date": "2022-06-29",
+   "kind": "exchange",
+   "ua_received": 144,
+   "ua_received_civilians": 0,
+   "ru_received": 144,
+   "ru_received_civilians": null,
+   "ua_reported_by": "GUR (UA military intelligence)",
+   "ru_reported_by": "Pushilin (DNR head)",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "DIUkraine (Telegram)",
+     "url": "https://t.me/DIUkraine/788",
+     "published_at": "2022-06-29T14:25:17+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Проведено черговий обмін полоненими, завдяки якому додому повернулись 144 українських захисники."
+    },
+    {
+     "via": "RIA Novosti",
+     "url": "https://ria.ru/20220629/plennye-1799079552.html",
+     "published_at": "2022-06-29T18:25+03:00",
+     "covers": [
+      "ru_received"
+     ],
+     "quote": "\"Сегодня 144 бойцов Донецкой народной республики и Российской Федерации, попавших в плен к противнику, мы возвращаем домой\""
+    }
+   ]
+  },
+  {
+   "date": "2022-09-02",
+   "kind": "exchange",
+   "ua_received": 14,
+   "ua_received_civilians": 0,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/94",
+     "published_at": "2022-09-02T11:20:22+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Додому повернулися 14 українських Захисників."
+    }
+   ]
+  },
+  {
+   "date": "2022-09-21",
+   "kind": "exchange",
+   "ua_received": 215,
+   "ua_received_civilians": 2,
+   "ru_received": 55,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/140",
+     "published_at": "2022-09-21T21:55:17+00:00",
+     "covers": [
+      "ua_received"
+     ],
+     "quote": "додому повернулися 215 наших оборонців"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/20066",
+     "published_at": "2022-09-22T08:58:15+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "В результате сложного переговорного процесса по обмену, сегодня ночью с подконтрольной киевскому режиму территории Украины возвращены 55 военнослужащих Вооруженных Сил РФ, Донецкой и Луганской республик"
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/140",
+     "published_at": "2022-09-21T21:55:17+00:00",
+     "covers": [
+      "ua_received_civilians"
+     ],
+     "quote": "а також двоє цивільних"
+    }
+   ],
+   "notes": "Russia also received Viktor Medvedchuk, a Ukrainian citizen, in this exchange; Russia's MoD counts only its 55 servicemen."
+  },
+  {
+   "date": "2022-09-29",
+   "kind": "exchange",
+   "ua_received": 6,
+   "ua_received_civilians": 2,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/161",
+     "published_at": "2022-09-29T11:14:00+00:00",
+     "covers": [
+      "ua_received"
+     ],
+     "quote": "вдалося визволити з полону шістьох українських захисників та захисниць - військових і цивільних"
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/161",
+     "published_at": "2022-09-29T11:14:00+00:00",
+     "covers": [
+      "ua_received_civilians"
+     ],
+     "quote": "Крім того повернути на рідну землю вдалося й двох цивільних українок"
+    }
+   ]
+  },
+  {
+   "date": "2022-10-11",
+   "kind": "exchange",
+   "ua_received": 32,
+   "ua_received_civilians": 0,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/195",
+     "published_at": "2022-10-11T15:57:19+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "з полону вдалося визволити 32 оборонця"
+    }
+   ]
+  },
+  {
+   "date": "2022-10-13",
+   "kind": "exchange",
+   "ua_received": 20,
+   "ua_received_civilians": 0,
+   "ru_received": 20,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/198",
+     "published_at": "2022-10-13T13:27:34+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "З російського полону додому повернулися 20 українських захисників."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/20805",
+     "published_at": "2022-10-13T12:34:16+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 20 российских военнослужащих"
+    }
+   ]
+  },
+  {
+   "date": "2022-10-17",
+   "kind": "exchange",
+   "ua_received": 108,
+   "ua_received_civilians": null,
+   "ru_received": 110,
+   "ru_received_civilians": 72,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/208",
+     "published_at": "2022-10-17T16:00:18+00:00",
+     "covers": [
+      "ua_received"
+     ],
+     "quote": "вдалося визволити з полону 108 українських жінок -- військових та цивільних."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/20943",
+     "published_at": "2022-10-17T16:27:03+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 110 российских граждан, среди которых 72 российских моряка с гражданских судов"
+    }
+   ]
+  },
+  {
+   "date": "2022-10-29",
+   "kind": "exchange",
+   "ua_received": 52,
+   "ua_received_civilians": null,
+   "ru_received": 50,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/240",
+     "published_at": "2022-10-29T12:33:04+00:00",
+     "covers": [
+      "ua_received"
+     ],
+     "quote": "З російського полону вдалося повернути ще 52 українців."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/21281",
+     "published_at": "2022-10-29T12:21:13+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 50 российских военнослужащих"
+    }
+   ]
+  },
+  {
+   "date": "2022-11-03",
+   "kind": "exchange",
+   "ua_received": 107,
+   "ua_received_civilians": 0,
+   "ru_received": 107,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/249",
+     "published_at": "2022-11-03T14:19:22+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "З російського полону вдалося повернути ще 107 військовослужбовців."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/21452",
+     "published_at": "2022-11-03T13:31:54+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 107 российских военнослужащих"
+    }
+   ]
+  },
+  {
+   "date": "2022-11-11",
+   "kind": "exchange",
+   "ua_received": 45,
+   "ua_received_civilians": 0,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/269",
+     "published_at": "2022-11-11T12:48:37+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "З російського полону вдалося повернути ще 45 військових."
+    }
+   ]
+  },
+  {
+   "date": "2022-11-23",
+   "kind": "exchange",
+   "ua_received": 36,
+   "ua_received_civilians": 1,
+   "ru_received": 35,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/301",
+     "published_at": "2022-11-23T14:54:21+00:00",
+     "covers": [
+      "ua_received"
+     ],
+     "quote": "З російського полону вдалося повернути додому ще 36 українців."
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/301",
+     "published_at": "2022-11-23T14:54:21+00:00",
+     "covers": [
+      "ua_received_civilians"
+     ],
+     "quote": "Серед визволених — представники ЗСУ, Нацгвардії, прикордонники, ВМС та цивільна особа."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/21991",
+     "published_at": "2022-11-23T14:39:20+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 35 российских военнослужащих"
+    }
+   ]
+  },
+  {
+   "date": "2022-11-24",
+   "kind": "exchange",
+   "ua_received": 50,
+   "ua_received_civilians": 0,
+   "ru_received": 50,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/303",
+     "published_at": "2022-11-24T14:10:15+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Сьогодні Координаційному штабу вдалося повернути з ворожого полону ще півсотні Оборонців України."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/22031",
+     "published_at": "2022-11-24T14:29:54+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 50 российских военнослужащих"
+    }
+   ]
+  },
+  {
+   "date": "2022-11-26",
+   "kind": "exchange",
+   "ua_received": 12,
+   "ua_received_civilians": 3,
+   "ru_received": 9,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/309",
+     "published_at": "2022-11-26T12:38:28+00:00",
+     "covers": [
+      "ua_received"
+     ],
+     "quote": "вдалося визволити ще 12 українців з російського полону."
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/309",
+     "published_at": "2022-11-26T12:38:28+00:00",
+     "covers": [
+      "ua_received_civilians"
+     ],
+     "quote": "Також вдалося визволити трьох цивільних"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/22117",
+     "published_at": "2022-11-26T12:45:20+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 9 российских военнослужащих"
+    }
+   ]
+  },
+  {
+   "date": "2022-12-01",
+   "kind": "exchange",
+   "ua_received": 50,
+   "ua_received_civilians": 0,
+   "ru_received": 50,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/316",
+     "published_at": "2022-12-01T14:10:04+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "сьогодні вдалося визволити ще 50 українців з російського полону."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/22268",
+     "published_at": "2022-12-01T13:09:49+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 50 российских военнослужащих"
+    }
+   ]
+  },
+  {
+   "date": "2022-12-06",
+   "kind": "exchange",
+   "ua_received": 60,
+   "ua_received_civilians": 0,
+   "ru_received": 60,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/341",
+     "published_at": "2022-12-06T12:28:00+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Координаційному штабу вдалося визволити з полону 60 військовослужбовців."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/22404",
+     "published_at": "2022-12-06T11:19:23+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 60 российских военнослужащих"
+    }
+   ]
+  },
+  {
+   "date": "2022-12-14",
+   "kind": "exchange",
+   "ua_received": 65,
+   "ua_received_civilians": 1,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/373",
+     "published_at": "2022-12-14T10:59:31+00:00",
+     "covers": [
+      "ua_received"
+     ],
+     "quote": "сьогодні з російського полону вдалося врятувати ще 65 осіб."
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/373",
+     "published_at": "2022-12-14T10:59:31+00:00",
+     "covers": [
+      "ua_received_civilians"
+     ],
+     "quote": "Також вдалося визволити цивільну особу - громадянина США, 35-річного Суеді Мурекезі."
+    }
+   ]
+  },
+  {
+   "date": "2022-12-31",
+   "kind": "exchange",
+   "ua_received": 140,
+   "ua_received_civilians": 0,
+   "ru_received": 82,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": 35,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/413",
+     "published_at": "2022-12-31T15:02:51+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "з полону ворога звільнено в результаті обміну 140 українських Захисників та Захисниць. ➡️ Це 35-й за ліком обмін"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/23074",
+     "published_at": "2022-12-31T13:19:22+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 82 российских военнослужащих"
+    }
+   ]
+  },
+  {
+   "date": "2023-01-08",
+   "kind": "exchange",
+   "ua_received": 50,
+   "ua_received_civilians": 0,
+   "ru_received": 50,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": 36,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/428",
+     "published_at": "2023-01-08T13:36:04+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Сьогодні визволено ще 50 українських захисників. ➡️ Це 36-ий обмін від початку повномасштабного вторгнення росії."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/23281",
+     "published_at": "2023-01-08T12:49:20+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 50 российских военнослужащих"
+    }
+   ]
+  },
+  {
+   "date": "2023-02-04",
+   "kind": "exchange",
+   "ua_received": 116,
+   "ua_received_civilians": 0,
+   "ru_received": 63,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/523",
+     "published_at": "2023-02-04T09:41:49+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "вдалося звільнити з полону ще 116 оборонців."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/23949",
+     "published_at": "2023-02-04T07:58:47+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 63 военнослужащих Вооруженных Сил Российской Федерации"
+    }
+   ]
+  },
+  {
+   "date": "2023-02-16",
+   "kind": "exchange",
+   "ua_received": 101,
+   "ua_received_civilians": 1,
+   "ru_received": 101,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/565",
+     "published_at": "2023-02-16T16:11:11+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "З неволі було звільнено 101 українця. 👨‍👩‍👦‍👦 Додому повернулися 100 військових і один цивільний"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/24211",
+     "published_at": "2023-02-16T15:49:15+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 101 российский военнослужащий"
+    }
+   ]
+  },
+  {
+   "date": "2023-03-07",
+   "kind": "exchange",
+   "ua_received": 130,
+   "ua_received_civilians": 0,
+   "ru_received": 90,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/661",
+     "published_at": "2023-03-07T14:56:40+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "У результаті чергового обміну додому повертаються ще 130 Захисників та Захисниць України."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/24633",
+     "published_at": "2023-03-07T14:36:03+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 90 российских военнослужащих"
+    }
+   ]
+  },
+  {
+   "date": "2023-04-03",
+   "kind": "exchange",
+   "ua_received": 12,
+   "ua_received_civilians": 2,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/764",
+     "published_at": "2023-04-03T14:06:14+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "З неволі звільнено 12 українців: 10 військових і двоє цивільних."
+    }
+   ]
+  },
+  {
+   "date": "2023-04-10",
+   "kind": "exchange",
+   "ua_received": 100,
+   "ua_received_civilians": 0,
+   "ru_received": 106,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/811",
+     "published_at": "2023-04-10T13:40:37+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "У результаті роботи Координаційного штабу з полону вдалося повернути ще 100 українських військовослужбовців."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/25527",
+     "published_at": "2023-04-10T13:17:50+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 106 российских военнослужащих"
+    }
+   ]
+  },
+  {
+   "date": "2023-04-16",
+   "kind": "exchange",
+   "ua_received": 130,
+   "ua_received_civilians": 0,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/844",
+     "published_at": "2023-04-16T07:03:33+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Ще 130 українських Оборонців вдалося визволити з російського полону на Великдень."
+    }
+   ]
+  },
+  {
+   "date": "2023-04-26",
+   "kind": "exchange",
+   "ua_received": 44,
+   "ua_received_civilians": 2,
+   "ru_received": 40,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/910",
+     "published_at": "2023-04-26T13:17:08+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Сьогодні в результаті обміну з полону повернулися ще 44 українці. 👨‍👩‍👧‍👦 Серед них 42 військових і двоє цивільних."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/25964",
+     "published_at": "2023-04-26T13:28:48+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 40 российских военнослужащих"
+    }
+   ]
+  },
+  {
+   "date": "2023-05-06",
+   "kind": "exchange",
+   "ua_received": 45,
+   "ua_received_civilians": 0,
+   "ru_received": 3,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/967",
+     "published_at": "2023-05-06T12:40:21+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Сьогодні в результаті обміну вдалося визволити з полону ще 45 українських Оборонців."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/26226",
+     "published_at": "2023-05-06T12:05:55+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены трое российских военнослужащих – лётчиков ВКС России"
+    }
+   ]
+  },
+  {
+   "date": "2023-05-25",
+   "kind": "exchange",
+   "ua_received": 106,
+   "ua_received_civilians": 0,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/1119",
+     "published_at": "2023-05-25T11:22:11+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Сьогодні Україна визволила з російського полону ще 106 Оборонців."
+    }
+   ]
+  },
+  {
+   "date": "2023-06-11",
+   "kind": "exchange",
+   "ua_received": 95,
+   "ua_received_civilians": 0,
+   "ru_received": 94,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/1203",
+     "published_at": "2023-06-11T15:50:03+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Сьогодні з ворожої неволі повернулося ще 95 українських Оборонців."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/27320",
+     "published_at": "2023-06-11T15:56:22+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 94 российских военнослужащих"
+    }
+   ]
+  },
+  {
+   "date": "2023-07-06",
+   "kind": "exchange",
+   "ua_received": 45,
+   "ua_received_civilians": 2,
+   "ru_received": 45,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/1483",
+     "published_at": "2023-07-06T13:04:47+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "У результаті роботи Координаційного штабу сьогодні звільнено 43 військовослужбовці та двоє цивільних."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/28136",
+     "published_at": "2023-07-06T12:53:10+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "на Родину из украинского плена вернулись 45 российских военнослужащих"
+    }
+   ],
+   "notes": "The post's headline 47 includes two children returned the same day through the Ombudsman, who were not held as prisoners; they are not counted."
+  },
+  {
+   "date": "2023-08-07",
+   "kind": "exchange",
+   "ua_received": 22,
+   "ua_received_civilians": 0,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/1907",
+     "published_at": "2023-08-07T09:06:07+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Сьогодні Україна в результаті обміну повернула додому ще 22 українських Захисників."
+    }
+   ]
+  },
+  {
+   "date": "2024-01-03",
+   "kind": "exchange",
+   "ua_received": 230,
+   "ua_received_civilians": 6,
+   "ru_received": 248,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": "UAE",
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/3690",
+     "published_at": "2024-01-03T16:10:15+00:00",
+     "covers": [
+      "ua_received"
+     ],
+     "quote": "звільнено 230 українців та українок."
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/3690",
+     "published_at": "2024-01-03T16:10:15+00:00",
+     "covers": [
+      "ua_received_civilians"
+     ],
+     "quote": "Національної поліції – 1 та шестеро цивільних, які були незаконно позбавлені волі."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/34284",
+     "published_at": "2024-01-03T15:57:24+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 248 российских военнослужащих. ▫️ Возвращение российских военнослужащих из плена стало возможным благодаря посредническому участию гуманитарного характера Объединенных Арабских Эмиратов."
+    }
+   ]
+  },
+  {
+   "date": "2024-01-31",
+   "kind": "exchange",
+   "ua_received": 207,
+   "ua_received_civilians": 0,
+   "ru_received": 195,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": 50,
+   "status": "discrepancy",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/4046",
+     "published_at": "2024-01-31T12:54:38+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Сьогодні відбувся 50-ий обмін полоненими: Україна повернула ще 207 Оборонців."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/35191",
+     "published_at": "2024-01-31T12:37:01+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Взамен переданы ровно 195 военнопленных ВСУ."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/35191",
+     "published_at": "2024-01-31T12:37:01+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 195 российских военнослужащих, которым в плену грозила смертельная опасность. Взамен переданы ровно 195 военнопленных ВСУ."
+    }
+   ],
+   "notes": "Russia's MoD says it handed over exactly 195; Ukraine counts 207 returned."
+  },
+  {
+   "date": "2024-02-08",
+   "kind": "exchange",
+   "ua_received": 100,
+   "ua_received_civilians": 0,
+   "ru_received": 100,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": "UAE",
+   "koord_number": 51,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/4163",
+     "published_at": "2024-02-08T18:21:07+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Україна повернула додому ще 100 Захисників з російського полону. 🇺🇦 51-й за ліком обмін"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/35471",
+     "published_at": "2024-02-08T16:53:59+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 100 российских военнослужащих, которым в плену грозила смертельная опасность. Взамен переданы 100 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2024-05-31",
+   "kind": "exchange",
+   "ua_received": 75,
+   "ua_received_civilians": 4,
+   "ru_received": 75,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/6202",
+     "published_at": "2024-05-31T10:30:04+00:00",
+     "covers": [
+      "ua_received"
+     ],
+     "quote": "з ворожої неволі звільнено 75 Оборонців та цивільних."
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/6202",
+     "published_at": "2024-05-31T10:30:04+00:00",
+     "covers": [
+      "ua_received_civilians"
+     ],
+     "quote": "Додому повертаються семеро Оборонців-прикордонників, шестеро тероборонців та четверо цивільних українок."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/39270",
+     "published_at": "2024-05-31T09:54:03+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 75 российских военнослужащих, которым в плену грозила смертельная опасность. Взамен переданы 75 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2024-06-25",
+   "kind": "exchange",
+   "ua_received": 90,
+   "ua_received_civilians": 0,
+   "ru_received": 90,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": "UAE",
+   "koord_number": 53,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/6693",
+     "published_at": "2024-06-25T18:56:58+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "сьогодні вдалося повернути з російської неволі ще 90 Захисників."
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/6777",
+     "published_at": "2024-06-28T19:16:15+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Сьогодні завершився 53-й обмін, який розпочався 25 червня з визволення 90 Захисників."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/40318",
+     "published_at": "2024-06-25T18:23:48+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 90 российских военнослужащих, которым в плену грозила смертельная опасность. Взамен переданы 90 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2024-06-28",
+   "kind": "exchange",
+   "ua_received": 10,
+   "ua_received_civilians": 10,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": 53,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/6777",
+     "published_at": "2024-06-28T19:16:15+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "До України вдалося повернути ще 10 цивільних громадян громадян, які були незаконно затримані на окупованих територіях, зокрема в Криму, а також в Білорусі."
+    }
+   ]
+  },
+  {
+   "date": "2024-07-17",
+   "kind": "exchange",
+   "ua_received": 95,
+   "ua_received_civilians": 0,
+   "ru_received": 95,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/7048",
+     "published_at": "2024-07-17T12:11:57+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "вдалося звільнити з ворожого полону ще 95 українських військовослужбовців."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/41124",
+     "published_at": "2024-07-17T11:36:37+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 95 российских военнослужащих, которым в плену грозила смертельная опасность. Взамен переданы 95 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2024-08-24",
+   "kind": "exchange",
+   "ua_received": 115,
+   "ua_received_civilians": 0,
+   "ru_received": 115,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": 55,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/7682",
+     "published_at": "2024-08-24T11:03:46+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "було повернуто з ворожого полону ще 115 українців. Усі врятовані під час 55-го обміну полоненими"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/42539",
+     "published_at": "2024-08-24T10:45:15+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 115 российских военнослужащих, захваченных в плен в Курской области. Взамен переданы 115 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2024-09-13",
+   "kind": "exchange",
+   "ua_received": 49,
+   "ua_received_civilians": 7,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": null,
+   "deal": null,
+   "mediator": null,
+   "koord_number": 56,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/7989",
+     "published_at": "2024-09-13T11:01:04+00:00",
+     "covers": [
+      "ua_received"
+     ],
+     "quote": "повертаються додому ще 49 наших громадян."
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/7989",
+     "published_at": "2024-09-13T11:01:04+00:00",
+     "covers": [
+      "ua_received_civilians"
+     ],
+     "quote": "Решта семеро -- цивільні."
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/8007",
+     "published_at": "2024-09-13T11:51:31+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Відбувся 56-й обмін полоненими"
+    }
+   ]
+  },
+  {
+   "date": "2024-09-14",
+   "kind": "exchange",
+   "ua_received": 103,
+   "ua_received_civilians": 0,
+   "ru_received": 103,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": 57,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/8009",
+     "published_at": "2024-09-14T11:23:21+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "сьогодні додому повертаються з полону ще 103 українці."
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/8030",
+     "published_at": "2024-09-14T11:47:27+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Відбувся 57-й обмін полоненими"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/43377",
+     "published_at": "2024-09-14T10:28:58+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 103 российских военнослужащих, захваченных в плен в Курской области. Взамен переданы 103 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2024-10-18",
+   "kind": "exchange",
+   "ua_received": 95,
+   "ua_received_civilians": 0,
+   "ru_received": 95,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": "UAE",
+   "koord_number": 58,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/8622",
+     "published_at": "2024-10-18T21:27:54+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Координаційний штаб провів 58-й обмін військовополоненими. Додому повернулися ще 95 Захисників України."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/44666",
+     "published_at": "2024-10-18T18:52:35+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 95 российских военнослужащих. Взамен переданы 95 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2024-12-30",
+   "kind": "exchange",
+   "ua_received": 189,
+   "ua_received_civilians": 2,
+   "ru_received": 150,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": 59,
+   "status": "discrepancy",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/9992",
+     "published_at": "2024-12-30T15:19:16+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "187 українських військовослужбовців та 2 цивільних повернулися з неволі напередодні Нового року. Це 59-й обмін"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/47429",
+     "published_at": "2024-12-30T14:30:54+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Взамен переданы 150 военнопленных ВСУ."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/47429",
+     "published_at": "2024-12-30T14:30:54+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 150 российских военнослужащих. Взамен переданы 150 военнопленных ВСУ."
+    }
+   ],
+   "notes": "Russia's MoD says it handed over 150; Ukraine counts 189 returned (187 soldiers, 2 civilians)."
+  },
+  {
+   "date": "2025-01-15",
+   "kind": "exchange",
+   "ua_received": 25,
+   "ua_received_civilians": 1,
+   "ru_received": 25,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/10232",
+     "published_at": "2025-01-15T12:51:59+00:00",
+     "covers": [
+      "ua_received"
+     ],
+     "quote": "Україна домоглася окремого формату для повернення важкохворих та поранених полонених – ще 25 українців удома. Їх повернуто на вільну землю України внаслідок взаємної репатріації."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/47906",
+     "published_at": "2025-01-15T12:13:54+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 25 российских военнослужащих. Взамен переданы 25 военнопленных ВСУ."
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/10232",
+     "published_at": "2025-01-15T12:51:59+00:00",
+     "covers": [
+      "ua_received_civilians"
+     ],
+     "quote": "Серед повернутих є також цивільний, захоплений на Київщині"
+    }
+   ]
+  },
+  {
+   "date": "2025-02-05",
+   "kind": "exchange",
+   "ua_received": 150,
+   "ua_received_civilians": 0,
+   "ru_received": 150,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": 61,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/10645",
+     "published_at": "2025-02-05T15:06:52+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "150 українських військових повертаються додому"
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/10645",
+     "published_at": "2025-02-05T15:06:52+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Це 61-й за ліком обмін військовополоненими"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/48574",
+     "published_at": "2025-02-05T13:47:17+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 150 российских военнослужащих. Взамен переданы 150 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2025-03-19",
+   "kind": "exchange",
+   "ua_received": 197,
+   "ua_received_civilians": 0,
+   "ru_received": 175,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": "UAE",
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/11389",
+     "published_at": "2025-03-19T14:15:07+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "вдалося визволити з неволі 175 наших хлопців у ході обміну і 22 – під час спеціальних заходів поза обмінами."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/50317",
+     "published_at": "2025-03-19T13:34:29+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 175 российских военнослужащих. ▫️ Взамен переданы 175 военнопленных ВСУ, а также в качестве жеста доброй воли 22 тяжелораненых военнопленных"
+    }
+   ],
+   "notes": "175 in the exchange and 22 seriously wounded returned outside it, the same day."
+  },
+  {
+   "date": "2025-04-19",
+   "kind": "exchange",
+   "ua_received": 277,
+   "ua_received_civilians": 0,
+   "ru_received": 261,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/11953",
+     "published_at": "2025-04-19T15:09:01+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "з російської неволі звільнено 277 українських Захисників та Захисниць. 246 воїнів повернено в рамках обміну полоненими, ще 31 людину вдалося визволити поза обміном."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/51493",
+     "published_at": "2025-04-19T14:44:52+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 246 российских военнослужащих. Взамен переданы 246 военнопленных ВСУ. Также, в качестве жеста доброй воли, передан 31 раненый военнопленный в обмен на 15 раненых российских военнослужащих"
+    }
+   ],
+   "notes": "246 for 246 in the exchange, and 31 wounded Ukrainians for 15 wounded Russians alongside it (Russia's account; Ukraine calls the 31 returned outside the exchange)."
+  },
+  {
+   "date": "2025-05-06",
+   "kind": "exchange",
+   "ua_received": 205,
+   "ua_received_civilians": 0,
+   "ru_received": 205,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": "UAE",
+   "koord_number": 64,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/12263",
+     "published_at": "2025-05-06T12:33:12+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Ще 205 українських Захисників повертаються додому після російського полону!"
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/12263",
+     "published_at": "2025-05-06T12:33:12+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Сьогоднішній обмін - вже пʼятий цього року та 64-ий від початку повномасштабного вторгнення."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/52189",
+     "published_at": "2025-05-06T11:50:06+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 205 российских военнослужащих. Взамен переданы 205 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2025-05-23",
+   "kind": "exchange",
+   "ua_received": 390,
+   "ua_received_civilians": 120,
+   "ru_received": 390,
+   "ru_received_civilians": 120,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": "Istanbul, May 2025 · 1000 for 1000",
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/12625",
+     "published_at": "2025-05-23T14:03:10+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "визволено з російської неволі 390 українців - 270 військових та 120 цивільних громадян."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/53020",
+     "published_at": "2025-05-23T13:33:36+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 270 российских военнослужащих, а также 120 гражданских лиц, в том числе захваченных ВСУ мирных жителей Курской области. 🔹 Взамен переданы 270 военнопленных ВСУ и 120 гражданских лиц."
+    }
+   ]
+  },
+  {
+   "date": "2025-05-24",
+   "kind": "exchange",
+   "ua_received": 307,
+   "ua_received_civilians": 0,
+   "ru_received": 307,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": "Istanbul, May 2025 · 1000 for 1000",
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/12649",
+     "published_at": "2025-05-24T10:56:13+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "повернуто з російської неволі ще 307 Оборонців."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/53058",
+     "published_at": "2025-05-24T10:30:53+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены ещё 307 российских военнослужащих. 🔹 Взамен переданы 307 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2025-05-25",
+   "kind": "exchange",
+   "ua_received": 303,
+   "ua_received_civilians": 0,
+   "ru_received": 303,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": "Istanbul, May 2025 · 1000 for 1000",
+   "mediator": null,
+   "koord_number": 65,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/12667",
+     "published_at": "2025-05-25T09:31:09+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Великий обмін “1000 на 1000” завершено: додому повернулися ще 303 Захисники"
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/12667",
+     "published_at": "2025-05-25T09:31:09+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Триденний обмін “1000 на 1000” став шостим обміном цього року та 65-им від початку повномасштабного вторгнення."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/53094",
+     "published_at": "2025-05-25T09:13:34+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены ещё 303 российских военнослужащих. 🔹 Взамен переданы 303 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2025-06-09",
+   "kind": "exchange",
+   "ua_received": null,
+   "ua_received_civilians": null,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": null,
+   "ru_reported_by": null,
+   "deal": "Istanbul, June 2025 · wounded, sick, under 25",
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/12984",
+     "published_at": "2025-06-09T11:51:08+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Сьогодні розпочався обмін полоненими в рамках домовленостей у Стамбулі. Додому повертається перша група звільнених військовослужбовців віком до 25 років."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/53591",
+     "published_at": "2025-06-09T11:36:58+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "возвращена первая группа российских военнослужащих возрастом до 25 лет. Взамен передана аналогичная численность военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2025-06-10",
+   "kind": "exchange",
+   "ua_received": null,
+   "ua_received_civilians": null,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": null,
+   "ru_reported_by": null,
+   "deal": "Istanbul, June 2025 · wounded, sick, under 25",
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/13013",
+     "published_at": "2025-06-10T14:40:04+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "повернуто з російської неволі групу Захисників, які зазнали важких поранень"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/53620",
+     "published_at": "2025-06-10T14:21:24+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "возвращена вторая группа российских военнослужащих. Взамен передана группа военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2025-06-12",
+   "kind": "exchange",
+   "ua_received": null,
+   "ua_received_civilians": null,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": null,
+   "ru_reported_by": null,
+   "deal": "Istanbul, June 2025 · wounded, sick, under 25",
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/13076",
+     "published_at": "2025-06-12T11:22:06+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "повернуто з російської неволі групу Оборонців з категорії “важкопоранені і тяжкохворі”."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/53707",
+     "published_at": "2025-06-12T11:36:45+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "возвращена группа российских военнослужащих. Взамен передана группа военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2025-06-14",
+   "kind": "exchange",
+   "ua_received": null,
+   "ua_received_civilians": null,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": null,
+   "ru_reported_by": null,
+   "deal": "Istanbul, June 2025 · wounded, sick, under 25",
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/13128",
+     "published_at": "2025-06-14T11:44:07+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Сьогодні відбувся черговий етап великого обміну полоненими у категорії “поранені та важкохворі” згідно домовленостей у Стамбулі."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/53760",
+     "published_at": "2025-06-14T11:48:10+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "возвращена еще одна группа российских военнослужащих. Взамен передана группа военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2025-06-19",
+   "kind": "exchange",
+   "ua_received": null,
+   "ua_received_civilians": null,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": null,
+   "ru_reported_by": null,
+   "deal": "Istanbul, June 2025 · wounded, sick, under 25",
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/13233",
+     "published_at": "2025-06-19T11:45:54+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Сьогодні відбувся черговий етап великого обміну полоненими у категорії “тяжкохворі і поранені” згідно з домовленостями у Стамбулі."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/53920",
+     "published_at": "2025-06-19T11:45:05+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "возвращена группа российских военнослужащих. Взамен передана группа военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2025-06-20",
+   "kind": "exchange",
+   "ua_received": null,
+   "ua_received_civilians": null,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": null,
+   "ru_reported_by": null,
+   "deal": "Istanbul, June 2025 · wounded, sick, under 25",
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/13262",
+     "published_at": "2025-06-20T11:30:16+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Сьогодні відбувся ще один етап обміну полоненими у категорії “важкопоранені та тяжкохворі”."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/53950",
+     "published_at": "2025-06-20T11:15:20+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "возвращена группа российских военнослужащих. Взамен передана группа военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2025-06-26",
+   "kind": "exchange",
+   "ua_received": null,
+   "ua_received_civilians": null,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": null,
+   "ru_reported_by": null,
+   "deal": "Istanbul, June 2025 · wounded, sick, under 25",
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/13388",
+     "published_at": "2025-06-26T14:05:11+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Сьогодні відбувся черговий етап великого обміну полоненими згідно з домовленостями у Стамбулі."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/54179",
+     "published_at": "2025-06-26T14:04:48+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "возвращена еще одна группа российских военнослужащих. Взамен передана группа военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2025-07-04",
+   "kind": "exchange",
+   "ua_received": null,
+   "ua_received_civilians": null,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": null,
+   "ru_reported_by": null,
+   "deal": "Istanbul, June 2025 · wounded, sick, under 25",
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/13533",
+     "published_at": "2025-07-04T10:30:57+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Сьогодні відбувся черговий етап обміну полоненими відповідно до домовленостей у Стамбулі."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/54372",
+     "published_at": "2025-07-04T10:04:31+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "возвращена еще одна группа российских военнослужащих. ▫️ Взамен передана группа военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2025-07-23",
+   "kind": "exchange",
+   "ua_received": null,
+   "ua_received_civilians": null,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": null,
+   "ru_reported_by": null,
+   "deal": "Istanbul, June 2025 · wounded, sick, under 25",
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/13928",
+     "published_at": "2025-07-23T19:31:41+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "Сьогодні відбувся дев’ятий етап обміну полоненими відповідно до домовленостей у Стамбулі."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/54931",
+     "published_at": "2025-07-23T19:12:35+00:00",
+     "covers": [
+      "date"
+     ],
+     "quote": "возвращена группа российских военнослужащих. Взамен передана группа военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2025-08-14",
+   "kind": "exchange",
+   "ua_received": 84,
+   "ua_received_civilians": 51,
+   "ru_received": 84,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": 67,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/14337",
+     "published_at": "2025-08-14T11:52:16+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Сьогодні відбувся 67-й обмін полоненими. У результаті перемовного процесу Координаційним штабом з питань поводження з військовополоненими за дорученням Президента України, з російської неволі визволено 33 військових та 51 цивільного українця."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/55554",
+     "published_at": "2025-08-14T11:27:30+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 84 российских военнослужащих. Взамен переданы 84 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2025-08-24",
+   "kind": "exchange",
+   "ua_received": 154,
+   "ua_received_civilians": 8,
+   "ru_received": 154,
+   "ru_received_civilians": 8,
+   "ua_reported_by": "RU MoD (146 POWs) + UA coordination HQ (8 civilians)",
+   "ru_reported_by": "RU MoD",
+   "deal": "Istanbul, June 2025 · wounded, sick, under 25",
+   "mediator": null,
+   "koord_number": 68,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/14520",
+     "published_at": "2025-08-24T13:40:37+00:00",
+     "covers": [
+      "ua_received_civilians"
+     ],
+     "quote": "Згідно з домовленостями у Стамбулі були повернені додому українські військові, водночас у рамках чергового 68-го обміну були визволені восьмеро цивільних українців."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/55847",
+     "published_at": "2025-08-24T12:02:28+00:00",
+     "covers": [
+      "ua_received"
+     ],
+     "quote": "Взамен переданы 146 военнопленных ВСУ."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/55847",
+     "published_at": "2025-08-24T12:02:28+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 146 российских военнослужащих. Взамен переданы 146 военнопленных ВСУ. Кроме того, возвращены восемь граждан Российской Федерации – жителей Курской области"
+    }
+   ],
+   "notes": "Ukraine announced the soldiers only as a group; their 146 is Russia's count of the POWs it handed over."
+  },
+  {
+   "date": "2025-10-02",
+   "kind": "exchange",
+   "ua_received": 205,
+   "ua_received_civilians": 20,
+   "ru_received": 205,
+   "ru_received_civilians": 20,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": 69,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/15378",
+     "published_at": "2025-10-02T12:53:21+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "З російської неволі визволено 185 військових та 20 цивільних українців - частину з них обміняно згідно з домовленостями у Стамбулі, частину - в межах чергового, 69-го обміну."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/57191",
+     "published_at": "2025-10-02T12:06:48+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 185 российских военнослужащих. Взамен переданы 185 военнопленных ВСУ. Кроме того, возвращены двадцать гражданских лиц."
+    }
+   ]
+  },
+  {
+   "date": "2026-02-05",
+   "kind": "exchange",
+   "ua_received": 157,
+   "ua_received_civilians": 7,
+   "ru_received": 160,
+   "ru_received_civilians": 3,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": 71,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/17910",
+     "published_at": "2026-02-05T13:03:30+00:00",
+     "covers": [
+      "ua_received"
+     ],
+     "quote": "71-й обмін: Україна повернула з неволі 157 військових та цивільних громадян"
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/17910",
+     "published_at": "2026-02-05T13:03:30+00:00",
+     "covers": [
+      "ua_received_civilians"
+     ],
+     "quote": "з російської неволі визволено 150 військових та 7 цивільних українців."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/60906",
+     "published_at": "2026-02-05T12:52:01+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 157 российских военнослужащих. Взамен переданы 157 военнопленных ВСУ. Кроме того, возвращены трое граждан Российской Федерации – жителей Курской области"
+    }
+   ]
+  },
+  {
+   "date": "2026-03-05",
+   "kind": "exchange",
+   "ua_received": 200,
+   "ua_received_civilians": 0,
+   "ru_received": 200,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": "Geneva, March 2026",
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/18555",
+     "published_at": "2026-03-05T12:38:22+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "визволено з російської неволі 200 військовослужбовців."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/61727",
+     "published_at": "2026-03-05T12:42:01+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 200 российских военнослужащих. Взамен переданы 200 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2026-03-06",
+   "kind": "exchange",
+   "ua_received": 302,
+   "ua_received_civilians": 2,
+   "ru_received": 300,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": "Geneva, March 2026",
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/18588",
+     "published_at": "2026-03-06T10:47:38+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "з російської неволі визволено 300 військових та двох цивільних українців"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/61760",
+     "published_at": "2026-03-06T11:02:01+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 300 российских военнослужащих. Взамен переданы 300 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2026-04-11",
+   "kind": "exchange",
+   "ua_received": 182,
+   "ua_received_civilians": 7,
+   "ru_received": 182,
+   "ru_received_civilians": 7,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": 72,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/19415",
+     "published_at": "2026-04-11T11:16:44+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "відбувся 72-й обмін полоненими. У результаті перемовного процесу, Координаційним штабом за дорученням Президента України, з російської неволі повернуто 175 військовослужбовців та 7 цивільних громадян України."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/62576",
+     "published_at": "2026-04-11T11:38:01+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 175 российских военнослужащих. Взамен переданы 175 военнопленных ВСУ. Также возвращены семеро незаконно удерживавшихся киевским режимом граждан Российской Федерации"
+    }
+   ]
+  },
+  {
+   "date": "2026-04-24",
+   "kind": "exchange",
+   "ua_received": 193,
+   "ua_received_civilians": 0,
+   "ru_received": 193,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": 73,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/19726",
+     "published_at": "2026-04-24T13:12:10+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "73-й обмін: Україна повернула з неволі 193 Захисників"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/62884",
+     "published_at": "2026-04-24T13:50:42+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 193 российских военнослужащих. Взамен переданы 193 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2026-05-15",
+   "kind": "exchange",
+   "ua_received": 205,
+   "ua_received_civilians": 0,
+   "ru_received": 205,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": "US-brokered, May 2026 · 1000 for 1000",
+   "mediator": "USA",
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/20244",
+     "published_at": "2026-05-15T07:45:48+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "Перший етап обміну “1000 на 1000”: з російської неволі визволено 205 українців"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/63648",
+     "published_at": "2026-05-15T08:03:01+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 205 российских военнослужащих. Взамен переданы 205 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2026-06-05",
+   "kind": "exchange",
+   "ua_received": 186,
+   "ua_received_civilians": 1,
+   "ru_received": 185,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": 75,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/20796",
+     "published_at": "2026-06-05T11:30:07+00:00",
+     "covers": [
+      "ua_received"
+     ],
+     "quote": "75-й обмін полоненими: додому повертаються 186 українців"
+    },
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/20796",
+     "published_at": "2026-06-05T11:30:07+00:00",
+     "covers": [
+      "ua_received_civilians"
+     ],
+     "quote": "Окремо також вдалося повернути на Батьківщину одного цивільного українця"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/64291",
+     "published_at": "2026-06-05T11:53:12+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 185 российских военнослужащих. Взамен переданы 185 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2026-06-26",
+   "kind": "exchange",
+   "ua_received": 160,
+   "ua_received_civilians": 0,
+   "ru_received": 160,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": null,
+   "mediator": null,
+   "koord_number": 76,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/21346",
+     "published_at": "2026-06-26T12:16:19+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "76-й обмін полоненими: з російської неволі повернулися ще 160 Захисників!"
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/64970",
+     "published_at": "2026-06-26T12:43:01+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 160 российских военнослужащих. Взамен переданы 160 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2026-08-19",
+   "kind": "exchange",
+   "ua_received": 103,
+   "ua_received_civilians": 0,
+   "ru_received": 103,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": "Combined exchange, Aug–Oct 2026",
+   "mediator": "USA, UAE",
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/22551",
+     "published_at": "2026-08-19T10:29:55+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "З російської неволі визволено 103 військовослужбовці."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/66616",
+     "published_at": "2026-08-19T09:15:09+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "возвращены 103 российских военнослужащих. Взамен переданы 103 военнопленных ВСУ."
+    }
+   ]
+  },
+  {
+   "date": "2026-08-24",
+   "kind": "exchange",
+   "ua_received": 10,
+   "ua_received_civilians": 0,
+   "ru_received": null,
+   "ru_received_civilians": null,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": null,
+   "deal": "Combined exchange, Aug–Oct 2026",
+   "mediator": null,
+   "koord_number": null,
+   "status": "partial",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/22643",
+     "published_at": "2026-08-24T11:21:26+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "вдалося повернути з Республіки Білорусь ще десятьох громадян України. Це військовослужбовці Збройних Сил та Нацгвардії"
+    }
+   ]
+  },
+  {
+   "date": "2026-10-23",
+   "kind": "exchange",
+   "ua_received": 270,
+   "ua_received_civilians": 9,
+   "ru_received": 270,
+   "ru_received_civilians": 0,
+   "ua_reported_by": "UA coordination HQ",
+   "ru_reported_by": "RU MoD",
+   "deal": "Combined exchange, Aug–Oct 2026",
+   "mediator": null,
+   "koord_number": null,
+   "status": "confirmed",
+   "sources": [
+    {
+     "via": "Koord_shtab (Telegram)",
+     "url": "https://t.me/Koord_shtab/23642",
+     "published_at": "2026-10-23T11:54:13+00:00",
+     "covers": [
+      "ua_received",
+      "ua_received_civilians"
+     ],
+     "quote": "з російської неволі визволено 261 українського військовослужбовця. Окремо також вдалося повернути на Батьківщину 9 цивільних. Це третій етап комбінованого обміну полоненими, який розпочався 19 серпня."
+    },
+    {
+     "via": "mod_russia (Telegram)",
+     "url": "https://t.me/mod_russia/68472",
+     "published_at": "2026-10-23T11:14:31+00:00",
+     "covers": [
+      "ru_received",
+      "ru_received_civilians"
+     ],
+     "quote": "270 российских военнослужащих возвращены с подконтрольной киевскому режиму территории Взамен переданы 270 военнопленных ВСУ."
+    }
+   ]
+  }
+ ]
+}
