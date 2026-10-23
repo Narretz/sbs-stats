@@ -122,7 +122,7 @@ function fmtEod(e: EodEstimate): ReactNode {
 function noteFooter(note: string | undefined, t: Theme): ReactNode {
   if (!note) return null;
   return (
-    <div className="tooltip-note" style={{ color: chartColors(t).noteText, fontSize: "0.833em", marginTop: 6, whiteSpace: "pre-line" }}>
+    <div className="tooltip-note" style={{ color: chartColors(t).noteText, marginTop: 6, whiteSpace: "pre-line" }}>
       ⚠ {note}
     </div>
   );

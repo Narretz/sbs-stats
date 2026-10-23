@@ -141,7 +141,7 @@ function describeMonth({
     </>
   ) : d.date;
   const footer = d.note ? (
-    <div className="tooltip-note" style={{ color: t.textImportant, fontSize: "0.833em", marginTop: 6 }}>
+    <div className="tooltip-note" style={{ color: t.textImportant, marginTop: 6 }}>
       ⚠ {d.note}
     </div>
   ) : null;

@@ -133,7 +133,7 @@ function describeMulti({
   const footer = notes.length ? (
     <>
       {notes.map((n, i) => (
-        <div key={`n-${i}`} className="tooltip-note" style={{ color: noteColor, fontSize: "0.833em", marginTop: 6, whiteSpace: "pre-line" }}>
+        <div key={`n-${i}`} className="tooltip-note" style={{ color: noteColor, marginTop: 6, whiteSpace: "pre-line" }}>
           ⚠ {n}
         </div>
       ))}
