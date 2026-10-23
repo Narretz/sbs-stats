@@ -1,8 +1,10 @@
 import type { ComponentType } from "react";
 import type { Site } from "@/types";
-import { MissilesPage } from "@/pages/MissilesPage";
-import { BodyExchangesPage } from "@/pages/BodyExchangesPage";
-import { PowExchangesPage } from "@/pages/PowExchangesPage";
+import { lazyPage } from "@/sites/lazyPage";
+
+const MissilesPage = lazyPage(() => import("@/pages/MissilesPage"), "MissilesPage");
+const BodyExchangesPage = lazyPage(() => import("@/pages/BodyExchangesPage"), "BodyExchangesPage");
+const PowExchangesPage = lazyPage(() => import("@/pages/PowExchangesPage"), "PowExchangesPage");
 
 // Sites backed by a hand-curated JSON file bundled at build time rather than a
 // DB: no provider, no load state, no refresh, and one page with no page nav.

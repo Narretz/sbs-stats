@@ -12,6 +12,24 @@ createRoot(root).render(
   </StrictMode>
 );
 
+// Pages are chunks loaded on first visit (sites/lazyPage), and a deploy
+// replaces every chunk's hashed name — so a tab left open across one fails to
+// load the next page it opens. Vite reports that as `vite:preloadError`; a
+// reload fetches the new index and its chunks. Once per 30 s: a chunk that is
+// really broken (or storage we can't use to remember the attempt) falls
+// through to the error boundary rather than reloading forever.
+const RELOAD_KEY = "chunk-reload-at";
+window.addEventListener("vite:preloadError", () => {
+  try {
+    const last = Number(sessionStorage.getItem(RELOAD_KEY)) || 0;
+    if (Date.now() - last < 30_000) return;
+    sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+  } catch {
+    return;
+  }
+  window.location.reload();
+});
+
 // PT Sans / PT Mono, attached only once the document has finished loading.
 // A <link> in index.html or an @import at the top of theme.css both make first
 // paint AND the document's `load` event wait on a third-party CDN — so a slow

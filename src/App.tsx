@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { ThemeProvider } from "@/hooks/ThemeProvider";
 import { StatScopeProvider } from "@/hooks/StatScopeProvider";
@@ -9,16 +10,22 @@ import { ChartPinProvider } from "@/hooks/ChartPinProvider";
 import { ChartSheet } from "@/components/ChartSheet";
 import { SiteHeader, SpecialViewHeader } from "@/components/SiteHeader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { ErrorScreen } from "@/components/Layout";
-import { ComparePage } from "@/pages/ComparePage";
+import { ErrorScreen, LoadingScreen } from "@/components/Layout";
 import { JSON_SITE_PAGES } from "@/sites/jsonSites";
-import { HomePage } from "@/pages/HomePage";
 import type { Page, Site } from "@/types";
+import { lazyPage } from "@/sites/lazyPage";
+
+const ComparePage = lazyPage(() => import("@/pages/ComparePage"), "ComparePage");
+const HomePage = lazyPage(() => import("@/pages/HomePage"), "HomePage");
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <main style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 20px 64px" }}>
-      {children}
+      {/* Pages are their own chunks (sites/lazyPage): the header stays put
+          while a page's first load fetches its code. */}
+      <Suspense fallback={<LoadingScreen message="Loading page..." />}>
+        {children}
+      </Suspense>
     </main>
   );
 }
@@ -118,7 +125,9 @@ function AppInner() {
       <div style={{ minHeight: "100vh", background: t.bg }}>
         {route.kind === "home" && (
           <ErrorShell>
-            <HomePage onGoToSite={(s) => goSite(s)} />
+            <Suspense fallback={<PageShell><LoadingScreen message="Loading page..." /></PageShell>}>
+              <HomePage onGoToSite={(s) => goSite(s)} />
+            </Suspense>
           </ErrorShell>
         )}
         {route.kind === "site" && siteEntry && (

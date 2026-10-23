@@ -9,10 +9,12 @@
 // Keep it that way by importing the dataset's code only through here.
 import type { SiteConfig } from "@/sites/registry";
 import { useDatabaseUaLossesRuMod } from "@/hooks/useDatabaseUaLossesRuMod";
-import { UaLossesRuModDailyPage } from "@/pages/UaLossesRuModDailyPage";
-import { UaLossesRuModMonthlyPage } from "@/pages/UaLossesRuModMonthlyPage";
+import { lazyPage } from "@/sites/lazyPage";
 import { UA_LOSSES_RU_MOD_METRIC_KEYS, UA_LOSSES_RU_MOD_METRIC_LABELS } from "@/types";
 import { UaLossesRuModDatabaseProvider, useUaLossesRuModDatabaseContext } from "./context";
+
+const UaLossesRuModDailyPage = lazyPage(() => import("@/pages/UaLossesRuModDailyPage"), "UaLossesRuModDailyPage");
+const UaLossesRuModMonthlyPage = lazyPage(() => import("@/pages/UaLossesRuModMonthlyPage"), "UaLossesRuModMonthlyPage");
 
 export type UaLossesRuModDb = ReturnType<typeof useDatabaseUaLossesRuMod>;
 

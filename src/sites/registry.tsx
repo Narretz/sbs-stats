@@ -14,26 +14,28 @@ import {
   ZelenskyWeeklyDatabaseProvider, useZelenskyWeeklyDatabaseContext,
 } from "@/context/databases";
 import { SbsProviders } from "@/sites/SbsProviders";
-import { SbsDailyPage } from "@/pages/SbsDailyPage";
-import { SbsHourlyPage } from "@/pages/SbsHourlyPage";
-import { SbsMonthlyPage } from "@/pages/SbsMonthlyPage";
-import { GsuaDailyPage } from "@/pages/GsuaDailyPage";
-import { GsuaMonthlyPage } from "@/pages/GsuaMonthlyPage";
-import { RuLossesDailyPage } from "@/pages/RuLossesDailyPage";
-import { RuLossesMonthlyPage } from "@/pages/RuLossesMonthlyPage";
 import { uaLossesRuModSite } from "@/sites/uaLossesRuMod";
-import { RuModDailyPage } from "@/pages/RuModDailyPage";
-import { RuModMonthlyPage } from "@/pages/RuModMonthlyPage";
-import { RuAirAttacksDailyPage } from "@/pages/RuAirAttacksDailyPage";
-import { RuAirAttacksMonthlyPage } from "@/pages/RuAirAttacksMonthlyPage";
-import { SbuAlfaMonthlyPage } from "@/pages/SbuAlfaMonthlyPage";
-import { RubikonMonthlyPage } from "@/pages/RubikonMonthlyPage";
-import { UaLossesMonthlyPage } from "@/pages/UaLossesMonthlyPage";
-import { MediazonaWeeklyPage } from "@/pages/MediazonaWeeklyPage";
-import { MediazonaMonthlyPage } from "@/pages/MediazonaMonthlyPage";
-import { CitCiviliansDailyPage } from "@/pages/CitCiviliansDailyPage";
-import { CitCiviliansMonthlyPage } from "@/pages/CitCiviliansMonthlyPage";
-import { ZelenskyWeeklyPage } from "@/pages/ZelenskyWeeklyPage";
+import { lazyPage } from "@/sites/lazyPage";
+
+const SbsDailyPage = lazyPage(() => import("@/pages/SbsDailyPage"), "SbsDailyPage");
+const SbsHourlyPage = lazyPage(() => import("@/pages/SbsHourlyPage"), "SbsHourlyPage");
+const SbsMonthlyPage = lazyPage(() => import("@/pages/SbsMonthlyPage"), "SbsMonthlyPage");
+const GsuaDailyPage = lazyPage(() => import("@/pages/GsuaDailyPage"), "GsuaDailyPage");
+const GsuaMonthlyPage = lazyPage(() => import("@/pages/GsuaMonthlyPage"), "GsuaMonthlyPage");
+const RuLossesDailyPage = lazyPage(() => import("@/pages/RuLossesDailyPage"), "RuLossesDailyPage");
+const RuLossesMonthlyPage = lazyPage(() => import("@/pages/RuLossesMonthlyPage"), "RuLossesMonthlyPage");
+const RuModDailyPage = lazyPage(() => import("@/pages/RuModDailyPage"), "RuModDailyPage");
+const RuModMonthlyPage = lazyPage(() => import("@/pages/RuModMonthlyPage"), "RuModMonthlyPage");
+const RuAirAttacksDailyPage = lazyPage(() => import("@/pages/RuAirAttacksDailyPage"), "RuAirAttacksDailyPage");
+const RuAirAttacksMonthlyPage = lazyPage(() => import("@/pages/RuAirAttacksMonthlyPage"), "RuAirAttacksMonthlyPage");
+const SbuAlfaMonthlyPage = lazyPage(() => import("@/pages/SbuAlfaMonthlyPage"), "SbuAlfaMonthlyPage");
+const RubikonMonthlyPage = lazyPage(() => import("@/pages/RubikonMonthlyPage"), "RubikonMonthlyPage");
+const UaLossesMonthlyPage = lazyPage(() => import("@/pages/UaLossesMonthlyPage"), "UaLossesMonthlyPage");
+const MediazonaWeeklyPage = lazyPage(() => import("@/pages/MediazonaWeeklyPage"), "MediazonaWeeklyPage");
+const MediazonaMonthlyPage = lazyPage(() => import("@/pages/MediazonaMonthlyPage"), "MediazonaMonthlyPage");
+const CitCiviliansDailyPage = lazyPage(() => import("@/pages/CitCiviliansDailyPage"), "CitCiviliansDailyPage");
+const CitCiviliansMonthlyPage = lazyPage(() => import("@/pages/CitCiviliansMonthlyPage"), "CitCiviliansMonthlyPage");
+const ZelenskyWeeklyPage = lazyPage(() => import("@/pages/ZelenskyWeeklyPage"), "ZelenskyWeeklyPage");
 
 // Every dataset page takes the same prop.
 type PageComponent = ComponentType<{ refreshKey: number }>;
