@@ -316,12 +316,14 @@ describe("Chart pin sheet", () => {
     expect(cursorX(FIRST)).toBeNull();
   });
 
-  it("the pinned chart's hover tooltip goes quiet; other charts keep theirs", async () => {
+  it("the pinned chart's hover tooltip goes quiet but keeps its cursor; other charts keep theirs", async () => {
     await mount(<Charts />);
     await pinAt(FIRST, 0.95);
     await hover(FIRST);
     // innerText: a tooltip recharts has hidden must read as empty.
     expect(tooltipText(FIRST)).toBe("");
+    // The hover cursor still shows which date a click would pin.
+    await expect.poll(() => card(FIRST).querySelector(".recharts-tooltip-cursor")).not.toBeNull();
     card(SECOND).scrollIntoView({ block: "start" });
     await hover(SECOND);
     await expect.poll(() => tooltipText(SECOND)).not.toBe("");

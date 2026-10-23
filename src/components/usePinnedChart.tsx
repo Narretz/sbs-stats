@@ -151,11 +151,12 @@ export function usePinnedChart<T>({
   const tooltip = (
     <Tooltip
       // Honoured ahead of recharts' internal hover state for both the tooltip
-      // and its cursor, so one prop silences both — without it a cursor would
-      // track the pointer with nothing attached. It doesn't touch the index a
-      // click reports, so pinning works while it's forced off.
-      // The same prop is what keeps touch out of the hover card (see above).
-      active={pin.isPinned || !hovering ? false : undefined}
+      // and its cursor, so one prop silences both. It doesn't touch the index
+      // a click reports, so pinning works while it's forced off. This is what
+      // keeps touch out of the hover card (see above). While the sheet is
+      // open the tooltip stays live but draws no card (`content` below): the
+      // hover band alone shows which x a click would pin.
+      active={!hovering ? false : undefined}
       allowEscapeViewBox={{ x: false, y: true }}
       // No slide between positions. While recharts' transform transition
       // runs, the browser renders the card as its own layer with different
@@ -169,7 +170,8 @@ export function usePinnedChart<T>({
       }}
       cursor={cursor}
       content={({ active, label, payload }) => {
-        if (!active) return null;
+        // Pinned: the sheet says it all, the band is enough on hover.
+        if (!active || pin.isPinned) return null;
         // Prefer the payload row; fall back to the axis label, which is all
         // recharts hands over when every series is null at that x.
         const row = (payload[0]?.payload as T | undefined) ?? rowAt(label);
