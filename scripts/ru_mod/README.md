@@ -192,6 +192,10 @@ overlap-caveat notes stay consistent with any window reclassifications, and
 deletes rows whose text no longer passes the AD gate. Idempotent — a no-op
 on rows the parser already agrees with.
 
+In CI it is `reparse-ru-mod-db.yml` (manual: `since` a date or `all`,
+`dry_run` on by default), which downloads the DB from R2, reparses, and
+uploads both the full and the app copy.
+
 ## Tests
 
 ```sh
