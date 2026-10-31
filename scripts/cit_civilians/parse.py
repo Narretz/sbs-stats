@@ -580,15 +580,25 @@ def region_of(text: str) -> RegionHit | None:
     Occupied forms are tried first: "на оккупированной территории Донецкой
     области" must never collapse into government-controlled "в Донецкой
     области" — they are different rows with different casualty profiles.
+
+    "First" is by position, not by pattern: a correction clause can name
+    "в Донецкой области …, в Херсонской области …, на оккупированной
+    территории Донецкой области …", and a first-pattern-wins lookup returns the
+    last of them, so _split_multi_region never cuts the clause. An occupied
+    phrase still beats the plain oblast inside it, because it starts first;
+    ties keep the pattern order.
     """
+    best: RegionHit | None = None
     for rx, occupied, fixed in (
             (_OCCUPIED_RE, 1, None), (_CRIMEA_RE, 1, "крым"),
             (_SEVASTOPOL_RE, 1, "севастополь"), (_OBLAST_RE, 0, None),
             (_KRAI_RE, 0, None), (_REPUBLIC_ADJ_RE, 0, None), (_REPUBLIC_RE, 0, None)):
         m = rx.search(text)
-        if m:
+        if m and (best is None or m.start() < best.start):
             name = fixed or _norm_region(m.group(1))
-            return RegionHit(name, m.group(0), occupied, m.start())
+            best = RegionHit(name, m.group(0), occupied, m.start())
+    if best is not None:
+        return best
     m = _CITY_RE.search(text)
     if m:
         city = m.group(1).lower().replace("ё", "е")
@@ -680,22 +690,34 @@ def _split_multi_region(piece: str) -> list[str]:
     "о погибшем в Сумской области за 13 августа, одном пострадавшем в
     Запорожской области за 17 августа" has no ';' and no 'ещё', so the coarse
     split leaves both regions in one clause and the second would be lost.
-    Cutting at the comma before each additional region recovers it.
+    Cutting at the comma before each additional region recovers it. The comma
+    must come after the previous region: "о двух погибших, включая ребёнка, в
+    Донецкой области" has one before its own region, not between two. "и" is
+    not a cut — it joins counts as often as clauses ("одном погибшем и двух
+    пострадавших в г. Покровск").
+
+    Two deaths of the previously injured stay whole: "скончались женщина,
+    получившая ранения … Днепропетровской области, и женщина, пострадавшая …
+    Донецкой области" — cut, the second woman loses the verb that makes her a
+    death and reads as a new injury.
     """
-    starts: list[int] = []
+    if re.search(r"скончались|умерли", piece):
+        return [piece]
+    spans: list[tuple[int, int]] = []
     pos = 0
     while pos < len(piece):
         hit = region_of(piece[pos:])
         if hit is None:
             break
-        starts.append(pos + hit.start)
+        spans.append((pos + hit.start, pos + hit.start + len(hit.raw)))
         pos += hit.start + max(len(hit.raw), 1)
-    if len(starts) <= 1:
+    if len(spans) <= 1:
         return [piece]
     cuts = [0]
-    for start in starts[1:]:
-        comma = piece.rfind(",", cuts[-1], start)
-        if comma > cuts[-1]:
+    for (_, prev_end), (start, _) in zip(spans, spans[1:]):
+        lo = max(cuts[-1], prev_end)
+        comma = piece.rfind(",", lo, start)
+        if comma >= lo:
             cuts.append(comma + 1)
     return [piece[a:b].strip(" ,") for a, b in zip(cuts, cuts[1:] + [len(piece)])
             if piece[a:b].strip(" ,")]
