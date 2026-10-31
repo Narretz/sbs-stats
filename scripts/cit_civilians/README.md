@@ -32,9 +32,12 @@ In CI, `update-cit-civilians-db.yml` runs twice a day (times in
 [CI.md](../../CI.md)): just after the ~20:00 MSK post, and again in the morning
 for a late post or an edit. Its `pages` input (default 4 preview pages, about a
 day of the channel's ~20 posts) widens the walk for a post the parser used to
-drop; one stored but misread needs `--reparse`, locally — the parser is still
-being sharpened against the archive, so that is the usual way a fix lands.
-`ingest.py` writes `changed=true|false` and the upload is gated on it.
+drop; one stored but misread needs `--reparse` — the parser is still being
+sharpened against the archive, so that is the usual way a fix lands. Locally
+that is the command above; in CI, `reparse-cit-civilians-db.yml` (manual,
+`dry_run` on by default) runs it against the R2 copy and re-uploads both the
+full and the app DB. `ingest.py` writes `changed=true|false` and both
+workflows gate the upload on it.
 
 ## The source post
 

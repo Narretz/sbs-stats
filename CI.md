@@ -22,6 +22,7 @@ dataset's README, linked from the table.
 | `update-cit-civilians-db.yml` | CIT — [README](scripts/cit_civilians/README.md) | 19:00 UTC (after the ~20:00 MSK post) and 07:00 UTC (late post / edit) | `pages` (default 4) | `changed=true` |
 | `update-ua-losses-ru-mod-db.yml` | UA losses, RU MoD — [README](scripts/ua_losses_ru_mod/README.md) | 08:15 / 20:15 UTC | — | `changed=true` |
 | `update-zelensky-weekly-db.yml` | President's weekly tally — [README](scripts/zelensky_weekly/README.md) | 20:00 Kyiv, Sat / Sun / Mon | `pages` | `changed=true` |
+| `reparse-cit-civilians-db.yml` | CIT, manual | `dry_run` (on) | — | `changed=true` |
 | `reparse-gsua-db.yml` | GSUA, manual | `since` (date or `all`), `dry_run` (on) | — | unless dry run |
 | `reparse-ru-mod-db.yml` | RU MoD, manual | `since` (date or `all`), `dry_run` (on) | — | unless dry run |
 | `reparse-sbu-alfa-db.yml` | SBU Alfa, manual | `dry_run` (on) | — | `changed=true` |
@@ -64,8 +65,9 @@ Which one depends on what the bug did to the post:
   (the "Widen" column above). Reparsing reads only stored rows, so it can't.
 - **Misread it** — stored, but a field parsed wrong. A re-scrape re-ingests
   the identical text and changes nothing; the stored rows need re-parsing:
-  `reparse-gsua-db.yml`, `reparse-ru-mod-db.yml`, `reparse-sbu-alfa-db.yml`, or locally
-  `ingest.py --reparse` (dry run; `--apply` writes) for Rubikon and CIT.
+  `reparse-gsua-db.yml`, `reparse-ru-mod-db.yml`, `reparse-sbu-alfa-db.yml`,
+  `reparse-cit-civilians-db.yml`, or locally `ingest.py --reparse` (dry run;
+  `--apply` writes) for Rubikon.
   SBU Alfa only ever reparses: its discovery skips URLs already stored, so a
   re-scan re-reads nothing, however wide.
 
