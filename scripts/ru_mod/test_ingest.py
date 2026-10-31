@@ -1584,6 +1584,48 @@ class TestUnqualifiedHeadline:
         assert _parse(text) is None
 
 
+# ── Oct 2026 one-offs: a grouped count, and a post with no headline total ─────
+class TestOct2026Forms:
+    def test_space_grouped_thousands(self):
+        # msg 68619, night of 29 Oct 2026 — "1 214"; every other four-digit
+        # night that month wrote "1043". `\d+` stopped at the "1".
+        r = _parse(
+            "⚡️ В течение прошедшей ночи дежурными силами ПВО перехвачены и уничтожены "
+            "1 214 украинских беспилотных летательных аппаратов самолетного типа над "
+            "территориями Брянской, Белгородской, Курской областей, Московского региона "
+            "и Удмуртской Республики.",
+            mid=68619, posted_utc="2026-10-29T03:23:00+00:00")
+        assert r is not None
+        assert (r.drones, r.window_kind, r.report_date) == (1214, "night", "2026-10-29")
+
+    def test_grouped_count_needs_three_digit_groups(self):
+        # A grouped count is digits in threes; "уничтожены 5 12…" isn't one.
+        assert ig._count_to_int("1 214") == 1214
+        assert ig._count_to_int("12 345") == 12345
+        assert ig._count_to_int("5 12") is None
+
+    def test_region_list_without_headline_total(self):
+        # msg 68194, 14 Oct 2026 — the day's only daytime report: no total, the
+        # count follows each region, and the window is given by its end alone.
+        r = _parse(
+            "⚡️ В течение прошедших суток по состоянию на 18:00 14 октября дежурными "
+            "силами ПВО перехвачены и уничтожены над территориями Рязанской области "
+            "23 БПЛА, Саратовской области 68 БПЛА. 🔹 Курс на MAКС!",
+            mid=68194, posted_utc="2026-10-14T12:43:00+00:00")
+        assert r is not None
+        assert r.drones == 91 and r.unit == "uav"
+        assert r.breakdown == [("Рязанской области", 23), ("Саратовской области", 68)]
+        assert (r.window_start, r.window_end) == ("2026-10-14T08:00+03:00",
+                                                  "2026-10-14T18:00+03:00")
+        assert (r.window_kind, r.report_date) == ("day", "2026-10-14")
+
+    def test_region_first_bullet_is_not_a_region_list(self):
+        # "над территорией X уничтожено N БПЛА" — region before the verb; the
+        # region-list form needs the verb to lead into "над территори…".
+        assert ig._extract_region_list(
+            "Над территорией Курской области уничтожено 12 БПЛА.") == []
+
+
 # ── the schedule itself breaking: reports due but absent ──────────────────────
 class TestOverdueReports:
     """Both daily windows are scheduled, so a cluster of missing ones means the

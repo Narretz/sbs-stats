@@ -88,7 +88,10 @@ _AD_VERB = r"(?:уничтожен|сбит|перехвач)\w*"
 # 8 Oct 2026 the channel also writes "беспилотных летательных средств[а]"
 # (msgs 68047, 68070, 68079, 68092) — same noun phrase, different head.
 _UNIT_NOUN = r"(?:БПЛА|БпЛА|беспилотн\w+\s+летательн\w+\s+(?:аппарат|средств)\w*)"
-_HEAD_NUM = r"(\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+)?)"
+# Digits may carry a space as thousands separator — "уничтожены 1 214
+# украинских …" (msg 68619, 29 Oct 2026) — though most posts write "1043".
+# Tried before the bare `\d+`, which would stop at the "1".
+_HEAD_NUM = r"(\d{1,3}(?:\s\d{3})+|\d+|[А-Яа-яЁё]+(?:\s+[А-Яа-яЁё]+)?)"
 COUNT_VERB_FIRST_RE = re.compile(
     # Leading verb is any _AD_VERB, not just "уничтожен" — msg 50783 (Apr
     # 2025) opened with "перехвачено три украинских …", and the channel
@@ -125,6 +128,23 @@ COUNT_SINGULAR_VERB_FIRST_RE = re.compile(
 # matches it and becomes a phantom headline total.
 COUNT_VERB_FIRST_NO_UA_RE = re.compile(
     rf"{_AD_VERB}(?:\s+и\s+{_AD_VERB})?\s+{_HEAD_NUM}\s+{_UNIT_NOUN}",
+    re.I,
+)
+# REGION-LIST post with no headline total at all: "…перехвачены и уничтожены
+# над территориями Рязанской области 23 БПЛА, Саратовской области 68 БПЛА."
+# (msg 68194, 14 Oct 2026 — that day's only daytime report). Each item puts its
+# count AFTER the region, so no bullet regex sees it and the post was dropped;
+# the total is the sum of the items. The verb must lead straight into "над
+# территори…", which keeps this apart from the region-first bullet ("над
+# территорией X уничтожено N БПЛА", REGION_FIRST_BULLET_RE). Tried only after
+# every headline form has failed.
+REGION_LIST_RE = re.compile(
+    rf"{_AD_VERB}(?:\s+и\s+{_AD_VERB})?\s+над\s+(?:территори|акватори)\w+\s+([^.]+)",
+    re.I,
+)
+REGION_LIST_ITEM_RE = re.compile(
+    r"(?:^|,\s*|\s+и\s+)(?:над\s+)?(?:(?:территори|акватори)\w+\s+)?"
+    r"([А-Яа-яЁё][^,.\d]*?)\s+(\d+)\s+(?:БПЛА|БпЛА)\b",
     re.I,
 )
 # First sentence of a flattened post. A terminator only counts when whitespace
@@ -172,6 +192,11 @@ NIGHT_DATED_RE = re.compile(
 # windows like "С 07.00 до 07.20 мск" which without minute precision look like
 # h1==h2 → "crosses midnight" → mis-recorded as a 24-hour overnight window.
 DAY_RANGE_RE = re.compile(r"с\s+(\d{1,2})[.:](\d{2})\s*(?:мск\s*)?до\s+(\d{1,2})[.:](\d{2})\s*мск", re.I)
+# Window given only by its end: "В течение прошедших суток по состоянию на
+# 18:00 14 октября" (msg 68194). Despite "суток" it is not a 24-hour recap —
+# that day's night report (68180, 20:00–08:00) carried 902 and this one 91 —
+# so it is read as the daytime window, starting at the 08:00 handoff.
+AS_OF_RE = re.compile(r"по\s+состоянию\s+на\s+(\d{1,2})[.:](\d{2})\s+(\d{1,2})\s+(\w+)", re.I)
 NIGHT_PHRASE_RE = re.compile(r"прошедш\w+\s+ноч|в\s+течение\s+ноч|минувш\w+\s+ноч", re.I)
 # Explicit "с HH.MM … до HH.MM" hours within a night report, regardless of the
 # date format that follows (word month, numeric "6.05", a "т.г." suffix, or the
@@ -406,6 +431,15 @@ def _extract_drones(flat: str) -> tuple[int, str] | None:
     return None
 
 
+def _extract_region_list(flat: str) -> list[tuple[str, int]]:
+    """Per-region (name, count) items of a REGION_LIST_RE post; [] otherwise."""
+    m = REGION_LIST_RE.search(flat)
+    if not m:
+        return []
+    return [(re.sub(r"\s+", " ", name).strip(), int(n))
+            for name, n in REGION_LIST_ITEM_RE.findall(m.group(1))]
+
+
 def _extract_air_targets(flat: str) -> tuple[int, str] | None:
     """Headline count for the umbrella "воздушных целей" (air targets) wording.
 
@@ -436,6 +470,8 @@ def _count_to_int(token: str) -> int | None:
     Strip any leading non-numeral words so the trailing numeral resolves
     instead of the whole phrase being rejected."""
     token = _LEADING_CONJ.sub("", token).strip()
+    if re.fullmatch(r"\d{1,3}(?:\s\d{3})+", token):   # "1 214" (see _HEAD_NUM)
+        token = re.sub(r"\s", "", token)
     if token.isdigit():
         return int(token)
     words = token.lower().split()
@@ -597,6 +633,18 @@ def _parse_window(text: str, posted_msk: datetime):
             # overnight handoff (night), but 07:20 is already daytime.
             end_minutes = h2 * 60 + mi2
             kind = "night" if crosses_midnight or h1 >= 18 or end_minutes <= 7 * 60 else "day"
+
+    if start is None:
+        m = AS_OF_RE.search(text)
+        mo = MONTHS.get(m.group(4).lower()) if m else None
+        if mo:
+            end = datetime(posted_msk.year, mo, int(m.group(3)), int(m.group(1)),
+                           int(m.group(2)), tzinfo=MSK)
+            start = end.replace(hour=8, minute=0)
+            if end.hour > 8:
+                kind = "day"
+            else:  # never seen; don't guess a start for it
+                start, kind = None, "other"
 
     if start is None:
         return None, None, "other"
@@ -831,6 +879,9 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
     # every UAV form has failed.
     unit = "uav"
     extracted = _extract_drones(flat) if "беспилотн" in flat.lower() else None
+    region_list = _extract_region_list(flat) if extracted is None else []
+    if region_list:
+        extracted = sum(c for _, c in region_list), "region_list"
     if extracted is None:
         extracted = _extract_air_targets(flat)
         if extracted is None:
@@ -843,7 +894,7 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
     report_date = (end or posted_msk).date().isoformat()
 
     # Prefer the itemized per-region counts when present; else the loose clause.
-    breakdown = parse_breakdown(flat)
+    breakdown = region_list or parse_breakdown(flat)
     # When the headline form was noun-first or singular (no separate verb-first
     # total), the "headline" count may actually be the first bullet of a
     # bullet-less list — e.g. "N украинских БПЛА уничтожены над X, M – над Y,
