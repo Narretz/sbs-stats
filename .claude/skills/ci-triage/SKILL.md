@@ -16,10 +16,31 @@ actionable" for a week.
 ## 1. Deduplicate before anything else
 
 **Before reading the digest**, list the open PRs and the last ~10 issues
-(open and closed) and collect every
-`ci-triage-fingerprint:` marker in their bodies. Any finding class whose
-fingerprint is already filed is **done** — do not reopen it, do not open a
-second PR, do not comment. Skip it silently.
+(open and closed — the issues endpoint returns PRs too) and collect every
+`ci-triage-fingerprint:` marker in their bodies, noting each one's state and,
+if closed, its `closed_at` / `merged_at`.
+
+A fingerprint names a finding **class** (its annotation title), not one
+occurrence — the same class fires again whenever the same kind of thing goes
+wrong. So whether it is "already filed" depends on the state of what carries it:
+
+- **Open PR or open issue** — filed. Skip it silently: do not open a second
+  PR, do not comment.
+- **Merged PR or closed issue** — that fix is finished, and it settled the
+  occurrences it was written against, not the class forever. Compare the
+  occurrence dates in the digest (the dates the message names, and the run
+  that raised it) against the close/merge time:
+  - every occurrence predates the merge, or comes from a run that started
+    before the fix was deployed — already handled, skip it;
+  - any occurrence is newer — it is a **new finding**. Triage it from scratch
+    as in steps 3–4: it may be a regression of that fix, or the same symptom
+    with a different cause (another wording the gate does not admit, or a
+    genuinely silent source). Read the earlier PR first, since it shows how
+    the last one was settled, and link it in whatever you open. A merged PR is
+    never reused — any fix goes on a new branch and a new PR.
+
+Never skip a class only because its fingerprint appears somewhere in the
+history.
 
 ## 2. Read the digest
 
@@ -231,14 +252,15 @@ host or credential, explicitly, in your report.
   published DB. Widening a lookback and re-scraping is a human decision.
 - Mutate a dataset — no `--mark-silent`, no `--apply`, no `reparse --apply`.
 - Commit anything under `data/`.
-- Open a PR for a finding class that already has one.
+- Open a PR for a finding class that already has an **open** one.
 
 ## 6. Report back
 
 End with a short summary, in this shape:
 
 - how many runs, failures and finding classes were in the window;
-- what you skipped as already-filed, in one line;
+- what you skipped as already-filed, in one line — for a fingerprint whose PR
+  or issue is closed, say why its occurrences in this window predate the fix;
 - what you judged transient or expected, in one line each — with the reason;
 - PRs opened, with links;
 - anything blocked on data you cannot reach, or on a decision that is the user's.
