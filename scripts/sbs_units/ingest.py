@@ -285,8 +285,9 @@ def upsert_units(conn: sqlite3.Connection, units: list[Unit], now_iso: str) -> N
             if prior[2] and not u.active:
                 log.warning(
                     f"unit {u.slug} lost its daily period — treating it as "
-                    "retired. Its monthly periods stay readable for now; back "
-                    "them up while they last.",
+                    "retired. Its stored months are kept; its last month is "
+                    "still re-read through the revision tail while the API "
+                    "serves it.",
                     extra=ann(title="sbs-units: unit retired"),
                 )
         conn.execute(
