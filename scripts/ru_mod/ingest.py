@@ -1033,9 +1033,13 @@ def iter_web(channel: str, since_id: int, max_pages: int, sleep: float, backfill
         p.feed(_fetch(url))
         page_ids = []
         reached_known = False
-        for post in p.posts:
-            if not post["id"].isdigit():
-                continue
+        # A t.me/s page lists its posts OLDEST first. Callers stop at the first
+        # post older than their window (ingest's --since, probe_gap), so yielding
+        # in page order would end the walk at the boundary page's oldest post and
+        # drop every newer in-window post after it — hence newest first here too.
+        page = sorted((p_ for p_ in p.posts if p_["id"].isdigit()),
+                      key=lambda p_: int(p_["id"]), reverse=True)
+        for post in page:
             pid = int(post["id"])
             page_ids.append(pid)
             if pid in seen:
