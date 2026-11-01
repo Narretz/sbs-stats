@@ -76,6 +76,13 @@ endpoint has been frozen on `2025-08-30` with zeros for over a year. The rule
 is "no monthly periods, nothing to store" rather than a name-based exclusion,
 so it starts being tracked on its own if the source ever publishes one.
 
+That half-happened on 2026-11-01: `/periods` suddenly listed twelve monthly,
+two yearly and both intraday slots for it, and **every one answers HTTP 404**
+(not the 200 `not_collected` stub). The first 404 aborted the whole run. A
+listed period that 404s is now a `notice` and skipped, so it costs only that
+unit's data and is picked up unattended once it serves; any other HTTP error
+still fails the run.
+
 ### The units do not sum to the grouping
 
 Targets Hit, named units vs the USF total: 2026-08 → 57,268 vs 57,482; 2026-07

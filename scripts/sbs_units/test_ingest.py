@@ -262,6 +262,25 @@ class TestReadPeriod:
         got = ing.read_period(self._disc(), self._unit(), "p", "prev_day", None)
         assert got["stated_start"] == "2026-09-14"
 
+    @staticmethod
+    def _raise(status: int):
+        def fetch(url):
+            resp = ing.requests.Response()
+            resp.status_code = status
+            raise ing.requests.exceptions.HTTPError(f"{status}", response=resp)
+        return fetch
+
+    def test_a_listed_period_that_404s_is_skipped(self, monkeypatch):
+        # 1 ОЦ БПС, 2026-11: every monthly and yearly slot issued, every one
+        # 404. It used to abort the run for all sixteen units.
+        monkeypatch.setattr(ing, "fetch_json", self._raise(404))
+        assert ing.read_period(self._disc(), self._unit(), "p", "monthly 2026-11", "2026-11") is None
+
+    def test_other_http_errors_still_raise(self, monkeypatch):
+        monkeypatch.setattr(ing, "fetch_json", self._raise(500))
+        with pytest.raises(ing.requests.exceptions.HTTPError):
+            ing.read_period(self._disc(), self._unit(), "p", "monthly 2026-11", "2026-11")
+
 
 # ─── Writing ─────────────────────────────────────────────────────────────────
 

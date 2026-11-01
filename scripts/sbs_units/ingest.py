@@ -61,6 +61,8 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
+import requests
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
@@ -347,7 +349,21 @@ def read_period(
     August, not this one's.
     """
     url = disc.stats_url(unit.subdivision_id, period_id)
-    raw = _paced_fetch(url)
+    try:
+        raw = _paced_fetch(url)
+    except requests.exceptions.HTTPError as e:
+        # A period `/periods` lists can still 404: 1 ОЦ БПС had a full set of
+        # slots issued (2026-11) before a single one served stats. That is one
+        # unit's data not existing yet, not a reason to drop every other unit's
+        # run — so skip it, and leave anything other than a 404 to fail loudly.
+        if e.response is None or e.response.status_code != 404:
+            raise
+        log.warning(
+            f"{unit.slug} {what}: period {period_id} is listed but answers "
+            "404 — skipping. Picked up on its own once the source serves it.",
+            extra=ann(level="notice", title="sbs-units: listed period 404s"),
+        )
+        return None
     data = raw.get("data", {})
     if not _payload_is_usable(data, f"{unit.slug} {what}"):
         return None
