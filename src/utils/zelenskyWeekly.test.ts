@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ZelenskyWeekRow } from "@/types";
-import { UNDERCOUNT_NOTE, formatHedged, formatJetDrones, monthlySources, monthsBetween, mondaysBetween, monthsSpanned, toMonthlyDataset, toWeeklyDataset, weeklySources, weeksInMonthWindow, windowTicks } from "./zelenskyWeekly";
+import { UNDERCOUNT_NOTE, firstMonthWith, formatHedged, formatJetDrones, jetDronesCount, monthlySources, monthsBetween, mondaysBetween, monthsSpanned, toMonthlyDataset, toWeeklyDataset, weeklySources, weeksInMonthWindow, windowTicks } from "./zelenskyWeekly";
 
 const row = (period_start: string, drones: number | null): ZelenskyWeekRow => ({
   period: "x", period_start, period_end: "x", post_id: 1, posted_at: "x", url: "x",
@@ -125,5 +125,31 @@ describe("formatJetDrones", () => {
   });
   it("is null for a week that gave no figure", () => {
     expect(formatJetDrones(row("2026-10-12", 2700))).toBeNull();
+  });
+});
+
+describe("jet-powered drones by month", () => {
+  const count = { ...row("2026-09-28", 1900), jet_drones: 800, jet_drones_bound: "at_least" as const };
+  const share = { ...row("2026-10-05", 1640), jet_drones_pct: 60, jet_drones_pct_bound: "approx" as const };
+
+  it("takes a count as given and turns a share into one with the week's drones", () => {
+    expect(jetDronesCount(count)).toBe(800);
+    expect(jetDronesCount(share)).toBe(984);
+    expect(jetDronesCount(row("2026-10-12", 2700))).toBeNull();
+  });
+
+  it("splits the weeks over months like the weapons, with coverage and the undercount note", () => {
+    // 28 Sep – 4 Oct: 3 days in September, 4 in October; 5–11 Oct whole.
+    const data = toMonthlyDataset([count, share, row("2026-10-12", 2700)], "jet_drones", ["2026-09", "2026-10"], "2026-11");
+    expect(data).toEqual([
+      { date: "2026-09", value: Math.round((800 * 3) / 7), days_available: 3, note: UNDERCOUNT_NOTE },
+      { date: "2026-10", value: Math.round((800 * 4) / 7 + 984), days_available: 11, note: UNDERCOUNT_NOTE },
+    ]);
+  });
+
+  it("starts at the first month any week gives a figure in", () => {
+    expect(firstMonthWith([row("2026-08-31", 2000), count, share], "jet_drones")).toBe("2026-09");
+    expect(firstMonthWith([row("2026-08-31", 2000)], "jet_drones")).toBeNull();
+    expect(firstMonthWith([row("2026-08-31", 2000)], "drones")).toBe("2026-08");
   });
 });

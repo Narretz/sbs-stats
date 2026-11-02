@@ -103,5 +103,9 @@ test.describe("Zelensky monthly roll-up", () => {
     const bombs = await tooltipAt(page, BOMBS, "2026-01");
     expect(bombs).toMatch(/Actual\s+900/);
     expect(bombs).toContain("7 of 31 days");
+    // Jet-powered: the fixture's full week gives ≈60% of its 1,000 drones.
+    const jet = await tooltipAt(page, "RU Strike Drones Launched — of which Jet-Powered", "2026-01");
+    expect(jet).toMatch(/Actual\s+600/);
+    expect(jet).toContain("7 of 31 days");
   });
 });
