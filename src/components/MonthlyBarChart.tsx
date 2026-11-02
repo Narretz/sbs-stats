@@ -13,6 +13,8 @@ import { monthCoverage, projectionBasis } from "@/utils/monthProjection";
 import { monthHeader } from "@/components/monthHeader";
 import { getKyivDateString } from "@/hooks/sqlLoader";
 
+const monthKey = (date: string) => date.slice(0, 7);
+
 interface Props {
   title: string;
   data: MonthlyDataPoint[];
@@ -44,6 +46,10 @@ interface Props {
   // The primary source behind each month ("YYYY-MM"), linked in the pinned
   // sheet only — see TooltipDescriptor.sources.
   sourcesByDate?: Map<string, SheetSource[]>;
+  /** The `sourcesByDate` key for a bar: its month by default (a monthly
+   *  recap's post covers the month); the whole date for a weekly chart, whose
+   *  bars are keyed by Monday. */
+  sourceKey?: (date: string) => string;
   /** The anchor the sheet's "By day →" link lands on, when the daily page
    *  titles this chart differently. Defaults to this chart's own anchor; ""
    *  opens the daily page at the top, for a chart it doesn't have. */
@@ -57,7 +63,7 @@ const MAX_BAR_SIZE = 70;
 
 export function MonthlyBarChart({
   title, data, wfull, breakdownByMonth,
-  globalMax, globalMedian, globalTotal, subsetLabel, formatTick, xTicks, formatHeader, explainGaps, sourcesByDate,
+  globalMax, globalMedian, globalTotal, subsetLabel, formatTick, xTicks, formatHeader, explainGaps, sourcesByDate, sourceKey = monthKey,
   drillAnchor,
 }: Props) {
   const { theme: t } = useTheme();
@@ -108,7 +114,7 @@ export function MonthlyBarChart({
         ⚠ {d.note}
       </div>
     ) : null;
-    return { header, rows, footer, subsetLabel, minWidth: 200, sources: sourcesByDate?.get(d.date.slice(0, 7)) };
+    return { header, rows, footer, subsetLabel, minWidth: 200, sources: sourcesByDate?.get(sourceKey(d.date)) };
   };
 
   const statsHeader = (

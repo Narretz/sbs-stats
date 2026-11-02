@@ -60,4 +60,23 @@ test.describe("Zelensky weekly tally", () => {
     const tip = await tooltipAt(page, BOMBS, "2026-01-19/25");
     expect(tip).toContain("as posted: not reported");
   });
+
+  // A pinned week links the post its figures were read from; the label
+  // formatting is zelenskyWeekly.test.ts.
+  test("a pinned week links its Telegram post", async ({ page }) => {
+    const card = chartCard(page, DRONES);
+    await card.scrollIntoViewIfNeeded();
+    const svg = card.locator("svg.recharts-surface").first();
+    const box = (await svg.boundingBox())!;
+    const sheet = page.locator(".chart-sheet[data-open]");
+    for (let i = 1; i <= 30; i++) {
+      await svg.click({ position: { x: (box.width * i) / 30, y: box.height * 0.55 } });
+      if ((await sheet.count()) && (await sheet.innerText()).includes("2026-01-05/11")) break;
+    }
+    await expect(sheet).toContainText("2026-01-05/11");
+    const sources = sheet.locator(".chart-sheet-sources");
+    await sources.getByRole("button", { name: /Sources \(1\)/ }).click();
+    await expect(sources.locator("a").first()).toHaveAttribute("href", "https://t.me/V_Zelenskiy_official/1");
+    await expect(sources.locator("a").first()).toHaveText(/^2026-01-11 10:00 Kyiv ↗$/);
+  });
 });

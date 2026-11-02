@@ -3,6 +3,11 @@ import { useZelenskyWeeklyDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { PageScaffold } from "@/components/PageScaffold";
+import { MonthWindowControls } from "@/components/MonthWindowControls";
+import { MoreControls } from "@/components/MoreControls";
+import { StatScopeToggle } from "@/components/StatScopeToggle";
+import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
+import { maxMedian } from "@/utils/windowStats";
 import {
   ZELENSKY_CATEGORIES,
   ZELENSKY_CATEGORY_LABELS,
@@ -10,7 +15,10 @@ import {
   type ZelenskyCategory,
   type ZelenskyWeekRow,
 } from "@/types";
-import { formatHedged, formatWeekRange, formatWeekTick, mondaysBetween, quarterTicks, toWeeklyDataset } from "@/utils/zelenskyWeekly";
+import {
+  formatHedged, formatWeekRange, formatWeekTick, mondaysBetween, monthsSpanned, toWeeklyDataset,
+  weeklySources, weeksInMonthWindow, windowTicks,
+} from "@/utils/zelenskyWeekly";
 import { FONTS } from "@/theme";
 
 interface Props {
@@ -18,6 +26,8 @@ interface Props {
 }
 
 const CHANNEL_URL = "https://t.me/V_Zelenskiy_official";
+// Sources are keyed by the week's Monday, the bar's own date.
+const weekKey = (date: string) => date;
 
 export function ZelenskyWeeklyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
@@ -34,12 +44,35 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
 
   // Every week from the first tally to the last, so the months without one
   // show as gaps instead of being closed up.
-  const mondays = useMemo(
+  const allMondays = useMemo(
     () => (rows.length ? mondaysBetween(rows[0].period_start, rows[rows.length - 1].period_start) : []),
     [rows],
   );
-  const ticks = useMemo(() => quarterTicks(mondays), [mondays]);
+  const first = rows[0]?.period_start;
+  const last = rows[rows.length - 1]?.period_end;
+
+  // The monthly pages' time window (months + end month, default 12 months),
+  // over the weeks whose Monday falls in it. Counted in calendar months, so
+  // the picker shows once the series spans more than a year.
+  const yr = useMonthlyMonthRange({
+    count: first && last ? monthsSpanned(first, last) : 0,
+    first: first ?? "",
+  });
+  const mondays = useMemo(
+    () => (yr.hidden ? allMondays : weeksInMonthWindow(allMondays, yr.months, yr.endMonth)),
+    [allMondays, yr.hidden, yr.months, yr.endMonth],
+  );
+  const ticks = useMemo(() => windowTicks(mondays), [mondays]);
   const byMonday = useMemo(() => new Map(rows.map((r) => [r.period_start, r])), [rows]);
+  // The post behind each week, linked from a pinned bar's sheet.
+  const sources = useMemo(() => weeklySources(rows), [rows]);
+  // Whole-series stats, for the "all" stat scope; the window's own are the
+  // chart's default.
+  const allStats = useMemo(
+    () => Object.fromEntries(ZELENSKY_CATEGORIES.map((k) => [k, maxMedian(rows.map((r) => r[k]))])) as
+      Record<ZelenskyCategory, ReturnType<typeof maxMedian>>,
+    [rows],
+  );
 
   // Tooltip header: the week spelled out, plus the figure as the post hedged
   // it — the bar height alone would present "понад 3170" as exactly 3,170.
@@ -57,9 +90,6 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
     );
   };
 
-  const first = rows[0]?.period_start;
-  const last = rows[rows.length - 1]?.period_end;
-
   return (
     <PageScaffold
       title="Weekly Russian Strikes — President of Ukraine"
@@ -75,6 +105,8 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
         {" "}
         Posts say only "this week" or "last week", so the dates are worked out from when
         each post went up (Monday–Sunday, Kyiv time).
+        {" "}
+        Click a week to pin it and link the post its figures come from.
         {" "}
         Empty weeks had no weekly tally. Through most of Apr–Sep 2025 the President posted
         month-to-date totals instead, which are not shown here.
@@ -107,6 +139,15 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
           </ol>
         </details>
       ) : undefined}
+      // No window picker → no scope toggle either; see StatScopeToggle.
+      controls={yr.hidden ? undefined : (
+        <>
+          <MonthWindowControls yr={yr} min={first ?? ""} />
+          <MoreControls>
+            <StatScopeToggle />
+          </MoreControls>
+        </>
+      )}
       loadState={loadState}
       error={error}
       hasData={hasData}
@@ -122,6 +163,11 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
             xTicks={ticks}
             formatHeader={headerFor(k)}
             explainGaps
+            globalMax={allStats[k].max}
+            globalMedian={allStats[k].median}
+            globalTotal={allStats[k].total}
+            sourcesByDate={sources}
+            sourceKey={weekKey}
           />
         ))}
       </>}

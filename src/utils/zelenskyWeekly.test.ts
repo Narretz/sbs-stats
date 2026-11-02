@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ZelenskyWeekRow } from "@/types";
-import { formatHedged, mondaysBetween, toWeeklyDataset } from "./zelenskyWeekly";
+import { formatHedged, mondaysBetween, monthsSpanned, toWeeklyDataset, weeklySources, weeksInMonthWindow, windowTicks } from "./zelenskyWeekly";
 
 const row = (period_start: string, drones: number | null): ZelenskyWeekRow => ({
   period: "x", period_start, period_end: "x", post_id: 1, posted_at: "x", url: "x",
@@ -32,5 +32,42 @@ describe("formatHedged", () => {
   });
   it("says a missing figure was not reported", () => {
     expect(formatHedged(null, null)).toBe("not reported");
+  });
+});
+
+describe("weeksInMonthWindow", () => {
+  const mondays = mondaysBetween("2025-10-27", "2026-03-02");
+  it("keeps the weeks whose Monday falls in the window's calendar months", () => {
+    const w = weeksInMonthWindow(mondays, 2, "2026-01");
+    expect(w[0]).toBe("2025-12-01");
+    expect(w[w.length - 1]).toBe("2026-01-26");
+    expect(w).toHaveLength(9);
+  });
+  it("'all' keeps everything up to the end month", () => {
+    expect(weeksInMonthWindow(mondays, "all", "2026-03")).toEqual(mondays);
+    expect(weeksInMonthWindow(mondays, "all", "2025-10")).toEqual(["2025-10-27"]);
+  });
+});
+
+describe("monthsSpanned", () => {
+  it("counts calendar months inclusively, across a year boundary", () => {
+    expect(monthsSpanned("2024-06-10", "2026-11-01")).toBe(30);
+    expect(monthsSpanned("2026-01-05", "2026-01-25")).toBe(1);
+  });
+});
+
+describe("windowTicks", () => {
+  it("labels each month in a short window, each quarter in a long one", () => {
+    expect(windowTicks(mondaysBetween("2026-01-05", "2026-03-30"))).toEqual(["2026-01-05", "2026-02-02", "2026-03-02"]);
+    expect(windowTicks(mondaysBetween("2025-01-06", "2025-12-29"))).toEqual(["2025-01-06", "2025-04-07", "2025-07-07", "2025-10-06"]);
+  });
+});
+
+describe("weeklySources", () => {
+  it("links each week's post under its Monday, as posted in Kyiv time", () => {
+    const r = { ...row("2026-01-05", 1100), url: "https://t.me/V_Zelenskiy_official/1", posted_at: "2026-01-11T15:30:00Z" };
+    expect(weeklySources([r]).get("2026-01-05")).toEqual([
+      { href: "https://t.me/V_Zelenskiy_official/1", linkText: "2026-01-11 17:30 Kyiv", label: "" },
+    ]);
   });
 });
