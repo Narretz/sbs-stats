@@ -47,6 +47,7 @@ from __future__ import annotations
 import argparse
 import calendar
 import hashlib
+import json
 import os
 import sqlite3
 import sys
@@ -92,13 +93,10 @@ DEFAULT_BACKFILL_PAGES = 150
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 SCHEMA = SCHEMA_PATH.read_text(encoding="utf-8")
 
-# Hand transcriptions of data the channel only publishes as an image (from Oct
-# 2026 the digest's per-category breakdown is a chart in the post's album).
-# One file per post, `*-post<id>.txt`; '#' lines are comments. The rest is
-# appended to that post's text after MANUAL_MARKER, so it is parsed by the
-# same parser, stored in body_text with the post, and picked up by --reparse.
-MANUAL_DIR = SCRIPT_DIR / "manual"
-MANUAL_MARKER = "\n\n----- manual transcription (scripts/rubikon/manual/) -----\n"
+# Hand-entered digest breakdowns the channel publishes only as an image (from
+# Oct 2026 the per-category list moved from the «Итоги» text into a chart in
+# the post's album). Keyed by the text post's id; see add_manual().
+MANUAL_PATH = SCRIPT_DIR / "manual_digest.json"
 
 
 # ── web backend (t.me/s preview) ────────────────────────────────────────────
@@ -253,27 +251,62 @@ def parse_any(text: str, posted_at: datetime) -> Parsed:
     return Parsed("unknown", None, None, None, [], [], [])
 
 
-# ── manual transcriptions ───────────────────────────────────────────────────
+# ── hand-entered breakdowns ─────────────────────────────────────────────────
 
-def load_manual(directory: Path | None = None) -> dict[int, str]:
-    """post_id → transcription text (comment lines removed)."""
-    out: dict[int, str] = {}
-    for path in sorted((directory or MANUAL_DIR).glob("*-post*.txt")):
-        post_id = int(path.stem.rsplit("-post", 1)[1])
-        lines = [ln for ln in path.read_text(encoding="utf-8").splitlines()
-                 if not ln.lstrip().startswith("#")]
-        out[post_id] = "\n".join(lines).strip()
-    return out
+def load_manual(path: Path | None = None) -> dict[int, dict]:
+    """post_id → entry from manual_digest.json ('_'-prefixed keys are comments)."""
+    path = path or MANUAL_PATH
+    if not path.exists():
+        return {}
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return {int(k): v for k, v in raw.items() if not k.startswith("_")}
 
 
-def with_manual(text: str, supplement: str | None) -> str:
-    """The post's own text plus its current transcription, if any.
+def add_manual(report: Parsed, entry: dict | None) -> Parsed:
+    """The parsed post plus its hand-entered breakdown, checked.
 
-    Strips a previously appended transcription first, so re-applying is
-    idempotent and an edited file REPLACES the old one rather than stacking.
+    Nothing is merged — only warned about — if the entry names a different
+    month than the post (a wrong post id), a category the digest doesn't know,
+    or a category the post's own text already gave. Each value is checked
+    against the chart's printed share of the rows' sum, which catches a
+    mistyped number. The chart covers the "main" types only (Oct 2026: 6551
+    of 6694), so the sum may fall short of the headline but not exceed it.
     """
-    base = text.split(MANUAL_MARKER, 1)[0]
-    return base + MANUAL_MARKER + supplement if supplement else base
+    if not entry or report.report_type != "monthly_digest":
+        return report
+    warnings = list(report.warnings)
+    rows = entry.get("counters", {})
+    have = {c[0] for c in report.counters}
+    problems = []
+    if entry.get("period") != report.period:
+        problems.append(f"entry is for {entry.get('period')}, the post is {report.period}")
+    problems += [f"unknown category {k!r}" for k in rows if k not in parse_digest.CATEGORY_ORDER]
+    problems += [f"{k!r} is already in the post's text" for k in rows if k in have]
+    if problems:
+        warnings.append(f"{MANUAL_PATH.name} not applied: {'; '.join(problems)}")
+        return Parsed(**{**report.__dict__, "warnings": warnings})
+
+    total = sum(r["value"] for r in rows.values())
+    for key, r in rows.items():
+        if "share" in r and total and abs(100 * r["value"] / total - r["share"]) > 0.051:
+            warnings.append(
+                f"{MANUAL_PATH.name}: {key} = {r['value']} is "
+                f"{100 * r['value'] / total:.2f}% of the rows' sum {total}, but the "
+                f"chart says {r['share']}% — probably mistyped"
+            )
+    headline = next((c for c in report.counters
+                     if c[1] == parse_digest.KIND_TOTAL and c[3] == "exact"), None)
+    if headline and total > headline[2]:
+        warnings.append(f"{MANUAL_PATH.name}: rows sum to {total}, more than the "
+                        f"headline's {headline[2]}")
+
+    order = {k: i for i, k in enumerate(parse_digest.CATEGORY_ORDER)}
+    counters = report.counters + [
+        (k, parse_digest.KIND_EPISODE, r["value"], "exact", r.get("label", k))
+        for k, r in rows.items()
+    ]
+    counters.sort(key=lambda c: order.get(c[0], len(order)))
+    return Parsed(**{**report.__dict__, "counters": counters, "warnings": warnings})
 
 
 # ── storage ─────────────────────────────────────────────────────────────────
@@ -417,8 +450,7 @@ def run_scrape(args: argparse.Namespace) -> int:
         ):
             scanned += 1
             seen.add(post_id)
-            text = with_manual(text, manual.get(post_id))
-            report = parse_any(text, posted_at)
+            report = add_manual(parse_any(text, posted_at), manual.get(post_id))
             # Only the two monthly series are stored. Everything else on this
             # channel (combat footage, recruiting, milestone tallies, the
             # direction-scoped cumulative totals) parses to 'unknown' and is
@@ -435,11 +467,11 @@ def run_scrape(args: argparse.Namespace) -> int:
                   f"{report.period} ({len(report.counters)} counters)")
             if args.verbose:
                 _print_report(post_id, report)
-        # A transcription is usually committed AFTER its post was scraped, and
-        # the incremental walk never revisits a stored post — so apply any
-        # transcription for a stored post this walk didn't reach. store() only
-        # writes when the parsed counters differ, so this is a no-op once done.
-        for post_id, supplement in manual.items():
+        # An entry is usually committed AFTER its post was scraped, and the
+        # incremental walk never revisits a stored post — so apply entries for
+        # stored posts this walk didn't reach. store() writes only when the
+        # counters differ, so once applied this is a no-op.
+        for post_id, entry in manual.items():
             if post_id in seen:
                 continue
             row = conn.execute(
@@ -449,16 +481,15 @@ def run_scrape(args: argparse.Namespace) -> int:
             if not row:
                 continue
             posted_at = datetime.fromisoformat(row[0])
-            text = with_manual(row[1], supplement)
-            report = parse_any(text, posted_at)
+            report = add_manual(parse_any(row[1], posted_at), entry)
             if report.report_type == "unknown":
                 continue
             _warn(post_id, report)
-            status = store(conn, post_id, posted_at, text, report, args.channel)
+            status = store(conn, post_id, posted_at, row[1], report, args.channel)
             counts[status] += 1
             if status != "unchanged":
                 changed_types.add(report.report_type)
-                print(f"{status} (manual transcription): {args.channel}/{post_id} → "
+                print(f"{status} ({MANUAL_PATH.name}): {args.channel}/{post_id} → "
                       f"{report.report_type} {report.period} ({len(report.counters)} counters)")
         print(f"scanned {scanned} post(s) over ≤{max_pages} page(s); "
               f"{counts['inserted']} inserted, {counts['updated']} updated, "
@@ -491,8 +522,9 @@ def run_reparse(args: argparse.Namespace) -> int:
         changed_types: set[str] = set()
         manual = load_manual()
         for post_id, posted_at, body_text in rows:
-            body_text = with_manual(body_text, manual.get(post_id))
-            report = parse_any(body_text, datetime.fromisoformat(posted_at))
+            report = add_manual(
+                parse_any(body_text, datetime.fromisoformat(posted_at)), manual.get(post_id)
+            )
             if report.report_type == "unknown":
                 # The stored text is right here, and it is the whole evidence:
                 # a reparse regression is diagnosed by reading what stopped

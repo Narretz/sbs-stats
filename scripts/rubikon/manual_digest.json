@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "Hand-entered «Итоги» digest breakdowns that the channel publishes only as an image.",
+    "Keyed by the id of the TEXT post that the ingest stores; ingest.py adds these counters",
+    "to that post (as a new version) on its next run. Categories are parse_digest.py's keys.",
+    "Keep the chart's share (%) per row: every value is checked against it to catch typos.",
+    "See scripts/rubikon/README.md, 'Hand-entered breakdowns'."
+  ],
+  "3028": {
+    "period": "2026-10",
+    "source": "https://t.me/icpbtrubicon/3029?single",
+    "counters": {
+      "uav_multirotor":         {"value": 1954, "share": 29.8, "label": "БПЛА (мультикоптерный тип)"},
+      "uav_fixed_wing":         {"value": 2753, "share": 42.0, "label": "БПЛА (самолетный тип)"},
+      "ugv":                    {"value": 503,  "share": 7.7,  "label": "НРТК"},
+      "radar_comms":            {"value": 403,  "share": 6.2,  "label": "Средства связи"},
+      "personnel":              {"value": 80,   "share": 1.2,  "label": "Личный состав"},
+      "artillery":              {"value": 30,   "share": 0.5,  "label": "Артиллерийские системы"},
+      "tanks":                  {"value": 5,    "share": 0.1,  "label": "Танки"},
+      "armour":                 {"value": 91,   "share": 1.4,  "label": "ББМ"},
+      "special_vehicles_boats": {"value": 5,    "share": 0.1,  "label": "Спецтехника и плавсредства"},
+      "vehicles":               {"value": 258,  "share": 3.9,  "label": "Автотранспорт"},
+      "positions":              {"value": 330,  "share": 5.0,  "label": "ПВД и полевые укрепления"},
+      "logistics":              {"value": 98,   "share": 1.5,  "label": "Материально-техническое обеспечение"},
+      "infrastructure":         {"value": 3,    "share": 0.0,  "label": "Инфраструктура"},
+      "vks_joint":              {"value": 38,   "share": 0.6,  "label": "Взаимодействие с ВКС"}
+    }
+  }
+}

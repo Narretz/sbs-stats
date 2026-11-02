@@ -156,13 +156,13 @@ Coverage — **2025-07 → 2026-08**, wider than the recap but thinner:
 | **2025-12** | **❌ skipped** — replaced by the annual «Итоги 2025» | ❌ |
 | 2026-01 … 2026-03 | ✅ | ✅ 10–11 |
 | 2026-04 … 2026-08 | ✅ (2026-08 a floor) | ❌ dropped |
-| 2026-10 → | ✅ | ✅ 14, **only in a chart image**, transcribed by hand ([below](#hand-transcribed-breakdowns-manual)) |
+| 2026-10 → | ✅ | ✅ 14, **only as a chart image**, entered by hand ([below](#hand-entered-breakdowns-manual_digestjson)) |
 
 Counter kinds: `published_total` (the headline) and `published_episodes` (one
 per structure-list line). `counters.bound` is `at_least` where the post says
 «превысило N» rather than «составило N».
 
-**Every text breakdown sums exactly to its own headline** — six for six.
+**Every published breakdown sums exactly to its own headline** — six for six.
 The parser checks it and warns on a mismatch, and `test_parse_digest.py`
 asserts it, so a dropped or double-counted bullet fails loudly.
 
@@ -191,40 +191,40 @@ never. Post 2551 prints both totals side by side: **280 000** targets hit vs
 Hence: separate `kind`, separate categories namespace, separate page, never a
 shared axis.
 
-### Hand-transcribed breakdowns (`manual/`)
+### Hand-entered breakdowns (`manual_digest.json`)
 
-From October 2026 the «Итоги» text carries only the headline; the
-per-category breakdown is a chart image in the same album (Oct 2026: text
-post 3028, chart [3031](https://t.me/icpbtrubicon/3031?single)). Rather than
-add OCR, it is typed in by hand: one file per post,
-`manual/digest-<YYYY-MM>-post<id>.txt`, keyed by the **text** post's id (the
-one the ingest stores), in the bullet format the parser already reads:
+From October 2026 the «Итоги» text carries only the headline; the rest moved
+into the post's album as images. Oct 2026 (text post 3028):
 
-```
-# comment lines are ignored
-Структура основных типов пораженных целей в октябре 2026:
-• БПЛА (мультикоптерный тип) - 1954 (29.8%)
-• Материально-техническое обеспечение - 98 (1.5%)
-…
-```
+| Album image | Shows |
+|---|---|
+| [3028](https://t.me/icpbtrubicon/3028?single) | Monthly published-episode totals, 2025-01 → now (matches the stored headlines, ±a few) |
+| [3029](https://t.me/icpbtrubicon/3029?single) | **The month's per-category breakdown**, with each row's share (%) |
+| [3030](https://t.me/icpbtrubicon/3030?single) | Monthly fixed-wing UAV intercepts |
+| [3031](https://t.me/icpbtrubicon/3031?single) | Monthly long-range fixed-wing UAV intercepts |
 
-`ingest.py` appends the file to that post's text (after a marker line) before
-parsing, so it is stored in `body_text` with the post and survives
-`--reparse`. Commit the file and the next run applies it — including to a post
-an earlier run already stored, which the incremental walk would otherwise never
-revisit. Editing the file replaces the old transcription; it doesn't stack.
+**This is still the digest, not the General-Staff recap in a new format** —
+the recap keeps arriving as text on the 3rd–4th (Sep 2026: digest 2767 on
+30 Sep, recap 2793 on 3 Oct).
 
-**Keep the chart's `(N.N%)` shares.** They are shares of the chart's own sum,
-and the parser checks every count against its share, so a mistyped number
-warns rather than being stored. The chart shows the "main" types only — Oct
-2026 sums to 6551 against a headline of 6694 — so for a breakdown with shares
-the sum-equals-headline rule below relaxes to "must not exceed it".
+The breakdown is entered by hand into `manual_digest.json`, keyed by the
+**text** post's id (the one the ingest stores), with `parse_digest.py`'s
+category keys and the chart's share per row. The next update run adds those
+counters to that post as a new version — including a post an earlier run
+already stored, which the incremental walk would otherwise never revisit — and
+`--reparse` applies it the same way. Nothing reaches the app: the digest isn't
+displayed, and the new keys exist only on the Python side.
 
-The image itself: the `t.me/s/icpbtrubicon` preview page links each album
-photo as `<a class="tgme_widget_message_photo_wrap" href="https://t.me/icpbtrubicon/<id>?single"
-style="background-image:url('https://cdn4.telesco.pe/file/…')">`. The CDN path
-is a long opaque token that may not stay valid, so link the `?single` URL,
-not the CDN one.
+Checks (each a warning; a failing entry is not merged): the entry's `period`
+must match the post's, keys must be known digest categories not already in the
+post's text, and each value must match its share of the rows' sum (±0.05 pp),
+which catches a typo. The chart covers the "main" types only — Oct 2026 sums
+to 6551 against a headline of 6694 — so the rows may fall short of the headline
+but not exceed it.
+
+The images themselves are `https://cdn4.telesco.pe/file/<token>` links in the
+`t.me/s` preview HTML (`tgme_widget_message_photo_wrap`); link the `?single`
+post URL rather than the CDN one, whose token may not stay valid.
 
 ### Digest source quirks
 
