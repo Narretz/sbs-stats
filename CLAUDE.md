@@ -70,8 +70,10 @@ datasets for future views.
   own period total, so an SBS week need not reconcile with it). A week with no
   figure on any day is a gap, a week summed from fewer days than it has had
   carries a "may be undercounted" note, and the week in progress is marked
-  partial. The President's tally (`zelensky.*`) is the one weekly-only source —
-  it is why the grain exists.
+  partial. The President's tally (`zelensky.*`) is the one source with no daily
+  figure — it is why the grain exists. Its monthly grain is built from the
+  weeks, each week's daily average summed over a month's days
+  (`utils/zelenskyWeekly.ts toMonthlyDataset`, shared with its own monthly page).
 - **Color**: `src/theme.ts` is the single source of truth — chrome tokens plus
   the chart-series tokens (`series1` blue = the main series of any chart,
   `series2` red = a second series drawn against it). `ThemeProvider` publishes

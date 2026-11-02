@@ -162,7 +162,8 @@ export function HomePage({ onGoToSite }: Props) {
   // Mount every source's hook (Rules of Hooks); each is inert until selected.
   // The daily-capable sources are usable at every grain (weekly sums their
   // days); SBU Alfa, Rubikon and Mediazona are monthly-only, and the
-  // President's tally is weekly-only — each appears in the picker only for a
+  // President's tally has no daily figure (weekly, and months built from its
+  // weeks) — each appears in the picker only for a
   // chart of a grain it has.
   const sbs = useDatabaseSbs({ enabled: needed.has("sbs") });
   // Loaded when a unit metric is already selected (a shared link, a saved
@@ -292,6 +293,7 @@ export function HomePage({ onGoToSite }: Props) {
             rubikon: needed.has("rubikon") ? rubikon.queryCounters : undefined,
             mediazonaRoles: needed.has("mediazona-roles") ? mediazona.queryRolesMonthly : undefined,
             mediazonaEstimate: needed.has("mediazona-estimate") ? mediazona.queryEstimateMonthly : undefined,
+            zelensky: needed.has("zelensky") ? zelensky.queryWeeks : undefined,
           })
         : c.granularity === "weekly"
         // Weekly: the daily queries over the window's whole weeks, summed per
@@ -557,7 +559,7 @@ export function HomePage({ onGoToSite }: Props) {
             Combined Charts
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6, maxWidth: 720 }}>
-            {showingDefaults && "Currently showing the default charts. "}Pick any combination of metrics across the data sources. Each chart has its own granularity and time window — switch a chart to Weekly to set daily sources against weekly-only ones (the President's strike tally), or to Monthly for longer trends.
+            {showingDefaults && "Currently showing the default charts. "}Pick any combination of metrics across the data sources. Each chart has its own granularity and time window — switch a chart to Weekly to set daily sources against the President's weekly strike tally, or to Monthly for longer trends.
           </p>
         </div>
 

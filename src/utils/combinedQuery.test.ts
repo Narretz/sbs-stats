@@ -67,3 +67,34 @@ describe("fetchCombinedMonthly", () => {
     expect(drones[2].note).toBeUndefined();
   });
 });
+
+describe("fetchCombinedMonthly — the President's weekly tally", () => {
+  const week = (period_start: string, drones: number | null): ZelenskyWeekRow => ({ ...tally(period_start, drones) });
+
+  it("builds months from the weeks' daily averages and notes a finished month left short", async () => {
+    // Every week of Dec 2025 – Jan 2026 at 70 (10 a day), except the week of
+    // 12 Jan, with no tally; then 26 Jan – 1 Feb splits 6 days / 1 day.
+    const weeks = ["2025-12-01", "2025-12-08", "2025-12-15", "2025-12-22", "2025-12-29",
+      "2026-01-05", "2026-01-19", "2026-01-26"].map((m) => week(m, 70));
+    const out = await fetchCombinedMonthly([metric("zelensky.drones")], "all", "2026-02-10", { zelensky: () => weeks });
+    const s = out["zelensky.drones"];
+    expect(s.map((p) => [p.date, p.value])).toEqual([
+      ["2025-12", 310],  // all 31 days
+      ["2026-01", 240],  // 24 of 31 days: 29 Dec – 4 Jan's four, 5–11, 19–25, 26–31
+      ["2026-02", 10],   // 1 Feb, from the week spanning the turn of the month
+    ]);
+    expect(s[0].note).toBeUndefined();
+    expect(s[1].note).toMatch(/Weekly tallies cover 24 of 31 days — the other 7 have none/);
+  });
+
+  it("starts at the later of the window's start and the first tally", async () => {
+    const out = await fetchCombinedMonthly([metric("zelensky.drones")], 3, "2026-03-15", {
+      zelensky: () => [week("2025-12-01", 70), week("2026-02-02", 70)],
+    });
+    expect(out["zelensky.drones"].map((p) => p.date)).toEqual(["2026-01", "2026-02", "2026-03"]);
+    const late = await fetchCombinedMonthly([metric("zelensky.drones")], "all", "2026-03-15", {
+      zelensky: () => [week("2026-02-02", 70)],
+    });
+    expect(late["zelensky.drones"].map((p) => p.date)).toEqual(["2026-02", "2026-03"]);
+  });
+});

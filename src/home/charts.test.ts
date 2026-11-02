@@ -19,7 +19,7 @@ import {
 const DAILY_ID = "sbs.personnel_killed";
 const MONTHLY_ONLY_ID = "rubikon.personnel";
 // The President's tally, which exists only per week.
-const WEEKLY_ONLY_ID = "zelensky.bombs";
+const NO_DAILY_ID = "zelensky.bombs";
 
 // Everything about a chart except its uid, which is a render key counted up
 // per call and deliberately not part of the URL — comparing whole objects
@@ -105,7 +105,7 @@ describe("parseCharts", () => {
     const charts = [
       chart({ name: "First", window: 45 }),
       chart({ name: "Second", granularity: "monthly", window: "all", yMode: "log", metricIds: [MONTHLY_ONLY_ID] }),
-      chart({ name: "Third", granularity: "weekly", window: 52, metricIds: [DAILY_ID, WEEKLY_ONLY_ID] }),
+      chart({ name: "Third", granularity: "weekly", window: 52, metricIds: [DAILY_ID, NO_DAILY_ID] }),
       chart({ name: "Fourth", granularity: "weekly", window: 26, yMode: "normalized", style: "bar" }),
     ];
     const back = parseCharts(serializeCharts(charts), []);
@@ -125,11 +125,13 @@ describe("parseCharts", () => {
     expect(daily[0].metricIds).toEqual([DAILY_ID]);
     const monthly = parseCharts(`X:m12:${DAILY_ID},${MONTHLY_ONLY_ID}`, []);
     expect(monthly[0].metricIds).toEqual([DAILY_ID, MONTHLY_ONLY_ID]);
-    // Weekly takes the daily sources (summed into weeks) and the weekly-only
-    // tally, but not a monthly-only recap — and the tally is weekly-only.
-    const weekly = parseCharts(`X:w26:${DAILY_ID},${MONTHLY_ONLY_ID},${WEEKLY_ONLY_ID}`, []);
-    expect(weekly[0].metricIds).toEqual([DAILY_ID, WEEKLY_ONLY_ID]);
-    expect(parseCharts(`X:d30:${WEEKLY_ONLY_ID}`, [])[0].metricIds).toEqual([]);
+    // Weekly takes the daily sources (summed into weeks) and the weekly
+    // tally, but not a monthly-only recap; monthly takes the tally too (built
+    // from its weeks), and daily doesn't.
+    const weekly = parseCharts(`X:w26:${DAILY_ID},${MONTHLY_ONLY_ID},${NO_DAILY_ID}`, []);
+    expect(weekly[0].metricIds).toEqual([DAILY_ID, NO_DAILY_ID]);
+    expect(parseCharts(`X:d30:${NO_DAILY_ID}`, [])[0].metricIds).toEqual([]);
+    expect(parseCharts(`X:m12:${NO_DAILY_ID}`, [])[0].metricIds).toEqual([NO_DAILY_ID]);
   });
 
   it("drops ids the registry does not know", () => {

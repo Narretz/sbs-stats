@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 
 // The combined charts' weekly grain: daily sources summed into Mon–Sun weeks,
-// set against the President's weekly-only strike tally on one chart. The
+// set against the President's weekly strike tally on one chart. The
 // arithmetic (sums, gaps, partial weeks) is unit-tested in weekRange /
 // combinedQuery; what this checks is that the grain reaches the screen and
 // the URL.
@@ -50,7 +50,7 @@ test.describe("Homepage weekly grain", () => {
     await expect(page.getByText(AIR).first()).toBeVisible();
   });
 
-  test("the tally is pickable in the metric picker on a weekly chart, and only there", async ({ page }) => {
+  test("the tally is pickable in the metric picker on a weekly chart, not a daily one", async ({ page }) => {
     // Through the picker itself, not a URL: the tally was once in the metric
     // registry but missing from the picker's group list, which a URL-built
     // chart can't notice.
@@ -64,7 +64,7 @@ test.describe("Homepage weekly grain", () => {
     await page.keyboard.press("Escape");
     await page.waitForFunction(() => decodeURIComponent(location.search).includes("zelensky.drones"));
 
-    // A daily chart can't render a weekly-only series, so doesn't offer it.
+    // The tally has no daily figure, so a daily chart doesn't offer it.
     await page.goto(`/?charts=${encodeURIComponent("B:d30:")}`);
     await page.locator('button:has-text("metric")').first().click();
     await page.locator("[popover]").first().waitFor({ state: "visible" });
@@ -87,5 +87,18 @@ test.describe("Homepage weekly grain", () => {
     await page.reload();
     await expect(card(page).locator("svg.recharts-surface").first().locator(".recharts-bar-rectangle path")).toHaveCount(2);
   });
-});
 
+  // The tally on the monthly grain: months built from its weeks (the
+  // arithmetic is combinedQuery.test.ts). The fixture's tallies both fall in
+  // January, so of a window to February only January has a bar.
+  test("the tally is offered on a monthly chart and draws its months", async ({ page }) => {
+    await page.goto(`/?charts=${encodeURIComponent("M:m3b:zelensky.drones")}&date=2026-02-10`);
+    await expect(page.getByText(TALLY).first()).toBeVisible();
+    await expect(card(page).locator("svg.recharts-surface").first().locator(".recharts-bar-rectangle path")).toHaveCount(1);
+
+    await page.goto(`/?charts=${encodeURIComponent("N:m12:")}`);
+    await page.locator('button:has-text("metric")').first().click();
+    await page.locator("[popover]").first().waitFor({ state: "visible" });
+    await expect(page.locator("[popover]").first().locator("label", { hasText: "Strike Drones Launched (rounded)" })).toHaveCount(1);
+  });
+});
