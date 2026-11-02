@@ -377,6 +377,7 @@ def run_scrape(args: argparse.Namespace) -> int:
         since_id = 0 if args.backfill else _max_post_id(conn)
         max_pages = args.max_pages or (DEFAULT_BACKFILL_PAGES if args.backfill else DEFAULT_PAGES)
         counts = {"inserted": 0, "updated": 0, "unchanged": 0}
+        changed_types: set[str] = set()
         scanned = 0
         for post_id, posted_at, text in iter_web(
             args.channel, since_id, max_pages, args.sleep, args.backfill
@@ -393,6 +394,8 @@ def run_scrape(args: argparse.Namespace) -> int:
             _warn(post_id, report)
             status = store(conn, post_id, posted_at, text, report, args.channel)
             counts[status] += 1
+            if status != "unchanged":
+                changed_types.add(report.report_type)
             print(f"{status}: {args.channel}/{post_id} → {report.report_type} "
                   f"{report.period} ({len(report.counters)} counters)")
             if args.verbose:
@@ -400,6 +403,7 @@ def run_scrape(args: argparse.Namespace) -> int:
         print(f"scanned {scanned} post(s) over ≤{max_pages} page(s); "
               f"{counts['inserted']} inserted, {counts['updated']} updated, "
               f"{counts['unchanged']} unchanged")
+        print(changed_summary(changed_types))
         _emit_changed(counts["inserted"] + counts["updated"] > 0)
         return 0
     finally:
@@ -424,6 +428,7 @@ def run_reparse(args: argparse.Namespace) -> int:
             "SELECT post_id, posted_at, body_text FROM reports_latest ORDER BY post_id"
         ).fetchall()
         counts = {"inserted": 0, "updated": 0, "unchanged": 0}
+        changed_types: set[str] = set()
         for post_id, posted_at, body_text in rows:
             report = parse_any(body_text, datetime.fromisoformat(posted_at))
             if report.report_type == "unknown":
@@ -444,6 +449,8 @@ def run_reparse(args: argparse.Namespace) -> int:
                 ).fetchall()))
                 changed = prior != _signature(report.counters)
                 counts["updated" if changed else "unchanged"] += 1
+                if changed:
+                    changed_types.add(report.report_type)
                 print(f"{'would update' if changed else 'unchanged'}: {post_id} "
                       f"→ {report.report_type} {report.period} "
                       f"({len(report.counters)} counters)")
@@ -455,15 +462,33 @@ def run_reparse(args: argparse.Namespace) -> int:
                 datetime.fromisoformat(posted_at), body_text, report, args.channel,
             )
             counts[status] += 1
+            if status != "unchanged":
+                changed_types.add(report.report_type)
             print(f"{status}: {post_id} → {report.report_type} {report.period} "
                   f"({len(report.counters)} counters)")
         print(f"reparsed {len(rows)} stored post(s); "
               f"{counts['updated']} changed, {counts['unchanged']} unchanged"
               + (" (dry run — nothing written; re-run with --apply)" if dry_run else ""))
+        print(changed_summary(changed_types))
         _emit_changed(not dry_run and counts["inserted"] + counts["updated"] > 0)
         return 0
     finally:
         conn.close()
+
+
+def changed_summary(changed_types: set[str]) -> str:
+    """One line saying WHICH series changed. Both series trigger the upload,
+    but only the General-Staff recap is shown on the site — without this, a
+    run that stored only the «Итоги» digest reads as "updated, yet the page
+    shows nothing new"."""
+    if not changed_types:
+        return "changed: nothing"
+    recap, digest = "monthly" in changed_types, "monthly_digest" in changed_types
+    if recap and digest:
+        return "changed: recap (shown on site) + digest (stored only, not displayed)"
+    if recap:
+        return "changed: recap only (shown on site)"
+    return "changed: digest only (stored, not displayed on site)"
 
 
 def _emit_changed(changed: bool) -> None:

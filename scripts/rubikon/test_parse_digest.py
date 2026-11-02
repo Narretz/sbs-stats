@@ -201,3 +201,16 @@ def test_digest_posts_are_not_recaps(fixture) -> None:
 def test_recap_posts_are_not_digests(fixture) -> None:
     """…and the reverse: a GS recap must not be read as a digest."""
     assert parse(_load(fixture), date(2026, 9, 3)).report_type == "unknown"
+
+
+def test_changed_summary_names_the_series():
+    """A digest-only run uploads but changes nothing on the site — the log
+    line must say so, or it reads as a broken update (2026-10 digest, post 3028)."""
+    from ingest import changed_summary
+
+    assert changed_summary(set()) == "changed: nothing"
+    assert "digest only" in changed_summary({"monthly_digest"})
+    assert "not displayed" in changed_summary({"monthly_digest"})
+    assert changed_summary({"monthly"}) == "changed: recap only (shown on site)"
+    both = changed_summary({"monthly", "monthly_digest"})
+    assert "recap" in both and "digest" in both
