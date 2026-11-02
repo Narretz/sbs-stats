@@ -86,17 +86,6 @@ export function useMonthlyMonthRange(
       setParam("end-month", end);
     }
   }, [hidden, end, endState]);
-  // A clamped end (one outside this dataset, carried over from another site)
-  // is written back, so the URL says what the picker shows. Replaced, not
-  // pushed: the page we came from keeps its own end-month= in its history
-  // entry. Not while hidden — that is also how a page looks before its data
-  // has loaded, and the param must survive until it has.
-  useEffect(() => {
-    if (!hidden && end !== endState) {
-      setEndState(end);
-      setParam("end-month", end);
-    }
-  }, [hidden, end, endState]);
   const setMonths = (m: MonthOption) => {
     setMonthsState(m);
     setParam("months", String(m));
