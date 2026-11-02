@@ -19,7 +19,6 @@ import {
   formatHedged, formatWeekRange, formatWeekTick, mondaysBetween, monthsSpanned, toWeeklyDataset,
   weeklySources, weeksInMonthWindow, windowTicks,
 } from "@/utils/zelenskyWeekly";
-import { FONTS } from "@/theme";
 
 interface Props {
   refreshKey?: number;
@@ -111,34 +110,6 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
         Empty weeks had no weekly tally. Through most of Apr–Sep 2025 the President posted
         month-to-date totals instead, which are not shown here.
       </>}
-      dataWindow={first && last ? (
-        <details style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6 }}>
-          <summary style={{ cursor: "pointer", listStyle: "revert" }}>
-            Data Availability: {first} – {last} · {rows.length} weekly tall{rows.length === 1 ? "y" : "ies"}
-          </summary>
-          <ol style={{ listStyle: "none", padding: 0, margin: "8px 0 0", display: "flex", flexDirection: "column", gap: 6 }}>
-            {rows.map((r, i) => (
-              <li key={r.period} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-                <span style={{ color: t.textFaint, minWidth: 24 }}>[{i + 1}]</span>
-                <span style={{ color: t.text, minWidth: 70 }}>{r.period}</span>
-                <span style={{ flex: 1 }}>
-                  {formatWeekRange(r.period_start)}
-                  <span style={{ color: t.textFaint }}> · posted {r.posted_at.slice(0, 10)}</span>
-                  {" · "}
-                  <a
-                    href={r.url}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow"
-                    style={{ color: t.primary, textDecoration: "underline" }}
-                  >
-                    source ↗
-                  </a>
-                </span>
-              </li>
-            ))}
-          </ol>
-        </details>
-      ) : undefined}
       // No window picker → no scope toggle either; see StatScopeToggle.
       controls={yr.hidden ? undefined : (
         <>
