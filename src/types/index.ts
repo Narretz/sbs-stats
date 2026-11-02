@@ -1070,6 +1070,8 @@ export interface RubikonCounterRow {
 export const RUBIKON_EPISODE_CATEGORY_KEYS = [
   "episodes_total",
   "uav",
+  "uav_multirotor",
+  "uav_fixed_wing",
   "ugv",
   "radar_comms",
   "personnel",
@@ -1081,6 +1083,8 @@ export const RUBIKON_EPISODE_CATEGORY_KEYS = [
   "armour",
   "tanks",
   "infrastructure",
+  "special_vehicles_boats",
+  "logistics",
   "vks_joint",
   "other",
 ] as const;
@@ -1089,6 +1093,9 @@ export type RubikonEpisodeCategoryKey = (typeof RUBIKON_EPISODE_CATEGORY_KEYS)[n
 export const RUBIKON_EPISODE_CATEGORY_LABELS: Record<RubikonEpisodeCategoryKey, string> = {
   episodes_total: "Published Episodes — Total",
   uav: "UAVs",
+  // Oct 2026 onward the single `uav` line is split by airframe.
+  uav_multirotor: "UAVs — Multirotor",
+  uav_fixed_wing: "UAVs — Fixed-Wing",
   ugv: "UGVs",
   radar_comms: "Radar / Comms / Surveillance",
   personnel: "Personnel",
@@ -1102,6 +1109,8 @@ export const RUBIKON_EPISODE_CATEGORY_LABELS: Record<RubikonEpisodeCategoryKey, 
   armour: "Armoured Combat Vehicles",
   tanks: "Tanks",
   infrastructure: "Infrastructure",
+  special_vehicles_boats: "Special Vehicles & Boats",
+  logistics: "Logistics",
   // Strikes flown jointly with the Russian Aerospace Forces — first broken
   // out in March 2026, and counted inside that month's headline total.
   vks_joint: "Joint Strikes with VKS",

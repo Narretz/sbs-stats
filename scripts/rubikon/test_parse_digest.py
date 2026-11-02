@@ -214,3 +214,81 @@ def test_changed_summary_names_the_series():
     assert changed_summary({"monthly"}) == "changed: recap only (shown on site)"
     both = changed_summary({"monthly", "monthly_digest"})
     assert "recap" in both and "digest" in both
+
+
+# ── Oct 2026+: breakdown only in a chart image, transcribed into manual/ ────
+
+def _oct_2026_text() -> str:
+    from ingest import MANUAL_DIR, load_manual, with_manual
+
+    return with_manual(_load("digest-2026-10-post3028.txt"), load_manual(MANUAL_DIR)[3028])
+
+
+def test_oct_2026_post_alone_is_headline_only() -> None:
+    r = parse(_load("digest-2026-10-post3028.txt"), date(2026, 10, 31))
+    assert r.period == "2026-10"
+    assert [(c.category, c.value) for c in r.counters] == [("episodes_total", 6694)]
+
+
+def test_oct_2026_with_manual_transcription() -> None:
+    r = parse(_oct_2026_text(), date(2026, 10, 31))
+    got = {c.category: c.value for c in r.counters}
+    assert got == {
+        "episodes_total": 6694,
+        "uav_multirotor": 1954, "uav_fixed_wing": 2753, "ugv": 503, "radar_comms": 403,
+        "personnel": 80, "artillery": 30, "tanks": 5, "armour": 91,
+        "special_vehicles_boats": 5, "vehicles": 258, "positions": 330, "logistics": 98,
+        "infrastructure": 3, "vks_joint": 38,
+    }
+    assert r.unmatched == []
+    # The chart covers the "main" types only (6551 of 6694): short of the
+    # headline is expected, and every row matches its printed share.
+    assert r.warnings == []
+
+
+def test_mistyped_transcription_trips_the_share_check() -> None:
+    text = _oct_2026_text().replace("НРТК - 503 (7.7%)", "НРТК - 530 (7.7%)")
+    r = parse(text, date(2026, 10, 31))
+    assert any("НРТК = 530" in w for w in r.warnings), r.warnings
+
+
+def test_share_breakdown_over_headline_warns() -> None:
+    text = _oct_2026_text().replace("составило 6694", "составило 6000")
+    r = parse(text, date(2026, 10, 31))
+    assert any("more than the headline" in w for w in r.warnings), r.warnings
+
+
+def test_with_manual_is_idempotent_and_replaces() -> None:
+    from ingest import with_manual
+
+    once = with_manual("post", "A")
+    assert with_manual(once, "A") == once
+    assert with_manual(once, "B") == with_manual("post", "B")
+    assert with_manual(once, None) == "post"
+
+
+def test_scrape_applies_transcription_to_an_already_stored_post(tmp_path, monkeypatch) -> None:
+    """The usual order: the post is scraped first (headline only), the
+    transcription is committed later, and the next incremental run — which
+    never revisits that post — must still apply it."""
+    from datetime import datetime, timezone
+    import argparse
+    import ingest
+
+    db = tmp_path / "r.db"
+    posted = datetime(2026, 10, 31, 18, 0, tzinfo=timezone.utc)
+    post = _load("digest-2026-10-post3028.txt")
+    conn = ingest._connect(db)
+    ingest.store(conn, 3028, posted, post, ingest.parse_any(post, posted), "icpbtrubicon")
+    conn.close()
+
+    monkeypatch.setattr(ingest, "iter_web", lambda *a, **k: iter(()))
+    args = argparse.Namespace(out=db, backfill=False, max_pages=1, channel="icpbtrubicon",
+                              sleep=0, verbose=False)
+    for _ in range(2):  # second run must be a no-op
+        assert ingest.run_scrape(args) == 0
+    conn = ingest._connect(db)
+    versions = conn.execute("SELECT COUNT(*) FROM reports WHERE post_id = 3028").fetchone()[0]
+    n = conn.execute("SELECT COUNT(*) FROM counters_latest WHERE post_id = 3028").fetchone()[0]
+    conn.close()
+    assert (versions, n) == (2, 15)

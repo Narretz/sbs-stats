@@ -127,10 +127,19 @@ _STRUCTURE_HEADER_RE = re.compile(r"Структура\s+основных\s+ти
 # Label first, then a spaced dash, then the count; an optional "(±N%)" delta
 # follows. 481's bullets are "• 47 танков;" (number first) so they can't match
 # even if the header gate were bypassed.
+#
+# The label may itself contain an unspaced hyphen («Материально-техническое
+# обеспечение»); the lazy label + `$` anchor splits on the spaced dash that is
+# followed by the count.
 _BULLET_RE = re.compile(
-    r"^\s*[•▪]\s*(?P<label>[^\d•▪][^-–—]*?)\s+[-–—]\s+(?P<num>" + _NUM +
-    r")\s*(?:\([^)]*\))?\s*;?\s*$"
+    r"^\s*[•▪]\s*(?P<label>[^\d•▪].*?)\s+[-–—]\s+(?P<num>" + _NUM +
+    r")\s*(?:\((?P<paren>[^)]*)\))?\s*;?\s*$"
 )
+
+# "(29.8%)" — an unsigned percentage is the category's SHARE of the breakdown
+# (the Oct 2026+ chart images print one per row). A month-on-month delta is
+# always signed ("(-8%)", "(+85%)"), so the two can't be confused.
+_SHARE_RE = re.compile(r"^\s*(\d+(?:[.,]\d+)?)\s*%\s*$")
 
 
 def _norm_label(label: str) -> str:
@@ -165,14 +174,23 @@ CATEGORY_ALIASES: dict[str, str] = {
     # and part of that month's headline total (3133 + 37 = 3170).
     "взаимодействие с вкс": "vks_joint",
     "прочие цели": "other",
+    # Oct 2026 onward (the chart image, transcribed into manual/): drones split
+    # by airframe, and a few new or renamed lines.
+    "бпла (мультикоптерный тип)": "uav_multirotor",
+    "бпла (самолетный тип)": "uav_fixed_wing",
+    "средства связи": "radar_comms",
+    "ббм": "armour",
+    "спецтехника и плавсредства": "special_vehicles_boats",
+    "материально-техническое обеспечение": "logistics",
+    "инфраструктура": "infrastructure",
 }
 
 # Chart order for the frontend; mirrors RUBIKON_EPISODE_CATEGORY_KEYS.
 CATEGORY_ORDER = [
     CATEGORY_TOTAL,
-    "uav", "ugv", "radar_comms", "personnel", "vehicles", "positions",
+    "uav", "uav_multirotor", "uav_fixed_wing", "ugv", "radar_comms", "personnel", "vehicles", "positions",
     "artillery", "towed_artillery", "spg", "armour", "tanks",
-    "infrastructure", "vks_joint", "other",
+    "infrastructure", "special_vehicles_boats", "logistics", "vks_joint", "other",
 ]
 
 
@@ -241,6 +259,7 @@ def parse(text: str, posted_at: date | None = None) -> ParsedDigest:
         ))
 
     unmatched: list[str] = []
+    shares: dict[str, float] = {}
     if _STRUCTURE_HEADER_RE.search(text):
         seen: set[str] = set()
         for line in text.splitlines():
@@ -253,6 +272,9 @@ def parse(text: str, posted_at: date | None = None) -> ParsedDigest:
                 unmatched.append(re.sub(r"\s+", " ", line).strip())
                 continue
             seen.add(category)
+            share = _SHARE_RE.match(m.group("paren") or "")
+            if share:
+                shares[category] = float(share.group(1).replace(",", "."))
             counters.append(Counter(
                 category=category,
                 value=_to_int(m.group("num")),
@@ -267,7 +289,31 @@ def parse(text: str, posted_at: date | None = None) -> ParsedDigest:
     # storing a set of parts that doesn't add up.
     parts = [c for c in counters if c.kind == KIND_EPISODE]
     total = next((c for c in counters if c.kind == KIND_TOTAL), None)
-    if parts and total and total.bound == "exact":
+    #
+    # A breakdown that prints each row's SHARE (the Oct 2026+ chart) is checked
+    # differently. Its shares are of its own sum, not of the headline: the
+    # chart shows only the "main" types (Oct 2026: 6551 of 6694), so falling
+    # short of the headline is expected and only overshooting is a smell. In
+    # exchange every row is checked against its printed share, which catches a
+    # mistyped count in a hand transcription (manual/) row by row.
+    with_shares = bool(parts) and all(c.category in shares for c in parts)
+    if with_shares:
+        s = sum(c.value for c in parts)
+        for c in parts:
+            computed = 100 * c.value / s
+            # Printed to one decimal → ±0.05, plus float slack.
+            if abs(computed - shares[c.category]) > 0.051:
+                warnings.append(
+                    f"{c.raw_label} = {c.value} is {computed:.2f}% of the breakdown's "
+                    f"sum {s}, but the source prints {shares[c.category]}% — "
+                    f"a count is probably mistyped"
+                )
+        if total and total.bound == "exact" and s > total.value:
+            warnings.append(
+                f"breakdown sums to {s}, more than the headline's {total.value} "
+                f"(diff {s - total.value:+d}) — a row may be double-counted"
+            )
+    elif parts and total and total.bound == "exact":
         s = sum(c.value for c in parts)
         if s != total.value:
             warnings.append(

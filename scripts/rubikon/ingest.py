@@ -92,6 +92,14 @@ DEFAULT_BACKFILL_PAGES = 150
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 SCHEMA = SCHEMA_PATH.read_text(encoding="utf-8")
 
+# Hand transcriptions of data the channel only publishes as an image (from Oct
+# 2026 the digest's per-category breakdown is a chart in the post's album).
+# One file per post, `*-post<id>.txt`; '#' lines are comments. The rest is
+# appended to that post's text after MANUAL_MARKER, so it is parsed by the
+# same parser, stored in body_text with the post, and picked up by --reparse.
+MANUAL_DIR = SCRIPT_DIR / "manual"
+MANUAL_MARKER = "\n\n----- manual transcription (scripts/rubikon/manual/) -----\n"
+
 
 # ── web backend (t.me/s preview) ────────────────────────────────────────────
 # Same shape as scripts/ru_mod/ingest.py's parser. Kept local rather than
@@ -245,6 +253,29 @@ def parse_any(text: str, posted_at: datetime) -> Parsed:
     return Parsed("unknown", None, None, None, [], [], [])
 
 
+# ── manual transcriptions ───────────────────────────────────────────────────
+
+def load_manual(directory: Path | None = None) -> dict[int, str]:
+    """post_id → transcription text (comment lines removed)."""
+    out: dict[int, str] = {}
+    for path in sorted((directory or MANUAL_DIR).glob("*-post*.txt")):
+        post_id = int(path.stem.rsplit("-post", 1)[1])
+        lines = [ln for ln in path.read_text(encoding="utf-8").splitlines()
+                 if not ln.lstrip().startswith("#")]
+        out[post_id] = "\n".join(lines).strip()
+    return out
+
+
+def with_manual(text: str, supplement: str | None) -> str:
+    """The post's own text plus its current transcription, if any.
+
+    Strips a previously appended transcription first, so re-applying is
+    idempotent and an edited file REPLACES the old one rather than stacking.
+    """
+    base = text.split(MANUAL_MARKER, 1)[0]
+    return base + MANUAL_MARKER + supplement if supplement else base
+
+
 # ── storage ─────────────────────────────────────────────────────────────────
 
 def _signature(counters: list[tuple[str, str, int, str, str]]) -> tuple:
@@ -378,11 +409,15 @@ def run_scrape(args: argparse.Namespace) -> int:
         max_pages = args.max_pages or (DEFAULT_BACKFILL_PAGES if args.backfill else DEFAULT_PAGES)
         counts = {"inserted": 0, "updated": 0, "unchanged": 0}
         changed_types: set[str] = set()
+        manual = load_manual()
+        seen: set[int] = set()
         scanned = 0
         for post_id, posted_at, text in iter_web(
             args.channel, since_id, max_pages, args.sleep, args.backfill
         ):
             scanned += 1
+            seen.add(post_id)
+            text = with_manual(text, manual.get(post_id))
             report = parse_any(text, posted_at)
             # Only the two monthly series are stored. Everything else on this
             # channel (combat footage, recruiting, milestone tallies, the
@@ -400,6 +435,31 @@ def run_scrape(args: argparse.Namespace) -> int:
                   f"{report.period} ({len(report.counters)} counters)")
             if args.verbose:
                 _print_report(post_id, report)
+        # A transcription is usually committed AFTER its post was scraped, and
+        # the incremental walk never revisits a stored post — so apply any
+        # transcription for a stored post this walk didn't reach. store() only
+        # writes when the parsed counters differ, so this is a no-op once done.
+        for post_id, supplement in manual.items():
+            if post_id in seen:
+                continue
+            row = conn.execute(
+                "SELECT posted_at, body_text FROM reports_latest WHERE post_id = ?",
+                (post_id,),
+            ).fetchone()
+            if not row:
+                continue
+            posted_at = datetime.fromisoformat(row[0])
+            text = with_manual(row[1], supplement)
+            report = parse_any(text, posted_at)
+            if report.report_type == "unknown":
+                continue
+            _warn(post_id, report)
+            status = store(conn, post_id, posted_at, text, report, args.channel)
+            counts[status] += 1
+            if status != "unchanged":
+                changed_types.add(report.report_type)
+                print(f"{status} (manual transcription): {args.channel}/{post_id} → "
+                      f"{report.report_type} {report.period} ({len(report.counters)} counters)")
         print(f"scanned {scanned} post(s) over ≤{max_pages} page(s); "
               f"{counts['inserted']} inserted, {counts['updated']} updated, "
               f"{counts['unchanged']} unchanged")
@@ -429,7 +489,9 @@ def run_reparse(args: argparse.Namespace) -> int:
         ).fetchall()
         counts = {"inserted": 0, "updated": 0, "unchanged": 0}
         changed_types: set[str] = set()
+        manual = load_manual()
         for post_id, posted_at, body_text in rows:
+            body_text = with_manual(body_text, manual.get(post_id))
             report = parse_any(body_text, datetime.fromisoformat(posted_at))
             if report.report_type == "unknown":
                 # The stored text is right here, and it is the whole evidence:
