@@ -44,6 +44,11 @@ export function useDatabaseZelenskyWeekly({ enabled = true }: { enabled?: boolea
       bombs_bound: bound(r.bombs_bound),
       missiles: num(r.missiles),
       missiles_bound: bound(r.missiles_bound),
+      // Absent from a DB built before the view had them: undefined → null.
+      jet_drones: num(r.jet_drones),
+      jet_drones_bound: bound(r.jet_drones_bound),
+      jet_drones_pct: num(r.jet_drones_pct),
+      jet_drones_pct_bound: bound(r.jet_drones_pct_bound),
     }));
   }, [db]);
 

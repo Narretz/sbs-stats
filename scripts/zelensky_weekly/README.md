@@ -25,7 +25,8 @@ python3 scripts/zelensky_weekly/ingest.py --out data/zelensky-weekly.db
 # the whole history (~21k posts, ~1,100 preview pages, ~40 min)
 python3 scripts/zelensky_weekly/ingest.py --out data/zelensky-weekly.db --backfill
 
-# after a parser fix: re-read stored text (dry run; --apply writes)
+# after a parser fix: re-read stored text (dry run; --apply writes). In CI:
+# reparse-zelensky-weekly-db.yml (dry run by default)
 python3 scripts/zelensky_weekly/ingest.py --out data/zelensky-weekly.db --reparse
 ```
 
@@ -50,6 +51,15 @@ manual `wrangler r2 object put`.
   previous ISO week. `period` is `YYYY-Www`, Monday to Sunday, Kyiv time.
 - **A Wednesday–Friday "this week" is the week so far.** It's stored as
   `weekly_partial` and kept out of the `weekly` view.
+- **Jet-powered drones.** Since late summer 2026 some tallies also say how many
+  of the drones were jet-powered («реактивні «шахеди»»): a count («Понад 800
+  дронів були реактивні», often in the sentence after the tally) or a share
+  («з яких близько 60% – реактивні»). Stored as `jet_drones` or
+  `jet_drones_pct`, only when the tally has a drone count, and read only from
+  the tally and the one sentence after it — the overnight count earlier in the
+  post often has a share of its own. Words with no number («більшість»,
+  «значна частина») aren't kept. The weekly page shows it in the drones
+  tooltip; the monthly roll-up doesn't use it.
 - **A missing counter is NULL, not 0.** Single-weapon tallies are normal
   ("Лише за цей тиждень … близько 2100 дронів.").
 - **The `weekly` view** gives one row per week. When a week has several

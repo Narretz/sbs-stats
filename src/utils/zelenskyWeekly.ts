@@ -42,6 +42,14 @@ export function formatHedged(value: number | null, bound: ZelenskyBound | null):
   return `${BOUND_PREFIX[bound ?? "exact"]}${value.toLocaleString("en-US")}`;
 }
 
+// The jet-powered share of a week's drones, as the post gave it: "> 800" or
+// "≈ 60%". Null for a week that gave no figure (most of them).
+export function formatJetDrones(r: ZelenskyWeekRow): string | null {
+  if (r.jet_drones != null) return formatHedged(r.jet_drones, r.jet_drones_bound);
+  if (r.jet_drones_pct != null) return `${formatHedged(r.jet_drones_pct, r.jet_drones_pct_bound)}%`;
+  return null;
+}
+
 // The page's time window is the monthly pages' one (months + end month), laid
 // over weeks: a week is in it when its Monday falls in one of the window's
 // calendar months. Calendar months rather than a count of rows — the monthly

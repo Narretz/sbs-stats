@@ -24,6 +24,7 @@ function ruAir(days: number, endDate?: string): RuAirAttacksDailyRow[] {
 const tally = (period_start: string, drones: number | null): ZelenskyWeekRow => ({
   period: "x", period_start, period_end: "x", post_id: 1, posted_at: "x", url: "x",
   drones, drones_bound: "at_least", bombs: null, bombs_bound: null, missiles: null, missiles_bound: null,
+  jet_drones: null, jet_drones_bound: null, jet_drones_pct: null, jet_drones_pct_bound: null,
 });
 
 describe("fetchCombinedWeekly", () => {

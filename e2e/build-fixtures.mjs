@@ -414,7 +414,8 @@ function buildZelenskyWeekly(SQL) {
   );
   const weeks = [
     [1, ZELENSKY_WEEKS.full, "2026-W02", "2026-01-11",
-      [["drones", 1000, "at_least", "понад"], ["bombs", 900, "approx", "близько"], ["missiles", 40, "exact", ""]]],
+      [["drones", 1000, "at_least", "понад"], ["bombs", 900, "approx", "близько"], ["missiles", 40, "exact", ""],
+       ["jet_drones_pct", 60, "approx", "близько"]]],
     [2, ZELENSKY_WEEKS.dronesOnly, "2026-W04", "2026-01-25",
       [["drones", 1200, "at_most", "майже"]]],
   ];

@@ -1,8 +1,9 @@
 -- President's weekly strike tally (zelensky-weekly) SQLite schema.
 --
--- Loaded by ingest.py at startup (and meant for e2e/build-fixtures.mjs once a
--- frontend view exists, so the synthetic DB has the real shape). Idempotent —
--- every statement is CREATE … IF NOT EXISTS.
+-- Loaded by ingest.py at startup and by e2e/build-fixtures.mjs, so the
+-- synthetic DB has the real shape. Idempotent — every statement is CREATE …
+-- IF NOT EXISTS, except the `weekly` view, which is dropped and recreated so a
+-- DB downloaded from R2 picks up a changed definition on its next ingest.
 --
 -- `reports.body_text` keeps the raw post text so a parser fix is applied with
 -- `--reparse` instead of a re-scrape (CLAUDE.md: a re-scrape re-ingests
@@ -34,7 +35,9 @@ CREATE INDEX IF NOT EXISTS ix_reports_period ON reports (period);
 CREATE TABLE IF NOT EXISTS counters (
   post_id    INTEGER NOT NULL,
   scraped_at TEXT NOT NULL,
-  category   TEXT NOT NULL,       -- drones | bombs | missiles
+  -- drones | bombs | missiles, and of the drones the jet-powered ones:
+  -- jet_drones (a count) | jet_drones_pct (a percentage of the drones)
+  category   TEXT NOT NULL,
   value      INTEGER NOT NULL,
   -- The source rounds everything and hedges most of it:
   --   exact    — a bare number ("74 ракети")
@@ -64,15 +67,18 @@ CREATE VIEW IF NOT EXISTS counters_latest AS
 -- Monday "last week" recap, the English translation), the one naming the MOST
 -- weapons wins — the evening repeat of 2025-10-26 drops the bomb count the
 -- morning post had — then Ukrainian, then the latest. A category the chosen
--- post doesn't name is NULL, not 0: the source didn't say.
-CREATE VIEW IF NOT EXISTS weekly AS
+-- post doesn't name is NULL, not 0: the source didn't say. Only the three
+-- weapons count towards "most": a jet-drone figure is detail on the drones.
+DROP VIEW IF EXISTS weekly;
+CREATE VIEW weekly AS
   WITH ranked AS (
     SELECT r.*, ROW_NUMBER() OVER (
       PARTITION BY r.period
       ORDER BY n.n DESC, (r.lang = 'uk') DESC, r.posted_at DESC, r.post_id DESC
     ) AS rn
     FROM reports_latest r
-    JOIN (SELECT post_id, COUNT(*) AS n FROM counters_latest GROUP BY post_id) n
+    JOIN (SELECT post_id, COUNT(*) AS n FROM counters_latest
+          WHERE category IN ('drones', 'bombs', 'missiles') GROUP BY post_id) n
       ON n.post_id = r.post_id
     WHERE r.report_type = 'weekly'
   )
@@ -83,7 +89,11 @@ CREATE VIEW IF NOT EXISTS weekly AS
     MAX(CASE WHEN c.category = 'bombs'    THEN c.value END) AS bombs,
     MAX(CASE WHEN c.category = 'bombs'    THEN c.bound END) AS bombs_bound,
     MAX(CASE WHEN c.category = 'missiles' THEN c.value END) AS missiles,
-    MAX(CASE WHEN c.category = 'missiles' THEN c.bound END) AS missiles_bound
+    MAX(CASE WHEN c.category = 'missiles' THEN c.bound END) AS missiles_bound,
+    MAX(CASE WHEN c.category = 'jet_drones'     THEN c.value END) AS jet_drones,
+    MAX(CASE WHEN c.category = 'jet_drones'     THEN c.bound END) AS jet_drones_bound,
+    MAX(CASE WHEN c.category = 'jet_drones_pct' THEN c.value END) AS jet_drones_pct,
+    MAX(CASE WHEN c.category = 'jet_drones_pct' THEN c.bound END) AS jet_drones_pct_bound
   FROM ranked k
   LEFT JOIN counters_latest c ON c.post_id = k.post_id
   WHERE k.rn = 1

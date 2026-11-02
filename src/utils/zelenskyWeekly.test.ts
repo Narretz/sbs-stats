@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ZelenskyWeekRow } from "@/types";
-import { UNDERCOUNT_NOTE, formatHedged, monthlySources, monthsBetween, mondaysBetween, monthsSpanned, toMonthlyDataset, toWeeklyDataset, weeklySources, weeksInMonthWindow, windowTicks } from "./zelenskyWeekly";
+import { UNDERCOUNT_NOTE, formatHedged, formatJetDrones, monthlySources, monthsBetween, mondaysBetween, monthsSpanned, toMonthlyDataset, toWeeklyDataset, weeklySources, weeksInMonthWindow, windowTicks } from "./zelenskyWeekly";
 
 const row = (period_start: string, drones: number | null): ZelenskyWeekRow => ({
   period: "x", period_start, period_end: "x", post_id: 1, posted_at: "x", url: "x",
   drones, drones_bound: drones == null ? null : "at_least",
   bombs: null, bombs_bound: null, missiles: null, missiles_bound: null,
+  jet_drones: null, jet_drones_bound: null, jet_drones_pct: null, jet_drones_pct_bound: null,
 });
 
 describe("toWeeklyDataset", () => {
@@ -114,5 +115,15 @@ describe("monthlySources", () => {
     const m = monthlySources([r]);
     expect(m.get("2026-01")).toEqual([{ href: "https://t.me/x/9", linkText: "2026-02-01 12:00 Kyiv", label: "week 2026-01-26/02-01" }]);
     expect(m.get("2026-02")).toEqual(m.get("2026-01"));
+  });
+});
+
+describe("formatJetDrones", () => {
+  it("gives the jet-powered drones as the post did: a count, or a share", () => {
+    expect(formatJetDrones({ ...row("2026-09-28", 1900), jet_drones: 800, jet_drones_bound: "at_least" })).toBe("> 800");
+    expect(formatJetDrones({ ...row("2026-10-05", 1640), jet_drones_pct: 60, jet_drones_pct_bound: "approx" })).toBe("≈ 60%");
+  });
+  it("is null for a week that gave no figure", () => {
+    expect(formatJetDrones(row("2026-10-12", 2700))).toBeNull();
   });
 });

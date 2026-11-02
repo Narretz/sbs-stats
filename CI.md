@@ -26,6 +26,7 @@ dataset's README, linked from the table.
 | `reparse-gsua-db.yml` | GSUA, manual | `since` (date or `all`), `dry_run` (on) | — | unless dry run |
 | `reparse-ru-mod-db.yml` | RU MoD, manual | `since` (date or `all`), `dry_run` (on) | — | unless dry run |
 | `reparse-sbu-alfa-db.yml` | SBU Alfa, manual | `dry_run` (on) | — | `changed=true` |
+| `reparse-zelensky-weekly-db.yml` | President's weekly tally, manual | `dry_run` (on) | — | `changed=true` |
 
 Every scheduled one can also be run by hand (`workflow_dispatch`). Kyiv times
 are GitHub's IANA `timezone:` cron field, or matched in Kyiv time by the
@@ -66,7 +67,7 @@ Which one depends on what the bug did to the post:
 - **Misread it** — stored, but a field parsed wrong. A re-scrape re-ingests
   the identical text and changes nothing; the stored rows need re-parsing:
   `reparse-gsua-db.yml`, `reparse-ru-mod-db.yml`, `reparse-sbu-alfa-db.yml`,
-  `reparse-cit-civilians-db.yml`, or locally `ingest.py --reparse` (dry run;
+  `reparse-cit-civilians-db.yml`, `reparse-zelensky-weekly-db.yml`, or locally `ingest.py --reparse` (dry run;
   `--apply` writes) for Rubikon.
   SBU Alfa only ever reparses: its discovery skips URLs already stored, so a
   re-scan re-reads nothing, however wide.

@@ -16,7 +16,7 @@ import {
   type ZelenskyWeekRow,
 } from "@/types";
 import {
-  formatHedged, formatWeekRange, formatWeekTick, mondaysBetween, monthsSpanned, toWeeklyDataset,
+  formatHedged, formatJetDrones, formatWeekRange, formatWeekTick, mondaysBetween, monthsSpanned, toWeeklyDataset,
   weeklySources, weeksInMonthWindow, windowTicks,
 } from "@/utils/zelenskyWeekly";
 
@@ -77,6 +77,9 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
   // it — the bar height alone would present "понад 3170" as exactly 3,170.
   const headerFor = (category: ZelenskyCategory) => (d: MonthlyDataPoint) => {
     const r = byMonday.get(d.date);
+    // On the drones chart, how many of them were jet-powered, when the post
+    // said (a count or a share — as given).
+    const jet = r && category === "drones" ? formatJetDrones(r) : null;
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span>{formatWeekRange(d.date)}</span>
@@ -85,6 +88,9 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
             ? <>{r.period} · as posted: {formatHedged(r[category], r[`${category}_bound`])}</>
             : "no weekly tally posted"}
         </span>
+        {jet && (
+          <span style={{ fontSize: 10, color: t.textMuted }}>of which jet-powered: {jet}</span>
+        )}
       </div>
     );
   };
@@ -100,7 +106,9 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
         <a href={CHANNEL_URL} rel="nofollow external">Telegram channel</a>.
         {" "}
         The figures are <em>rounded</em>, and most are hedged («понад» over, «майже» almost,
-        «близько» about); the tooltip shows each one as posted.
+        «близько» about); the tooltip shows each one as posted. Some weeks also say how many
+        of the drones were jet-powered («реактивні»), as a count or a share; the drones
+        tooltip shows it when given.
         {" "}
         Posts say only "this week" or "last week", so the dates are worked out from when
         each post went up (Monday–Sunday, Kyiv time).

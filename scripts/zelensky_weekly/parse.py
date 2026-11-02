@@ -28,6 +28,19 @@ What makes it harder than it looks:
 * The week itself is never dated — "цього тижня" / "минулого тижня" — so the
   period is DERIVED from when the post went up (see `week_bounds`).
 
+Since late summer 2026 the tally sometimes also says how many of the drones
+were JET-powered («реактивні «шахеди»») — a count or a share, in the tally
+sentence or the one after it:
+
+    … понад 1640 ударних дронів, з яких близько 60% – реактивні.
+    … понад 1900 ударних дронів, 1700 авіабомб і 25 ракет. Понад 800 дронів
+    були реактивні, …
+
+Kept as two extra counters, `jet_drones` (a count) and `jet_drones_pct` (a
+share of the drones), only when the tally has a drone count. Words without a
+number ("з них більшість реактивні", "значна частина") are not a figure and
+are not kept. See `_jet`.
+
 Posts in English ("Over the week, Russia launched more than 3,170 attack
 drones…") are the same tally translated; they parse too, with `lang='en'`, and
 the DB view prefers the Ukrainian post for a week (see schema.sql).
@@ -45,6 +58,9 @@ DRONES = "drones"
 BOMBS = "bombs"
 MISSILES = "missiles"
 CATEGORIES = (DRONES, BOMBS, MISSILES)
+# Of the drones, how many were jet-powered: a count, or a percentage of them.
+JET_DRONES = "jet_drones"
+JET_DRONES_PCT = "jet_drones_pct"
 
 # A sentence that names the week and carries the numbers itself is a tally
 # with any number of the three counters — single-weapon weeks are real
@@ -56,7 +72,7 @@ MIN_CATEGORIES_NEXT_SENTENCE = 2
 
 @dataclass
 class Counter:
-    category: str       # drones | bombs | missiles
+    category: str       # drones | bombs | missiles | jet_drones | jet_drones_pct
     value: int
     bound: str          # exact | approx | at_least | at_most
     qualifier: str      # the hedge word verbatim ('' when bare)
@@ -172,6 +188,28 @@ _UK_COUNTER = _counter_re(_UK_QUAL, _UK_WORDS, _MULT_UK, _UK_WEAPON)
 _EN_COUNTER = _counter_re(_EN_QUAL, _EN_WORDS, _MULT_EN, _EN_WEAPON)
 
 
+# ── jet-powered drones ──────────────────────────────────────────────────────
+# A number, optionally a percentage, then within a few words "реактивн…" /
+# "jet": «понад 800 дронів були реактивні», «близько 60% – реактивні»,
+# «понад 800 реактивних дронів». The gap takes no digits and no clause
+# punctuation, so the drone TOTAL earlier in the sentence ("1640 ударних
+# дронів, з яких …") can't reach the word across the comma.
+_JET_GAP = r"(?:\s+[^\s\d,.;:!?%]+){0,4}?"
+
+
+def _jet_re(quals: dict[str, str], pct: str, word: str) -> re.Pattern:
+    qual = "|".join(sorted((re.escape(q) for q in quals), key=len, reverse=True))
+    return re.compile(
+        rf"(?:(?P<qual>{qual})\s+)?(?P<num>{_DIGITS})(?P<pct>\s*%|\s+{pct})?"
+        rf"{_JET_GAP}\s+(?:{word})",
+        re.IGNORECASE,
+    )
+
+
+_UK_JET = _jet_re(_UK_QUAL, r"відсотк\w*", r"реактивн\w*")
+_EN_JET = _jet_re(_EN_QUAL, r"per\s*cent", r"jet(?:-powered)?\b|reactive\b")
+
+
 # ── week markers ────────────────────────────────────────────────────────────
 
 _UK_WEEK = re.compile(r"\bтижн(?:я|і|ем)\b|\bтиждень\b", re.IGNORECASE)
@@ -249,6 +287,27 @@ def _counters(sentence: str, lang: str) -> tuple[list[Counter], list[str]]:
     return [found[c] for c in CATEGORIES if c in found], dupes
 
 
+def _jet(text: str, lang: str, drones: Counter) -> tuple[Counter | None, list[str]]:
+    """The jet-powered share of the week's drones, if `text` gives a number.
+
+    `text` is the tally plus the sentence after it — never the post: the
+    nightly count before a tally often has its own share ("За ніч … 135
+    ударних дронів, понад 50 із них – реактивні"), which is not the week's.
+    """
+    rx, quals = (_UK_JET, _UK_QUAL) if lang == "uk" else (_EN_JET, _EN_QUAL)
+    m = rx.search(text)
+    if not m:
+        return None, []
+    q = (m.group("qual") or "").lower()
+    pct = bool(m.group("pct"))
+    value = _to_int(m.group("num"), "")
+    c = Counter(JET_DRONES_PCT if pct else JET_DRONES, value, quals.get(q, "exact"),
+                m.group("qual") or "", m.group(0).strip())
+    if (pct and value > 100) or (not pct and value > drones.value):
+        return None, [f"jet-drone figure {c.raw_label!r} exceeds the drones it is a share of; not kept"]
+    return c, []
+
+
 def week_bounds(posted_at: datetime, week_ref: str) -> tuple[date, date]:
     """Monday–Sunday of the week a tally covers, from when it was posted.
 
@@ -296,6 +355,7 @@ def parse(text: str, posted_at: datetime) -> Report:
             cut = max(s.rfind(ch, 0, week_at) for ch in ",;:–—")
             s = s[cut + 1:].strip() if cut >= 0 else s
         scope = s
+        last = i  # the last sentence the tally was read from
         counters, dupes = _counters(s, lang)
         if not counters and i + 1 < len(sentences):
             # "Протягом тижня під ударом була більшість регіонів України. 1310
@@ -305,7 +365,7 @@ def parse(text: str, posted_at: datetime) -> Report:
             if not week_rx.search(nxt) and not shorter_rx.search(nxt):
                 more, more_dupes = _counters(nxt, lang)
                 if len(more) >= MIN_CATEGORIES_NEXT_SENTENCE:
-                    scope, counters, dupes = f"{s} {nxt}", more, more_dupes
+                    scope, counters, dupes, last = f"{s} {nxt}", more, more_dupes, i + 1
         if not counters or shot_down(scope):
             continue
 
@@ -321,6 +381,20 @@ def parse(text: str, posted_at: datetime) -> Report:
             "weekly_partial" if partial else "weekly", lang, week_ref, f"{iso.year}-W{iso.week:02d}",
             start.isoformat(), end.isoformat(), counters, scope,
         )
+        # The jet-powered share of the drones: in the tally, or the sentence
+        # right after it unless that one is about a night or a day.
+        drones = next((c for c in counters if c.category == DRONES), None)
+        if drones:
+            jet_scope = scope
+            if last + 1 < len(sentences) and not shorter_rx.search(sentences[last + 1]):
+                jet_scope = f"{scope} {sentences[last + 1]}"
+            jet, jet_warnings = _jet(jet_scope, lang, drones)
+            report.warnings += jet_warnings
+            if jet:
+                report.counters.append(jet)
+                # "з них понад 800 реактивних дронів" is the jet count, not a
+                # second drone total.
+                dupes = [d for d in dupes if d not in jet.raw_label and jet.raw_label not in d]
         if dupes:
             report.warnings.append(
                 f"tally sentence repeats a weapon; kept the first, ignored {dupes}"
