@@ -10,10 +10,12 @@ import type { MonthlyDataPoint, ZelenskyBound, ZelenskyCategory, ZelenskyWeekRow
 import type { SheetSource } from "@/components/TooltipTable";
 import { windowStartMonth, type MonthOption } from "@/utils/monthRange";
 import { formatPostedAt } from "@/utils/sources";
+import { monthDays } from "@/utils/monthProjection";
+import { Temporal } from "temporal-polyfill";
 
 // The generic week helpers live in weekRange.ts (the combined charts' weekly
 // grain uses them too); re-exported so the page has one import.
-import { quarterTicks } from "@/utils/weekRange";
+import { formatWeekRange, quarterTicks } from "@/utils/weekRange";
 export { formatWeekRange, formatWeekMonth as formatWeekTick, mondaysBetween, quarterTicks } from "@/utils/weekRange";
 
 // One bar per Monday in `mondays`; `date` is the week's Monday. A week the
@@ -60,10 +62,82 @@ export function monthsSpanned(first: string, last: string): number {
 // The post each week's figures were read from, for the pinned sheet's
 // Sources list, keyed by the week's Monday. Linked as when it went up, Kyiv.
 export function weeklySources(rows: ZelenskyWeekRow[]): Map<string, SheetSource[]> {
-  return new Map(rows.map((r) => [
-    r.period_start,
-    [{ href: r.url, linkText: formatPostedAt(r.posted_at, "Europe/Kyiv", "Kyiv"), label: "" }],
-  ]));
+  return new Map(rows.map((r) => [r.period_start, [sourceOf(r)]]));
+}
+
+const sourceOf = (r: ZelenskyWeekRow, label = ""): SheetSource =>
+  ({ href: r.url, linkText: formatPostedAt(r.posted_at, "Europe/Kyiv", "Kyiv"), label });
+
+// ── Monthly view ────────────────────────────────────────────────────────────
+// The tally is weekly, so a month is built from the weeks: each week's figure
+// spread evenly over its seven days (its daily average), and a month the sum
+// of its days. A week spanning two months gives each its days' share. Days
+// with no tally — no post that week, or a post that didn't name this weapon —
+// add nothing and are counted out of `days_available`, which the tooltip
+// reports as "X of Y days" (monthCoverage): such a month is undercounted, not
+// quiet.
+
+// The seven "YYYY-MM-DD" days of the week starting `monday`.
+function weekDays(monday: string): string[] {
+  const d = Temporal.PlainDate.from(monday);
+  return Array.from({ length: 7 }, (_, i) => d.add({ days: i }).toString());
+}
+
+// "YYYY-MM" for every month from `first` to `last` (either may be a full date).
+export function monthsBetween(first: string, last: string): string[] {
+  const out: string[] = [];
+  let m = Temporal.PlainYearMonth.from(first.slice(0, 7));
+  const stop = Temporal.PlainYearMonth.from(last.slice(0, 7));
+  while (Temporal.PlainYearMonth.compare(m, stop) <= 0) {
+    out.push(m.toString());
+    m = m.add({ months: 1 });
+  }
+  return out;
+}
+
+// One bar per month in `months`: the weeks' daily averages summed over the
+// month's days, rounded (the source rounds everything; a fraction would be
+// false precision). Null when no day of the month has a figure. A past month
+// short of days carries a note, so its bar is flagged as undercounted rather
+// than read as a quiet month; the month in progress (`liveMonth`) is short by
+// definition, and its "X of Y days" says so.
+export const UNDERCOUNT_NOTE = "Undercounted: some weeks of this month have no weekly tally";
+
+export function toMonthlyDataset(
+  rows: ZelenskyWeekRow[],
+  category: ZelenskyCategory,
+  months: string[],
+  liveMonth: string,
+): MonthlyDataPoint[] {
+  const sum = new Map<string, number>();
+  const days = new Map<string, number>();
+  for (const r of rows) {
+    const v = r[category];
+    if (v == null) continue;
+    for (const day of weekDays(r.period_start)) {
+      const m = day.slice(0, 7);
+      sum.set(m, (sum.get(m) ?? 0) + v / 7);
+      days.set(m, (days.get(m) ?? 0) + 1);
+    }
+  }
+  return months.map((date) => {
+    const n = days.get(date) ?? 0;
+    const point: MonthlyDataPoint = { date, value: n ? Math.round(sum.get(date)!) : null, days_available: n };
+    if (n && date < liveMonth && n < (monthDays(date) ?? 0)) point.note = UNDERCOUNT_NOTE;
+    return point;
+  });
+}
+
+// The posts behind each month, for the pinned sheet: every week with a day in
+// it, so a week spanning two months is listed under both.
+export function monthlySources(rows: ZelenskyWeekRow[]): Map<string, SheetSource[]> {
+  const out = new Map<string, SheetSource[]>();
+  for (const r of rows) {
+    for (const m of new Set([r.period_start.slice(0, 7), r.period_end.slice(0, 7)])) {
+      out.set(m, [...(out.get(m) ?? []), sourceOf(r, `week ${formatWeekRange(r.period_start)}`)]);
+    }
+  }
+  return out;
 }
 
 // The x-axis labels for a window: a quarter's first Monday, as for the whole

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ZelenskyWeekRow } from "@/types";
-import { formatHedged, mondaysBetween, monthsSpanned, toWeeklyDataset, weeklySources, weeksInMonthWindow, windowTicks } from "./zelenskyWeekly";
+import { UNDERCOUNT_NOTE, formatHedged, monthlySources, monthsBetween, mondaysBetween, monthsSpanned, toMonthlyDataset, toWeeklyDataset, weeklySources, weeksInMonthWindow, windowTicks } from "./zelenskyWeekly";
 
 const row = (period_start: string, drones: number | null): ZelenskyWeekRow => ({
   period: "x", period_start, period_end: "x", post_id: 1, posted_at: "x", url: "x",
@@ -69,5 +69,50 @@ describe("weeklySources", () => {
     expect(weeklySources([r]).get("2026-01-05")).toEqual([
       { href: "https://t.me/V_Zelenskiy_official/1", linkText: "2026-01-11 17:30 Kyiv", label: "" },
     ]);
+  });
+});
+
+describe("toMonthlyDataset", () => {
+  it("splits a week spanning two months by its daily average", () => {
+    // 2026-01-26 – 02-01: six days in January, one in February.
+    const data = toMonthlyDataset([row("2026-01-19", 700), row("2026-01-26", 1400)], "drones", ["2026-01", "2026-02"], "2026-02");
+    expect(data).toEqual([
+      { date: "2026-01", value: 700 + 1200, days_available: 13, note: UNDERCOUNT_NOTE },
+      { date: "2026-02", value: 200, days_available: 1 },  // in progress: no note
+    ]);
+  });
+  it("rounds the month's sum, not each day", () => {
+    const [jan] = toMonthlyDataset([row("2026-01-05", 1000), row("2026-01-26", 100)], "drones", ["2026-01"], "2026-03");
+    expect(jan.value).toBe(Math.round(1000 + (100 * 6) / 7));
+  });
+  it("leaves days without a figure out of the coverage, and a month with none null", () => {
+    const data = toMonthlyDataset([row("2026-01-05", 1000), row("2026-01-12", null)], "drones", ["2026-01", "2026-02"], "2026-03");
+    expect(data).toEqual([
+      { date: "2026-01", value: 1000, days_available: 7, note: UNDERCOUNT_NOTE },
+      { date: "2026-02", value: null, days_available: 0 },
+    ]);
+  });
+});
+
+describe("toMonthlyDataset's undercount note", () => {
+  it("is left off a past month every day of which is covered", () => {
+    const weeks = mondaysBetween("2025-12-29", "2026-02-02").map((m) => row(m, 70));
+    const [jan] = toMonthlyDataset(weeks, "drones", ["2026-01"], "2026-03");
+    expect(jan).toEqual({ date: "2026-01", value: 310, days_available: 31 });
+  });
+});
+
+describe("monthsBetween", () => {
+  it("lists every month, across a year boundary", () => {
+    expect(monthsBetween("2025-11-24", "2026-02-01")).toEqual(["2025-11", "2025-12", "2026-01", "2026-02"]);
+  });
+});
+
+describe("monthlySources", () => {
+  it("lists a week spanning two months under both, naming the week", () => {
+    const r = { ...row("2026-01-26", 1), period_end: "2026-02-01", url: "https://t.me/x/9", posted_at: "2026-02-01T10:00:00Z" };
+    const m = monthlySources([r]);
+    expect(m.get("2026-01")).toEqual([{ href: "https://t.me/x/9", linkText: "2026-02-01 12:00 Kyiv", label: "week 2026-01-26/02-01" }]);
+    expect(m.get("2026-02")).toEqual(m.get("2026-01"));
   });
 });

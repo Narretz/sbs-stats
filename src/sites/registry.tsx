@@ -36,6 +36,7 @@ const MediazonaMonthlyPage = lazyPage(() => import("@/pages/MediazonaMonthlyPage
 const CitCiviliansDailyPage = lazyPage(() => import("@/pages/CitCiviliansDailyPage"), "CitCiviliansDailyPage");
 const CitCiviliansMonthlyPage = lazyPage(() => import("@/pages/CitCiviliansMonthlyPage"), "CitCiviliansMonthlyPage");
 const ZelenskyWeeklyPage = lazyPage(() => import("@/pages/ZelenskyWeeklyPage"), "ZelenskyWeeklyPage");
+const ZelenskyMonthlyPage = lazyPage(() => import("@/pages/ZelenskyMonthlyPage"), "ZelenskyMonthlyPage");
 
 // Every dataset page takes the same prop.
 type PageComponent = ComponentType<{ refreshKey: number }>;
@@ -126,6 +127,6 @@ export const SITE_REGISTRY: Partial<Record<Site, SiteConfig>> = {
   "zelensky-weekly": {
     provider: ZelenskyWeeklyDatabaseProvider,
     useDbContext: useZelenskyWeeklyDatabaseContext,
-    pages: { weekly: ZelenskyWeeklyPage },
+    pages: { weekly: ZelenskyWeeklyPage, monthly: ZelenskyMonthlyPage },
   },
 };

@@ -80,3 +80,23 @@ test.describe("Zelensky weekly tally", () => {
     await expect(sources.locator("a").first()).toHaveText(/^2026-01-11 10:00 Kyiv ↗$/);
   });
 });
+
+// The monthly roll-up: weeks' daily averages summed per month. The fixture's
+// two tallies both fall in January, so its drones are their sum, and bombs —
+// named in one week only — cover 7 of its 31 days. The split of a week across
+// two months is zelenskyWeekly.test.ts.
+test.describe("Zelensky monthly roll-up", () => {
+  test("a month sums its weeks and says how many days they cover", async ({ page }) => {
+    await page.goto("/?site=zelensky-weekly&page=monthly");
+    await expect(page.getByText(DRONES, { exact: true })).toBeVisible();
+    await page.waitForTimeout(800);
+    const drones = await tooltipAt(page, DRONES, "2026-01");
+    expect(drones).toMatch(/Actual\s+2,200/);
+    expect(drones).toContain("14 of 31 days");
+    // A past month short of days is flagged, not read as a quiet month.
+    expect(drones).toContain("Undercounted");
+    const bombs = await tooltipAt(page, BOMBS, "2026-01");
+    expect(bombs).toMatch(/Actual\s+900/);
+    expect(bombs).toContain("7 of 31 days");
+  });
+});
