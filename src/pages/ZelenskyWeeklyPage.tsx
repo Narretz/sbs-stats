@@ -111,10 +111,12 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
         Posts say only "this week" or "last week", so the dates are worked out from when
         each post went up (Monday–Sunday, Kyiv time).
         {" "}
-        Click a week to pin it and link the post its figures come from.
-        {" "}
         Empty weeks had no weekly tally. Through most of Apr–Sep 2025 the President posted
         month-to-date totals instead, which are not shown here.
+        {" "}
+        Since late summer 2026 some weeks also say how many of the drones were
+        jet-powered («реактивні»), as a count or a share; a share is turned into a count
+        with that week's drone total.
       </>}
       // No window picker → no scope toggle either; see StatScopeToggle.
       controls={yr.hidden ? undefined : (
