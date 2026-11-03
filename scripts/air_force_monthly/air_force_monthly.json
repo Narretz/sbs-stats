@@ -1,0 +1,93 @@
+{
+  "description": "UA Air Force Command monthly recap: air targets Russia launched (spokesman Yurii Ihnat, on the national telethon) set against those the Defense Forces destroyed (KPSZSU Telegram). Hand-curated. Launched figures are the spokesman's rounded, spoken numbers ('around', 'nearly', 'more than'); destroyed figures are the post's exact counts.",
+  "months": [
+    {
+      "month": "2026-10",
+      "sources": {
+        "launched": {
+          "url": "https://www.pravda.com.ua/eng/news/2026/11/02/8060826/",
+          "publisher": "Ukrainska Pravda (English)",
+          "speaker": "Col. Yurii Ihnat, Head of Communications, UA Air Force Command, national joint 24/7 newscast",
+          "date": "2026-11-02",
+          "text": "Ukraine's Air Force has reported that Russia launched more than 4,000 jet-powered drones, around 150 ballistic missiles and 80 cruise and air-launched missiles against Ukraine in October 2026.\n\nSource: Colonel Yurii Ihnat, Head of Communications for the Ukrainian Air Force Command, on the national joint 24/7 newscast on 2 November\n\nQuote: \"Nearly 360 Banderol/Dan-T drone-launched cruise missiles of this particular type were used in October. There were also 4,740 conventional drones – meaning Shaheds, Gerberas and Parodiyas – and more than 4,000 jet-powered UAVs. Those are the statistics for October.\n\nAs for missiles, the enemy used around 150 ballistic missiles and 80 cruise and air-launched missiles.\""
+        },
+        "destroyed": {
+          "url": "https://t.me/kpszsu/92770",
+          "publisher": "UA Air Force Command (Telegram, kpszsu)",
+          "text": "Throughout October 2026, the Defense Forces destroyed over 8,000 aerial targets; in addition, more than 43,000 tactical-level UAVs were neutralized, including:\n\n▪️ 14 Kh-101 cruise missiles;\n▪️ 11 Iskander-M/KN-23 ballistic missiles;\n▪️ 12 Kalibr cruise missiles;\n▪️ 7 Kh-59/69 guided air-launched missiles;\n▪️ 8 Iskander-K cruise missiles;\n▪️ 1 Zircon anti-ship missile;\n▪️ 143 \"Banderol\" units;\n▪️ 4,455 strike UAVs (Shahed-131/136 types, Gerbera, and \"Parodiya\" decoy drones);\n▪️ 2,688 Shahed-238 strike UAVs;\n▪️ 1,104 reconnaissance UAVs;\n▪️ 809 \"Lancet\" UAVs."
+        },
+        "sorties": {
+          "url": "https://t.me/kpszsu/92770",
+          "publisher": "UA Air Force Command (Telegram, kpszsu)",
+          "text": "✈️ During October, Air Force aviation conducted over 1,200 sorties, including:\n\n▪️ over 1,100 for fighter air cover;\n▪️ approximately 70 for engaging targets and providing air support to ground troops."
+        }
+      },
+      "destroyed_items": [
+        { "name": "Kh-101", "kind": "cruise missile", "count": 14 },
+        { "name": "Iskander-M/KN-23", "kind": "ballistic missile", "count": 11 },
+        { "name": "Kalibr", "kind": "cruise missile", "count": 12 },
+        { "name": "Kh-59/69", "kind": "guided air-launched missile", "count": 7 },
+        { "name": "Iskander-K", "kind": "cruise missile", "count": 8 },
+        { "name": "Zircon", "kind": "anti-ship missile", "count": 1 },
+        { "name": "Banderol", "kind": "drone-launched cruise missile", "count": 143 },
+        { "name": "Shahed-131/136, Gerbera, Parodiya", "kind": "strike UAV / decoy", "count": 4455 },
+        { "name": "Shahed-238", "kind": "jet strike UAV", "count": 2688 },
+        { "name": "reconnaissance UAVs", "kind": "reconnaissance UAV", "count": 1104 },
+        { "name": "Lancet", "kind": "loitering munition", "count": 809 }
+      ],
+      "destroyed_totals_stated": {
+        "aerial_targets": { "count": 8000, "qualifier": "over" },
+        "tactical_uavs_neutralized": { "count": 43000, "qualifier": "more than" }
+      },
+      "categories": [
+        {
+          "category": "ballistic missiles",
+          "launched": 150,
+          "launched_qualifier": "around",
+          "destroyed": 11,
+          "destroyed_from": ["Iskander-M/KN-23"]
+        },
+        {
+          "category": "cruise & air-launched missiles",
+          "launched": 80,
+          "launched_qualifier": "exact as spoken",
+          "destroyed": 42,
+          "destroyed_from": ["Kh-101", "Kalibr", "Kh-59/69", "Iskander-K", "Zircon"],
+          "note": "Zircon counted here (a hypersonic cruise missile); the spokesman's two missile buckets are only ballistic vs. cruise/air-launched."
+        },
+        {
+          "category": "Banderol / Dan-T",
+          "launched": 360,
+          "launched_qualifier": "nearly",
+          "destroyed": 143,
+          "destroyed_from": ["Banderol"],
+          "note": "Spokesman reports these separately from the missiles; not included in the 230 missiles."
+        },
+        {
+          "category": "conventional strike drones (Shahed, Gerbera, Parodiya)",
+          "launched": 4740,
+          "launched_qualifier": "exact as spoken",
+          "destroyed": 4455,
+          "destroyed_from": ["Shahed-131/136, Gerbera, Parodiya"]
+        },
+        {
+          "category": "jet-powered UAVs",
+          "launched": 4000,
+          "launched_qualifier": "more than",
+          "destroyed": 2688,
+          "destroyed_from": ["Shahed-238"],
+          "note": "Assumes the post's Shahed-238 line is the full jet-UAV count."
+        }
+      ],
+      "not_matched": {
+        "destroyed_only": ["reconnaissance UAVs", "Lancet"],
+        "note": "No launched counterpart for reconnaissance UAVs or Lancets. Kinzhal / Kh-22 / KAB are not itemised in either source."
+      },
+      "sorties": {
+        "total": { "count": 1200, "qualifier": "over" },
+        "fighter_air_cover": { "count": 1100, "qualifier": "over" },
+        "strike_and_ground_support": { "count": 70, "qualifier": "approximately" }
+      }
+    }
+  ]
+}
