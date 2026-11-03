@@ -148,7 +148,9 @@ function make(
 // Every daily source can be shown at all three grains.
 const ALL_GRAINS: MetricView[] = ["daily", "weekly", "monthly"];
 const MONTHLY_ONLY: MetricView[] = ["monthly"];
-const WEEKLY_ONLY: MetricView[] = ["weekly"];
+// The President's tally: natively weekly, and rolled up into months
+// (combinedQuery projectZelenskyMonthly). It has no daily figure.
+const WEEKLY_AND_MONTHLY: MetricView[] = ["weekly", "monthly"];
 
 // SBS — 7 base metrics + 16 targets × {hit, destroyed}.
 const SBS_BASE: Array<[string, string]> = [
@@ -236,7 +238,7 @@ const ZELENSKY_METRIC_LABELS: Record<(typeof ZELENSKY_CATEGORIES)[number], strin
   missiles: "Missiles Launched (rounded)",
 };
 const ZELENSKY_METRICS: CombinedMetric[] = ZELENSKY_CATEGORIES.map((k) =>
-  make("zelensky", k, ZELENSKY_METRIC_LABELS[k], WEEKLY_ONLY),
+  make("zelensky", k, ZELENSKY_METRIC_LABELS[k], WEEKLY_AND_MONTHLY),
 );
 
 export const COMBINED_METRICS: CombinedMetric[] = [

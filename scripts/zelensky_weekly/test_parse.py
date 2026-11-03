@@ -68,7 +68,18 @@ GOLDEN = [
      "«більш як 100 «шахедів»»; the week phrase comes last"),
     (20861, "2026-09-13T09:04:22", "2026-W37", "this",
      {"drones": (2100, "approx")},
-     "a single-weapon tally"),
+     "a single-weapon tally; «значна частина … реактивні» is no jet figure"),
+    (21196, "2026-10-04T08:25:44", "2026-W40", "this",
+     {"drones": (1900, "at_least"), "bombs": (1700, "exact"), "missiles": (25, "exact"),
+      "jet_drones": (800, "at_least")},
+     "jet count in the NEXT sentence; the night's «понад 50 із них – реактивні» before it is not the week's"),
+    (21313, "2026-10-11T09:08:27", "2026-W41", "this",
+     {"bombs": (1450, "approx"), "missiles": (75, "exact"), "drones": (1640, "at_least"),
+      "jet_drones_pct": (60, "approx")},
+     "jet share as a percentage, in the tally sentence"),
+    (20967, "2026-09-20T08:00:14", "2026-W38", "this",
+     {"drones": (2000, "at_least"), "bombs": (1700, "exact"), "missiles": (19, "exact")},
+     "«з них більшість реактивні» — words, no jet figure"),
     (20347, "2026-08-09T07:28:41", "2026-W32", "this",
      {"missiles": (61, "exact")},
      "single weapon; the «серед них 56» breakdown has no noun"),
@@ -160,6 +171,43 @@ def test_unread_weapon_is_warned():
     text = "За цей тиждень понад 1000 ударних дронів і ракет різних типів — 40."
     r = parse(text, SUNDAY)
     assert any("missiles" in w for w in r.warnings)
+
+
+def test_jet_count_inside_the_tally_is_not_a_second_drone_total():
+    text = "За цей тиждень понад 2000 ударних дронів, з них понад 800 реактивних дронів, і 40 ракет."
+    r = parse(text, SUNDAY)
+    assert {c.category: (c.value, c.bound) for c in r.counters} == {
+        "drones": (2000, "at_least"), "missiles": (40, "exact"), "jet_drones": (800, "at_least"),
+    }
+    assert r.warnings == []
+
+
+def test_jet_share_in_english():
+    text = ("This week Russia launched more than 1,640 attack drones, about 60% of them jet-powered, "
+            "and 75 missiles.")
+    r = parse(text, SUNDAY)
+    assert {c.category: (c.value, c.bound) for c in r.counters}["jet_drones_pct"] == (60, "approx")
+
+
+def test_jet_figure_needs_a_drone_count():
+    # A share of nothing: no drone total in the tally, so no jet counter.
+    text = "За цей тиждень 1700 авіабомб і 25 ракет. Понад 800 дронів були реактивні."
+    r = parse(text, SUNDAY)
+    assert {c.category for c in r.counters} == {"bombs", "missiles"}
+
+
+def test_jet_in_a_following_night_sentence_is_not_the_weeks():
+    text = ("За цей тиждень понад 1900 ударних дронів і 25 ракет. "
+            "Цієї ночі 135 дронів, понад 50 із них – реактивні.")
+    r = parse(text, SUNDAY)
+    assert "jet_drones" not in {c.category for c in r.counters}
+
+
+def test_jet_figure_larger_than_the_drones_is_warned_not_kept():
+    text = "За цей тиждень понад 500 ударних дронів, з них 800 – реактивні."
+    r = parse(text, SUNDAY)
+    assert "jet_drones" not in {c.category for c in r.counters}
+    assert any("exceeds" in w for w in r.warnings)
 
 
 def test_next_week_is_not_a_tally():

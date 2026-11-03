@@ -43,6 +43,7 @@ import { type MonthOption, monthOf, windowStartMonth } from "@/utils/monthRange"
 import { monthDays } from "@/utils/monthProjection";
 import { fillDailyRange, padTrailingMonthly, resolvedEndDate } from "@/utils/padTrailing";
 import { type WeekOption, aggregateWeekly, mondaysBetween, weeklyWindow } from "@/utils/weekRange";
+import { monthsBetween, toMonthlyDataset } from "@/utils/zelenskyWeekly";
 
 export interface CombinedQueries {
   sbs?: (days: number, endDate?: string) => DailyRow[];
@@ -102,6 +103,8 @@ export interface CombinedMonthlyQueries {
   ruAir?: () => RuAirAttacksMonthlyRow[];
   sbuAlfa?: () => SbuAlfaCounterRow[];
   rubikon?: () => RubikonCounterRow[];
+  // The President's weekly tally, rolled up into months by the fetcher.
+  zelensky?: () => ZelenskyWeekRow[];
   // Mediazona has two independent monthly queries — pass both; the fetcher
   // routes each metric to the right one by key.
   mediazonaRoles?: () => MediazonaRolesRow[];
@@ -185,6 +188,36 @@ function projectMonthly(
     });
 }
 
+// The weekly tally as months, the way the site's own monthly view builds them
+// (zelenskyWeekly toMonthlyDataset): each week's daily average summed over a
+// month's days. From the window's start or the first tally, whichever is
+// later — as the other sources start where their data does. A finished month
+// some of whose days no tally covers gets the same undercount note as a month
+// summed from too few days elsewhere on this page.
+function projectZelenskyMonthly(
+  rows: ZelenskyWeekRow[],
+  key: string,
+  startMonth: string,
+  endMonth: string,
+): DailyDataPoint[] {
+  if (!rows.length) return [];
+  const first = rows[0].period_start.slice(0, 7);
+  const from = startMonth > first ? startMonth : first;
+  if (from > endMonth) return [];
+  const liveMonth = monthOf("");
+  return toMonthlyDataset(rows, key as "drones" | "bombs" | "missiles", monthsBetween(from, endMonth), liveMonth)
+    .map((d) => {
+      const point: DailyDataPoint = { date: d.date, value: d.value, is_today: d.date === liveMonth };
+      const days = monthDays(d.date);
+      const covered = d.days_available ?? 0;
+      if (d.note && days != null) {
+        point.note = `Weekly tallies cover ${covered} of ${days} days — the other ${days - covered} ` +
+          `${days - covered === 1 ? "has" : "have"} none, so this month may be undercounted.`;
+      }
+      return point;
+    });
+}
+
 export async function fetchCombinedMonthly(
   metrics: CombinedMetric[],
   months: MonthOption,
@@ -222,6 +255,8 @@ export async function fetchCombinedMonthly(
   const mediazonaRolesRows = sources.has("mediazona-roles") && queries.mediazonaRoles ? queries.mediazonaRoles() : null;
   const mediazonaEstimateRows = sources.has("mediazona-estimate") && queries.mediazonaEstimate ? queries.mediazonaEstimate() : null;
 
+  const zelenskyRows = sources.has("zelensky") && queries.zelensky ? queries.zelensky() : null;
+
   const gsuaRows = sources.has("gsua") && queries.gsua ? await queries.gsua() : null;
 
   for (const m of metrics) {
@@ -237,6 +272,7 @@ export async function fetchCombinedMonthly(
     else if (m.source === "rubikon" && rubikonRows) result[m.id] = pivotCounters(rubikonRows, m.key, startMonth, endMonth);
     else if (m.source === "mediazona-roles" && mediazonaRolesRows) result[m.id] = projectMediazona(mediazonaRolesRows as unknown as Array<{ week: string } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "mediazona-estimate" && mediazonaEstimateRows) result[m.id] = projectMediazona(mediazonaEstimateRows as unknown as Array<{ week: string } & Record<string, unknown>>, m.key, startMonth, endMonth);
+    else if (m.source === "zelensky" && zelenskyRows) result[m.id] = projectZelenskyMonthly(zelenskyRows, m.key, startMonth, endMonth);
     else result[m.id] = [];
     // Extend each series' trailing tail to the chart's end month so a lagging
     // source visibly stops short instead of silently ending where its data does.

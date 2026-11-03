@@ -892,6 +892,13 @@ export interface ZelenskyWeekRow {
   bombs_bound: ZelenskyBound | null;
   missiles: number | null;
   missiles_bound: ZelenskyBound | null;
+  // Of the drones, the jet-powered ones — a count or a percentage, whichever
+  // the post gave (since late summer 2026, and not every week). Detail shown
+  // in the drones tooltip, not a series of its own.
+  jet_drones: number | null;
+  jet_drones_bound: ZelenskyBound | null;
+  jet_drones_pct: number | null;
+  jet_drones_pct_bound: ZelenskyBound | null;
 }
 
 // ─── Rubikon (Telegram monthly recap → rubikon.db) ────────────────────────────
