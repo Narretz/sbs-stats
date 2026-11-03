@@ -704,10 +704,9 @@ export function ComparePage({ preset }: Props) {
   // ─── Render helpers ───────────────────────────────────────────────────────
   const cellStyle = (highlight: boolean) => ({
     padding: "6px 16px",
-    textAlign: "right" as const,
+    textAlign: "left" as const,
     fontVariantNumeric: "tabular-nums" as const,
     background: highlight ? HIGHLIGHT_BG : undefined,
-    borderBottom: `1px solid ${t.border}`,
     verticalAlign: "top" as const,
   });
 
@@ -748,14 +747,13 @@ export function ComparePage({ preset }: Props) {
     });
   }
 
-  const sectionHeader = (label: string, topBorder: boolean) => (
+  const sectionHeader = (label: string) => (
     <tr>
       <td colSpan={columns.length + 1} style={{
         padding: "10px 16px 4px",
         fontFamily: FONTS.display, fontWeight: 700, fontSize: 11,
         textTransform: "uppercase", letterSpacing: "0.08em",
         color: t.textMuted,
-        borderTop: topBorder ? `1px solid ${t.border}` : undefined,
         background: t.bgAlt,
       }}>
         {label}
@@ -882,13 +880,16 @@ export function ComparePage({ preset }: Props) {
       {columns.length > 0 && (
         <>
           <div style={{
-            background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8,
             padding: "8px 0", boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
             overflowX: "auto",
           }}>
             <table style={{
-              width: "100%", borderCollapse: "collapse",
-              fontFamily: FONTS.mono, fontSize: 13,
+              background: t.surface,
+              border: `1px solid ${t.surfaceBorder}`,
+              borderRadius: 8,
+              borderCollapse: "collapse",
+              fontFamily: FONTS.mono,
+              fontSize: 13,
             }}>
               <thead>
                 <tr style={{ color: t.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -897,17 +898,15 @@ export function ComparePage({ preset }: Props) {
                       hands the slack to the value columns. */}
                   <th style={{
                     textAlign: "left", padding: "8px 16px",
-                    borderBottom: `1px solid ${t.border}`,
-                    width: "1%", whiteSpace: "nowrap",
+                    whiteSpace: "nowrap",
                   }}>
                     Category
                   </th>
                   {columns.map((c, i) => (
                     <th key={c.id} style={{
-                      textAlign: "right", padding: "8px 16px",
-                      borderBottom: `1px solid ${t.border}`, verticalAlign: "top",
+                      padding: "8px 16px",
                       whiteSpace: "nowrap",
-                      width: `${99 / columns.length}%`,
+                      maxWidth: 360,
                     }}>
                       {/* Selects and the move buttons to the left, the remove
                           button pinned right. */}
@@ -994,18 +993,17 @@ export function ComparePage({ preset }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {groups.map((group, gi) => {
+                {groups.map((group) => {
                   const rowsInGroup = visibleRows.filter((r) => r.group === group);
                   if (!rowsInGroup.length) return null;
                   return (
                     <Fragment key={group}>
-                      {sectionHeader(GROUP_LABELS[group], gi > 0)}
+                      {sectionHeader(GROUP_LABELS[group])}
                       {rowsInGroup.map((r) => (
                         <tr key={r.id}>
                           <td style={{
                             padding: r.indent ? "6px 16px 6px 32px" : "6px 16px",
                             color: r.indent ? t.textMuted : t.text,
-                            borderBottom: `1px solid ${t.border}`,
                             verticalAlign: "top",
                             whiteSpace: "nowrap",
                           }}>
@@ -1034,12 +1032,11 @@ export function ComparePage({ preset }: Props) {
 
                 {unmappedSections.map(({ entity, natives }) => (
                   <Fragment key={`unmapped-${entity}`}>
-                    {sectionHeader(`Only in ${ENTITY_LABELS[entity]}`, true)}
+                    {sectionHeader(`Only in ${ENTITY_LABELS[entity]}`)}
                     {natives.map((n) => (
                       <tr key={`${entity}-${n.key}`}>
                         <td style={{
                           padding: "6px 16px", color: t.text,
-                          borderBottom: `1px solid ${t.border}`, verticalAlign: "top",
                           whiteSpace: "nowrap",
                         }}>
                           {n.label}
