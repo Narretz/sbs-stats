@@ -107,7 +107,7 @@ export const LIGHT: Theme = {
 
 export const DARK: Theme = {
   bg:           "#080c14",
-  bgAlt:        "#0d1420",
+  bgAlt:        "#151F30",
   surface:      "#0d1420",
   surfaceBorder:"#1a2540",
   border:       "#263967",

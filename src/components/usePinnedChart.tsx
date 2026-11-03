@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { ReferenceArea, ReferenceLine, Tooltip, type MouseHandlerDataParam } from "recharts";
 import { useTheme } from "@/hooks/useTheme";
+import { chartColors } from "@/chartColors";
 import { useChartPin } from "@/hooks/ChartPinProvider";
 import { ChartSheetContent } from "@/components/ChartSheet";
 import { DescriptorBody, DescriptorCard, type TooltipDescriptor } from "@/components/TooltipTable";
@@ -168,7 +169,9 @@ export function usePinnedChart<T>({
         ...(showEmptyWrapper ? { visibility: "visible" as const } : null),
         ...(fitToContent ? { width: "max-content" } : null),
       }}
-      cursor={cursor}
+      // A bar chart's hover band in the theme's colour, unless the chart
+      // brings its own cursor (every line chart does: a vertical rule).
+      cursor={cursor ?? { fill: chartColors(t).hoverBand }}
       content={({ active, label, payload }) => {
         // Pinned: the sheet says it all, the band is enough on hover.
         if (!active || pin.isPinned) return null;

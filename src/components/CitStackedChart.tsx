@@ -143,7 +143,7 @@ export function CitStackedChart<K extends string, Row extends CitStackRowBase & 
       // A day no report covers says so on hover; see the callers' describe.
       showEmptyWrapper={daily}
       entryOf={daily ? (d) => entryOfDay(d as unknown as SpannedDay) : undefined}
-      cursor={daily ? <SpanCursor rows={data as unknown as SpannedDay[]} /> : undefined}
+      cursor={daily ? <SpanCursor rows={data as unknown as SpannedDay[]} bandFill={c.hoverBand} /> : undefined}
       subheader={<>
         {headerRow}
         {caveat && (
