@@ -77,6 +77,9 @@ export interface ChartColors {
 
   // Single-metric bar charts (RU air attacks monthly, RU MoD monthly, …)
   barDefault: string;
+  // The band behind the hovered bar (recharts' tooltip cursor on a bar chart),
+  // which recharts otherwise paints a fixed #ccc in both themes.
+  hoverBand: string;
   barCurrent: string;       // last/current month highlight
   barCurrentProjected: string;
 
@@ -141,6 +144,7 @@ export function chartColors(t: Theme): ChartColors {
     destroyedCurrent: t.series2Current,
 
     barDefault: t.series1,
+    hoverBand: t.surfaceBorder,
     barCurrent: t.series1Current,
     barCurrentProjected: withProjectedAlpha(t.series1),
 
