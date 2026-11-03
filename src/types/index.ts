@@ -683,6 +683,8 @@ export const ATTACK_SUBTYPE_LABELS: Record<string, string> = {
 // stays a drone.
 export const ATTACK_SUBTYPE_CATEGORY: Record<string, AttackDbCategory> = {
   Banderol: "cruise",
+  // The same missile, as piterfm names it once the Dan-T variant is in the mix.
+  "Banderol/Dan-T": "cruise",
   Turbojet: "drone",
 };
 

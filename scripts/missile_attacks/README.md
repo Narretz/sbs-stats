@@ -234,21 +234,23 @@ Added by the build (not in the CSV):
   drone, so a cruise+ballistic bundle resolves to ballistic. Genuinely
   new/unknown model tokens emit a warning (known-but-uncategorizable ones like
   guided bombs map to `other` silently).
-  **Geran-2 / -4 / -5 are the Russian names for Geran drones**: Geran-2 is
-  the piston-engined Shahed-136, Geran-4 and Geran-5 are jet-powered. Every
-  row naming them (2026-09-29 onward) comes from **Air Command West**
-  (`source` `PvkZahid/…`), which until then reported the same drones as
-  `Shahed-136/131`, only on nights without a national report. Its Geran rows
-  instead sit beside the national `kpszsu` Shahed row for the same overnight
-  window, almost every night, with `launched = destroyed` (it reports only
-  what it shot down over the west). They read as a regional slice of that
-  night's national figure, not a separate raid. The national post for the
-  night of 13→14 Oct, for one, reports "128 drones of various types", 115
-  shot down "(59 of them jet-powered)". The DB holds exactly that as its
-  `Shahed-136/131` row, and Air Command West's `Geran-4` 37/37 sits beside it,
-  part of those 115 rather than on top of them. None of them is in
-  `DRONE_MODELS`, so they land in `other` (668 in Oct 2026). Moving them to
-  `drone` would likely count those drones twice.
+  - **Reading a `model` string.** `A/B` is one weapon the report didn't pin
+    down (`X-59/X-69`, `Iskander-M/KN-23`, `Banderol/Dan-T`) and is a token of
+    its own in the lists. `A and B` is a **bundle**: one row, one count for all
+    its weapons, as the report gave it ("35 missiles: C-400, Iskander-M and
+    Zircon"). A bundle can't be split, so it goes wholly to one category, and a
+    weapon inside it doesn't show up under its own category.
+  - **Zircon and Oniks are `cruise`**, but since Aug 2026 the Air Force mostly
+    reports them inside the ballistic group: 11 bundled rows, 102 launched by
+    Oct 2026, e.g. `C-400 and Iskander-M/KN-23 and 3M22 Zircon/P-800 Oniks` 39
+    on 2026-10-13. Those bundles resolve to `ballistic`, so since then a
+    ballistic figure includes an unknown number of Zircon/Oniks, and the cruise
+    series shows only the ones reported alone.
+  - **Geran-2 / -4 / -5 are `drone`.** They are the Russian names: Geran-2 is
+    the piston-engined Shahed-136, Geran-4 and Geran-5 its jet-powered
+    successors. Only Air Command West uses them (`source` `PvkZahid/…`, from
+    2026-09-29); until then it reported the same drones as `Shahed-136/131`.
+    Its rows are a regional slice of the national figure.
 
 ## Views
 

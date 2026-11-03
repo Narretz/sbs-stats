@@ -142,6 +142,13 @@ def test_duplicate_key_within_download_aborts(tmp_path):
         ("Iskander-M", "ballistic"),
         ("X-47 Kinzhal", "ballistic"),
         ("Iskander-M and Iskander-K", "ballistic"),  # cruise+ballistic → ballistic
+        # Cruise alone; inside the ballistic group (as since Aug 2026), ballistic.
+        ("3M22 Zircon", "cruise"),
+        ("3M22 Zircon/P-800 Oniks", "cruise"),
+        ("C-400 and Iskander-M/KN-23 and 3M22 Zircon/P-800 Oniks", "ballistic"),
+        ("Banderol/Dan-T", "cruise"),
+        ("Geran-2 and Geran-4", "drone"),
+        ("Geran-5", "drone"),
         ("GBU", "other"),
         ("Totally New Weapon", "other"),  # unmapped → other
     ],

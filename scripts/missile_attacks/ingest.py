@@ -124,16 +124,23 @@ OWN_COLS = {DATE_COL, CATEGORY_COL, REMOVED_COL}
 # counts — launched as a lower bound, which `hidden` flags.
 STATUS_COL = "status_data"
 HIDDEN_STATUS = "hidden"
+# The Geran names are Russia's, used by Air Command West since 2026-09-29:
+# Geran-2 is the Shahed-136, Geran-4/5 its jet-powered successors.
 DRONE_MODELS = {
-    "Shahed-136/131", "Orlan-10", "Orlan-30", "ZALA", "Supercam", "Lancet",
+    "Shahed-136/131", "Geran-2", "Geran-4", "Geran-5",
+    "Orlan-10", "Orlan-30", "ZALA", "Supercam", "Lancet",
     "Merlin-VR", "Mohajer-6", "Orion", "Forpost", "Eleron", "Granat-4", "Kub",
     "Молнія", "Фенікс", "Картограф", "Привет-82", "Reconnaissance UAV",
     "Unknown UAV",
 }
 CRUISE_MODELS = {
     "X-101/X-555", "Kalibr", "X-59", "X-69", "X-59/X-69", "X-59MK2", "X-22",
-    "X-32", "X-35", "X-35Y", "X-55", "P-800 Oniks", "3M22 Zircon", "Iskander-K",
-    "Banderol", "X-31", "X-31P", "X-31PD",
+    "X-32", "X-35", "X-35Y", "X-55", "Iskander-K",
+    "Banderol", "Banderol/Dan-T", "X-31", "X-31P", "X-31PD",
+    # Anti-ship. Since Aug 2026 mostly reported inside the ballistic group
+    # ("C-400 and Iskander-M and 3M22 Zircon", one count), and such a bundle
+    # resolves to ballistic by precedence; reported alone they are cruise.
+    "3M22 Zircon", "P-800 Oniks", "3M22 Zircon/P-800 Oniks",
 }
 BALLISTIC_MODELS = {
     "Iskander-M", "Iskander-M/KN-23", "KN-23", "X-47 Kinzhal",  # Kinzhal = aeroballistic
