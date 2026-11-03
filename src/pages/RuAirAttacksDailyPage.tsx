@@ -16,11 +16,14 @@ import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows, weekdayPredicate } from "@/utils/dayRange";
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
 import {
+  AIR_IMPACT_KEYS,
+  AIR_IMPACT_LABELS,
   ATTACK_DB_CATEGORIES,
   ATTACK_CATEGORY_LABELS,
   FEATURED_MODELS,
   UNDISCLOSED_NOTE,
   UNDISCLOSED_PARTIAL_NOTE,
+  type AirImpactKey,
   type AttackCategoryKey,
   type AttackDbCategory,
   type ModelBreakdownEntry,
@@ -130,6 +133,8 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
     all: airAttackSourcesByDate(sourceRows),
     ...Object.fromEntries(ATTACK_DB_CATEGORIES.map((cat) => [cat, airAttackSourcesByDate(sourceRows, (r) => r.category === cat)])),
     ...Object.fromEntries(FEATURED_MODELS.map((model) => [`model:${model}`, airAttackSourcesByDate(sourceRows, (r) => r.model === model)])),
+    // The reports that gave a "locations hit" figure.
+    impacts: airAttackSourcesByDate(sourceRows, (r) => r.has_impacts === 1),
   }) as Record<string, Map<string, SheetSource[]>>, [sourceRows]);
 
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00").getDay();
@@ -174,6 +179,17 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
       { keepDate },
     );
 
+  // "Hits at N locations, debris at M" — null on a day no report gave it.
+  const impactSeries = (key: AirImpactKey) =>
+    fillDailyRange(
+      filteredRows.map((d) => ({ date: d.date, value: d[key], is_today: d.is_today })),
+      startDate,
+      endDate,
+      { keepDate },
+    );
+  // Reported only since 2025-05-24: a window before that has no chart for it.
+  const hasImpacts = filteredRows.some((d) => d.impact_hit != null || d.impact_debris != null);
+
   const filterModelRows = (mrows: RuAirAttacksModelDailyRow[]) =>
     filterDailyRows(mrows, { selectedDate, days, weekdays: selectedWeekdays });
   const modelSeries = (model: string, metric: "launched" | "intercepted") =>
@@ -192,7 +208,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
     <PageScaffold
       headerVariant="block"
       title="Daily Russian Missile & UAV Attacks"
-      description={<>Launched vs intercepted, per Ukrainian Air Force reports · source: piterfm / Kaggle <a target="_blank" href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week</>}
+      description={<>Launched vs intercepted, per Ukrainian Air Force reports, and — since May 2025 — how many locations the strikes hit or showered with debris · source: piterfm / Kaggle <a target="_blank" href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week</>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-air-attacks" />}
       controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} />
@@ -222,6 +238,20 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
             wfull
             sourcesByDate={sources.all}
           />
+          {/* What the strikes did, per the same reports: locations hit and
+              locations hit by falling debris, one figure per report. */}
+          {hasImpacts && AIR_IMPACT_KEYS.map((k) => (
+            <DailyLineChart
+              key={k}
+              title={AIR_IMPACT_LABELS[k]}
+              data={impactSeries(k)}
+              globalMax={globalStats.impacts?.[k].max ?? 0}
+              globalMedian={globalStats.impacts?.[k].median ?? 0}
+              globalTotal={globalStats.impacts?.[k].total ?? 0}
+              wfull={false}
+              sourcesByDate={sources.impacts}
+            />
+          ))}
           {/* Per category: launched (area) with intercepted as a filled subset.
               Tooltip carries a top-N model breakdown for the hovered date. */}
           {ATTACK_DB_CATEGORIES.map((cat) => (

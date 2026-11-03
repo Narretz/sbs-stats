@@ -198,6 +198,7 @@ export interface AirAttackRow {
   launched: number | null;
   destroyed: number | null;
   hidden: number;            // 1 when the figures were withheld
+  has_impacts?: number;      // 1 when the row carries its report's "locations hit" figures
 }
 
 const AIR_ACCOUNTS: Record<string, string> = {

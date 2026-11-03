@@ -13,10 +13,13 @@ import { PageScaffold } from "@/components/PageScaffold";
 import { padTrailingMonthly } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import {
+  AIR_IMPACT_KEYS,
+  AIR_IMPACT_LABELS,
   ATTACK_CATEGORY_LABELS,
   ATTACK_DB_CATEGORIES,
   FEATURED_MODELS,
   UNDISCLOSED_PARTIAL_NOTE,
+  type AirImpactKey,
   type AttackCategoryKey,
   type AttackDbCategory,
   type ModelBreakdownEntry,
@@ -84,8 +87,18 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
       model[m] = maxMedian((allModelRows[m] ?? []).map((r) => r.launched));
       modelInt[m] = maxMedian((allModelRows[m] ?? []).map((r) => r.intercepted));
     }
-    return { cat, catInt, model, modelInt };
+    const impact = Object.fromEntries(
+      AIR_IMPACT_KEYS.map((k) => [k, maxMedian(allRows.map((r) => r[k]))]),
+    ) as Record<AirImpactKey, { max: number; median: number; total: number }>;
+    return { cat, catInt, model, modelInt, impact };
   }, [allRows, allModelRows]);
+
+  // The impact figures began on 2025-05-24: their charts start at the first
+  // month with one, rather than running two empty years up to it.
+  const firstImpactMonth = useMemo(
+    () => allRows.find((r) => AIR_IMPACT_KEYS.some((k) => r[k] != null))?.date ?? null,
+    [allRows],
+  );
 
   const endMonth = yr.endMonth;
   // Months containing attacks UA reported without figures hold a real partial
@@ -112,6 +125,29 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
           projection_days_in_month: d.projection_days_in_month ?? undefined,
           projection_partial_day: d.projection_partial_day,
           daily_median: d[`${key}_daily_median`],
+        };
+      }),
+      endMonth,
+    );
+
+  // A month's impact figure is the sum of its days that had one. A finished
+  // month missing some says how many it has ("X of Y days" — monthCoverage);
+  // the current one is projected like the attack counts.
+  const makeImpactDataset = (key: AirImpactKey): MonthlyDataPoint[] =>
+    firstImpactMonth == null ? [] : padTrailingMonthly(
+      rows.filter((d) => d.date >= firstImpactMonth).map((d) => {
+        const value = d[key];
+        const projected = d[`${key}_projected`];
+        return {
+          date: d.date,
+          value,
+          gap: projected != null && value != null ? projected - value : undefined,
+          projected,
+          projection_day: d.projection_day ?? undefined,
+          projection_days_in_month: d.projection_days_in_month ?? undefined,
+          projection_partial_day: d.projection_partial_day,
+          daily_median: d[`${key}_daily_median`],
+          days_available: d[`${key}_days`] ?? 0,
         };
       }),
       endMonth,
@@ -165,7 +201,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
   return (
     <PageScaffold
       title="Monthly Russian Missile & UAV Attacks"
-      description={<>Monthly launched vs intercepted totals by weapon category, per Ukrainian Air Force reports. Current month shows an end-of-month projection · source: piterfm / Kaggle <a target="_blank" href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week</>}
+      description={<>Monthly launched vs intercepted totals by weapon category, per Ukrainian Air Force reports, and — since May 2025 — the locations hit or showered with debris. Current month shows an end-of-month projection · source: piterfm / Kaggle <a target="_blank" href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week</>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-air-attacks" />}
       headerExtra={
         <div style={{ display: "flex", gap: 20, fontFamily: FONTS.mono, fontSize: 11, flexWrap: "wrap" }}>
@@ -202,6 +238,21 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
             globalMedian={allStats.cat.all?.median ?? 0}
             globalTotal={allStats.cat.all?.total ?? 0}
           />
+          {/* What the strikes did, per the same reports (since May 2025). */}
+          {AIR_IMPACT_KEYS.map((k) => {
+            const data = makeImpactDataset(k);
+            return data.some((d) => d.value != null) ? (
+              <MonthlyBarChart
+                key={k}
+                title={AIR_IMPACT_LABELS[k]}
+                data={data}
+                wfull={false}
+                globalMax={allStats.impact[k].max}
+                globalMedian={allStats.impact[k].median}
+                globalTotal={allStats.impact[k].total}
+              />
+            ) : null;
+          })}
           {ATTACK_DB_CATEGORIES.map((k) => (
             <MonthlyTargetPairChart
               key={k}

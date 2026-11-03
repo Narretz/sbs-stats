@@ -583,6 +583,19 @@ export const ATTACK_CATEGORY_LABELS: Record<AttackCategoryKey, string> = {
 
 export type AttackMetricCol = `${AttackCategoryKey}_launched` | `${AttackCategoryKey}_intercepted`;
 
+// What the Air Force says the night's strikes did: "hits at N locations, debris
+// fell at M" (piterfm's `num_hit_location` / `num_fall_fragment_location`,
+// reported since 2025-05-24). One figure per REPORT, not per weapon — it sits
+// on the report's main row, sometimes repeated on another of its rows — so the
+// hook counts it once per report and sums a day's reports. A day without one
+// is null (not reported), never 0.
+export const AIR_IMPACT_KEYS = ["impact_hit", "impact_debris"] as const;
+export type AirImpactKey = (typeof AIR_IMPACT_KEYS)[number];
+export const AIR_IMPACT_LABELS: Record<AirImpactKey, string> = {
+  impact_hit: "Locations Hit",
+  impact_debris: "Locations Hit by Falling Debris",
+};
+
 // Ukraine's Air Force stopped publishing exact ballistic-missile launched /
 // intercepted figures on 2026-08-13, citing operational security. piterfm marks
 // those rows `status_data='hidden'` and carries a placeholder 0, so anything
@@ -693,12 +706,13 @@ export type RuAirAttacksDailyRow = {
   // `all_*` stays a number — the sum of what *was* disclosed, i.e. a lower
   // bound — and this list is what tells the tooltip to say so.
   undisclosed?: AttackDbCategory[];
-} & Record<AttackMetricCol, number | null>;
+} & Record<AttackMetricCol, number | null>
+  & Record<AirImpactKey, number | null>;
 
 export type RuAirAttacksGlobalStats = Record<
   AttackCategoryKey,
   { launched: Stat; intercepted: Stat }
->;
+> & { impacts?: Record<AirImpactKey, Stat> };
 
 // Monthly = launched + intercepted sums per category. Bare category key holds
 // the launched sum (legacy); `${c}_intercepted` holds the destroyed sum.
@@ -714,7 +728,12 @@ export type RuAirAttacksMonthlyRow = {
   undisclosed?: AttackDbCategory[];
 } & Record<AttackCategoryKey, number>
   & Record<`${AttackCategoryKey}_intercepted`, number>
-  & Partial<Record<`${AttackCategoryKey}${"" | "_intercepted"}_${"projected" | "daily_median"}`, number>>;
+  & Partial<Record<`${AttackCategoryKey}${"" | "_intercepted"}_${"projected" | "daily_median"}`, number>>
+  // The month's sum of the daily figures; null for a month with none (before
+  // the series began). `_days` is how many of its days had one — the
+  // "Sum of X of Y days" note.
+  & Record<AirImpactKey, number | null>
+  & Partial<Record<`${AirImpactKey}_${"days" | "projected" | "daily_median"}`, number>>;
 
 // ─── RU Air Defense (MoD Telegram → ru-mod-ad.db) ─────────────────────────────
 // Russian MoD claims of Ukrainian UAVs intercepted/downed over Russia, parsed

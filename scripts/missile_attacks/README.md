@@ -88,6 +88,24 @@ first build that ran this code. The frontend keeps installing its own views over
 its in-memory copy regardless, so the site stays correct against a DB of any
 vintage rather than depending on when the workflow last ran.
 
+## `num_hit_location` / `num_fall_fragment_location` — what the strikes did
+
+The Air Force closes most reports with "hits at N locations, debris fell at
+M". piterfm carries it in these two columns, as text (`'20.0'`, `''` when not
+given), from **2025-05-24** on — before that they are always empty. It is a
+figure about the whole REPORT, not a weapon: it sits on the report's main row
+(usually the Shahed line), the report's other rows leave it empty, and in a
+few dozen reports piterfm copies it onto a second row of the same report.
+Summing the column would count those twice.
+
+The ingest stores them verbatim. The frontend
+(`src/hooks/useDatabaseRuAirAttacks.ts`, `daily_impacts`) takes each report's
+figure once — grouped by `source`, `time_start`, `time_end` — and sums a day's
+reports (an overnight raid and a daytime one are two). A day no report gave a
+figure for is a gap, not 0. Charted as "Locations Hit" and "Locations Hit by
+Falling Debris" on both pages, and offered as homepage metrics
+(`ru-air-attacks.impact_hit` / `impact_debris`).
+
 ## `destroyed_types` — what was *inside* a weapon row
 
 The second column piterfm added in Aug 2026 (first populated row reached our DB

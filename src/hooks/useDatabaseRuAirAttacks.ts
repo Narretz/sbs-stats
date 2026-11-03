@@ -8,17 +8,18 @@ import type {
   RuAirAttacksModelMonthlyRow,
   AttackCategoryKey,
   AttackDbCategory,
+  AirImpactKey,
   ModelBreakdownEntry,
 } from "@/types";
 import {
-  ATTACK_CATEGORY_KEYS, ATTACK_CATEGORY_LABELS, ATTACK_DB_CATEGORIES,
+  AIR_IMPACT_KEYS, ATTACK_CATEGORY_KEYS, ATTACK_CATEGORY_LABELS, ATTACK_DB_CATEGORIES,
   ATTACK_SUBTYPE_CATEGORY, attackSubtypeLabel,
 } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { projectFromDays } from "@/utils/monthProjection";
-import { attachDailyMedians, dailyMediansByMonth } from "@/utils/dailyMedian";
+import { attachDailyMedians, dailyMediansByMonth, dayCountsByMonth } from "@/utils/dailyMedian";
 import type { AirAttackRow } from "@/utils/sources";
 
 // Small DB (~2 MB) → fetch whole via sql.js, like the RU-losses loader (no httpvfs).
@@ -125,6 +126,55 @@ function installDisclosureAwareViews(db: Database): void {
       FROM attack_contributions
       GROUP BY date, category, model;
   `);
+
+  installImpactsView(db, hasImpactColumns(db));
+}
+
+// "Hits at N locations, debris fell at M" (AIR_IMPACT_KEYS). The figure belongs
+// to a REPORT — piterfm puts it on the report's main row and sometimes repeats
+// it on another row of the same report — so each report (source + window)
+// counts once, and a day sums its reports (an overnight raid and a daytime one
+// are two). Stored as text ('20.0', '' when not given); a day where no report
+// gave one has no row here, so it reads as not reported rather than 0. A DB
+// without the columns (older builds, fixtures) gets the same view, empty.
+function installImpactsView(db: Database, hasColumns: boolean): void {
+  const num = (c: string) => `CASE WHEN TRIM(COALESCE(${c}, '')) != '' THEN CAST(${c} AS REAL) END`;
+  db.run(`
+    DROP VIEW IF EXISTS daily_impacts;
+    CREATE VIEW daily_impacts AS
+      ${hasColumns ? `
+      SELECT date, SUM(hit) AS impact_hit, SUM(debris) AS impact_debris
+      FROM (
+        SELECT attack_date AS date,
+               MAX(${num("num_hit_location")})           AS hit,
+               MAX(${num("num_fall_fragment_location")}) AS debris
+        FROM missile_attacks_latest
+        GROUP BY attack_date, source, time_start, time_end
+      )
+      GROUP BY date
+      HAVING COUNT(hit) > 0 OR COUNT(debris) > 0` : `
+      SELECT NULL AS date, NULL AS impact_hit, NULL AS impact_debris WHERE 0`};
+  `);
+}
+
+type ImpactDay = Record<AirImpactKey, number | null>;
+
+function hasImpactColumns(db: Database): boolean {
+  const names = (db.exec("PRAGMA table_info(missile_attacks)")[0]?.values ?? []).map((r) => r[1]);
+  return names.includes("num_hit_location") && names.includes("num_fall_fragment_location");
+}
+
+function queryImpacts(db: Database, where = ""): Map<string, ImpactDay> {
+  const out = new Map<string, ImpactDay>();
+  for (const r of queryRows<{ date: string; impact_hit: number | null; impact_debris: number | null }>(
+    db, `SELECT date, impact_hit, impact_debris FROM daily_impacts ${where}`,
+  )) {
+    out.set(String(r.date), {
+      impact_hit: typeof r.impact_hit === "number" ? Math.round(r.impact_hit) : null,
+      impact_debris: typeof r.impact_debris === "number" ? Math.round(r.impact_debris) : null,
+    });
+  }
+  return out;
 }
 
 // piterfm's `destroyed_types` (added Aug 2026; the first populated row reached
@@ -355,6 +405,15 @@ function pivotDaily(raw: CategoryRow[], todayStr: string): RuAirAttacksDailyRow[
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// A day's impact figures onto its pivoted row: null where no report gave one.
+function withImpacts(rows: RuAirAttacksDailyRow[], impacts: Map<string, ImpactDay>): RuAirAttacksDailyRow[] {
+  for (const row of rows) {
+    const i = impacts.get(row.date);
+    for (const k of AIR_IMPACT_KEYS) row[k] = i?.[k] ?? null;
+  }
+  return rows;
+}
+
 function maxMedian(values: Array<number | null>): { max: number; median: number; total: number } {
   const vals = values.filter((v): v is number => typeof v === "number").sort((a, b) => a - b);
   return {
@@ -389,7 +448,8 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
           AND date <= date('${endDateSql}')
         ORDER BY date ASC
       `;
-      return pivotDaily(queryRows<CategoryRow>(db, sql), todayStr);
+      const impacts = queryImpacts(db, `WHERE date >= ${windowStartSql(endDateSql, days)} AND date <= date('${endDateSql}')`);
+      return withImpacts(pivotDaily(queryRows<CategoryRow>(db, sql), todayStr), impacts);
     },
     [db]
   );
@@ -408,6 +468,10 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
         intercepted: maxMedian(all.map((r) => r[`${c}_intercepted`])),
       };
     }
+    const impacts = [...queryImpacts(db).values()];
+    result.impacts = Object.fromEntries(
+      AIR_IMPACT_KEYS.map((k) => [k, maxMedian(impacts.map((d) => d[k]))]),
+    ) as Record<AirImpactKey, ReturnType<typeof maxMedian>>;
     return result;
   }, [db]);
 
@@ -486,6 +550,23 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
     }
     const days = [...byDay].map(([date, values]) => ({ date, values }));
     const projection = projectFromDays(currentMonth, today, days, projKeys);
+
+    // The impact figures, summed per month from the days that gave one. Their
+    // own day list: a day with attacks but no figure is a gap for them, not 0,
+    // so it stays out of the projection, the median and the day count.
+    const impactDays = [...queryImpacts(db)].map(([date, values]) => ({ date, values }));
+    const impactSums = new Map<string, Partial<Record<AirImpactKey, number>>>();
+    for (const { date, values } of impactDays) {
+      const m = impactSums.get(date.slice(0, 7)) ?? {};
+      for (const k of AIR_IMPACT_KEYS) {
+        const v = values[k];
+        if (typeof v === "number") m[k] = (m[k] ?? 0) + v;
+      }
+      impactSums.set(date.slice(0, 7), m);
+    }
+    const impactProjection = projectFromDays(currentMonth, today, impactDays, AIR_IMPACT_KEYS);
+    const impactMedians = dailyMediansByMonth(impactDays, AIR_IMPACT_KEYS, today);
+    const impactDayCounts = dayCountsByMonth(impactDays, AIR_IMPACT_KEYS, today);
     const medians = dailyMediansByMonth(
       days.map(({ date, values }) => {
         const w = withheld.get(date);
@@ -508,6 +589,15 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
           row[`${k}_projected` as `${AttackCategoryKey}_projected`] = v;
         }
         attachDailyMedians(row, medians);
+        const sums = impactSums.get(row.date) ?? {};
+        for (const k of AIR_IMPACT_KEYS) {
+          row[k] = sums[k] ?? null;
+          const n = impactDayCounts.get(row.date)?.[k];
+          if (n != null) row[`${k}_days`] = n;
+          const proj = isCurrent ? impactProjection?.projected[k] : undefined;
+          if (proj != null) row[`${k}_projected`] = proj;
+        }
+        attachDailyMedians(row, impactMedians);
         return row;
       });
   }, [db]);
@@ -799,7 +889,10 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
       return queryRows<AirAttackRow>(
         db,
         `SELECT attack_date AS date, category, model, source, time_start, time_end, launched, destroyed,
-                CASE WHEN status_data = 'hidden' THEN 1 ELSE 0 END AS hidden
+                CASE WHEN status_data = 'hidden' THEN 1 ELSE 0 END AS hidden,
+                ${hasImpactColumns(db)
+                  ? "CASE WHEN TRIM(COALESCE(num_hit_location, '')) != '' OR TRIM(COALESCE(num_fall_fragment_location, '')) != '' THEN 1 ELSE 0 END"
+                  : "0"} AS has_impacts
          FROM missile_attacks_latest
          WHERE source IS NOT NULL AND source != ''
            AND attack_date >= ${windowStartSql(endDateSql, days)}

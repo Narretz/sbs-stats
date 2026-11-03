@@ -6,6 +6,8 @@
 // composed from existing per-source label maps — no new translation needed.
 
 import {
+  AIR_IMPACT_KEYS,
+  AIR_IMPACT_LABELS,
   ATTACK_CATEGORY_KEYS,
   ATTACK_CATEGORY_LABELS,
   GSUA_METRIC_KEYS,
@@ -200,10 +202,14 @@ const RU_MOD_METRICS: CombinedMetric[] = [
 ];
 
 // RU air attacks: 4 categories × {launched, intercepted}.
-const RU_AIR_ATTACKS_METRICS: CombinedMetric[] = ATTACK_CATEGORY_KEYS.flatMap((c) => [
-  make("ru-air-attacks", `${c}_launched`, `${ATTACK_CATEGORY_LABELS[c]} — Launched`, ALL_GRAINS),
-  make("ru-air-attacks", `${c}_intercepted`, `${ATTACK_CATEGORY_LABELS[c]} — Intercepted`, ALL_GRAINS),
-]);
+const RU_AIR_ATTACKS_METRICS: CombinedMetric[] = [
+  ...ATTACK_CATEGORY_KEYS.flatMap((c) => [
+    make("ru-air-attacks", `${c}_launched`, `${ATTACK_CATEGORY_LABELS[c]} — Launched`, ALL_GRAINS),
+    make("ru-air-attacks", `${c}_intercepted`, `${ATTACK_CATEGORY_LABELS[c]} — Intercepted`, ALL_GRAINS),
+  ]),
+  // What the strikes did, per the same reports (since 2025-05-24).
+  ...AIR_IMPACT_KEYS.map((k) => make("ru-air-attacks", k, AIR_IMPACT_LABELS[k], ALL_GRAINS)),
+];
 
 // SBU Alfa — monthly only.
 const SBU_ALFA_METRICS: CombinedMetric[] = SBU_ALFA_CATEGORY_KEYS.map((k) =>

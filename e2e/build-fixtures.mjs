@@ -45,6 +45,12 @@ const HISTORY_DAYS = 7;
 export const SUBTYPE_DAY_OFFSET = 4;
 // The day whose sub-type was also given a row of its own by the same report.
 export const ROWED_SEPARATELY_DAY_OFFSET = 5;
+// RU air attacks' "locations hit / debris" figures (one per report): every day
+// gives 3·d hit and d debris on its UAV row, except the day that gives none
+// (a gap, not 0) and the day a second report adds its own (summed). Day −5's
+// shared report repeats its figure on both rows — it must count once.
+export const IMPACT_NONE_DAY_OFFSET = 3;
+export const IMPACT_TWO_REPORTS_DAY_OFFSET = 2;
 
 // ── SBS: hourly cumulative `daily_stats` ──────────────────────────────────────
 // Each day is a cumulative intraday curve (checkpoint hour → share of the day's
@@ -340,7 +346,8 @@ function buildRuAirAttacks(SQL) {
       time_start TEXT, time_end TEXT, model TEXT, launch_place TEXT, target TEXT,
       launched INTEGER, destroyed INTEGER, source TEXT,
       attack_date TEXT, category TEXT, scraped_at TEXT, status_data TEXT DEFAULT '',
-      destroyed_types TEXT DEFAULT ''
+      destroyed_types TEXT DEFAULT '',
+      num_hit_location TEXT DEFAULT '', num_fall_fragment_location TEXT DEFAULT ''
     );
     CREATE VIEW missile_attacks_latest AS
       SELECT t.* FROM missile_attacks t JOIN (
@@ -353,12 +360,13 @@ function buildRuAirAttacks(SQL) {
   `);
   const cols = ["time_start", "time_end", "model", "launch_place", "target",
     "launched", "destroyed", "source", "attack_date", "category", "scraped_at", "status_data",
-    "destroyed_types"];
+    "destroyed_types", "num_hit_location", "num_fall_fragment_location"];
   const ins = db.prepare(`INSERT INTO missile_attacks (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`);
-  const row = (date, model, category, launched, destroyed, status = "", types = "", source = null) =>
+  // `impacts` is [hit, debris] as piterfm stores them: text, "15.0", "" for none.
+  const row = (date, model, category, launched, destroyed, status = "", types = "", source = null, impacts = ["", ""]) =>
     ins.run([`${date} 18:00`, `${date} 09:00`, model, "Kursk oblast", "Kyiv oblast",
       launched, destroyed, source ?? `synthetic-${date}-${model}`, date, category, `${date}T12:00:00+00:00`, status,
-      types]);
+      types, ...impacts]);
 
   for (let d = HISTORY_DAYS; d >= 1; d--) {
     const date = dayISO(-d);
@@ -370,12 +378,16 @@ function buildRuAirAttacks(SQL) {
         ? "{'Banderol': {'launched': 2, 'destroyed': 2}}"
         : "";
     const sharedPost = d === ROWED_SEPARATELY_DAY_OFFSET ? `synthetic-${date}-post` : null;
-    row(date, "Shahed-136/131", "drone", 100 + d, 90 + d, "", types, sharedPost);
+    const impacts = d === IMPACT_NONE_DAY_OFFSET ? ["", ""] : [`${3 * d}.0`, `${d}.0`];
+    row(date, "Shahed-136/131", "drone", 100 + d, 90 + d, "", types, sharedPost, impacts);
     if (d === ROWED_SEPARATELY_DAY_OFFSET) {
-      // Same report, its own row — the itemization above is a repeat of this.
-      row(date, "Banderol", "cruise", 2, 2, "", "", sharedPost);
+      // Same report, its own row — the itemization above is a repeat of this,
+      // and so is the impact figure piterfm copies onto it.
+      row(date, "Banderol", "cruise", 2, 2, "", "", sharedPost, impacts);
     }
-    row(date, "X-101", "cruise", 10, 5);
+    // A second report of the day, with figures of its own: they add up.
+    row(date, "X-101", "cruise", 10, 5, "", "", null,
+      d === IMPACT_TWO_REPORTS_DAY_OFFSET ? ["4.0", "1.0"] : ["", ""]);
     if (d === 1) {
       // Withheld: reported, but no figures — the 0s here are placeholders.
       row(date, "Iskander-M and 3M22 Zircon", "ballistic", 0, 0, "hidden");

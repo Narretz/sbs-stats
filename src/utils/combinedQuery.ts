@@ -22,6 +22,8 @@ import type {
   RuAdMonthlyRow,
   RuAirAttacksDailyRow,
   RuAirAttacksGlobalStats,
+  AirImpactKey,
+  AttackCategoryKey,
   RuAirAttacksMonthlyRow,
   RuLossesDailyRow,
   RuLossesGlobalStats,
@@ -406,13 +408,16 @@ export function statsForMetric(
     case "ru-airdef-mod":
       return (bundle.ruMod as Record<string, Stat> | undefined)?.[m.key] ?? null;
     case "ru-air-attacks": {
-      // m.key is "<category>_launched" or "<category>_intercepted"; split.
       if (!bundle.ruAir) return null;
+      // The impact figures (AIR_IMPACT_KEYS) are their own stats, not a
+      // category's launched / intercepted.
+      if (m.key.startsWith("impact_")) return bundle.ruAir.impacts?.[m.key as AirImpactKey] ?? null;
+      // m.key is "<category>_launched" or "<category>_intercepted"; split.
       const i = m.key.lastIndexOf("_");
       if (i < 0) return null;
       const cat = m.key.slice(0, i);
       const dir = m.key.slice(i + 1) as "launched" | "intercepted";
-      const catStats = bundle.ruAir[cat as keyof RuAirAttacksGlobalStats];
+      const catStats = bundle.ruAir[cat as AttackCategoryKey];
       return catStats?.[dir] ?? null;
     }
     default:
