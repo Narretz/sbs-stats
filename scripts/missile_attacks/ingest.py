@@ -124,10 +124,13 @@ OWN_COLS = {DATE_COL, CATEGORY_COL, REMOVED_COL}
 # counts — launched as a lower bound, which `hidden` flags.
 STATUS_COL = "status_data"
 HIDDEN_STATUS = "hidden"
-# The Geran names are Russia's, used by Air Command West since 2026-09-29:
-# Geran-2 is the Shahed-136, Geran-4/5 its jet-powered successors.
-DRONE_MODELS = {
-    "Shahed-136/131", "Geran-2", "Geran-4", "Geran-5",
+# Shahed-class strike drones: the national overnight report's UAV count. The
+# Geran names are Russia's, used by Air Command West since 2026-09-29 — Geran-2
+# is the Shahed-136, Geran-4/5 its jet-powered successors. A regional report's
+# row made only of these, inside a national drone report's window, is a slice of
+# that national figure; the views leave it out (see _counted_sql).
+SHAHED_CLASS_MODELS = {"Shahed-136/131", "Geran-2", "Geran-4", "Geran-5"}
+DRONE_MODELS = SHAHED_CLASS_MODELS | {
     "Orlan-10", "Orlan-30", "ZALA", "Supercam", "Lancet",
     "Merlin-VR", "Mohajer-6", "Orion", "Forpost", "Eleron", "Granat-4", "Kub",
     "Молнія", "Фенікс", "Картограф", "Привет-82", "Reconnaissance UAV",
@@ -503,8 +506,64 @@ def _add_missing_columns(conn, all_cols, col_type) -> list[str]:
     return added
 
 
+# Posts that carry the national figure: the Air Force's own, and the General
+# Staff's when it published the night's count instead (2026-10-07).
+NATIONAL_SOURCE_PREFIXES = ("kpszsu/", "GeneralStaff.ua/")
+
+
+def _timed(a: str) -> str:
+    return f"LENGTH({a}.time_start) > 10 AND LENGTH({a}.time_end) > 10"
+
+
+def _national(a: str) -> str:
+    return "(" + " OR ".join(f"{a}.source LIKE '{p}%'" for p in NATIONAL_SOURCE_PREFIXES) + ")"
+
+
+def _national_drone_windows_sql(latest: str) -> str:
+    """The national drone reports' windows, for _counted_sql."""
+    return (
+        f"SELECT t.time_start, t.time_end FROM {latest} t "
+        f"WHERE {_national('t')} AND t.{_ident(CATEGORY_COL)} = 'drone' AND {_timed('t')}"
+    )
+
+
+def _counted_sql(latest: str, national_windows: str) -> str:
+    """SELECT over `latest` minus the regional reports' Shahed-class rows that
+    sit inside a national drone report's window.
+
+    The national report (NATIONAL_SOURCE_PREFIXES) gives the night's whole UAV
+    count. A regional command (Air Command West/South/East) also reports the
+    Shaheds it shot down over its region that night, as its own row, and that
+    row is part of the national figure, not on top of it. 13→14 Oct 2026: the
+    national post's "128 drones of various types", 115 down, is exactly its
+    row, and Air Command West's Geran-4 37/37 is inside those 115. Its other
+    rows — the tactical drones over the front (Air Command South's ~14k
+    "Unknown UAV"), its missiles — aren't in the national report and count.
+
+    The row stays in `latest` (it was reported, and the sources sheet links
+    it); only the aggregates read this. Windows are compared only when both
+    carry a time — a date-only row can't be placed against a night.
+    The frontend builds the same two steps, as tables
+    (src/utils/airAttacksSql.ts; airAttacksSql.test.ts holds them together).
+    """
+    # Every token of the model is Shahed-class: strip each one from the
+    # '|'-delimited token list and see whether anything is left.
+    toks = "'|' || REPLACE(t.model, ' and ', '||') || '|'"
+    for m in sorted(SHAHED_CLASS_MODELS):
+        toks = f"REPLACE({toks}, '|{m}|', '')"
+    return (
+        f"SELECT t.* FROM {latest} t "
+        f"WHERE NOT (NOT {_national('t')} "
+        f"AND {toks} = '' AND {_timed('t')} "
+        f"AND EXISTS (SELECT 1 FROM {national_windows} n "
+        f"WHERE n.time_start < t.time_end AND t.time_start < n.time_end))"
+    )
+
+
 def _create_views(conn, key_cols, value_cols):
-    """Latest-per-key view + daily aggregates over the latest snapshot.
+    """Latest-per-key view + daily aggregates over the latest snapshot, less
+    the regional repeats of the national UAV count (`_counted`, see
+    _counted_sql).
 
     Every view is DROPped and recreated rather than `CREATE VIEW IF NOT EXISTS`ed.
     An existing DB already carries all of them, so the IF-NOT-EXISTS form is a
@@ -531,7 +590,8 @@ def _create_views(conn, key_cols, value_cols):
 
     hidden_n = f"SUM(CASE WHEN {is_hidden} THEN 1 ELSE 0 END)"
 
-    for v in (f"{TABLE}_latest", "daily_totals", "daily_by_model", "daily_by_category"):
+    for v in (f"{TABLE}_latest", "national_drone_windows", f"{TABLE}_counted",
+              "daily_totals", "daily_by_model", "daily_by_category"):
         conn.execute(f"DROP VIEW IF EXISTS {v}")
 
     conn.execute(
@@ -541,6 +601,15 @@ def _create_views(conn, key_cols, value_cols):
         f"ON {joinon} AND t.scraped_at = l.ms "
         # A key whose newest version is a removal marker is gone upstream.
         f"WHERE COALESCE(t.{_ident(REMOVED_COL)}, '') != '{REMOVED}'"
+    )
+    # What the aggregates sum: latest, without the regional reports' repeats of
+    # the national UAV count.
+    conn.execute(
+        f"CREATE VIEW national_drone_windows AS {_national_drone_windows_sql(f'{TABLE}_latest')}"
+    )
+    conn.execute(
+        f"CREATE VIEW {TABLE}_counted AS "
+        f"{_counted_sql(f'{TABLE}_latest', 'national_drone_windows')}"
     )
     # Daily totals (attribute each attack to the date of its time_start).
     # `rows` still counts withheld attacks — one was reported — so `rows` can
@@ -552,7 +621,7 @@ def _create_views(conn, key_cols, value_cols):
         f"       {known('destroyed')} AS destroyed, "
         f"       COUNT(*)             AS rows, "
         f"       {hidden_n}           AS hidden "
-        f"FROM {TABLE}_latest GROUP BY {_ident(DATE_COL)}"
+        f"FROM {TABLE}_counted GROUP BY {_ident(DATE_COL)}"
     )
     conn.execute(
         f"CREATE VIEW daily_by_model AS "
@@ -560,7 +629,7 @@ def _create_views(conn, key_cols, value_cols):
         f"       {known('launched')}  AS launched, "
         f"       {known('destroyed')} AS destroyed, "
         f"       {hidden_n}           AS hidden "
-        f"FROM {TABLE}_latest GROUP BY {_ident(DATE_COL)}, model"
+        f"FROM {TABLE}_counted GROUP BY {_ident(DATE_COL)}, model"
     )
     # Daily launched/intercepted per weapon category — the frontend's main source
     # (drone / cruise / ballistic / other; combined = sum across categories).
@@ -570,7 +639,7 @@ def _create_views(conn, key_cols, value_cols):
         f"       {known('launched')}  AS launched, "
         f"       {known('destroyed')} AS destroyed, "
         f"       {hidden_n}           AS hidden "
-        f"FROM {TABLE}_latest GROUP BY {_ident(DATE_COL)}, {_ident(CATEGORY_COL)}"
+        f"FROM {TABLE}_counted GROUP BY {_ident(DATE_COL)}, {_ident(CATEGORY_COL)}"
     )
 
 

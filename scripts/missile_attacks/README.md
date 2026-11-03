@@ -161,7 +161,8 @@ it's the same kind of weapon as the row it arrived in
   and labelled "of which" (table `attack_subtypes` → view `daily_by_subtype`).
   **Geran-4 and Geran-5 are jet-powered too** and have rows of their own, but
   from a regional command's report of the same nights, already inside the
-  national figure (see `category` under Derived columns).
+  national figure, so the aggregates leave them out (see
+  `missile_attacks_counted` under Views).
 - **`Banderol` — a cruise missile.** The Air Force counts it inside the night's
   UAV headline, so the itemization arrives on a row categorised `drone`, but
   the ingest already classifies every standalone `model='Banderol'` row as
@@ -250,12 +251,41 @@ Added by the build (not in the CSV):
     the piston-engined Shahed-136, Geran-4 and Geran-5 its jet-powered
     successors. Only Air Command West uses them (`source` `PvkZahid/…`, from
     2026-09-29); until then it reported the same drones as `Shahed-136/131`.
-    Its rows are a regional slice of the national figure.
+    Its rows are a regional slice of the national figure, so the aggregates
+    leave them out (`missile_attacks_counted` below).
 
 ## Views
 
 - **`missile_attacks_latest`** — the table with only the latest `scraped_at` per
-  natural key (what every other view reads from).
+  natural key, less keys marked `removed_upstream`.
+- **`missile_attacks_counted`** — `_latest` without the regional reports'
+  repeats of the national UAV count; what the aggregates sum. The national
+  report (`kpszsu/…`, or `GeneralStaff.ua/…` when the General Staff posted the
+  night's figure) gives the night's whole Shahed-class count. A regional
+  command (Air Command West/South/East) also reports the Shaheds it shot down
+  over its region, as its own row, and that row is **inside** the national
+  figure. 13→14 Oct 2026: the national post reports "128 drones of various
+  types", 115 shot down "(59 of them jet-powered)", which is exactly its own
+  `Shahed-136/131` row, and Air Command West's `Geran-4` 37/37 is part of
+  those 115. So a non-national row made only of Shahed-class models
+  (`SHAHED_CLASS_MODELS`) whose window overlaps a national `drone` row's is
+  left out. Everything else a regional command reports counts: it isn't in
+  the national report. That is mostly tactical drones over the front, such as
+  Air Command South's ~14k "Unknown UAV", Molniya and Lancets, plus missiles.
+  Rows are compared only when both carry a time, not just a date. It leaves
+  out 28 rows, 685 launched (27 of them Air Command West's Gerans since
+  2026-09-29). They stay in `_latest`, so the sources sheet still links them.
+  It is two steps, `national_drone_windows` and then this. The frontend
+  builds the same two (`src/utils/airAttacksSql.ts`, held to these by
+  `airAttacksSql.test.ts`) as **tables**, once at load (~34 ms), the way it
+  already builds `attack_subtypes`. A view re-runs its per-row window check,
+  re-evaluating `_latest` each time, on every query that reads it: ~130 ms
+  natively. A page runs dozens of those queries, and sql.js is slower still and
+  on the main thread, so as views they froze the air-attacks pages for
+  seconds. The views here are for direct SQL on the file, where a query or two
+  at that cost is fine. The tables aren't stored in the file because they are
+  derived display data, which stays out of the authoritative DB (GSUA keeps
+  its derived tables in its app copy for the same reason).
 - **`daily_totals`** — `date, launched, destroyed, rows, hidden` (sum over all models).
 - **`daily_by_model`** — `date, model, launched, destroyed, hidden`.
 - **`daily_by_category`** — `date, category, launched, destroyed, hidden`.

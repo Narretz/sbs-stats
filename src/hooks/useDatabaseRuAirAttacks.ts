@@ -18,6 +18,7 @@ import {
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
+import { countedSql, nationalDroneWindowsSql } from "@/utils/airAttacksSql";
 import { projectFromDays } from "@/utils/monthProjection";
 import { attachDailyMedians, dailyMediansByMonth, dayCountsByMonth } from "@/utils/dailyMedian";
 import type { AirAttackRow } from "@/utils/sources";
@@ -61,6 +62,21 @@ function installDisclosureAwareViews(db: Database): void {
   const known = (c: string) => `SUM(CASE WHEN ${isHidden} THEN NULLIF(${c}, 0) ELSE ${c} END)`;
   const hiddenCount = `SUM(CASE WHEN ${isHidden} THEN 1 ELSE 0 END)`;
 
+  // What the aggregates sum: the latest rows, without the regional reports'
+  // repeats of the national UAV count (see countedSql). Tables built once at
+  // load, like attack_subtypes below, not the file's views of the same name: a
+  // view re-runs its per-row window check on every query that reads it (~130 ms
+  // natively, more in sql.js), and a page runs dozens of them. Derived display
+  // data stays out of the authoritative file, as for GSUA's app-copy tables.
+  db.run(`
+    DROP VIEW IF EXISTS national_drone_windows;
+    DROP TABLE IF EXISTS national_drone_windows;
+    CREATE TABLE national_drone_windows AS ${nationalDroneWindowsSql("missile_attacks_latest")};
+    DROP VIEW IF EXISTS missile_attacks_counted;
+    DROP TABLE IF EXISTS missile_attacks_counted;
+    CREATE TABLE missile_attacks_counted AS ${countedSql("missile_attacks_latest", "national_drone_windows")};
+  `);
+
   // Parse the itemizations first — the aggregates below read them.
   installSubtypeTables(db, has("destroyed_types"), isHidden);
 
@@ -84,7 +100,7 @@ function installDisclosureAwareViews(db: Database): void {
                ${known("launched")}  AS launched,
                ${known("destroyed")} AS destroyed,
                ${hiddenCount}        AS hidden
-        FROM missile_attacks_latest
+        FROM missile_attacks_counted
         GROUP BY attack_date, category, model
       ) b
       LEFT JOIN (
@@ -243,7 +259,7 @@ function installSubtypeTables(db: Database, hasSubtypes: boolean, isHidden: stri
       // can be reconciled against a count nobody published — skipped here, the
       // same way the views above refuse to sum one.
       `SELECT attack_date AS date, category, model, source, destroyed_types
-       FROM missile_attacks_latest
+       FROM missile_attacks_counted
        WHERE TRIM(COALESCE(destroyed_types, '')) <> ''
          AND COALESCE(${isHidden}, 0) = 0`
     );

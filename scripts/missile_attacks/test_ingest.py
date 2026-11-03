@@ -158,6 +158,46 @@ def test_classify(model, expected):
     assert cat == expected
 
 
+# ── regional reports repeating the national UAV count ─────────────────────────
+# 13→14 Oct 2026 in miniature: the national post's Shahed row, Air Command
+# West's Geran row for the same night (inside the national figure), and Air
+# Command South's tactical drones (not in it).
+CSV_REGIONAL = "\n".join(
+    [
+        HEADER,
+        "2026-10-13 18:00,2026-10-14 09:00,Shahed-136/131,128,115,north,Ukraine,kpszsu/posts/n",
+        "2026-10-13 18:00,2026-10-14 09:00,Geran-4,37,37,north,west,PvkZahid/posts/w",
+        "2026-10-13 18:00,2026-10-14 09:00,Unknown UAV,20,20,,south,PvKPivden/posts/s",
+        # a regional Shahed row with no national drone report that night counts
+        "2026-10-15 18:00,2026-10-16 09:00,Geran-2,6,6,north,west,PvkZahid/posts/w2",
+        "2026-10-15 18:00,2026-10-16 09:00,Iskander-M,2,0,Kursk,Kyiv,kpszsu/posts/n2",
+    ]
+)
+
+
+class TestRegionalRepeats:
+    def test_regional_shahed_row_inside_a_national_night_is_not_summed(self, tmp_path):
+        _build(tmp_path, CSV_REGIONAL)
+        conn = sqlite3.connect(tmp_path / "t.db")
+        by_cat = dict(_rows(conn, "SELECT category, launched FROM daily_by_category "
+                                  "WHERE date = '2026-10-13'"))
+        assert by_cat == {"drone": 148}  # 128 national + 20 tactical, not + 37
+        conn.close()
+
+    def test_it_stays_in_latest(self, tmp_path):
+        _build(tmp_path, CSV_REGIONAL)
+        conn = sqlite3.connect(tmp_path / "t.db")
+        assert _rows(conn, "SELECT COUNT(*) FROM missile_attacks_latest") == [(5,)]
+        conn.close()
+
+    def test_without_a_national_drone_report_it_counts(self, tmp_path):
+        _build(tmp_path, CSV_REGIONAL)
+        conn = sqlite3.connect(tmp_path / "t.db")
+        assert dict(_rows(conn, "SELECT category, launched FROM daily_by_category "
+                                "WHERE date = '2026-10-15'")) == {"drone": 6, "ballistic": 2}
+        conn.close()
+
+
 def test_classify_reports_unmapped():
     _, unk = ingest.classify("Shahed-136/131 and Mystery-9000")
     assert unk == ["Mystery-9000"]
@@ -297,7 +337,8 @@ class TestRemovedUpstream:
         db = tmp_path / "t.db"
         _build(tmp_path, CSV_V1)
         conn = sqlite3.connect(db)
-        for v in ("daily_totals", "daily_by_model", "daily_by_category", "missile_attacks_latest"):
+        for v in ("daily_totals", "daily_by_model", "daily_by_category",
+                  "missile_attacks_counted", "national_drone_windows", "missile_attacks_latest"):
             conn.execute(f"DROP VIEW {v}")
         conn.execute("ALTER TABLE missile_attacks DROP COLUMN removed_upstream")
         conn.commit()
