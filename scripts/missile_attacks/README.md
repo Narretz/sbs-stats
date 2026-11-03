@@ -143,6 +143,9 @@ it's the same kind of weapon as the row it arrived in
 - **`Turbojet` — a jet-powered Geran airframe, so still a drone.** It stays in
   its parent's counts and surfaces as a tooltip row indented under that model
   and labelled "of which" (table `attack_subtypes` → view `daily_by_subtype`).
+  **Geran-4 and Geran-5 are jet-powered too** and have rows of their own, but
+  from a regional command's report of the same nights, already inside the
+  national figure (see `category` under Derived columns).
 - **`Banderol` — a cruise missile.** The Air Force counts it inside the night's
   UAV headline, so the itemization arrives on a row categorised `drone`, but
   the ingest already classifies every standalone `model='Banderol'` row as
@@ -211,6 +214,21 @@ Added by the build (not in the CSV):
   drone, so a cruise+ballistic bundle resolves to ballistic. Genuinely
   new/unknown model tokens emit a warning (known-but-uncategorizable ones like
   guided bombs map to `other` silently).
+  **Geran-2 / -4 / -5 are the Russian names for Geran drones**: Geran-2 is
+  the piston-engined Shahed-136, Geran-4 and Geran-5 are jet-powered. Every
+  row naming them (2026-09-29 onward) comes from **Air Command West**
+  (`source` `PvkZahid/…`), which until then reported the same drones as
+  `Shahed-136/131`, only on nights without a national report. Its Geran rows
+  instead sit beside the national `kpszsu` Shahed row for the same overnight
+  window, almost every night, with `launched = destroyed` (it reports only
+  what it shot down over the west). They read as a regional slice of that
+  night's national figure, not a separate raid. The national post for the
+  night of 13→14 Oct, for one, reports "128 drones of various types", 115
+  shot down "(59 of them jet-powered)". The DB holds exactly that as its
+  `Shahed-136/131` row, and Air Command West's `Geran-4` 37/37 sits beside it,
+  part of those 115 rather than on top of them. None of them is in
+  `DRONE_MODELS`, so they land in `other` (668 in Oct 2026). Moving them to
+  `drone` would likely count those drones twice.
 
 ## Views
 
