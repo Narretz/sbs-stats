@@ -103,47 +103,24 @@ export function monthsBetween(first: string, last: string): string[] {
   return out;
 }
 
-// The first month any week has a figure for `series` in, or null: where the
-// jet-drone chart starts, since the figure only began in late summer 2026.
-export function firstMonthWith(rows: ZelenskyWeekRow[], series: ZelenskyMonthlySeries): string | null {
-  const r = rows.find((w) => weekValue(w, series) != null);
-  return r ? r.period_start.slice(0, 7) : null;
-}
-
 // One bar per month in `months`: the weeks' daily averages summed over the
 // month's days, rounded (the source rounds everything; a fraction would be
 // false precision). Null when no day of the month has a figure. A past month
 // short of days carries a note, so its bar is flagged as undercounted rather
 // than read as a quiet month; the month in progress (`liveMonth`) is short by
 // definition, and its "X of Y days" says so.
-export const UNDERCOUNT_NOTE = "Undercounted: some weeks of this month have no weekly figure";
-
-// What the monthly view can chart: the three weapons, plus the jet-powered
-// share of the drones.
-export type ZelenskyMonthlySeries = ZelenskyCategory | "jet_drones";
-
-// The jet-powered drones of a week as a COUNT, so weeks can be summed: the
-// count when the post gave one, otherwise its share of the week's drones
-// ("близько 60%" of 1,640 → 984). Null for a week that gave neither.
-export function jetDronesCount(r: ZelenskyWeekRow): number | null {
-  if (r.jet_drones != null) return r.jet_drones;
-  if (r.jet_drones_pct != null && r.drones != null) return Math.round((r.jet_drones_pct / 100) * r.drones);
-  return null;
-}
-
-const weekValue = (r: ZelenskyWeekRow, series: ZelenskyMonthlySeries): number | null =>
-  series === "jet_drones" ? jetDronesCount(r) : r[series];
+export const UNDERCOUNT_NOTE = "Undercounted: some weeks of this month have no weekly tally";
 
 export function toMonthlyDataset(
   rows: ZelenskyWeekRow[],
-  series: ZelenskyMonthlySeries,
+  category: ZelenskyCategory,
   months: string[],
   liveMonth: string,
 ): MonthlyDataPoint[] {
   const sum = new Map<string, number>();
   const days = new Map<string, number>();
   for (const r of rows) {
-    const v = weekValue(r, series);
+    const v = r[category];
     if (v == null) continue;
     for (const day of weekDays(r.period_start)) {
       const m = day.slice(0, 7);
