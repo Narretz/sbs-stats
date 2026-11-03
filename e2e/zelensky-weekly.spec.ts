@@ -79,6 +79,9 @@ test.describe("Zelensky weekly tally", () => {
       if ((await sheet.count()) && (await sheet.innerText()).includes("2026-01-05/11")) break;
     }
     await expect(sheet).toContainText("2026-01-05/11");
+    // The stepper names the week alone; "as posted" is in the body only.
+    await expect(sheet.locator(".chart-sheet-label")).toHaveText("2026-01-05/11");
+    await expect(sheet).toContainText("as posted: > 1,000");
     const sources = sheet.locator(".chart-sheet-sources");
     await sources.getByRole("button", { name: /Sources \(1\)/ }).click();
     await expect(sources.locator("a").first()).toHaveAttribute("href", "https://t.me/V_Zelenskiy_official/1");

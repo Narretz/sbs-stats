@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useZelenskyWeeklyDatabaseContext } from "@/context/databases";
-import { useTheme } from "@/hooks/useTheme";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
 import { PageScaffold } from "@/components/PageScaffold";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
@@ -25,11 +24,13 @@ interface Props {
 }
 
 const CHANNEL_URL = "https://t.me/V_Zelenskiy_official";
+// The header — and so the sheet's stepper — is the week alone; what the post
+// said goes under the table (footerFor).
+const weekLabel = (d: MonthlyDataPoint) => formatWeekRange(d.date);
 // Sources are keyed by the week's Monday, the bar's own date.
 const weekKey = (date: string) => date;
 
 export function ZelenskyWeeklyPage({ refreshKey }: Props) {
-  const { theme: t } = useTheme();
   const { loadState, error, queryWeeks } = useZelenskyWeeklyDatabaseContext();
   const [rows, setRows] = useState<ZelenskyWeekRow[]>([]);
   const [hasData, setHasData] = useState(false);
@@ -75,22 +76,19 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
 
   // Tooltip header: the week spelled out, plus the figure as the post hedged
   // it — the bar height alone would present "понад 3170" as exactly 3,170.
-  const headerFor = (category: ZelenskyCategory) => (d: MonthlyDataPoint) => {
+  const footerFor = (category: ZelenskyCategory) => (d: MonthlyDataPoint) => {
     const r = byMonday.get(d.date);
     // On the drones chart, how many of them were jet-powered, when the post
     // said (a count or a share — as given).
     const jet = r && category === "drones" ? formatJetDrones(r) : null;
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <span>{formatWeekRange(d.date)}</span>
-        <span style={{ fontSize: 10, color: t.textMuted }}>
+        <span>
           {r
             ? <>{r.period} · as posted: {formatHedged(r[category], r[`${category}_bound`])}</>
             : "no weekly tally posted"}
         </span>
-        {jet && (
-          <span style={{ fontSize: 10, color: t.textMuted }}>of which jet-powered: {jet}</span>
-        )}
+        {jet && <span>of which jet-powered: {jet}</span>}
       </div>
     );
   };
@@ -140,7 +138,8 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
             wfull
             formatTick={formatWeekTick}
             xTicks={ticks}
-            formatHeader={headerFor(k)}
+            formatHeader={weekLabel}
+            formatFooter={footerFor(k)}
             explainGaps
             globalMax={allStats[k].max}
             globalMedian={allStats[k].median}
