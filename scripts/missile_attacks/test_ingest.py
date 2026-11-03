@@ -219,8 +219,8 @@ def test_single_column_rename_orphan_excluded(tmp_path, monkeypatch, capsys):
     _build(tmp_path, CSV_V1)
     renamed = CSV_V1.replace("Caspian Sea", "Black Sea")  # Kh-101 row's launch_place
     inserted, distinct, _ = _build(tmp_path, renamed)
-    assert inserted == 1  # the renamed key is a new version
-    assert distinct == 4  # orphan (Caspian Sea) remains alongside the 3 fetched
+    assert inserted == 2  # the renamed key's first version + the old key's marker
+    assert distinct == 3  # the orphan (Caspian Sea) is no longer live
     assert "single-column siblings" in capsys.readouterr().err
 
 
@@ -232,9 +232,73 @@ def test_small_shrink_within_tolerance_warns(tmp_path, monkeypatch, capsys):
     _build(tmp_path, CSV_V1)
     shrunk = "\n".join(CSV_V1.splitlines()[:3])  # header + 2 rows (1 key gone)
     inserted, distinct, _ = _build(tmp_path, shrunk)
-    assert inserted == 0  # nothing new
-    assert distinct == 3  # orphan remains in DB
+    assert inserted == 1  # the vanished key's removal marker
+    assert distinct == 2
     assert "within tolerance" in capsys.readouterr().err
+
+
+# ── keys gone from the download: marked removed, never deleted ────────────────
+# Real case, 2026-10-22: piterfm corrected launch_place "Oryol" → "Oryol oblast"
+# on a 176-Shahed row; the corrected row arrived under a new key and the old one
+# stayed latest beside it, so that night counted 352.
+CSV_RENAMED = CSV_V1.replace("Caspian Sea", "Black Sea")
+
+
+class TestRemovedUpstream:
+    def test_renamed_key_is_counted_once(self, tmp_path):
+        _build(tmp_path, CSV_V1)
+        _build(tmp_path, CSV_RENAMED)
+        conn = sqlite3.connect(tmp_path / "t.db")
+        assert _rows(conn, "SELECT launched FROM daily_totals WHERE date='2024-11-17'") == [(132,)]
+        assert _rows(conn, "SELECT launch_place FROM missile_attacks_latest "
+                           "WHERE model = 'Kh-101/Kh-555'") == [("Black Sea",)]
+        conn.close()
+
+    def test_nothing_is_deleted(self, tmp_path):
+        # Append-only: the orphan's version stays, and its marker repeats it.
+        _build(tmp_path, CSV_V1)
+        _build(tmp_path, CSV_RENAMED)
+        conn = sqlite3.connect(tmp_path / "t.db")
+        got = _rows(conn, "SELECT launched, destroyed, removed_upstream FROM missile_attacks "
+                          "WHERE launch_place = 'Caspian Sea' ORDER BY scraped_at")
+        assert got == [(12, 10, ""), (12, 10, "1")]
+        conn.close()
+
+    def test_rerun_marks_nothing_again(self, tmp_path):
+        # A marked key is no longer expected, so the same download adds nothing
+        # and doesn't count the key against the shrink guard a second time.
+        _build(tmp_path, CSV_V1)
+        _build(tmp_path, CSV_RENAMED)
+        inserted, distinct, _ = _build(tmp_path, CSV_RENAMED)
+        assert (inserted, distinct) == (0, 3)
+
+    def test_key_that_reappears_is_live_again(self, tmp_path):
+        _build(tmp_path, CSV_V1)
+        _build(tmp_path, CSV_RENAMED)
+        inserted, distinct, _ = _build(tmp_path, CSV_V1)
+        # The Caspian key's new live version + the Black Sea key's marker.
+        assert (inserted, distinct) == (2, 3)
+        conn = sqlite3.connect(tmp_path / "t.db")
+        assert _rows(conn, "SELECT launch_place FROM missile_attacks_latest "
+                           "WHERE model = 'Kh-101/Kh-555'") == [("Caspian Sea",)]
+        conn.close()
+
+    def test_existing_db_migrates_without_reversioning(self, tmp_path, caplog):
+        # The R2 DB predates the column: adding it must not re-version every row
+        # (stored rows default to '' like a downloaded one) nor be reported as
+        # upstream header growth — it's ours.
+        db = tmp_path / "t.db"
+        _build(tmp_path, CSV_V1)
+        conn = sqlite3.connect(db)
+        for v in ("daily_totals", "daily_by_model", "daily_by_category", "missile_attacks_latest"):
+            conn.execute(f"DROP VIEW {v}")
+        conn.execute("ALTER TABLE missile_attacks DROP COLUMN removed_upstream")
+        conn.commit()
+        conn.close()
+        with caplog.at_level(logging.WARNING):
+            inserted, distinct, _ = _build(tmp_path, CSV_V1)
+        assert (inserted, distinct) == (0, 3)
+        assert "header grew" not in caplog.text
 
 
 def test_upstream_added_column_migrates_existing_db(tmp_path, caplog):

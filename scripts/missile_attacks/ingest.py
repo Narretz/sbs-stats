@@ -91,12 +91,26 @@ REQUIRED = {"time_start", "time_end", "model", "launched", "destroyed", "source"
 # aggregation without relying on SQLite parsing arbitrary timestamp formats.
 DATE_COL = "attack_date"
 
+# Our own column (not in the CSV): '1' on a version recording that the key is
+# no longer in the download, '' on every version that came from one. When
+# upstream corrects a key column (a launch_place spelling, a blank target filled
+# in), the corrected row arrives under a new key and the old one would stay
+# "latest" forever — counted twice beside its correction. Deleting it would
+# break the append-only model, so the ingest appends this marker version instead
+# and `missile_attacks_latest` skips keys whose newest version carries it. A key
+# that reappears upstream differs from its marker, so it simply gets a new live
+# version.
+REMOVED_COL = "removed_upstream"
+REMOVED = "1"
+
 # Derived column: weapon category for the launched-vs-intercepted views. The
 # `model` field is a single weapon or a " and "-joined bundle; we tokenize it and
 # classify. The drone↔missile boundary is clean in the data (no bundle mixes the
 # two); the only mixed bundles are cruise+ballistic, which we resolve to ballistic
 # (the higher-tier threat, and the bundle always includes an Iskander-class round).
 CATEGORY_COL = "category"
+# Columns the build adds itself — never reported as upstream header growth.
+OWN_COLS = {DATE_COL, CATEGORY_COL, REMOVED_COL}
 
 # Upstream disclosure flag (piterfm, Aug 2026). `'hidden'` marks an attack that
 # WAS reported but whose launched/intercepted counts the Ukrainian Air Force
@@ -259,6 +273,7 @@ def parse_rows(text: str) -> tuple[list[str], list[dict]]:
         ts = row.get("time_start", "")
         row[DATE_COL] = ts[:10] if len(ts) >= 10 else ""
         row[CATEGORY_COL], unk = classify(row.get("model", ""))
+        row[REMOVED_COL] = ""
         unmapped.update(unk)
         rows.append(row)
     if unmapped:
@@ -278,8 +293,9 @@ def _ident(name: str) -> str:
 
 # ── store ─────────────────────────────────────────────────────────────────
 def build(db_path: Path, header: list[str], rows: list[dict]) -> tuple[int, int, str | None]:
-    """Append changed/new rows into db_path; never mutates/deletes. Returns
-    (inserted_versions, distinct_keys, latest_attack_date)."""
+    """Append changed/new rows into db_path; never mutates/deletes. A stored
+    key missing from the download gets a REMOVED_COL marker version (see there).
+    Returns (inserted_versions, live_keys, latest_attack_date)."""
     # Guard 1: absolute floor.
     if len(rows) < MIN_ROWS_FLOOR:
         raise RuntimeError(
@@ -288,7 +304,7 @@ def build(db_path: Path, header: list[str], rows: list[dict]) -> tuple[int, int,
         )
 
     key_cols = [c for c in KEY_COLS if c in header]
-    all_cols = header + [DATE_COL, CATEGORY_COL]
+    all_cols = header + [DATE_COL, CATEGORY_COL, REMOVED_COL]
     value_cols = [c for c in all_cols if c not in key_cols]
 
     def col_type(c: str) -> str:
@@ -320,6 +336,10 @@ def build(db_path: Path, header: list[str], rows: list[dict]) -> tuple[int, int,
         ):
             n = len(key_cols)
             stored[tuple(r[:n])] = tuple(r[n:])
+        removed_idx = value_cols.index(REMOVED_COL)
+        # Keys already marked removed aren't expected in the download, so they
+        # neither count against the shrink guard nor get marked again.
+        live = {k for k, v in stored.items() if v[removed_idx] != REMOVED}
 
         # Guard 2: a shrink in distinct keys only matters if it's *unexplained*.
         # The DB is append-only, so when upstream normalizes a single key-column
@@ -331,7 +351,7 @@ def build(db_path: Path, header: list[str], rows: list[dict]) -> tuple[int, int,
         # one column). A truncated/broken download drops whole rows with no such
         # sibling, so only genuine loss counts against the tolerance.
         fetched_keys = {tuple(row[c] for c in key_cols) for row in rows}
-        missing = stored.keys() - fetched_keys
+        missing = live - fetched_keys
         if missing:
             ncols = len(key_cols)
             blanked = [set() for _ in range(ncols)]
@@ -345,28 +365,28 @@ def build(db_path: Path, header: list[str], rows: list[dict]) -> tuple[int, int,
             explained = len(missing) - len(unexplained)
             tolerance = min(
                 SHRINK_TOLERANCE_ABS,
-                max(1, int(len(stored) * SHRINK_TOLERANCE_FRAC)),
+                max(1, int(len(live) * SHRINK_TOLERANCE_FRAC)),
             )
             if explained:
                 print(
                     f"NOTE: {explained} stored key(s) missing from this download are "
                     f"single-column siblings of a downloaded row (upstream key "
-                    f"normalization) — excluded from the shrink guard; the prior "
-                    f"version remains in the DB as an orphan.",
+                    f"normalization) — excluded from the shrink guard and marked "
+                    f"removed upstream.",
                     file=sys.stderr,
                 )
             if len(unexplained) > tolerance:
                 raise RuntimeError(
                     f"download has {len(fetched_keys)} distinct keys but DB already has "
-                    f"{len(stored)} — {len(missing)} missing, {explained} explained as "
+                    f"{len(live)} — {len(missing)} missing, {explained} explained as "
                     f"upstream normalization, {len(unexplained)} unexplained (tolerance "
                     f"{tolerance}) — refusing to write a shrinking dataset into {db_path}."
                 )
             if unexplained:
                 print(
                     f"WARNING: {len(unexplained)} stored key(s) missing from this "
-                    f"download with no sibling (within tolerance {tolerance}) — the "
-                    f"prior version remains in the DB as an orphan.",
+                    f"download with no sibling (within tolerance {tolerance}) — "
+                    f"marked removed upstream.",
                     file=sys.stderr,
                 )
 
@@ -409,6 +429,11 @@ def build(db_path: Path, header: list[str], rows: list[dict]) -> tuple[int, int,
                 + list(vals)
                 + [scraped]
             )
+        # Every key upstream no longer carries: its last version again, marked.
+        for k in sorted(missing):
+            vals = list(stored[k])
+            vals[removed_idx] = REMOVED
+            to_insert.append(list(k) + vals + [scraped])
 
         if to_insert:
             conn.executemany(
@@ -418,9 +443,7 @@ def build(db_path: Path, header: list[str], rows: list[dict]) -> tuple[int, int,
             conn.execute("VACUUM")
             conn.commit()
 
-        distinct = conn.execute(
-            f"SELECT COUNT(*) FROM (SELECT 1 FROM {TABLE} GROUP BY {grp})"
-        ).fetchone()[0]
+        distinct = conn.execute(f"SELECT COUNT(*) FROM {TABLE}_latest").fetchone()[0]
         latest = conn.execute(
             f"SELECT MAX({_ident(DATE_COL)}) FROM {TABLE}"
         ).fetchone()[0]
@@ -453,6 +476,8 @@ def _add_missing_columns(conn, all_cols, col_type) -> list[str]:
         conn.execute(f"ALTER TABLE {TABLE} ADD COLUMN {_ident(c)} {t}{default}")
     if added:
         conn.commit()
+    added = [c for c in added if c not in OWN_COLS]
+    if added:
         msg = (
             f"upstream header grew — added column(s) {added} to {TABLE}; "
             f"pre-existing rows keep their values."
@@ -506,7 +531,9 @@ def _create_views(conn, key_cols, value_cols):
         f"CREATE VIEW {TABLE}_latest AS "
         f"SELECT t.* FROM {TABLE} t "
         f"JOIN (SELECT {grp}, MAX(scraped_at) ms FROM {TABLE} GROUP BY {grp}) l "
-        f"ON {joinon} AND t.scraped_at = l.ms"
+        f"ON {joinon} AND t.scraped_at = l.ms "
+        # A key whose newest version is a removal marker is gone upstream.
+        f"WHERE COALESCE(t.{_ident(REMOVED_COL)}, '') != '{REMOVED}'"
     )
     # Daily totals (attribute each attack to the date of its time_start).
     # `rows` still counts withheld attacks — one was reported — so `rows` can

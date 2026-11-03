@@ -32,6 +32,20 @@ in the query layer (see the views below).
   when a value changed** (or the key is new), tagged with `scraped_at` (UTC, when
   *we* ingested). Nothing is ever overwritten; the frontend reads the latest
   `scraped_at` per key.
+  - **A key gone from the download gets a removal marker, not a delete.** When
+    piterfm corrects a *key* column — a `launch_place` spelling ("Oryol" →
+    "Oryol oblast"), a blank `target` filled in as "Ukraine", a moved
+    `time_start` — the corrected row arrives under a new key, and the old one
+    would otherwise stay latest beside it, counted twice (2026-10-22: 176
+    Shahed-136/131 charted as 352). So each run appends, for every stored key
+    the download no longer carries, a copy of its last version with our own
+    column `removed_upstream = '1'`, and `missile_attacks_latest` skips keys
+    whose newest version is one. Every downloaded row carries `''`, so a key
+    that comes back simply gets a new live version. The first run with this
+    marked 52 keys (1,415 launched / 1,114 destroyed counted twice): 49
+    single-column corrections and 3 rows upstream dropped or corrected in two
+    key columns at once. The shrink guard below bounds how many can be marked
+    in one run.
   - **Natural key**: `(time_start, time_end, model, launch_place, target,
     source)`. `source` (the originating UA Air Force / regional-command post) is
     what makes a row unique — same-day reports of the same model+target from
@@ -43,7 +57,9 @@ in the query layer (see the views below).
 - **Build guards** abort without writing (so the R2 upload is skipped and R2 is
   left untouched) if the download looks broken: a header-drift guard (essential
   column missing → source shape changed), a row-count floor (`MIN_ROWS_FLOOR`,
-  default 1000), a "never fewer keys than already stored" shrink guard, and an
+  default 1000), a "never fewer keys than already stored" shrink guard (over
+  keys not yet marked removed; a key that is missing but has a single-column
+  sibling in the download is a correction and doesn't count against it), and an
   in-download key-uniqueness guard.
 - **Header growth is migrated, not fatal**: if piterfm *adds* a CSV column
   (e.g. `status_data`, Aug 2026), the build `ALTER TABLE ADD COLUMN`s it into
@@ -190,7 +206,11 @@ figures, and it has changed over time:
   `Shahed-136/131` 593 **plus a separate `Banderol` row of 2** (593 + 2 = 595;
   the missiles are Kinzhal 2 + Kalibr 8 + Kh-101 38 = 48), and the Shahed row
   *also* names `Banderol` 2 in `destroyed_types`. There the itemization repeats
-  the sibling row and the 593 does **not** contain it.
+  the sibling row and the 593 does **not** contain it. (piterfm has since
+  dropped that Banderol row — gone from the Oct 2026 download, so it is marked
+  removed — which leaves the itemization standing on its own. No report in
+  that download has the shape any more; the hook's check stays as a guard in
+  case it comes back.)
 
 A sibling row **from the same `source` post** is what tells the two apart, so
 the hook drops an itemization that has one: that weapon is already charted under

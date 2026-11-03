@@ -255,6 +255,8 @@ function installSubtypeTables(db: Database, hasSubtypes: boolean, isHidden: stri
     //     Shahed 593 plus a separate Banderol row of 2 (593 + 2 = 595), and the
     //     Shahed row *also* names Banderol 2 in `destroyed_types`. So there the
     //     itemization repeats the sibling row; the 593 does not contain it.
+    //     (piterfm dropped that Banderol row in Oct 2026, and no report has the
+    //     shape now — the check guards against it coming back.)
     //   2026-09-11 — "129 Shahed-type UAVs (half of them jet-powered), S8000
     //     Banderol and Parodiya decoys". The DB has one Shahed row of 129, no
     //     Banderol row, and `destroyed_types` naming Banderol 1 and Turbojet 64
