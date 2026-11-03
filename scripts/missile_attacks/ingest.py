@@ -104,7 +104,10 @@ CATEGORY_COL = "category"
 # CSV has no null for that, so such a row carries a placeholder 0 that is
 # indistinguishable from a real zero once summed. We store the row verbatim (the
 # table keeps mirroring upstream) and resolve it in the aggregate views, which
-# count those rows as NULL — unknown — rather than as nothing launched.
+# count those 0s as NULL — unknown — rather than as nothing launched. A hidden
+# row's non-zero figure is real: the Air Force often still gives the intercepts
+# and withholds only the launches (piterfm: launched = destroyed = N), so it
+# counts — launched as a lower bound, which `hidden` flags.
 STATUS_COL = "status_data"
 HIDDEN_STATUS = "hidden"
 DRONE_MODELS = {
@@ -478,9 +481,9 @@ def _create_views(conn, key_cols, value_cols):
     (Same shape as the `status_data` header break: the migration that isn't.)
 
     The aggregates resolve `status_data='hidden'` (see STATUS_COL): a withheld
-    row contributes NULL, so SUM skips it and a day with nothing else disclosed
-    reads NULL rather than 0. Each aggregate also carries a `hidden` count, so a
-    consumer can tell "no attacks" from "figures not published" and treat a
+    row's placeholder 0 contributes NULL, so SUM skips it and a day with nothing
+    else disclosed reads NULL rather than 0; its non-zero figures count. Each
+    aggregate also carries a `hidden` count, so a consumer can tell "no attacks" from "figures not published" and treat a
     partial sum as the lower bound it is. Guarded on the column actually being
     present, so a DB built before piterfm added it still gets valid views.
     """
@@ -489,9 +492,10 @@ def _create_views(conn, key_cols, value_cols):
 
     has_status = any(r[1] == STATUS_COL for r in conn.execute(f"PRAGMA table_info({TABLE})"))
     is_hidden = f"{_ident(STATUS_COL)} = '{HIDDEN_STATUS}'" if has_status else "0"
-    # A withheld count is unknown, not zero: NULL keeps it out of SUM entirely.
+    # A withheld 0 is unknown, not zero: NULL keeps it out of SUM entirely. A
+    # withheld non-zero is the figure that was given (usually the intercepts).
     def known(c: str) -> str:
-        return f"SUM(CASE WHEN {is_hidden} THEN NULL ELSE {c} END)"
+        return f"SUM(CASE WHEN {is_hidden} THEN NULLIF({c}, 0) ELSE {c} END)"
 
     hidden_n = f"SUM(CASE WHEN {is_hidden} THEN 1 ELSE 0 END)"
 

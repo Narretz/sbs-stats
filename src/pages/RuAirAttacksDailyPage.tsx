@@ -156,15 +156,17 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   const startDate = windowStartDate(endDate, days);
   // Weekday filter is intentional — don't pad dates that the user filtered out.
   const keepDate = weekdayPredicate(selectedWeekdays);
-  // A category UA withheld arrives as null and charts as a gap; "all" still
-  // charts the sum of what *was* disclosed. Either way the point carries the
-  // caveat, so the tooltip explains the gap (or the understated total) rather
-  // than leaving the reader to infer a quiet day.
+  // A category UA withheld outright arrives as null and charts as a gap; one
+  // whose withheld report still gave the intercepts, and "all", chart the sum
+  // of what *was* disclosed. Either way the point carries the caveat, so the
+  // tooltip explains the gap (or the understated total) rather than leaving
+  // the reader to infer a quiet day.
   const undisclosedNote = (d: RuAirAttacksDailyRow, key: AttackCategoryKey): string | undefined => {
     const withheld = d.undisclosed ?? [];
     if (!withheld.length) return undefined;
     if (key === "all") return UNDISCLOSED_PARTIAL_NOTE;
-    return withheld.includes(key as AttackDbCategory) ? UNDISCLOSED_NOTE : undefined;
+    if (!withheld.includes(key as AttackDbCategory)) return undefined;
+    return d[`${key}_launched`] == null ? UNDISCLOSED_NOTE : UNDISCLOSED_PARTIAL_NOTE;
   };
   const series = (key: AttackCategoryKey, metric: "launched" | "intercepted") =>
     fillDailyRange(

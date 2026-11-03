@@ -309,6 +309,10 @@ CSV_HIDDEN = "\n".join(
         # withheld: reported, figures not published — the 0s are placeholders
         "2026-08-10 18:00:00,2026-08-11 09:00:00,Iskander-M and 3M22 Zircon,0,0,Kursk,Kyiv,kpszsu/posts/b,hidden",
         "2026-08-10 18:00:00,2026-08-11 09:00:00,Shahed-136/131,200,180,Kursk,Kyiv,kpszsu/posts/b,",
+        # withheld launches, intercepts given: "5 shot down", launched copied
+        # from it — the 5s are real, the launched a lower bound
+        "2026-08-26 18:00:00,2026-08-27 09:00:00,Iskander-M/KN-23,5,5,Kursk,Kyiv,kpszsu/posts/c,hidden",
+        "2026-08-26 18:00:00,2026-08-27 09:00:00,Iskander-M,3,1,Kursk,Kyiv,kpszsu/posts/d,",
     ]
 )
 
@@ -340,6 +344,15 @@ class TestWithheldCounts:
         }
         assert by_cat[("2026-08-09", "ballistic")] == (0, 0, 0)      # disclosed zero
         assert by_cat[("2026-08-10", "ballistic")] == (None, None, 1)  # withheld
+        conn.close()
+
+    def test_withheld_row_with_intercepts_counts_them(self, tmp_path):
+        # Only a hidden 0 is a placeholder: 3/1 disclosed + 5/5 withheld-launch
+        # sums to 8/6, flagged by `hidden` as a lower bound on launched.
+        _build(tmp_path, CSV_HIDDEN)
+        conn = sqlite3.connect(tmp_path / "t.db")
+        assert _rows(conn, "SELECT launched, destroyed, hidden FROM daily_by_category "
+                           "WHERE date='2026-08-26' AND category='ballistic'") == [(8, 6, 1)]
         conn.close()
 
     def test_partial_day_keeps_the_disclosed_sum(self, tmp_path):

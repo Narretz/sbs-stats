@@ -327,6 +327,9 @@ function buildGsua(SQL) {
 //   day -1: ballistic withheld upstream      → unknown, plots as a gap
 // piterfm writes a placeholder 0 for the withheld row too, so a fixture that
 // only had one of these cases couldn't catch the two being confused.
+//   day -3: a second ballistic report, withheld but giving its intercepts
+//           (2 shot down, launched copied from them) → counted, launched a
+//           lower bound: 3 + 2 launched, 1 + 2 intercepted
 //
 // Day -4 additionally carries a `destroyed_types` cell on its UAV row — the
 // sub-type itemization (Banderol / jet-powered airframes counted *inside* that
@@ -396,6 +399,7 @@ function buildRuAirAttacks(SQL) {
     } else {
       row(date, "Iskander-M", "ballistic", d, 1);
     }
+    if (d === 3) row(date, "C-400 and Iskander-M", "ballistic", 2, 2, "hidden");
   }
   ins.free();
   fs.writeFileSync(path.join(FIX_DIR, "ru-air-attacks-gsua.db"), Buffer.from(db.export()));

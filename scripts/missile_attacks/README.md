@@ -72,11 +72,21 @@ reported (types, launch areas, targets) with the counts withheld. The CSV has
 no null for that, so it carries a placeholder `0` in `launched` / `destroyed` —
 indistinguishable from a real zero to anything that just sums the column.
 
+Not every hidden row is a placeholder, though. The Air Force often still names
+the **intercepts** — "5 ballistic missiles shot down" — and withholds only how
+many were launched; piterfm then records `launched = destroyed = 5` on the
+hidden row (2026-08-26 7/7, 2026-10-06 5/5, 2026-10-18 Iskander-K 4/4, …). In
+Oct 2026 that is the difference between 4 ballistic intercepts in the daily
+data and 11 — the Air Force's own monthly recap says 11. So a hidden row's
+non-zero figure is a reported number: the intercepts are exact, the launched a
+**lower bound** (at least as many as were shot down), which makes the
+interception rate over it an upper bound. Only a hidden `0` is a placeholder.
+
 The ingest stores the flag verbatim, alongside the placeholder, so the table
 keeps mirroring upstream. **Resolving it is a read-side job**: the frontend
 (`src/hooks/useDatabaseRuAirAttacks.ts`) rebuilds the aggregate views over its
-in-memory copy so hidden rows contribute `NULL` rather than `0`, and carries a
-per-group `hidden` count. A withheld day then charts as a gap instead of a drop
+in-memory copy so a hidden row's `0` contributes `NULL` (its non-zero figures
+count as they are), and carries a per-group `hidden` count. A withheld day then charts as a gap instead of a drop
 to zero, tooltips read "not disclosed", and monthly bars that contain one are
 flagged as lower bounds. `e2e/undisclosed-counts.spec.ts` guards the case that
 actually matters: a withheld day and a genuinely quiet day staying

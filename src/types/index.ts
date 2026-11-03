@@ -600,11 +600,14 @@ export const AIR_IMPACT_LABELS: Record<AirImpactKey, string> = {
 // intercepted figures on 2026-08-13, citing operational security. piterfm marks
 // those rows `status_data='hidden'` and carries a placeholder 0, so anything
 // that SUMs the raw column reads a withheld attack as "nothing was launched".
-// The hook maps them to null; this is the caveat the charts show in their place.
+// The hook maps them to null; UNDISCLOSED_NOTE is the caveat the charts show in
+// their place. Often the report still gives the intercepts and withholds only
+// the launches — those count, and UNDISCLOSED_PARTIAL_NOTE is the caveat for a
+// figure that includes them or leaves a fully withheld attack out.
 export const UNDISCLOSED_NOTE =
   "Ukrainian Air Force stopped publishing ballistic missile counts on 11.08.2026.";
 export const UNDISCLOSED_PARTIAL_NOTE =
-  "Excludes attacks reported without figures (UA stopped publishing ballistic missile counts on 11.08.2026) — a lower bound.";
+  "Includes attacks reported without full figures only as far as given — usually just the intercepts (UA stopped publishing ballistic missile counts on 11.08.2026). Launched is a lower bound, so the interception rate is an upper bound.";
 
 // Featured weapon models charted individually on the air-attacks pages.
 // Listed in the same `model` string the DB stores; the page renders a chart per
@@ -642,6 +645,10 @@ export type ModelBreakdownEntry = {
   // `launched`/`intercepted` are placeholders. Rendered as "not disclosed"
   // rather than as the 0 the CSV carries. See UNDISCLOSED_NOTE.
   undisclosed?: boolean;
+  // True when some row behind this entry was withheld but still gave a figure
+  // — typically the intercepts, with launched copied from them. `launched` is
+  // then a lower bound: rendered "≥ N", with no rate. See UNDISCLOSED_PARTIAL_NOTE.
+  lowerBound?: boolean;
   // True for a sub-type itemized *inside* the entry above it, whose counts are
   // a subset of that entry rather than another sibling adding to the total.
   // Rendered indented and without a share cell. See ATTACK_SUBTYPE_LABELS.

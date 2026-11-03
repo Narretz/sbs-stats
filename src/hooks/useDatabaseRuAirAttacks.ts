@@ -38,8 +38,14 @@ async function loadDatabase(): Promise<Database> {
 // 2026-08-13 — and the CSV carries a placeholder `0`, which is
 // indistinguishable from a real zero once summed. The DB's own aggregate views
 // sum it, so redefine them over our in-memory copy (never written back to R2):
-// hidden rows contribute NULL instead of 0, and each group carries a `hidden`
-// count so the UI can render "not disclosed" rather than draw a zero.
+// a hidden row's 0 contributes NULL, and each group carries a `hidden` count so
+// the UI can render "not disclosed" rather than draw a zero.
+//
+// A hidden row's *non-zero* figure is not a placeholder: the Air Force often
+// still gives the intercepts ("5 ballistic missiles shot down") and withholds
+// only how many were launched, which piterfm records as launched = destroyed =
+// 5. Those count — the intercepts as reported, the launched as a lower bound —
+// and the `hidden` count is what tells the UI to say so.
 //
 // Doing this once at load keeps every downstream query correct without each
 // one restating the CASE. DBs built before the column existed — including the
@@ -52,7 +58,7 @@ function installDisclosureAwareViews(db: Database): void {
     nameIdx >= 0 && (cols[0]?.values ?? []).some((r) => r[nameIdx] === col);
 
   const isHidden = has("status_data") ? "status_data = 'hidden'" : "0";
-  const known = (c: string) => `SUM(CASE WHEN ${isHidden} THEN NULL ELSE ${c} END)`;
+  const known = (c: string) => `SUM(CASE WHEN ${isHidden} THEN NULLIF(${c}, 0) ELSE ${c} END)`;
   const hiddenCount = `SUM(CASE WHEN ${isHidden} THEN 1 ELSE 0 END)`;
 
   // Parse the itemizations first — the aggregates below read them.
@@ -341,8 +347,8 @@ type CategoryRow = {
   date: string; category: string;
   launched: number | null; destroyed: number | null;
   // Rows in this (date, category) group whose counts upstream withheld. The
-  // view nulls their contribution, so `launched`/`destroyed` are null when
-  // *nothing* was disclosed and a partial sum when only some rows were.
+  // view nulls their placeholder 0s, so `launched`/`destroyed` are null when
+  // *nothing* was disclosed and a partial sum (a lower bound) otherwise.
   hidden?: number | null;
 };
 
@@ -351,7 +357,8 @@ function num(v: number | null | undefined): number {
 }
 
 // One breakdown row. `undisclosed` marks the case where every row behind the
-// entry was withheld, so its 0 is a placeholder rather than a count.
+// entry was withheld, so its 0 is a placeholder rather than a count;
+// `lowerBound` the case where a withheld row still gave a figure.
 function breakdownEntry(
   model: string,
   r: { launched: number | null; destroyed: number | null; hidden?: number | null },
@@ -361,7 +368,10 @@ function breakdownEntry(
     launched: num(r.launched),
     intercepted: num(r.destroyed),
   };
-  if (num(r.hidden) > 0 && r.launched === null) entry.undisclosed = true;
+  if (num(r.hidden) > 0) {
+    if (r.launched === null) entry.undisclosed = true;
+    else entry.lowerBound = true;
+  }
   return entry;
 }
 

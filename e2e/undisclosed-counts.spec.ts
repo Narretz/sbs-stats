@@ -20,6 +20,7 @@ const dayISO = (offset: number) => {
 };
 const WITHHELD = dayISO(-1);   // reported without figures → gap
 const REAL_ZERO = dayISO(-2);  // disclosed, nothing launched → plots at 0
+const INTERCEPTS_ONLY = dayISO(-3); // a withheld report that gave its intercepts
 
 // Tooltip headers are the ISO date itself (utils/dateFormat).
 const fmt = (iso: string) => iso;
@@ -80,6 +81,16 @@ test.describe("RU air attacks — withheld counts", () => {
     // No value row at all — the point is null, so the line breaks here.
     expect(tip).not.toMatch(/Launched\s+\d/);
     expect(tip).toContain("stopped publishing ballistic missile counts");
+  });
+
+  test("a withheld report's intercepts count, launched as a lower bound", async ({ page }) => {
+    // 3 launched / 1 down disclosed, plus a withheld report of 2 shot down.
+    const tip = await tooltipAt(page, "Ballistic Missiles", INTERCEPTS_ONLY);
+    expect(tip).toMatch(/Launched\s+5/);
+    expect(tip).toContain("Launched is a lower bound");
+    // The withheld model row reads "≥ 2" (share 40%), then its 2 intercepts —
+    // and no rate after them, which over a lower bound would be fiction.
+    expect(tip).toMatch(/C-400 and Iskander-M\s+≥ 2\s+40\.0%\s+2\s+⚠/);
   });
 
   test("the aggregate tooltip marks ballistic 'not disclosed', not 0", async ({ page }) => {

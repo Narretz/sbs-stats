@@ -288,7 +288,9 @@ export function breakdownToRows(
       // A nested sub-type is indented under the entry it was itemized from.
       label: e.nested ? `\u21b3 ${e.model}` : e.model,
       color,
-      value: e.launched,
+      // A launch count upstream withheld, known only to be at least the
+      // intercepts: a node, so the rate cell — an upper bound — stays empty.
+      value: e.lowerBound ? <span>≥ {e.launched}</span> : e.launched,
       // Upstream named the launch count but not the intercepts: an em dash, and
       // — being a node rather than a number — it skips the derived rate cell,
       // which over an unpublished count would be fiction.
