@@ -60,7 +60,7 @@ export function ZelenskyMonthlyPage({ refreshKey }: Props) {
         Russian strike drones, guided aerial bombs (KAB) and missiles launched at Ukraine each
         month, built from the President's weekly tallies on his
         {" "}
-        <a href={CHANNEL_URL} rel="nofollow external">Telegram channel</a>.
+        <a href={CHANNEL_URL} target="_blank" rel="nofollow external">Telegram channel</a>.
         {" "}
         Each week's figure is spread evenly over its seven days, so a week that spans two
         months counts towards each by its daily average. The weekly figures are rounded and
@@ -70,7 +70,9 @@ export function ZelenskyMonthlyPage({ refreshKey }: Props) {
         tooltip says how many of its days are covered. Through most of Apr–Sep 2025 the President posted
         month-to-date totals instead of weekly ones, which are not used here.
         {" "}
-        Click a month to pin it and link the posts it was built from.
+        Since late summer 2026 some weeks also say how many of the drones were
+        jet-powered («реактивні»), as a count or a share; a share is turned into a count
+        with that week's drone total.
       </>}
       // No window picker → no scope toggle either; see StatScopeToggle.
       controls={yr.hidden ? undefined : (
