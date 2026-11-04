@@ -1804,3 +1804,64 @@ class TestProbeGapWebStream:
         pg = self._run(monkeypatch, [], ["--ids", "44509"])
         with pytest.raises(SystemExit):
             pg.main()
+
+
+class TestWebWalkOrder:
+    """`iter_web` promises newest-first, and both consumers rely on it: the
+    ingest's `--since` loop `break`s on the first post older than the window,
+    and `probe_gap` returns on it. But a t.me/s page lists its ~20 posts
+    OLDEST first. Yielded in page order, the page that straddles the window's
+    lower bound stops the walk at its first (oldest) post and silently drops
+    every newer in-window post after it.
+
+    Seen 2026-11-01: `probe_gap.py --dates 2026-10-29` listed nothing before
+    08:22 MSK, hiding the overnight report (msg 68619, 1 214 UAVs) — exactly
+    the "half-covered day" it was being run to verify, and the evidence a human
+    would act on with `--mark-silent`.
+    """
+
+    @staticmethod
+    def _page(posts, before=None):
+        """A t.me/s page: posts given oldest→newest, as Telegram serves them."""
+        html = []
+        if before is not None:
+            html.append(f'<a class="tme_messages_more" data-before="{before}"></a>')
+        for pid, utc in posts:
+            html.append(
+                f'<div class="tgme_widget_message" data-post="mod_russia/{pid}">'
+                f'<time datetime="{utc}"></time>'
+                f'<div class="tgme_widget_message_text">post {pid}</div></div>'
+            )
+        return "".join(html)
+
+    def _pages(self, monkeypatch):
+        # Head page: 29 Oct. Second page straddles the bound — one post from
+        # 28 Oct (oldest, listed first), then 29 Oct's early-morning posts.
+        pages = {
+            "https://t.me/s/mod_russia": self._page(
+                [(621, "2026-10-29T08:00:00+00:00"), (622, "2026-10-29T12:00:00+00:00")],
+                before=621),
+            "https://t.me/s/mod_russia?before=621": self._page(
+                [(615, "2026-10-28T16:00:00+00:00"),
+                 (618, "2026-10-29T02:00:00+00:00"),
+                 (619, "2026-10-29T06:23:00+00:00")],
+                before=615),
+            "https://t.me/s/mod_russia?before=615": "",
+        }
+        monkeypatch.setattr(ig, "_fetch", lambda url: pages[url])
+        monkeypatch.setattr(ig.time, "sleep", lambda s: None)
+
+    def test_yields_newest_first_across_and_within_pages(self, monkeypatch):
+        self._pages(monkeypatch)
+        ids = [pid for pid, _, _ in ig.iter_web("mod_russia", 0, 5, 0, True)]
+        assert ids == [622, 621, 619, 618, 615]
+
+    def test_probe_keeps_in_window_posts_on_the_boundary_page(self, monkeypatch, capsys):
+        import probe_gap as pg
+        self._pages(monkeypatch)
+        monkeypatch.setattr(pg.sys, "argv",
+                            ["probe_gap.py", "--dates", "2026-10-29", "--db", "/nonexistent"])
+        assert pg.main() == 0
+        out = capsys.readouterr().out
+        assert "4 post(s)" in out
+        assert "post 619" in out and "post 618" in out
