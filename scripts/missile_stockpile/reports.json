@@ -371,6 +371,33 @@
         { "type": "geran45",  "raw_label": "Geran-4/5 jet drone (~3000/month; now exceeds Geran-2)", "value": 3000, "bound": "approx" },
         { "type": "geran2",   "raw_label": "Geran-2 / Shahed-136 (~2800/month)", "value": 2800, "bound": "approx" }
       ]
+    },
+    {
+      "as_of": "2026-10-01", "as_of_precision": "month", "reported_at": "2026-11-04",
+      "source": {
+        "org": "HUR", "via": "HUR (Facebook post, 'Арсенал терору')",
+        "url": "https://www.facebook.com/share/19b3ZyY5HJ/",
+        "secondary": [
+          { "via": "Militarnyi", "url": "https://militarnyi.com/uk/news/gur-oprylyudnylo-dani-pro-zapasy-raket-u-rf/", "covers": "full text in Ukrainian: stockpiles + production (2026-11-04)" }
+        ]
+      },
+      "note": "HUR post 'Arsenal of terror' with figures 'as of October 2026' (as_of month precision). reported_at from Militarnyi's re-report (2026-11-04 12:24), which carries the full Ukrainian text and links the HUR Facebook post; every figure below is checked against that text. AGGREGATES with no type key (context, not charted): stockpile of up to 700 ballistic missiles in total and 'several thousand' cruise missiles of various types; combined cruise + ballistic production capacity of more than 200/month, of which up to 110 ballistic. ISKANDER-M: stockpile ~115; production ~65/month, 'in line with the plan'; a modernised system with a projected 550-700 km range is in development. RM-48U (S-300PM/S-400): stockpile up to 400, production ~40/month. ONYX (3M55, incl. modernised versions with a heavier warhead and a raised trajectory for ground targets): stockpile over 600. ZIRCON: stockpile over 120. ONYX/ZIRCON PRODUCTION is given only as 'more than 55' and 'more than 30' built in seven months of 2026; logged as DERIVED monthly rates (bound=derived, ◇ — computed by us, not stated by HUR): 55 ÷ 7 ≈ 7.9/mo and 30 ÷ 7 ≈ 4.3/mo. Both are floors ('more than'). They likely cover the same Jan-Jul window as the 2026-08-05 entry's 60 Onyx / 33 Zircon by 3 Aug (≈8.6 and ≈4.7/mo), so they restate rather than update that pace — logged anyway as what this report says. KINZHAL: production still temporarily stopped over accuracy problems, capacity redirected to other ballistic missiles (recorded as suspended, as on 2026-08-05). KH-101: monthly production PLAN over 80, with actual output at some plants above plan (bound=planned, value 80); defects reported, including launch problems from aircraft, with some batches returned to the factories. KALIBR: stockpile over 450, production ~29/month; a significant share is being put into strategic reserve, including for equipping the fleets. Not disclosed: Iskander-K, Kh-22/32, KN-23, Kh-69, Kh-35, Oreshnik, drones.",
+      "stockpile": [
+        { "type": "iskander_m", "raw_label": "9M723 Iskander-M (~115)", "value": 115, "bound": "approx" },
+        { "type": "rm48u",      "raw_label": "RM-48U for S-400 (up to 400)", "value": 400, "bound": "up_to" },
+        { "type": "oniks",      "raw_label": "3M55 Onyx incl. modernised (over 600)", "value": 600, "bound": "at_least" },
+        { "type": "zircon",     "raw_label": "3M22 Zircon (over 120)", "value": 120, "bound": "at_least" },
+        { "type": "kalibr",     "raw_label": "3M14 Kalibr (over 450)", "value": 450, "bound": "at_least" }
+      ],
+      "production_monthly": [
+        { "type": "iskander_m", "raw_label": "9M723 Iskander-M (~65/month, in line with plan)", "value": 65, "bound": "approx" },
+        { "type": "rm48u",      "raw_label": "RM-48U (~40/month)", "value": 40, "bound": "approx" },
+        { "type": "kinzhal",    "raw_label": "Kh-47M2 Kinzhal — production temporarily stopped (accuracy problems)", "value": 0, "bound": "suspended" },
+        { "type": "kh101",      "raw_label": "Kh-101 (monthly plan over 80; actual above plan at some plants)", "value": 80, "bound": "planned" },
+        { "type": "kalibr",     "raw_label": "3M14 Kalibr (~29/month)", "value": 29, "bound": "approx" },
+        { "type": "oniks",      "raw_label": "3M55 Onyx (derived: more than 55 built in 7 months of 2026 ÷ 7 ≈ 7.9/mo)", "value": 7.9, "bound": "derived" },
+        { "type": "zircon",     "raw_label": "3M22 Zircon (derived: more than 30 built in 7 months of 2026 ÷ 7 ≈ 4.3/mo)", "value": 4.3, "bound": "derived" }
+      ]
     }
   ]
 }
