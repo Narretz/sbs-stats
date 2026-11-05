@@ -3,6 +3,8 @@ import { styledBar } from "@/components/barShape";
 import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
 import { MonthlyChartCard } from "@/components/MonthlyChartCard";
+import { getKyivDateString } from "@/hooks/sqlLoader";
+import { partialMonth, periodChange, previousOf } from "@/utils/periodChange";
 import type { SheetSource, TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 
 // `total` is included so the tooltip can show it explicitly, even though
@@ -35,13 +37,19 @@ export function TargetsStackedChart({ title, data, wfull, sourcesByDate }: Props
     const totalN = d.total ?? 0;
     const pctOf = (v: number | null): number | null =>
       v != null && totalN > 0 ? (v / totalN) * 100 : null;
+    const prev = previousOf(data, d);
+    const today = getKyivDateString();
+    const change = (k: "total" | "destroyed" | "damaged") => periodChange(
+      { value: d[k], partial: partialMonth(d.date, today) },
+      prev && { value: prev[k], partial: partialMonth(prev.date, today) },
+    );
     // Total on top (bold), components below with per-component share of
     // total. The share column is added automatically because the component
     // rows populate `share`.
     const rows: TooltipTableRow[] = [
-      { label: "Total", color: t.text, value: d.total, emphasis: "bold" },
-      { label: "Destroyed", color: c.destroyed, value: d.destroyed, share: pctOf(d.destroyed), separatorAbove: true },
-      { label: "Damaged", color: c.damaged, value: d.damaged, share: pctOf(d.damaged) },
+      { label: "Total", color: t.text, value: d.total, emphasis: "bold", vsPrev: change("total") },
+      { label: "Destroyed", color: c.destroyed, value: d.destroyed, share: pctOf(d.destroyed), vsPrev: change("destroyed"), separatorAbove: true },
+      { label: "Damaged", color: c.damaged, value: d.damaged, share: pctOf(d.damaged), vsPrev: change("damaged") },
     ];
     return { header: d.date, rows, minWidth: 220, sources: sourcesByDate?.get(d.date.slice(0, 7)) };
   };

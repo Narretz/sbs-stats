@@ -11,6 +11,8 @@ import { chartAnchor } from "@/utils/chartAnchor";
 // deep-link anchor are derived from one string.
 const TITLE = "Combat Engagements — Composition by Direction";
 import { chartColors, qualitativeColor } from "@/chartColors";
+import { getKyivDateString } from "@/hooks/sqlLoader";
+import { partialMonth, periodChange, previousOf } from "@/utils/periodChange";
 import type { SheetSource, TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 import { usePinnedChart } from "@/components/usePinnedChart";
 import { DIRECTION_AXIS_JOINT_LABEL } from "@/types";
@@ -167,12 +169,21 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily", sou
     const p = d.projection;
     const projectedOf = (key: string): number | null =>
       !p ? null : key === UNATTRIBUTED_KEY ? p.unattributed : (p.byDirection[key] ?? null);
+    // Monthly only: change on the month before, per direction. A key absent
+    // from a month is zero attacks there, not a gap.
+    const prev = granularity === "monthly" ? previousOf(flat, d) : undefined;
+    const today = getKyivDateString();
+    const num = (v: unknown) => (typeof v === "number" ? v : 0);
+    const change = (key: string, projected: number | null) => !prev ? null : periodChange(
+      { value: key === "total" ? d.total : num(d[key]), projected, partial: partialMonth(d.date, today) },
+      { value: key === "total" ? prev.total : num(prev[key]), partial: partialMonth(prev.date, today) },
+    );
     // Total (bold) on top, then the breakdown sorted by this bar's own value
     // (highest first), zero-valued entries hidden. Every row surfaces a
     // share-of-total, so each direction's contribution (and the Unattributed
     // gap) is readable at a glance.
     const rows: TooltipTableRow[] = [
-      { label: "Total", color: t.text, value: d.total, emphasis: "bold", projected: p?.total ?? null },
+      { label: "Total", color: t.text, value: d.total, emphasis: "bold", projected: p?.total ?? null, vsPrev: change("total", p?.total ?? null) },
       ...stacks
         .filter((st) => {
           const v = d[st.key];
@@ -191,6 +202,7 @@ export function DirectionCoverageChart({ data, wfull, granularity = "daily", sou
             value: v,
             share: totalN > 0 ? (v / totalN) * 100 : null,
             projected: projectedOf(st.key),
+            vsPrev: change(st.key, projectedOf(st.key)),
             separatorAbove: i === 0,
           };
         }),

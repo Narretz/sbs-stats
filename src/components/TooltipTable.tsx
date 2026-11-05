@@ -2,6 +2,7 @@ import { useId, useState, type ReactNode } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { FONTS } from "@/theme";
 import type { ModelBreakdownEntry } from "@/types";
+import { formatPeriodChange, periodChange, type PeriodChange } from "@/utils/periodChange";
 
 // Shared tooltip building blocks for every chart-tooltip in the app.
 //
@@ -24,6 +25,7 @@ import type { ModelBreakdownEntry } from "@/types";
 //              charts).
 //   projected — end-of-period projection (current tile on projection charts).
 //   dailyMedian — a month's median day (monthly charts of daily sources).
+//   vsPrev   — change on the previous period, in percent (utils/periodChange).
 
 /** One row in a tooltip table. */
 export interface TooltipTableRow {
@@ -52,6 +54,9 @@ export interface TooltipTableRow {
   /** The period's median day (utils/dailyMedian) — on a monthly chart of a
    *  source with daily figures. Column "Daily med", auto-dropped elsewhere. */
   dailyMedian?: number | null;
+  /** Change on the previous period (utils/periodChange) — monthly charts.
+   *  Column "vs prev", auto-dropped where nothing populates it. */
+  vsPrev?: PeriodChange | null;
   /** Bold this row — typically the "Total" row above component rows. */
   emphasis?: "bold" | "normal";
   /** Draw a thin separator above this row (e.g., between Total and its
@@ -151,6 +156,7 @@ export function TooltipTable({
   const hasTrend = rows.some((r) => r.trend != null);
   const hasProjected = rows.some((r) => r.projected != null);
   const hasDailyMedian = rows.some((r) => r.dailyMedian != null);
+  const hasVsPrev = rows.some((r) => r.vsPrev != null);
 
   // One grid for the whole table, not a flex row per line. Flex rows size their
   // columns independently, so a header whose text runs wider than the column
@@ -167,6 +173,7 @@ export function TooltipTable({
     ...(hasSubsetRate ? [`minmax(${PCT_MIN}, max-content)`] : []),
     ...(hasProjected ? [`minmax(${PROJ_MIN}, max-content)`] : []),
     ...(hasDailyMedian ? [`minmax(${PROJ_MIN}, max-content)`] : []),
+    ...(hasVsPrev ? [`minmax(${PCT_MIN}, max-content)`] : []),
     ...(hasTrend ? [`minmax(${TREND_MIN}, max-content)`] : []),
   ].join(" ");
 
@@ -175,7 +182,7 @@ export function TooltipTable({
     fontVariantNumeric: "tabular-nums",
     padding: "1px 0",
   };
-  const showHeader = extraColumns.length > 0 || hasShare || hasSubset || hasSubsetRate || hasTrend || hasProjected || hasDailyMedian;
+  const showHeader = extraColumns.length > 0 || hasShare || hasSubset || hasSubsetRate || hasTrend || hasProjected || hasDailyMedian || hasVsPrev;
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: cols, columnGap: GAP, alignItems: "baseline" }}>
@@ -189,6 +196,7 @@ export function TooltipTable({
           {hasSubsetRate && <HeaderCell>{subsetLabel} %</HeaderCell>}
           {hasProjected && <HeaderCell>Projected</HeaderCell>}
           {hasDailyMedian && <HeaderCell>Daily med</HeaderCell>}
+          {hasVsPrev && <HeaderCell>vs prev</HeaderCell>}
           {hasTrend && <HeaderCell>Trend</HeaderCell>}
           <div style={{ gridColumn: "1 / -1", borderBottom: `1px solid ${t.border}`, marginBottom: 3 }} />
         </div>
@@ -235,6 +243,11 @@ export function TooltipTable({
                 {r.dailyMedian != null ? formatValue(r.dailyMedian) : ""}
               </span>
             )}
+            {hasVsPrev && (
+              <span style={{ ...num, color: t.textMuted }}>
+                {r.vsPrev != null ? formatPeriodChange(r.vsPrev) : ""}
+              </span>
+            )}
             {hasTrend && (
               <span style={{ ...num, color: t.muted }}>
                 {r.trend != null ? trendFmt(r.trend) : ""}
@@ -263,14 +276,20 @@ interface CardProps {
 // is derived by TooltipTable from `subset/value`, so we only populate the
 // absolute count here. Pass `totalForShare` (e.g. the aggregate launched
 // count for the same period) to also surface each model's part-of-total
-// share alongside the launched count.
+// share alongside the launched count. Pass `prev`, the previous period's
+// entries, for each model's change on it — unless this period is `partial`,
+// whose per-model counts have no projection to compare.
 // eslint-disable-next-line react-refresh/only-export-components
 export function breakdownToRows(
   entries: ModelBreakdownEntry[],
   color: string,
-  opts?: { totalForShare?: number },
+  opts?: { totalForShare?: number; prev?: ModelBreakdownEntry[]; partial?: boolean },
 ): TooltipTableRow[] {
   const total = opts?.totalForShare;
+  const prevOf = (e: ModelBreakdownEntry) => {
+    const p = opts?.prev?.find((x) => x.model === e.model && !!x.nested === !!e.nested);
+    return p && !p.undisclosed && !p.lowerBound ? { value: p.launched } : undefined;
+  };
   const hasShare = total != null && total > 0;
   return entries.map((e, i) => {
     // An entry upstream withheld carries a placeholder 0. Say so rather than
@@ -301,6 +320,7 @@ export function breakdownToRows(
       // A share cell here would sit in the same column as its siblings' and
       // read as if it added to their 100%.
       share: hasShare && !e.nested ? (e.launched / total) * 100 : undefined,
+      vsPrev: e.lowerBound ? null : periodChange({ value: e.launched, partial: opts?.partial }, prevOf(e)),
       separatorAbove: i === 0,
     };
   });

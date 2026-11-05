@@ -16,6 +16,8 @@ import { breakdownToRows, type TooltipDescriptor, type TooltipTableRow } from "@
 import { usePinnedChart } from "@/components/usePinnedChart";
 import type { ModelBreakdownEntry } from "@/types";
 import { projectionBasis } from "@/utils/monthProjection";
+import { getKyivDateString } from "@/hooks/sqlLoader";
+import { partialMonth, periodChange, previousOf } from "@/utils/periodChange";
 
 export interface MonthlyTargetPairDataPoint {
   date: string;
@@ -69,10 +71,12 @@ interface Props {
 }
 
 function describeMonth({
-  d, t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth,
+  d, prev, t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth,
   subsetLabel,
 }: {
   d: MonthlyTargetPairDataPoint;
+  /** The month before, for the "vs prev" column. */
+  prev?: MonthlyTargetPairDataPoint;
   t: ReturnType<typeof useTheme>["theme"];
   c: ReturnType<typeof chartColors>;
   primaryLabel: string;
@@ -82,6 +86,13 @@ function describeMonth({
   subsetLabel?: string;
 }): TooltipDescriptor {
   const entries = breakdownByMonth?.get(d.date.slice(0, 7)) ?? [];
+  const today = getKyivDateString();
+  // A month with a projection is in progress, whatever the calendar says — a
+  // lagging source's last month (monthProjection reportingMonth).
+  const partial = d.hit_projected != null || partialMonth(d.date, today);
+  const prevPartial = prev == null || prev.hit_projected != null || partialMonth(prev.date, today);
+  const change = (cur: number | null | undefined, projected: number | null | undefined, before: number | null | undefined) =>
+    periodChange({ value: cur, projected, partial }, prev && { value: before, partial: prevPartial });
   // Collapse to one aggregate row when the chart uses the Subset column
   // (hit/destroyed or launched/intercepted semantic). Same rationale as
   // DailyLineChart: the standalone Destroyed / Intercepted row becomes
@@ -100,6 +111,7 @@ function describeMonth({
           label: primaryLabel, color: c.damaged,
           value: d.hit_value ?? null,
           subset: showRatio ? (d.destroyed_value ?? null) : null,
+          vsPrev: change(d.hit_value, d.hit_projected, prev?.hit_value),
         },
         ...(d.hit_projected != null ? [{
           label: "Projected", color: c.damaged,
@@ -118,15 +130,21 @@ function describeMonth({
           value: d.hit_value ?? null,
           projected: d.hit_projected ?? null,
           dailyMedian: d.hit_daily_median ?? null,
+          vsPrev: change(d.hit_value, d.hit_projected, prev?.hit_value),
         },
         {
           label: secondaryLabel, color: c.destroyed,
           value: d.destroyed_value ?? null,
           projected: d.destroyed_projected ?? null,
           dailyMedian: d.destroyed_daily_median ?? null,
+          vsPrev: change(d.destroyed_value, d.destroyed_projected, prev?.destroyed_value),
         },
       ];
-  rows.push(...breakdownToRows(entries, t.textMuted, { totalForShare: d.hit_value ?? undefined }));
+  rows.push(...breakdownToRows(entries, t.textMuted, {
+    totalForShare: d.hit_value ?? undefined,
+    prev: prev && !prevPartial ? breakdownByMonth?.get(prev.date.slice(0, 7)) : undefined,
+    partial,
+  }));
   // "X of Y days" is appended to the date so it reads as month-in-progress
   // context alongside the tile label, not as a bolted-on footer caption.
   // Rendered smaller (fontSize 10) so the primary date stays the anchor.
@@ -166,6 +184,9 @@ export function MonthlyTargetPairChart({
   const { scope } = useStatScope();
   const c = chartColors(t);
   const lastIdx = data.length - 1;
+  // The month in progress: the last bar, or — for a source that lags into a
+  // new month (monthProjection reportingMonth) — the one with the projection.
+  const inProgress = (d: MonthlyTargetPairDataPoint, i: number) => i === lastIdx || d.hit_projected != null;
 
   const win = scope === "window";
   const primaryWin = useMemo(() => maxMedian(data.map((d) => d.hit_value)), [data]);
@@ -197,7 +218,7 @@ export function MonthlyTargetPairChart({
     data,
     xOf: (d) => d.date,
     describe: (d) => describeMonth({
-      d, t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth, subsetLabel,
+      d, prev: previousOf(data, d), t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth, subsetLabel,
     }),
     periodOf: (d) => d.date.slice(0, 7),
     drillAnchor,
@@ -251,15 +272,15 @@ export function MonthlyTargetPairChart({
   
           <Bar dataKey="hit_value" stackId="hit" name={primaryLabel}
             shape={styledBar<MonthlyTargetPairDataPoint>((d, i) => ({
-              fill: i === lastIdx ? c.barCurrent : c.damaged, ...noteOutline(d.note, c.noteText),
+              fill: inProgress(d, i) ? c.barCurrent : c.damaged, ...noteOutline(d.note, c.noteText),
             }))} />
           <Bar dataKey="hit_gap" stackId="hit" name={`${primaryLabel} Projected`}
-            shape={styledBar((_, i) => ({ fill: i === lastIdx ? hitProjectedFill : "transparent" }))} />
+            shape={styledBar<MonthlyTargetPairDataPoint>((d, i) => ({ fill: inProgress(d, i) ? hitProjectedFill : "transparent" }))} />
 
           <Bar dataKey="destroyed_value" stackId="destroyed" name={secondaryLabel}
-            shape={styledBar((_, i) => ({ fill: i === lastIdx ? c.destroyedCurrent : c.destroyed }))} />
+            shape={styledBar<MonthlyTargetPairDataPoint>((d, i) => ({ fill: inProgress(d, i) ? c.destroyedCurrent : c.destroyed }))} />
           <Bar dataKey="destroyed_gap" stackId="destroyed" name={`${secondaryLabel} Projected`}
-            shape={styledBar((_, i) => ({ fill: i === lastIdx ? destroyedProjectedFill : "transparent" }))} />
+            shape={styledBar<MonthlyTargetPairDataPoint>((d, i) => ({ fill: inProgress(d, i) ? destroyedProjectedFill : "transparent" }))} />
           {/* Painted last so it reads as a crosshair over the series,
               not a stub buried under a bar. */}
           {pin.cursor}

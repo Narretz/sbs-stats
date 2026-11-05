@@ -9,6 +9,8 @@ import type { MediazonaEstimateRow } from "@/types";
 import type { TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 import { usePinnedChart } from "@/components/usePinnedChart";
 import { formatDay, formatMonth } from "@/utils/dateFormat";
+import { getKyivDateString } from "@/hooks/sqlLoader";
+import { partialMonth, periodChange, previousOf } from "@/utils/periodChange";
 
 // The most recent ~6 months are provisional on BOTH series: the estimate is only
 // partly registry-backed there (probate filings take 180+ days to complete) and
@@ -38,15 +40,22 @@ function describeBand(
   row: Row,
   c: ReturnType<typeof chartColors>,
   bucket: "weekly" | "monthly",
+  prev?: Row,
 ): TooltipDescriptor {
+  // Monthly only, like every other "vs prev".
+  const today = getKyivDateString();
+  const change = (k: "estimate" | "documented") => bucket !== "monthly" || !prev ? null : periodChange(
+    { value: row[k], partial: partialMonth(row.week.slice(0, 7), today) },
+    { value: prev[k], partial: partialMonth(prev.week.slice(0, 7), today) },
+  );
   const mult = row.documented && row.estimate ? row.estimate / row.documented : null;
   const header = bucket === "monthly"
     ? `Month of ${formatMonth(row.week)}`
     : `Week of ${formatDay(row.week)}`;
   const fmtInt = (n: number) => Math.round(n).toLocaleString();
   const rows: TooltipTableRow[] = [
-    { label: "Estimated losses", color: c.lineSecondary, value: row.estimate },
-    { label: "Recorded names",  color: c.line,          value: row.documented },
+    { label: "Estimated losses", color: c.lineSecondary, value: row.estimate, vsPrev: change("estimate") },
+    { label: "Recorded names",  color: c.line,          value: row.documented, vsPrev: change("documented") },
   ];
   if (mult != null) {
     // Pre-formatted string value — the "×N.N" ratio doesn't fit the numeric
@@ -101,7 +110,7 @@ export function DocumentedVsEstimatedChart({
     title: "Recorded names vs. estimated losses",
     data,
     xOf: (r) => r.week,
-    describe: (r) => describeBand(r, c, bucket),
+    describe: (r) => describeBand(r, c, bucket, previousOf(data, r)),
     formatLabel: (r) => bucket === "monthly" ? formatMonth(r.week) : formatDay(r.week),
     cursor: { stroke: t.textMuted, strokeWidth: 1 },
   });

@@ -12,6 +12,7 @@ import { breakdownToRows, type SheetSource, type TooltipDescriptor, type Tooltip
 import { monthCoverage, projectionBasis } from "@/utils/monthProjection";
 import { monthHeader } from "@/components/monthHeader";
 import { getKyivDateString } from "@/hooks/sqlLoader";
+import { partialMonth, periodChange, previousOf } from "@/utils/periodChange";
 
 const monthKey = (date: string) => date.slice(0, 7);
 
@@ -75,6 +76,9 @@ export function MonthlyBarChart({
   const { scope } = useStatScope();
   const c = chartColors(t);
   const lastIdx = data.length - 1;
+  // The month in progress: the last bar, or — for a source that lags into a
+  // new month (monthProjection reportingMonth) — the one with the projection.
+  const inProgress = (d: MonthlyDataPoint, i: number) => i === lastIdx || d.projected != null;
 
   // Projected segment (current month's forecast) uses the alpha-suffixed
   // current-bar color — see chartColors.ts.
@@ -103,16 +107,29 @@ export function MonthlyBarChart({
   // keeps its tooltip.
   const explainEmpty = explainGaps || data.some((d) => d.value == null && basisOf(d));
 
+  // A month with a projection is in progress, whatever the calendar says — a
+  // lagging source's last month (monthProjection reportingMonth).
+  const figure = (d: MonthlyDataPoint) => ({
+    value: d.value, projected: d.projected,
+    partial: d.projected != null || partialMonth(d.date, today, d.days_available),
+  });
+
   const describe = (d: MonthlyDataPoint): TooltipDescriptor => {
     const entries = breakdownByMonth?.get(d.date.slice(0, 7)) ?? [];
+    const prev = previousOf(data, d);
     // How many days the figure covers — see basisOf.
     const header = monthHeader(formatHeader ? formatHeader(d) : d.date, basisOf(d));
     const rows: TooltipTableRow[] = [
       {
         label: "Actual", color: c.barDefault, value: d.value ?? null,
         projected: d.projected ?? null, dailyMedian: d.daily_median ?? null,
+        vsPrev: periodChange(figure(d), prev && figure(prev)),
       },
-      ...breakdownToRows(entries, t.textMuted, { totalForShare: d.value ?? undefined }),
+      ...breakdownToRows(entries, t.textMuted, {
+        totalForShare: d.value ?? undefined,
+        prev: prev && !figure(prev).partial ? breakdownByMonth?.get(prev.date.slice(0, 7)) : undefined,
+        partial: figure(d).partial,
+      }),
     ];
     const detail = formatFooter?.(d);
     const footer = detail || d.note ? (
@@ -146,10 +163,10 @@ export function MonthlyBarChart({
         label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
       <Bar dataKey="value" stackId="a" name="Actual" maxBarSize={MAX_BAR_SIZE}
         shape={styledBar<MonthlyDataPoint>((d, i) => ({
-          fill: i === lastIdx ? c.barCurrent : c.barDefault, ...noteOutline(d.note, c.noteText),
+          fill: inProgress(d, i) ? c.barCurrent : c.barDefault, ...noteOutline(d.note, c.noteText),
         }))} />
       <Bar dataKey="gap" stackId="a" name="Projected" maxBarSize={MAX_BAR_SIZE}
-        shape={styledBar((_, i) => ({ fill: i === lastIdx ? projectedFill : "transparent" }))} />
+        shape={styledBar<MonthlyDataPoint>((d, i) => ({ fill: inProgress(d, i) ? projectedFill : "transparent" }))} />
     </MonthlyChartCard>
   );
 }

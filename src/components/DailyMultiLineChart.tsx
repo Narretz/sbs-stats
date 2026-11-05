@@ -15,6 +15,8 @@ import type { SheetSource, TooltipDescriptor, TooltipTableRow } from "@/componen
 import { chartColors } from "@/chartColors";
 import { formatWeekRange } from "@/utils/weekRange";
 import { formatDay, formatMonth } from "@/utils/dateFormat";
+import { getKyivDateString } from "@/hooks/sqlLoader";
+import { partialMonth, periodChange, previousOf } from "@/utils/periodChange";
 
 export interface LineSeries {
   key: string;
@@ -100,9 +102,11 @@ function Dot(props: DotProps & { payload?: Row; color: string; bg: string; noteK
 // Hand-rolled card before; now a descriptor, so the homepage's combined charts
 // render the same table (and gain the pinned sheet) as every other view.
 function describeMulti({
-  row, t, series, granularity,
+  row, prev, t, series, granularity,
 }: {
   row: Row;
+  /** The period before, for the "vs prev" column — monthly only. */
+  prev?: Row;
   t: Theme;
   series: LineSeries[];
   granularity: ChartGranularity;
@@ -111,6 +115,15 @@ function describeMulti({
   const notes = series
     .map((s) => row[`${s.key}__note`])
     .filter((n): n is string => typeof n === "string" && n.length > 0);
+  const today = getKyivDateString();
+  const rawOf = (r: Row, key: string) => {
+    const v = r[`${key}__raw`];
+    return typeof v === "number" ? v : null;
+  };
+  const change = (key: string) => granularity !== "monthly" || !prev ? null : periodChange(
+    { value: rawOf(row, key), partial: partialMonth(row.date.slice(0, 7), today) },
+    { value: rawOf(prev, key), partial: partialMonth(prev.date.slice(0, 7), today) },
+  );
   const rows: TooltipTableRow[] = series
     // Sort tooltip rows by THIS data point's raw value, highest first. Nulls
     // fall to the bottom; original-order tiebreak keeps the order stable
@@ -129,6 +142,7 @@ function describeMulti({
       label: s.label,
       color: s.color,
       value: typeof raw === "number" ? raw : null,
+      vsPrev: change(s.key),
     }));
   const footer = notes.length ? (
     <>
@@ -222,7 +236,7 @@ export function DailyMultiLineChart({
     title,
     data: rows,
     xOf: (r) => r.date,
-    describe: (row) => ({ ...describeMulti({ row, t, series, granularity }), sources: sourcesByDate?.get(row.date) }),
+    describe: (row) => ({ ...describeMulti({ row, prev: previousOf(rows, row), t, series, granularity }), sources: sourcesByDate?.get(row.date) }),
     formatLabel: (r) => formatX(granularity, r.date),
     cursor: { stroke: t.textMuted, strokeWidth: 1 },
   });

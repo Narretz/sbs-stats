@@ -3,6 +3,8 @@ import { chartColors } from "@/chartColors";
 import { fmtCount, type SpannedDay } from "@/components/spanBarShape";
 import { CitStackedChart, type CitStackRowBase, type CitStackSeries } from "@/components/CitStackedChart";
 import type { SheetSource, TooltipTableRow } from "@/components/TooltipTable";
+import { getKyivDateString } from "@/hooks/sqlLoader";
+import { partialMonth, periodChange, previousOf, type PeriodFigure } from "@/utils/periodChange";
 import { CIT_METRIC_KEYS, CIT_METRIC_LABELS, type CitMetricKey, type Stat } from "@/types";
 
 // CIT's headline figures — the total each report states in its closing
@@ -74,15 +76,27 @@ export function CitHeadlineChart({ title, data, granularity, globalStats, wfull,
     const p = isDaily(d) ? undefined : d.projection;
     const med = isDaily(d) ? undefined : d.dailyMedian;
     const total = d.killed == null && d.injured == null ? null : (whole(d.killed) ?? 0) + (whole(d.injured) ?? 0);
+    // Monthly only: a day's figure has no previous period worth comparing.
+    const prev = isDaily(d) ? undefined : previousOf(data as Row[], d) as CitMonthlyStackRow | undefined;
+    const today = getKyivDateString();
+    const sumOf = (r: CitMonthlyStackRow) =>
+      r.killed == null && r.injured == null ? null : (r.killed ?? 0) + (r.injured ?? 0);
+    const vsPrev = (r: CitMonthlyStackRow, k: CitMetricKey | "total"): PeriodFigure => ({
+      value: k === "total" ? sumOf(r) : r[k],
+      projected: r.projection?.[k],
+      partial: partialMonth(r.date, today, r.daysAvailable),
+    });
+    const change = (k: CitMetricKey | "total") =>
+      isDaily(d) || !prev ? null : periodChange(vsPrev(d, k), vsPrev(prev, k));
     // Top of the stack first, as it reads on the chart.
     const rows: TooltipTableRow[] = [
       {
         label: "Total", color: t.text, value: total, emphasis: "bold",
-        projected: p?.total ?? null, dailyMedian: med?.total ?? null,
+        projected: p?.total ?? null, dailyMedian: med?.total ?? null, vsPrev: change("total"),
       },
       ...[...CIT_METRIC_KEYS].reverse().map((k, i) => ({
         label: CIT_METRIC_LABELS[k], color: color[k], value: whole(d[k]),
-        projected: p?.[k] ?? null, dailyMedian: med?.[k] ?? null, separatorAbove: i === 0,
+        projected: p?.[k] ?? null, dailyMedian: med?.[k] ?? null, vsPrev: change(k), separatorAbove: i === 0,
       })),
     ];
     const footer = span > 1

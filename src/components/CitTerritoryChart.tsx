@@ -5,6 +5,8 @@ import type { SheetSource, TooltipTableRow } from "@/components/TooltipTable";
 import type { ReactNode } from "react";
 import type { CitKilledInjured, CitTerritoryDailyRow, CitTerritoryRow, Stat } from "@/types";
 import { scaleOutcomes } from "@/utils/citTerritory";
+import { getKyivDateString } from "@/hooks/sqlLoader";
+import { partialMonth, periodChange, previousOf } from "@/utils/periodChange";
 
 // Where civilians are being hurt, month by month: killed and injured summed
 // (the question is the place, not the outcome), split by which side holds the
@@ -69,19 +71,33 @@ export function CitTerritoryChart({ data, granularity, globalStats, wfull, cavea
       };
     };
     const med = !isDaily(row) ? row.dailyMedian : undefined;
+    // Monthly only. Each figure is killed + injured, as on the bars; only the
+    // total has a projection, so the bands of the month in progress have none.
+    const prev = isDaily(row) ? undefined : previousOf(data as Row[], row);
+    const today = getKyivDateString();
+    const change = (pick: (o: NonNullable<Row["outcomes"]>) => CitKilledInjured | CitKilledInjured[], projected?: number) => {
+      if (!prev?.outcomes || isDaily(row)) return null;
+      const sum = (o: NonNullable<Row["outcomes"]>) =>
+        [pick(o)].flat().reduce((s, x) => s + x.killed + x.injured, 0);
+      return periodChange(
+        { value: sum(row.outcomes!), projected, partial: partialMonth(row.date, today) },
+        { value: sum(prev.outcomes), partial: partialMonth(prev.date, today) },
+      );
+    };
     const rows: TooltipTableRow[] = [
       {
         ...line("Total", t.text, all, { emphasis: "bold" }), share: null,
         projected: !isDaily(row) ? (row.projection?.total ?? null) : null,
         dailyMedian: med?.total ?? null,
+        vsPrev: change((x) => [x.uaControlled, x.occupiedUkraine, x.russia], !isDaily(row) ? row.projection?.total : undefined),
       },
-      line("Ukrainian-controlled", c.territoryUaControlled, o.uaControlled, { separatorAbove: true, dailyMedian: med?.uaControlled ?? null }),
-      line("Russian-controlled", c.territoryRuControlled, ruControlled, { dailyMedian: med?.ruControlled ?? null }),
+      line("Ukrainian-controlled", c.territoryUaControlled, o.uaControlled, { separatorAbove: true, dailyMedian: med?.uaControlled ?? null, vsPrev: change((x) => x.uaControlled) }),
+      line("Russian-controlled", c.territoryRuControlled, ruControlled, { dailyMedian: med?.ruControlled ?? null, vsPrev: change((x) => [x.occupiedUkraine, x.russia]) }),
       // The halves of the band above, indented by their labels rather than by
       // layout — the table has no nesting, and inventing one here would cost
       // more than it explains.
-      line("— occupied Ukraine", t.textMuted, o.occupiedUkraine, { dailyMedian: med?.occupiedUkraine ?? null }),
-      line("— Russia", t.textMuted, o.russia, { dailyMedian: med?.russia ?? null }),
+      line("— occupied Ukraine", t.textMuted, o.occupiedUkraine, { dailyMedian: med?.occupiedUkraine ?? null, vsPrev: change((x) => x.occupiedUkraine) }),
+      line("— Russia", t.textMuted, o.russia, { dailyMedian: med?.russia ?? null, vsPrev: change((x) => x.russia) }),
     ];
     const unrec = o.unattributed;
     if (unrec.killed + unrec.injured > 0) {
