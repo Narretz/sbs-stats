@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { monthCoverage, projectFromDays, projectionBasis, projectMonthEnd, projectNightDay, type IntradayReading } from "@/utils/monthProjection";
+import { monthCoverage, projectFromDays, reportingMonth, projectionBasis, projectMonthEnd, projectNightDay, type IntradayReading } from "@/utils/monthProjection";
 
 type K = "hits";
 
@@ -103,6 +103,23 @@ describe("projectFromDays", () => {
   it("skips keys no day carries", () => {
     const p = projectFromDays<K>("2026-09", "2026-09-05", [day("2026-09-01", null)], ["hits"])!;
     expect(p.projected).toEqual({});
+  });
+});
+
+describe("reportingMonth", () => {
+  it("is today's month for a source that is current", () => {
+    expect(reportingMonth("2026-11-04", "2026-11-05")).toBe("2026-11");
+    expect(reportingMonth(null, "2026-11-05")).toBe("2026-11");
+  });
+  it("stays on last month while a lagging source is short of its last days", () => {
+    expect(reportingMonth("2026-10-30", "2026-11-05")).toBe("2026-10");
+    expect(reportingMonth("2025-12-20", "2026-01-03")).toBe("2025-12");
+  });
+  it("moves on once last month's last day is in", () => {
+    expect(reportingMonth("2026-10-31", "2026-11-05")).toBe("2026-11");
+  });
+  it("reaches back one month only", () => {
+    expect(reportingMonth("2026-09-12", "2026-11-05")).toBe("2026-11");
   });
 });
 

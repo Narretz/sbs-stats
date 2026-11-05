@@ -97,6 +97,22 @@ export function projectMonthEnd<K extends string>(
   return { completedDays, daysInMonth, partialDay: partial !== undefined, projected };
 }
 
+// The month a lagging source is still filling in — the one to project. Today's
+// month as a rule; but a source that runs days behind (the Kaggle republish,
+// ~a week) reaches a new month with the old one still short of its last days,
+// and until they arrive that one is the month in progress, not a past month
+// with a hole in it. `latest` is the source's latest day before today. Reaches
+// back one month only: a source that stopped mid-month long ago is a gap.
+export function reportingMonth(latest: string | null | undefined, today: string): string {
+  const current = today.slice(0, 7);
+  if (!latest || latest.slice(0, 7) >= current) return current;
+  const [y, m] = current.split("-").map(Number);
+  const previous = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+  if (latest.slice(0, 7) !== previous) return current;
+  const daysInPrevious = new Date(y, m - 1, 0).getDate();
+  return Number(latest.slice(8, 10)) < daysInPrevious ? previous : current;
+}
+
 // One day of a source whose month is the sum of its days.
 export interface DayTotals<K extends string> {
   date: string; // YYYY-MM-DD, in the source's own time zone

@@ -19,9 +19,16 @@ import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshabl
 import { getKyivDateString, loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import { windowStartSql } from "@/utils/dayRange";
 import { countedSql, nationalDroneWindowsSql } from "@/utils/airAttacksSql";
-import { projectFromDays } from "@/utils/monthProjection";
+import { projectFromDays, reportingMonth } from "@/utils/monthProjection";
 import { attachDailyMedians, dailyMediansByMonth, dayCountsByMonth } from "@/utils/dailyMedian";
 import type { AirAttackRow } from "@/utils/sources";
+
+// The latest day before today the source has a row for — its frontier.
+function latestCompleteDay(dates: Iterable<string>, today: string): string | null {
+  let latest: string | null = null;
+  for (const d of dates) if (d < today && (latest == null || d > latest)) latest = d;
+  return latest;
+}
 
 // Small DB (~2 MB) → fetch whole via sql.js, like the RU-losses loader (no httpvfs).
 const DB_URL =
@@ -577,7 +584,10 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
       byDay.set(r.date, v);
     }
     const days = [...byDay].map(([date, values]) => ({ date, values }));
-    const projection = projectFromDays(currentMonth, today, days, projKeys);
+    // The source runs ~a week behind, so into a new month the last one is
+    // still the month in progress (reportingMonth).
+    const projMonth = reportingMonth(latestCompleteDay(byDay.keys(), today), today);
+    const projection = projectFromDays(projMonth, today, days, projKeys);
 
     // The impact figures, summed per month from the days that gave one. Their
     // own day list: a day with attacks but no figure is a gap for them, not 0,
@@ -592,7 +602,7 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
       }
       impactSums.set(date.slice(0, 7), m);
     }
-    const impactProjection = projectFromDays(currentMonth, today, impactDays, AIR_IMPACT_KEYS);
+    const impactProjection = projectFromDays(projMonth, today, impactDays, AIR_IMPACT_KEYS);
     const impactMedians = dailyMediansByMonth(impactDays, AIR_IMPACT_KEYS, today);
     const impactDayCounts = dayCountsByMonth(impactDays, AIR_IMPACT_KEYS, today);
     const medians = dailyMediansByMonth(
@@ -607,9 +617,9 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
     return [...byMonth.values()]
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((row) => {
-        const isCurrent = row.date === currentMonth;
+        const isCurrent = row.date === projMonth;
         const p = isCurrent ? projection : null;
-        row.is_current_month = isCurrent;
+        row.is_current_month = row.date === currentMonth;
         row.projection_day = p?.completedDays ?? null;
         row.projection_days_in_month = p?.daysInMonth ?? null;
         row.projection_partial_day = p?.partialDay;
@@ -689,14 +699,19 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
 
       const today = getKyivDateString();
       const currentMonth = today.slice(0, 7);
+      // The source's month in progress, off every model's days, not this one's.
+      const projMonth = reportingMonth(
+        latestCompleteDay(queryRows<{ date: string }>(db, `SELECT DISTINCT date FROM daily_by_category`).map((r) => r.date), today),
+        today,
+      );
       const projection = projectFromDays(
-        currentMonth,
+        projMonth,
         today,
         queryRows<{ date: string; launched: number | null; intercepted: number | null }>(
           db,
           `SELECT date, SUM(launched) AS launched, SUM(destroyed) AS intercepted
            FROM daily_by_model
-           WHERE model = '${safeModel}' AND date >= '${currentMonth}-01'
+           WHERE model = '${safeModel}' AND date >= '${projMonth}-01'
            GROUP BY date`,
         ).map(({ date, ...values }) => ({ date, values })),
         ["launched", "intercepted"] as const,
@@ -721,11 +736,10 @@ export function useDatabaseRuAirAttacks({ enabled = true }: { enabled?: boolean 
         const month = String(r.month);
         const launched = num(r.launched);
         const intercepted = num(r.destroyed);
-        const isCurrent = month === currentMonth;
-        const p = isCurrent ? projection : null;
+        const p = month === projMonth ? projection : null;
         const row: RuAirAttacksModelMonthlyRow = {
           date: month,
-          is_current_month: isCurrent,
+          is_current_month: month === currentMonth,
           projection_day: p?.completedDays ?? null,
           projection_days_in_month: p?.daysInMonth ?? null,
           projection_partial_day: p?.partialDay,
