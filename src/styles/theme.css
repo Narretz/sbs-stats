@@ -359,7 +359,7 @@ summary::marker {
      inner wrapper. Left to span the full 1400px the table's label column
      stretches and throws the numbers to the far edge of a wide monitor, with a
      hand's width of nothing in between. One knob: the 720px. */
-  --sheet-gutter: max(14px, calc((100% - 720px) / 2));
+  --sheet-gutter: max(14px, calc((100% - 800px) / 2));
   visibility: hidden;
   pointer-events: none;
   /* `visibility` is stepped, not eased: 0s with a delay equal to the slide, so
