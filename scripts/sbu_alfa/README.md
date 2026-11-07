@@ -1,25 +1,46 @@
 # SBU «Альфа» monthly recap scraper (`scripts/sbu_alfa/`)
 
-Builds **`data/sbu-alfa.db`** from SBU press releases — the **UA SBU ALFA —
-MONTHLY RECAP** view of the app. Source: monthly "ТОП-1 серед підрозділів Сил
-оборони" recaps the SBU's Centre of Special Operations «А» (Alfa) publishes at
-[ssu.gov.ua/novyny](https://ssu.gov.ua/novyny), starting March 2026.
+Builds **`data/sbu-alfa.db`** from SBU's monthly recaps — the **UA SBU ALFA —
+MONTHLY RECAP** view of the app. Source: the monthly "ТОП-1 серед підрозділів
+Сил оборони" recap the SBU's Centre of Special Operations «А» (Alfa) publishes,
+starting March 2026, twice over with the same counters: as a press release at
+[ssu.gov.ua/novyny](https://ssu.gov.ua/novyny/) and as a post on SBU's Telegram
+channel, [t.me/SBUkr](https://t.me/SBUkr).
 
-**Three paths, all stdlib-only:**
+**Both are sources.** A recap is stored under the URL it was read from — the
+article's, or `https://t.me/SBUkr/<id>` — and that is the link the page shows.
+A month can hold both; the frontend reads one per month, the article where
+there is one (`src/utils/sbuAlfaSources.ts`). The year of a post's recap comes
+from its posting date, since a post's text names the month only ("у березні").
 
-- **Automated discovery** (`discover.py` + `update-sbu-alfa-db.yml`) polls the
-  SBU news listing daily during the plausible publication window (5th–20th of
-  each month, ~16 runs) and ingests any new recap:
+**Four paths, all stdlib-only:**
+
+- **Telegram ingest** (`telegram.py` + `update-sbu-alfa-db.yml`) — the
+  scheduled one. Walks the channel's public `t.me/s` preview newest-first back
+  to the newest post already stored, daily during the plausible publication
+  window (5th–20th of each month), and stores every post that passes
+  `parse.is_monthly_recap` — a month detected AND at least `MIN_COUNTERS`
+  counters, so nothing about the wording (TOP-1 or not) is assumed. The
+  channel's search isn't exhaustive, so it isn't used.
+
+  ```sh
+  python3 scripts/sbu_alfa/telegram.py --out data/sbu-alfa.db
+  python3 scripts/sbu_alfa/telegram.py --out data/sbu-alfa.db --pages 60 --rescan   # further back
+  ```
+
+- **Listing discovery** (`discover.py`) — manual only since Nov 2026. Scans the
+  ssu.gov.ua news listing for recap slugs; it depends on an Akamai rule staying
+  as loose as it is (see "Source quirks"), which is why the schedule doesn't.
 
   ```sh
   python3 scripts/sbu_alfa/discover.py --out data/sbu-alfa.db --pages 3
   ```
 
-- **Manual ingest** for one-off backfills or when the discovery filter needs
-  supervision (a themed article slipped through, an early canonical URL):
+- **Manual ingest** of one recap — an article, a post, or a saved file:
 
   ```sh
   python3 scripts/sbu_alfa/ingest.py <article-url> --out data/sbu-alfa.db
+  python3 scripts/sbu_alfa/ingest.py https://t.me/SBUkr/<id> --out data/sbu-alfa.db
   ```
 
 - **Reparse** after a parser fix — re-reads the article text already stored in
@@ -36,10 +57,10 @@ MONTHLY RECAP** view of the app. Source: monthly "ТОП-1 серед підро
 
   | after a parser change… | the recap was | run |
   |---|---|---|
-  | it was **dropped** — the slug filter or the `monthly_top1` gate rejected it, so it was never stored | absent from the DB | a re-scan, `--pages` / the workflow's `pages` input widened |
-  | it was **misread** — stored, but a counter line matched no category | in the DB already | `--reparse`; `discover.py` skips URLs already stored, so a re-scan re-reads nothing |
+  | it was **dropped** — `is_monthly_recap` rejected it, so it was never stored | absent from the DB | a re-scan: `telegram.py --rescan --pages N` / the workflow's `rescan` + `pages` inputs (~12 pages a month back) |
+  | it was **misread** — stored, but a counter line matched no category | in the DB already | `--reparse`; a re-scan re-reads identical text |
 
-  Each half has its own workflow, split the way GSUA's are: `pages` on
+  Each half has its own workflow, split the way GSUA's are: `rescan` on
   **`update-sbu-alfa-db.yml`** (scheduled, ingests new recaps) for the first,
   **`reparse-sbu-alfa-db.yml`** (manual only, `dry_run` on by default) for the
   second. The reparse job pulls the DB from R2, prints the per-counter diff

@@ -2,7 +2,8 @@
 """
 parse.py — extract structured counters from an SBU "Альфа" monthly recap article.
 
-Source: ssu.gov.ua/novyny/alfa-sbu-* (and mirrors). The unit publishes a monthly
+Source: ssu.gov.ua/novyny/alfa-sbu-* (and mirrors), or the same recap as a
+post on SBU's Telegram channel (t.me/SBUkr) — the text is the same. The unit publishes a monthly
 "TOP-1 серед підрозділів Сил оборони" recap that lists enemy losses for the
 month — roughly 10–20 numeric counters covering KIA, drones, vehicles, armor,
 artillery, air defense, etc.
@@ -11,7 +12,8 @@ This module does the pure text → rows transform; ingest.py handles I/O. Two
 entry points:
 
     extract_text(html_str) -> str    — strip tags, collapse whitespace.
-    parse(text)            -> ParsedReport(period, counters[])
+    parse(text, published_at=None) -> ParsedReport(period, counters[])
+    is_monthly_recap(report)       -> bool, the gate before anything is stored
 
 The category-keyed approach (one regex per category, tried independently against
 the whole text) is robust to wording drift between months — March uses inline
@@ -139,7 +141,15 @@ _PERIOD_RE_LOC = re.compile(
 _YEAR_RE = re.compile(r"\b(20\d{2})\b")
 
 
-def _detect_period(text: str) -> tuple[str | None, str | None]:
+def _recap_year(month: int, published_at: str) -> int:
+    """The year of a recap for `month`, published on `published_at`
+    (YYYY-MM-DD): the publishing year, or the one before for a month later in
+    the year than publication — December's recap goes out in January."""
+    year, pub_month = int(published_at[:4]), int(published_at[5:7])
+    return year if month <= pub_month else year - 1
+
+
+def _detect_period(text: str, published_at: str | None = None) -> tuple[str | None, str | None]:
     """Return (period, precision) — ('2026-05','month') etc., or (None,None).
 
     Two phrasings seen so far:
@@ -164,7 +174,12 @@ def _detect_period(text: str) -> tuple[str | None, str | None]:
             month = _UA_MONTH_LOC.get(m.group(1).lower())
     if not month:
         return None, None
+    # A Telegram post has no date stamp in its text ("у березні", no year);
+    # its posting date is the year's only source. The article's own stamp is
+    # in its text, so this is the fallback, not the rule.
     year_m = _YEAR_RE.search(text)
+    if not year_m and published_at:
+        return f"{_recap_year(month, published_at):04d}-{month:02d}", "month"
     if not year_m:
         return None, None
     return f"{int(year_m.group(1)):04d}-{month:02d}", "month"
@@ -427,9 +442,12 @@ def _raw_label_for(text: str, m: re.Match[str], num_start: int) -> str:
     return re.sub(r"\s+", " ", snippet)
 
 
-def parse(text: str) -> ParsedReport:
-    """Parse extracted body text into a ParsedReport. Idempotent."""
-    period, precision = _detect_period(text)
+def parse(text: str, published_at: str | None = None) -> ParsedReport:
+    """Parse extracted body text into a ParsedReport. Idempotent.
+
+    `published_at` (YYYY-MM-DD) dates the period when the text names a month
+    but no year — a Telegram post's."""
+    period, precision = _detect_period(text, published_at)
     report_type = "monthly_top1" if precision == "month" else "unknown"
 
     counters: list[Counter] = []
@@ -457,4 +475,21 @@ def parse(text: str) -> ParsedReport:
         report_type=report_type,
         counters=counters,
         unmatched=_find_unmatched(text, claimed),
+    )
+
+
+# Fewest parsed counters a monthly recap is believed to have. Every recap so
+# far listed 13–18; an ordinary article or post that happens to name a month
+# and a figure or two stays well below.
+MIN_COUNTERS = 8
+
+
+def is_monthly_recap(report: ParsedReport) -> bool:
+    """The gate in front of the DB for automated discovery (ssu.gov.ua listing
+    or Telegram channel): a month detected AND a recap's worth of counters. The
+    period alone is not enough — any story that says "у жовтні" has one."""
+    return (
+        report.report_type == "monthly_top1"
+        and report.period is not None
+        and len(report.counters) >= MIN_COUNTERS
     )

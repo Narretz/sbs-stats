@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-ingest.py — build data/sbu-alfa.db from SBU "Альфа" monthly recap articles.
+ingest.py — build data/sbu-alfa.db from SBU "Альфа" monthly recaps.
 
-Manual ingest: the SBU news feed isn't a channel we can subscribe to (no API,
-no RSS that I can find, and Akamai blocks pagination/sitemap from
-ssu.gov.ua/novyny). When a new recap drops, run:
+Two kinds of source, stored side by side under their own URLs: the press
+release on ssu.gov.ua, and the same recap posted to SBU's Telegram channel.
+The scheduled workflow finds new ones on Telegram (telegram.py); this is the
+manual path, for one recap by URL or saved file:
 
-    python3 scripts/sbu_alfa/ingest.py <url-or-file> --out data/sbu-alfa.db
+    python3 scripts/sbu_alfa/ingest.py <article-url-or-file> --out data/sbu-alfa.db
+    python3 scripts/sbu_alfa/ingest.py https://t.me/SBUkr/<id> --out data/sbu-alfa.db
 
 The script fetches with a browser-like UA + headers (the SBU CDN 403s anything
 that looks like curl/requests' default), extracts body text, runs parse.py,
@@ -337,7 +339,7 @@ def run_reparse(db_path: Path, apply: bool = False) -> int:
         scraped_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
         changed = unchanged = skipped = 0
         for url, report_type, period, published_at, title, body_text, body_hash in rows:
-            report = parse(body_text)
+            report = parse(body_text, published_at)
             warn_unmatched(url, report)
             if report.report_type != report_type or not report.period:
                 # The parser no longer recognises what this row was stored as.
@@ -405,7 +407,8 @@ def _emit_changed(changed: bool) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("source", nargs="?", help="article URL or local HTML file path")
+    ap.add_argument("source", nargs="?",
+                    help="article URL, Telegram post URL (https://t.me/SBUkr/<id>), or local HTML file path")
     ap.add_argument("--out", type=Path, default=DEFAULT_DB, help=f"DB path (default: {DEFAULT_DB})")
     ap.add_argument("--report-type", choices=["monthly_top1", "annual", "themed"],
                     help="override the auto-detected report type")
@@ -426,16 +429,26 @@ def main(argv: list[str] | None = None) -> int:
     if args.apply:
         ap.error("--apply only applies to --reparse")
     if not args.source:
-        ap.error("a source (article URL or HTML file) is required unless --reparse")
+        ap.error("a source (article URL, post URL or HTML file) is required unless --reparse")
+    import telegram  # here, not at the top: telegram.py imports this module
 
-    url, raw_html = _load(args.source)
+    if telegram.is_post_url(args.source):
+        # A channel post: its text, dated by the post, titled by its first line.
+        url = args.source.split("?")[0].replace("http://", "https://").replace("/s/", "/")
+        posted_at, text = telegram.fetch_post(url)
+        raw_html = text.encode("utf-8")
+        title = telegram.title_of(text)
+        published_at = args.published_at or telegram.kyiv_date(posted_at)
+    else:
+        url, raw_html = _load(args.source)
+        title = _extract_title(raw_html)
+        published_at = args.published_at or _extract_published_at(
+            extract_text(raw_html.decode("utf-8", "replace")))
     body_text = extract_text(raw_html.decode("utf-8", "replace"))
-    report = parse(body_text)
+    report = parse(body_text, published_at)
     if args.period:
         report.period = args.period
         report.period_precision = "month" if len(args.period) == 7 else "year"
-    title = _extract_title(raw_html)
-    published_at = args.published_at or _extract_published_at(body_text)
 
     print(f"url:          {url}")
     print(f"title:        {title!r}")

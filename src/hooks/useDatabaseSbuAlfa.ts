@@ -3,6 +3,7 @@ import type { Database } from "sql.js";
 import type { SbuAlfaBound, SbuAlfaCategoryKey, SbuAlfaCounterRow } from "@/types";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
+import { oneSourcePerPeriod } from "@/utils/sbuAlfaSources";
 
 // Tiny DB → fetch whole via sql.js (same shape as useDatabaseRuMod). The DB is
 // committed to the repo (data/sbu-alfa.db) and copied into public/data/ by
@@ -127,6 +128,11 @@ function deriveEnumeratedTargets(rows: SbuAlfaCounterRow[]): SbuAlfaCounterRow[]
     if (!parts.length) continue;
     const seed = parts[0];
     const bound = weakestBound(parts);
+    // The KIA line's own words, since they vary month to month.
+    const kia = parts.find((r) => r.category === "enemy_kia");
+    const kiaPhrase = kia?.bound === "at_least" ? `the KIA line is a floor ("over"), and `
+      : kia?.bound === "approx" ? `the KIA line is approximate ("almost" / "about"), and `
+      : "";
     synthesized.push({
       period: seed.period,
       category: "targets_enumerated",
@@ -138,9 +144,8 @@ function deriveEnumeratedTargets(rows: SbuAlfaCounterRow[]): SbuAlfaCounterRow[]
       published_at: seed.published_at,
       derived: true,
       derivation_note:
-        `Sum of all ${parts.length} categories listed this month. SBU does not publish a total ` +
-         `A LOWER BOUND: the KIA line is reported ` +
-        `as "понад N" ("over"), and the equipment list is introduced with "серед" ` +
+        `Sum of all ${parts.length} categories listed this month; SBU does not publish a total. ` +
+        `A lower bound: ${kiaPhrase}the equipment list is introduced with "серед" ` +
         `("among") the objects hit. Not comparable with SBU's own "інших цілей" ` +
         `("other targets") total, which excludes personnel.`,
     });
@@ -179,7 +184,9 @@ export function useDatabaseSbuAlfa({ enabled = true }: { enabled?: boolean } = {
       WHERE r.report_type = 'monthly_top1'
         AND r.period IS NOT NULL
       ORDER BY r.period ASC, c.category ASC`;
-    const stored: SbuAlfaCounterRow[] = queryRows<Record<string, unknown>>(db, sql).map((r) => ({
+    // A recap can be stored twice — press release and Telegram post — and a
+    // month is read from one of them (utils/sbuAlfaSources).
+    const stored: SbuAlfaCounterRow[] = oneSourcePerPeriod(queryRows<Record<string, unknown>>(db, sql).map((r) => ({
       period: String(r.period),
       category: r.category as SbuAlfaCategoryKey,
       value: Number(r.value),
@@ -189,7 +196,7 @@ export function useDatabaseSbuAlfa({ enabled = true }: { enabled?: boolean } = {
       url: String(r.url),
       published_at: r.published_at == null ? null : String(r.published_at),
       derived: false,
-    }));
+    })));
 
     // Derive vehicles_auto_total = light + moto + trucks for months that have
     // the split but no SBU-stated combined number (March/April use the split;

@@ -22,8 +22,8 @@ Common tokens: `alf[ay]` + `top1` + `syl-oborony`. The filter asks for
 the unit has been TOP-1 every month so far, and a month it isn't, the recap
 would still be published — just not under "top1". The filter is the loose
 half; the gate behind it is the strict one: a candidate is stored only if it
-parses as `monthly_top1` with a valid `period` AND at least MIN_COUNTERS
-counters (every recap so far: 13–18), so an ordinary Alfa story that names a
+passes parse.is_monthly_recap — a `monthly_top1` with a valid `period` AND at
+least MIN_COUNTERS counters (every recap so far: 13–18), so an ordinary Alfa story that names a
 month can't pass for a recap. Anything gated out is logged for manual review.
 
 No pip deps — reuses the fetch + parse + store from ingest.py.
@@ -46,7 +46,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 import ingest  # noqa: E402
 from ingest_log import ann  # noqa: E402
-from parse import extract_text, parse  # noqa: E402
+from parse import extract_text, is_monthly_recap, parse  # noqa: E402
 
 # With the trailing slash: since Nov 2026 Akamai 403s `/novyny` itself (and
 # `/novyny?page=N`, `/en/novyny`), while `/novyny/` and `/novyny/?page=N` serve
@@ -64,10 +64,6 @@ SLUG_FILTER = re.compile(
     re.IGNORECASE,
 )
 
-# Fewest parsed counters a monthly recap is believed to have. Every recap so
-# far listed 13–18; an ordinary article that happens to name a month and a
-# figure or two stays well below.
-MIN_COUNTERS = 8
 
 _HREF_RE = re.compile(r'href=["\']((?:https?://ssu\.gov\.ua)?/novyny/[a-z0-9-]+)["\']')
 
@@ -132,9 +128,9 @@ def ingest_url(url: str, out: Path, dry_run: bool) -> str:
     a short status string for the summary."""
     _, raw = ingest._load(url)
     body = extract_text(raw.decode("utf-8", "replace"))
-    report = parse(body)
-    title = ingest._extract_title(raw)
     published_at = ingest._extract_published_at(body)
+    report = parse(body, published_at)
+    title = ingest._extract_title(raw)
 
     tag = f"period={report.period} type={report.report_type} counters={len(report.counters)}"
     # Counter line(s) the parser didn't recognise — a new/renamed category or
@@ -142,7 +138,7 @@ def ingest_url(url: str, out: Path, dry_run: bool) -> str:
     # are correct); the warning goes through ingest_log, so in CI it surfaces
     # as a GitHub annotation rather than a buried stderr line.
     ingest.warn_unmatched(url, report)
-    if report.report_type != "monthly_top1" or not report.period or len(report.counters) < MIN_COUNTERS:
+    if not is_monthly_recap(report):
         # Slug matched but content isn't a monthly recap — either a themed
         # article the slug filter mispicked, or the format has drifted. Do
         # NOT store it; surface for manual review — as a notice, since a

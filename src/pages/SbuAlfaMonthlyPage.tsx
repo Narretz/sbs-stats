@@ -49,9 +49,9 @@ function toDataset(
       } else if (r.derived) {
         note = r.derivation_note ?? "Derived from other counters (not stated by SBU).";
       } else if (r.bound === "at_least") {
-        note = `Self-reported floor (понад / "over") — actual may be higher. Source phrasing: "${r.raw_label ?? ""}"`;
+        note = `Self-reported floor ("over" / "at least") — actual may be higher. Source phrasing: "${r.raw_label ?? ""}"`;
       } else if (r.bound === "approx") {
-        note = `Approximate ("близько / приблизно ~"). Source phrasing: "${r.raw_label ?? ""}"`;
+        note = `Approximate ("almost" / "about"). Source phrasing: "${r.raw_label ?? ""}"`;
       } else if (r.bound === "up_to") {
         note = `Ceiling ("до" / "up to"). Source phrasing: "${r.raw_label ?? ""}"`;
       }
@@ -163,16 +163,22 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
       title="SBU «Альфа» — Monthly Recap"
       descriptionStyle={{ maxWidth: 900, lineHeight: 1.55 }}
       description={<>
-        Targets the Centre of Special Operations «А» (SBU «Альфа») reports having struck each month, from their
+        Targets the Centre of Special Operations «А» (SBU «Альфа») reports having struck each month, from
+        SBU's monthly recap — published as a
         {" "}
-        <a href="https://ssu.gov.ua/novyny" rel="nofollow external">SBU press releases</a>.
+        <a href="https://ssu.gov.ua/novyny/" rel="nofollow external">press release</a>
         {" "}
-        KIA is always given as a floor ("понад N") — see the tooltip "Self-reported floor" note. All other counters are bare numbers.
+        and on its
+        {" "}
+        <a href="https://t.me/SBUkr" rel="nofollow external">Telegram channel</a>.
+        {" "}
+        KIA is a rounded, qualified figure — "понад N" ("over") or "майже N" ("almost"); the tooltip
+        quotes the phrasing. All other counters are bare numbers.
         {" "}
         The first chart is <strong>ours, not SBU's</strong>: every listed category summed together,
-        personnel included. A lower bound twice over — KIA is given as "понад" ("over"), and the
-        equipment list is introduced with "серед" ("among") the objects hit. Not comparable with
-        SBU's own "інших цілей" ("other targets") total, which leaves personnel out.
+        personnel included. A lower bound — the equipment list is introduced with "серед" ("among")
+        the objects hit. Not comparable with SBU's own "інших цілей" ("other targets") total, which
+        leaves personnel out.
       </>}
       dataWindow={dataWindow.minPeriod && dataWindow.maxPeriod ? (
         <details style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 6 }}>
@@ -185,7 +191,7 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
                 <span style={{ color: t.textFaint, minWidth: 24 }}>[{i + 1}]</span>
                 <span style={{ color: t.text, minWidth: 70 }}>{r.period}</span>
                 <span style={{ flex: 1 }}>
-                  SBU press release
+                  {/^https?:\/\/t\.me\//.test(r.url) ? "SBU Telegram post" : "SBU press release"}
                   {r.published_at && <span style={{ color: t.textFaint }}> · published {r.published_at}</span>}
                   {" · "}
                   <a

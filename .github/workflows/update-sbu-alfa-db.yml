@@ -1,27 +1,38 @@
 name: Update SBU Alfa Database
 
-# Scheduled ingest of NEW recaps. After a parser change, this is the half to
-# run when the parser DROPPED a recap (it was never stored, so only a re-scan
-# with a widened `pages` can recover it). When the parser MISREAD a recap it
-# already stored, run reparse-sbu-alfa-db.yml instead — discover.py skips URLs
-# already in the DB, so a re-scan here would re-read nothing.
+# Scheduled ingest of NEW recaps, found on SBU's Telegram channel
+# (scripts/sbu_alfa/telegram.py) — not on ssu.gov.ua, whose news listing sits
+# behind an Akamai rule that has already tightened once (README "Source
+# quirks"); discover.py, which scans that listing, is kept for manual use.
+#
+# After a parser change, this is the half to run when the parser DROPPED a
+# recap (it was never stored, so only a re-scan can recover it: dispatch with
+# `rescan` on and enough `pages` to reach it — ~12 pages a month back). When
+# the parser MISREAD a recap it already stored, run reparse-sbu-alfa-db.yml
+# instead — a re-scan re-reads identical text.
 on:
   workflow_dispatch: # allow manual trigger from GitHub UI
     inputs:
       pages:
         description: >-
-          Listing pages to scan. Raise it to reach recaps older than the default
-          3-page window — e.g. to re-ingest a recap the parser previously
-          rejected (a rejected report is never stored, so only a re-scan can
-          recover it).
+          Most channel preview pages to walk (~2.5 days of posts each). The
+          walk normally stops at the newest stored post well before this.
         required: false
-        default: "3"
+        default: "25"
+      rescan:
+        description: >-
+          Walk all `pages`, past the newest stored post — to recover a recap
+          a parser fix now accepts.
+        type: boolean
+        required: false
+        default: false
   schedule:
     # SBU publishes each monthly recap between the 6th and the 17th of the
     # following month (three known data points; wider than that in practice).
     # Run once a day between days 5 and 20 of every month — 16 runs/mo — which
     # covers the whole plausible window with a couple of days of slack.
-    # Fetching ~3 listing pages per run is ~230 KB total; negligible.
+    # A run walks back to last month's recap, ~12 preview pages (~1 MB) on
+    # the first runs of a month and one page once this month's is stored.
     - cron: "0 8 5-20 * *"
 
 env:
@@ -53,10 +64,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Pull the current DB so discover.py can dedupe against `reports.url`
-      # and so newly-ingested rows land alongside the existing history.
-      # `continue-on-error` covers the first run when the object may not
-      # yet exist — discover.py would then just have an empty seen-set.
+      # Pull the current DB: the walk stops at the newest post already in it,
+      # and new rows land alongside the existing history. `continue-on-error`
+      # covers the first run when the object may not yet exist — the walk then
+      # just goes the full `pages`.
       - name: Download current SBU Alfa DB from R2
         id: download
         continue-on-error: true
@@ -70,26 +81,25 @@ jobs:
             --file "data/$SBU_ALFA_DB_NAME" \
             --remote
 
-      # discover.py: scan the SBU news listing for candidate Alfa monthly-
-      # recap URLs, filter out ones already stored, ingest each new one.
-      # Slug-filter false positives are gated (parser must recognise
-      # report_type='monthly_top1' with a valid period) so a drifted slug
-      # can't land garbage in the DB. stdlib only.
+      # telegram.py: walk t.me/s/SBUkr newest-first to the newest stored post
+      # and store each post that passes parse.is_monthly_recap (a month AND a
+      # recap's worth of counters), under its own t.me URL. stdlib only.
       #
-      # `id:` + $GITHUB_OUTPUT: discover.py writes `changed=true|false`,
+      # `id:` + $GITHUB_OUTPUT: telegram.py writes `changed=true|false`,
       # which the upload step below reads to skip no-op runs. Unlike the
       # other datasets, SBU Alfa publishes ~once/month and we poll ~16×/mo
       # — so ≥94% of runs would otherwise upload an unchanged DB and bust
       # the CDN cache for zero benefit.
-      - name: Discover + ingest new SBU Alfa recaps
-        id: discover
+      - name: Find + ingest new SBU Alfa recaps (Telegram)
+        id: ingest
         run: |
-          python3 scripts/sbu_alfa/discover.py \
+          python3 scripts/sbu_alfa/telegram.py \
             --out "data/$SBU_ALFA_DB_NAME" \
-            --pages "${{ inputs.pages || '3' }}"
+            --pages "${{ inputs.pages || '25' }}" \
+            ${{ inputs.rescan && '--rescan' || '' }}
 
       - name: Upload SBU Alfa DB to R2
-        if: steps.discover.outputs.changed == 'true'
+        if: steps.ingest.outputs.changed == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -17,7 +17,7 @@ via sql.js / sql.js-httpvfs.
 | UA LOSSES — RU MoD (**not in production**) | `ua-losses-ru-mod-john-felix` | RU MoD claimed Ukrainian losses, John Felix's hand-compiled Google Sheet | [`scripts/ua_losses_ru_mod/`](scripts/ua_losses_ru_mod/README.md) → `ua-losses-ru-mod-john-felix.db` |
 | RU AIR DEFENSE — RU MoD | `ru-airdef-mod` | Russian MoD air-defense claims (Telegram) | [`scripts/ru_mod/`](scripts/ru_mod/README.md) → `ru-mod-ad.db` |
 | RU MISSILE & UAV ATTACKS — GSUA | `ru-air-attacks-gsua` | UA Air Force Command + General Staff strike reports (piterfm / Kaggle) | [`scripts/missile_attacks/`](scripts/missile_attacks/README.md) → `ru-air-attacks-gsua.db` |
-| UA SBU ALFA — MONTHLY RECAP | `sbu-alfa` | SBU press releases (Centre of Special Operations «А» monthly TOP-1 recap) | [`scripts/sbu_alfa/`](scripts/sbu_alfa/README.md) → `sbu-alfa.db` |
+| UA SBU ALFA — MONTHLY RECAP | `sbu-alfa` | SBU's monthly recap of Centre of Special Operations «А» (Telegram post or ssu.gov.ua press release) | [`scripts/sbu_alfa/`](scripts/sbu_alfa/README.md) → `sbu-alfa.db` |
 | RU RUBIKON — MONTHLY RECAP | `rubikon` | Центр «Рубикон» (RU UAV unit) monthly Telegram recap | [`scripts/rubikon/`](scripts/rubikon/README.md) → `rubikon.db` |
 | RU DEATHS — MEDIAZONA | `mediazona` | Mediazona + Meduza confirmed named deaths + probate-registry estimate (CSV exports) | [`scripts/mediazona/`](scripts/mediazona/README.md) → `mediazona.db` |
 | UA+RU CIVILIAN CASUALTIES — CIT | `cit-civilians` | Conflict Intelligence Team daily 20:00–20:00 MSK casualty summaries (Telegram) | [`scripts/cit_civilians/`](scripts/cit_civilians/README.md) → `cit-civilians.db` |

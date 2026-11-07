@@ -608,7 +608,8 @@ Done (each is a live R2 SQLite + a site-picker entry):
   primary + mod.gov.ua freshness supplement (§1)
 - **RU MoD air-defense intercepts** — `ru-mod-ad.db` (§3)
 - **RU missile/UAV attacks (piterfm)** — `ru-air-attacks-gsua.db` (§2)
-- **SBU Alfa monthly recap** — `sbu-alfa.db`
+- **SBU Alfa monthly recap** — `sbu-alfa.db`; found on SBU's Telegram channel (t.me/SBUkr,
+  public `t.me/s` preview), stored under the post's or the ssu.gov.ua press release's URL
 - **UA losses claimed by the RU MoD** — `ua-losses-ru-mod-john-felix.db` from John Felix's
   sheet (§3). No licence: backed up to R2 by CI, but the site is built only with
   `SHOW_UA_LOSSES_RU_MOD=true`, which production isn't.
