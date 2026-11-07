@@ -126,13 +126,14 @@ Bound model mirrors `scripts/missile_stockpile/reports.json` (the HUR view):
 |-------------|--------------------------------------------|----------------------------------|
 | `exact`     | bare number                                | `2218 безпілотників`             |
 | `at_least`  | "понад", "більше", "over", `N+`            | `понад 10 200 піхотинців`        |
-| `approx`    | "близько", "приблизно", "майже", `~`       | (not yet seen in Alpha recaps)   |
+| `approx`    | "близько", "приблизно", "майже", `~`       | `майже 6 000 окупантів`          |
 | `up_to`     | "до", "≤"                                  | (not yet seen)                   |
 | `range`     | `value..value_max`                         | (not yet seen)                   |
 
-Every KIA number to date has been `at_least` (the recap always phrases it as
-"понад N"). The frontend renders this with a "Self-reported floor" tooltip
-note so the reader knows the count is a lower bound, not a precise figure.
+The KIA number is always rounded and qualified: `at_least` ("понад N") in most
+months, `approx` ("майже N") in others. The frontend notes each month's bound
+in the tooltip ("Self-reported floor" / "Approximate"), so the reader knows the
+count is not a precise figure.
 
 ## Tests
 
