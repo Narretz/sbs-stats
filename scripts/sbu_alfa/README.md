@@ -57,19 +57,27 @@ runtime by the frontend and by the workflow. Not committed to the repo.
 **Source quirks.** The SBU site is fronted by Akamai which 403s most automated
 requests (sitemap, search, pagination, `robots.txt`). `ingest.py` uses a
 browser-like UA + headers that works for direct article URLs and for the
-paginated news listing that `discover.py` scans. When SBU publishes a recap
+paginated news listing that `discover.py` scans — **with its trailing slash**:
+since Nov 2026 the edge 403s `/novyny`, `/novyny?page=N` and `/en/novyny`
+whatever the client (a real Chromium too), while `/novyny/` and
+`/novyny/?page=N` serve the same listing. It is a path rule, not an IP or
+user-agent one, so if discovery starts failing again, try path variants
+before headers. A blocked listing page is a `sbu-alfa: listing fetch failed`
+annotation. When SBU publishes a recap
 via a mirror before it lands on ssu.gov.ua (early 2026 had this pattern —
 [gorsovet.com.ua](https://gorsovet.com.ua/) and [5.ua](https://www.5.ua/)),
 ingest the mirror manually as a stopgap and re-ingest from the canonical
 `ssu.gov.ua` URL later; the older mirror row can then be deleted.
 
-**Discovery filter.** `discover.py` matches slugs containing
-`alf[ay]` + `top1` + `sered-pidrozdiliv-syl-oborony` (loose enough to survive
-minor wording changes across the three known 2026 recaps, strict enough to
-reject daily SBU news). Any candidate is parsed and gated on
-`report_type == 'monthly_top1'` with a valid `period` before insertion, so a
-false-positive slug can't land garbage — it surfaces as a skip warning in the
-workflow log for manual review.
+**Discovery filter.** `discover.py` matches slugs containing `alf[ay]` and
+either the ranking (`top`, any or no rank number) or `syl-oborony` — loose on
+purpose: the October 2026 slug dropped the `pidrozdiliv-` every earlier one
+had, and a month the unit isn't TOP-1 would still get a recap, just not a
+`top1` slug. The strictness is in the gate behind it: a candidate is stored
+only if it parses as `monthly_top1` with a valid `period` and at least
+`MIN_COUNTERS` (8) counters — every recap so far has 13–18 — so an ordinary
+Alfa story that names a month can't pass for one. A gated-out candidate is a
+`sbu-alfa: discovery candidate skipped` notice, for manual review.
 
 **Drift detection.** `parse.py` also collects counter-like lines ("NUM
 <Ukrainian noun>", inside the region the matched counters span) that no

@@ -20,9 +20,9 @@ three are the same data; the list rendering is incidental.
 
 Bound model mirrors HUR (scripts/missile_stockpile/reports.json):
     exact      — bare number
-    at_least   — "понад N" / "більше N" / "over N"   (every KIA line uses this)
-    approx     — "близько N" / "приблизно N" / "~N"
-    up_to      — "до N" / "≤ N"
+    at_least   — "понад N" / "більше N" / "щонайменше N" / "не менше N" / …
+    approx     — "близько N" / "приблизно N" / "майже N" / "орієнтовно N"
+    up_to      — "до N"
     range      — value..value_max (not currently seen in Alpha recaps)
 """
 from __future__ import annotations
@@ -97,11 +97,18 @@ class ParsedReport:
 # Numbers in the source use space-separated thousands ("10 200"); after
 # extract_text() collapses whitespace, this stays as "10 200". We allow either
 # bare digits ("\d+") or grouped digits ("\d{1,3}(?:\s\d{3})+"); _to_int strips
-# the separators.
-_NUM = r"(\d{1,3}(?:\s\d{3})+|\d+)"
+# the separators. A rounded headline can also be given in thousands — "майже
+# 11 тис. окупантів" (Oct 2026), and by extension "10,5 тис." / "11 тисяч" —
+# which _to_int scales back up. First, so "11" alone doesn't win at the same
+# position.
+_NUM = r"(\d+(?:[.,]\d+)?\s*тис(?:\.|яч\w*)|\d{1,3}(?:\s\d{3})+|\d+)"
+_THOUSANDS = re.compile(r"(\d+(?:[.,]\d+)?)\s*тис", re.I)
 
 
 def _to_int(s: str) -> int:
+    k = _THOUSANDS.match(s)
+    if k:
+        return round(float(k.group(1).replace(",", ".")) * 1000)
     return int(s.replace(" ", ""))
 
 
@@ -163,31 +170,57 @@ def _detect_period(text: str) -> tuple[str | None, str | None]:
     return f"{int(year_m.group(1)):04d}-{month:02d}", "month"
 
 
-# Bound phrases that can prefix a number. Order matters: longer alternatives first.
-_BOUND_PREFIX = re.compile(
-    r"(понад|більше(?:\s+ніж)?|близько|приблизно|майже|до)\s+",
-    re.I,
-)
+# Bound qualifiers that can stand directly before a number — the headline KIA
+# is the line that carries one ("понад 10 200", "майже 6000", "майже 11 тис.").
+# Keyed by the phrase with its whitespace collapsed; the regex tries longer
+# phrases first ("більше ніж" before "більше", "не менше ніж" before "не
+# менше").
 _BOUND_MAP = {
+    # at least
     "понад": "at_least",
-    "більше": "at_least",
     "більше ніж": "at_least",
+    "більше за": "at_least",
+    "більш ніж": "at_least",
+    "більш як": "at_least",
+    "більше": "at_least",
+    "щонайменше": "at_least",
+    "не менше ніж": "at_least",
+    "не менше за": "at_least",
+    "не менш ніж": "at_least",
+    "не менш як": "at_least",
+    "не менше": "at_least",
+    "принаймні": "at_least",
+    "як мінімум": "at_least",
+    "мінімум": "at_least",
+    # approximately — "майже" ("almost") is just under, which the four-way
+    # bound model has no slot for; approx is the honest reading
     "близько": "approx",
     "приблизно": "approx",
     "майже": "approx",
+    "орієнтовно": "approx",
+    "біля": "approx",
+    "майже до": "up_to",
+    # at most
     "до": "up_to",
+    "не більше ніж": "up_to",
+    "не більше": "up_to",
 }
+_BOUND_PREFIX = re.compile(
+    r"(?<!\w)("
+    + "|".join(re.escape(k).replace(r"\ ", r"\s+") for k in sorted(_BOUND_MAP, key=len, reverse=True))
+    + r")\s+$",
+    re.I,
+)
 
 
 def _bound_for_match(text: str, num_start: int) -> str:
-    """Look at the ~25 chars before the number and infer the bound qualifier."""
-    window = text[max(0, num_start - 25):num_start]
-    m = None
-    for hit in _BOUND_PREFIX.finditer(window):
-        m = hit  # take the last (= closest to the number)
+    """The qualifier standing directly before the number, if any. Anchored to
+    the number — a qualifier further back belongs to some other figure, and an
+    unanchored search found "до" inside words ("водного")."""
+    m = _BOUND_PREFIX.search(text[max(0, num_start - 30):num_start])
     if not m:
         return "exact"
-    return _BOUND_MAP.get(m.group(1).lower().strip(), "exact")
+    return _BOUND_MAP.get(re.sub(r"\s+", " ", m.group(1).lower()), "exact")
 
 
 # --- categories ------------------------------------------------------------
@@ -199,9 +232,16 @@ def _bound_for_match(text: str, num_start: int) -> str:
 # the more specific pattern goes first (e.g. tanks before generic armored).
 
 CATEGORIES: list[tuple[str, list[re.Pattern[str]]]] = [
-    # Headline KIA — "понад N окупантів/піхотинців". Both phrasings appear.
+    # Headline KIA — "понад N окупантів/піхотинців", "майже 11 тис. окупантів".
+    # The noun is the anchor, so it takes the likely alternatives too; the
+    # qualifier in front of the number is _bound_for_match's.
     ("enemy_kia", [
-        re.compile(rf"{_NUM}\s+(?:російських\s+)?(?:ворожих\s+)?(?:піхотинців|окупантів)", re.I),
+        re.compile(
+            rf"{_NUM}\s+(?:(?:російських|ворожих)\s+)*"
+            r"(?:піхотинців|окупантів|загарбників|росіян|військовослужбовців|солдатів"
+            r"|(?:одиниць\s+)?(?:живої\s+сили|особового\s+складу))",
+            re.I,
+        ),
     ]),
 
     # Aggregate "N інших цілей" + the destroyed/damaged split.
@@ -275,8 +315,10 @@ CATEGORIES: list[tuple[str, list[re.Pattern[str]]]] = [
     # броньовані машини" (nom. pl. after 2/3/4, e.g. "33 бойові броньовані
     # машини", Aug 2026). Stems + \w+ cover both, and the optional soft sign
     # in "бронь?ован" matches the armored_total spelling drift too.
+    # And abbreviated, "1 танк та 8 ББМ" (Oct 2026).
     ("ifvs", [
         re.compile(rf"{_NUM}\s+бойов\w+\s+бронь?ован\w+\s+машин\w*", re.I),
+        re.compile(rf"{_NUM}\s+ББМ", re.I),
     ]),
 
     ("air_defense", [
@@ -319,6 +361,17 @@ CATEGORIES: list[tuple[str, list[re.Pattern[str]]]] = [
     # sits between), so the two never collide.
     ("drone_crews", [
         re.compile(rf"{_NUM}\s+розрахунк\w+\s+БпЛА", re.I),
+    ]),
+
+    # Command posts — "11 пунктів управління" (Oct 2026); "пункти" after 2/3/4.
+    ("command_posts", [
+        re.compile(rf"{_NUM}\s+пункт\w*\s+управління", re.I),
+    ]),
+    # Tactical ballistic missile systems — "1 ОТРК «Іскандер»" (Oct 2026), or
+    # spelled out ("оперативно-тактичний ракетний комплекс").
+    ("missile_systems", [
+        re.compile(rf"{_NUM}\s+ОТРК", re.I),
+        re.compile(rf"{_NUM}\s+оперативно-тактичн\w+\s+ракетн\w+\s+комплекс", re.I),
     ]),
 ]
 

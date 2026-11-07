@@ -807,8 +807,9 @@ export type RuAdMonthlyRow = {
 // ─── SBU Alfa (ssu.gov.ua monthly recap → sbu-alfa.db) ─────────────────────────
 // SBU's "TOP-1 серед підрозділів Сил оборони" monthly recap (running since
 // 2026-03). Numbers are unit self-reports — destroyed/damaged enemy assets — so
-// frame them in the UI as claims, not verified counts. KIA is always phrased as
-// "понад N" (at_least); other counters are bare numbers (exact). See
+// frame them in the UI as claims, not verified counts. KIA is the qualified one —
+// "понад N" (at_least), "майже N" / "майже 11 тис." (approx); other counters are
+// bare numbers (exact). See
 // scripts/sbu_alfa/parse.py for the bound model (mirrors HUR's reports.json).
 export const SBU_ALFA_CATEGORY_KEYS = [
   "enemy_kia",
@@ -833,7 +834,9 @@ export const SBU_ALFA_CATEGORY_KEYS = [
   "ifvs",
   "air_defense",
   "radar",
+  "command_posts",
   "mlrs",
+  "missile_systems",
   "aircraft",
   "watercraft",
   "depots",
@@ -863,7 +866,9 @@ export const SBU_ALFA_CATEGORY_LABELS: Record<SbuAlfaCategoryKey, string> = {
   ifvs: "IFVs / combat armored",
   air_defense: "Air defense systems",
   radar: "Radars",
+  command_posts: "Command posts",
   mlrs: "MLRS",
+  missile_systems: "Tactical missile systems (OTRK)",
   aircraft: "Aircraft",
   watercraft: "Watercraft",
   depots: "Ammo / supply depots",

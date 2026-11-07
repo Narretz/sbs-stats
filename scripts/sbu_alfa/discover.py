@@ -11,15 +11,20 @@ links by tokens shared across the known monthly-recap slugs, and hands each
 new candidate off to ingest.store() via the existing browser-mimicking
 fetcher.
 
-Slug shape across the three known recaps (Mar/Apr/May 2026):
+Slug shapes of the known recaps (Mar 2026 – Oct 2026):
   alfa-sbu-top1-sered-pidrozdiliv-syl-oborony-ukrainy-tretii-misiats-pospil-video
   voiny-alfy-sbu-top1-sered-pidrozdiliv-syl-oborony-za-rezultatamy-boiovoi-roboty-u-kvitni-video
   alfa-sbu-top1-sered-pidrozdiliv-syl-oborony-ukrainy-za-kilkistiu-urazhenykh-tsilei-u-berezni-video
+  visim-misiatsiv-liderstva-alfy-sbu-top1-sered-syl-oborony-video   (October, no "pidrozdiliv")
 
-Common tokens: `alf[ay]` + `top1` + `sered-pidrozdiliv-syl-oborony`. Filter
-matches all three. Candidates that don't parse as `monthly_top1` with a valid
-`period` are logged but NOT stored, so a slug-shape drift never lands garbage
-in the DB — surfaces as a warning for manual review.
+Common tokens: `alf[ay]` + `top1` + `syl-oborony`. The filter asks for
+`alf[ay]` and either of the other two, with the rank optional (`top`, `top3`):
+the unit has been TOP-1 every month so far, and a month it isn't, the recap
+would still be published — just not under "top1". The filter is the loose
+half; the gate behind it is the strict one: a candidate is stored only if it
+parses as `monthly_top1` with a valid `period` AND at least MIN_COUNTERS
+counters (every recap so far: 13–18), so an ordinary Alfa story that names a
+month can't pass for a recap. Anything gated out is logged for manual review.
 
 No pip deps — reuses the fetch + parse + store from ingest.py.
 
@@ -40,19 +45,29 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import ingest  # noqa: E402
+from ingest_log import ann  # noqa: E402
 from parse import extract_text, parse  # noqa: E402
 
-LISTING_URL = "https://ssu.gov.ua/novyny"
+# With the trailing slash: since Nov 2026 Akamai 403s `/novyny` itself (and
+# `/novyny?page=N`, `/en/novyny`), while `/novyny/` and `/novyny/?page=N` serve
+# the same listing. Article pages were never affected.
+LISTING_URL = "https://ssu.gov.ua/novyny/"
 
-# Slug filter: tokens common to every known Alfa monthly-recap slug. Loose
-# enough to survive minor wording changes ("alfa-sbu" ↔ "voiny-alfy-sbu"),
-# strict enough to reject unrelated daily SBU news (which dominates /novyny).
-# Any candidate is still parsed and gated on `report_type == 'monthly_top1'`
-# before insertion, so a false-positive slug can't land garbage in the DB.
+# Slug filter: "alfa"/"alfy" plus either the ranking ("top", any or no rank
+# number) or "syl-oborony" ("of the Defence Forces"). Loose enough to survive
+# wording drift ("alfa-sbu" ↔ "voiny-alfy-sbu", "sered-pidrozdiliv-syl-oborony"
+# ↔ "sered-syl-oborony") and a month the unit isn't TOP-1, strict enough to
+# reject the daily SBU news that dominates /novyny. Every candidate still goes
+# through the gate in ingest_url before anything is stored.
 SLUG_FILTER = re.compile(
-    r"/novyny/[a-z0-9-]*alf(?:a|y)[a-z0-9-]*top-?1[a-z0-9-]*sered-pidrozdiliv-syl-oborony[a-z0-9-]*",
+    r"/novyny/(?=[a-z0-9-]*alf(?:a|y))(?=[a-z0-9-]*(?:top-?\d*(?![a-z])|syl-oborony))[a-z0-9-]+",
     re.IGNORECASE,
 )
+
+# Fewest parsed counters a monthly recap is believed to have. Every recap so
+# far listed 13–18; an ordinary article that happens to name a month and a
+# figure or two stays well below.
+MIN_COUNTERS = 8
 
 _HREF_RE = re.compile(r'href=["\']((?:https?://ssu\.gov\.ua)?/novyny/[a-z0-9-]+)["\']')
 
@@ -71,7 +86,12 @@ def scan_pages(pages: int) -> list[str]:
         try:
             _, raw = ingest._load(url)
         except Exception as e:
-            print(f"[warn] page {page} fetch failed: {e!r}", file=sys.stderr)
+            # A warning, not a print: a blocked listing otherwise reads as a
+            # quiet "0 candidates" run.
+            ingest.log.warning(
+                "listing page %d (%s) fetch failed: %r", page, url, e,
+                extra=ann(title="sbu-alfa: listing fetch failed"),
+            )
             continue
         html = raw.decode("utf-8", "replace")
         candidates = [
@@ -122,11 +142,15 @@ def ingest_url(url: str, out: Path, dry_run: bool) -> str:
     # are correct); the warning goes through ingest_log, so in CI it surfaces
     # as a GitHub annotation rather than a buried stderr line.
     ingest.warn_unmatched(url, report)
-    if report.report_type != "monthly_top1" or not report.period:
+    if report.report_type != "monthly_top1" or not report.period or len(report.counters) < MIN_COUNTERS:
         # Slug matched but content isn't a monthly recap — either a themed
         # article the slug filter mispicked, or the format has drifted. Do
-        # NOT store it; surface for manual review.
-        print(f"[skip] {url}\n       ({tag}) — not a monthly_top1 recap; needs manual review")
+        # NOT store it; surface for manual review — as a notice, since a
+        # mispicked news story is the common case and needs no action.
+        ingest.log.warning(
+            "%s (%s) — not a monthly recap; skipped, needs manual review if it is one", url, tag,
+            extra=ann(level="notice", title="sbu-alfa: discovery candidate skipped"),
+        )
         return "skipped"
 
     if dry_run:

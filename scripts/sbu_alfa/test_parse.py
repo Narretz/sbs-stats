@@ -155,6 +155,28 @@ AUGUST_EXPECTED = {
     "watercraft":           (20,    "exact"),
 }
 
+# The first recap given in thousands ("майже 11 тис. окупантів"), with two new
+# categories and IFVs abbreviated ("1 танк та 8 ББМ").
+OCTOBER_EXPECTED = {
+    "enemy_kia":            (11_000, "approx"),
+    "drones":               (4_883, "exact"),
+    "comms":                (2_388, "exact"),
+    "vehicles_auto_total":  (2_251, "exact"),
+    "fortifications":       (710,   "exact"),
+    "drone_crews":          (508,   "exact"),
+    "depots":               (106,   "exact"),
+    "artillery":            (14,    "exact"),
+    "mlrs":                 (13,    "exact"),
+    "air_defense":          (12,    "exact"),
+    "command_posts":        (11,    "exact"),
+    "armored_total":        (9,     "exact"),
+    "tanks":                (1,     "exact"),
+    "ifvs":                 (8,     "exact"),
+    "radar":                (9,     "exact"),
+    "watercraft":           (5,     "exact"),
+    "missile_systems":      (1,     "exact"),
+}
+
 
 _ALL = [
     ("march", MARCH_EXPECTED, "2026-03"),
@@ -163,6 +185,7 @@ _ALL = [
     ("june",  JUNE_EXPECTED,  "2026-06"),
     ("july",  JULY_EXPECTED,  "2026-07"),
     ("august", AUGUST_EXPECTED, "2026-08"),
+    ("october", OCTOBER_EXPECTED, "2026-10"),
 ]
 
 
@@ -211,3 +234,33 @@ def test_drift_detector_flags_a_missed_counter():
     assert any("розрахунк" in u for u in report.unmatched), report.unmatched
     # And nothing spurious from the surrounding page (only the one real miss).
     assert len(report.unmatched) == 1, report.unmatched
+
+
+# The headline's qualifier and number, in the forms SBU has used and the ones
+# it plausibly will — the bound is what the frontend prefixes ("≥", "~").
+@pytest.mark.parametrize("text, value, bound", [
+    ("понад 10 200 ворожих піхотинців", 10_200, "at_least"),
+    ("понад 8 000 окупантів", 8_000, "at_least"),
+    ("майже 6000 окупантів", 6_000, "approx"),
+    ("майже 11 тис. окупантів", 11_000, "approx"),
+    ("ліквідували 11 тисяч окупантів", 11_000, "exact"),
+    ("близько 10,5 тис. окупантів", 10_500, "approx"),
+    ("більше ніж 9000 окупантів", 9_000, "at_least"),
+    ("більш як 7000 загарбників", 7_000, "at_least"),
+    ("щонайменше 7 тис. російських окупантів", 7_000, "at_least"),
+    ("не менше 6500 окупантів", 6_500, "at_least"),
+    ("як мінімум 6500 окупантів", 6_500, "at_least"),
+    ("орієнтовно 6500 одиниць особового складу", 6_500, "approx"),
+    ("до 500 окупантів", 500, "up_to"),
+])
+def test_kia_qualifiers(text, value, bound):
+    got = _by_cat(parse(text))
+    assert got["enemy_kia"] == (value, bound)
+
+
+def test_qualifier_must_stand_before_the_number():
+    """Only the word directly before a figure qualifies it — "до" ending a
+    word, or a qualifier belonging to the previous line, doesn't."""
+    got = _by_cat(parse("понад 10 000 окупантів. Також уражено: 5 одиниць водного транспорту"))
+    assert got["watercraft"] == (5, "exact")
+    assert got["enemy_kia"] == (10_000, "at_least")
