@@ -15,7 +15,7 @@ export interface DescriptorColors {
 
 // The one scale, for hours and days alike.
 const LEVEL_WORD = ["ok", "limited", "severe"] as const;
-const FOOTER = "Open-Meteo model data, not observations. Small-drone conditions — a heuristic, not a record of flights.";
+const FOOTER = "Open-Meteo model data. Small-drone conditions are a heuristic.";
 
 // A row with nothing to say keeps its place and says so with a dash: rows that
 // came and went made the card change shape from one cell to the next.

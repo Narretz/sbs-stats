@@ -22,7 +22,7 @@ import {
 const TITLE = "Front-line weather — drone conditions";
 const ANCHOR = chartAnchor(TITLE);
 // Forecast hours (and days that include some) are drawn at this opacity.
-const FORECAST_OPACITY = 0.45;
+const FORECAST_OPACITY = 0.5;
 
 // ── The grid, shared by both strips ─────────────────────────────────────────
 //
@@ -74,7 +74,7 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
   const n = columns.length;
   // A long window squeezes the cells; drop the gaps before the cells vanish.
   const gap = n > 60 ? 0 : n > 31 ? 1 : 2;
-  const mono: React.CSSProperties = { fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted };
+  const mono: React.CSSProperties = { fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted };
 
   // The hover card is for a pointer that can hover — a mouse or a pen — as on
   // the charts (usePinnedChart). Touch gets the sheet, on tap.
@@ -109,7 +109,7 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
   // the cells — that is taken out of the column's own track, and the forecast
   // cells came out narrower than the rest.
   const spacer = (col: number) => (columns[col].forecast ? <div data-gap="" aria-hidden /> : null);
-  const tracks = columns.map((col) => `${col.forecast ? "6px " : ""}minmax(0, 1fr)`).join(" ");
+  const tracks = columns.map((col) => `${col.forecast ? "3px " : ""}minmax(0, 1fr)`).join(" ");
   const ring = (col: number): React.CSSProperties =>
     col === pinnedCol ? { outline: `1.5px solid ${t.text}`, outlineOffset: -1 } : {};
 
@@ -144,12 +144,12 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
           <Fragment key={i}>
             {spacer(i)}
             {/* Left-aligned on its column and free to overflow into the next. */}
-            <div style={{ whiteSpace: "nowrap", overflow: "visible", color: i === pinnedCol ? t.text : undefined }}>
+            <div style={{ whiteSpace: "nowrap", fontSize: 10, overflow: "visible", color: i === pinnedCol ? t.text : undefined }}>
               {col.axis}
             </div>
           </Fragment>
         ))}
-        <div style={{ paddingLeft: 6 }}>{tailHeader}</div>
+        <div style={{ paddingLeft: 6, fontSize: 10 }}>{tailHeader}</div>
 
         <div title={count.title}>{count.label}</div>
         {count.values.map((k, i) => (
@@ -193,7 +193,7 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
               </Fragment>
             ))}
             <div data-testid="weather-tail" title={row.tailTitle} style={{
-              paddingLeft: 6, whiteSpace: "nowrap", color: t.textMuted,
+              paddingLeft: 6, whiteSpace: "nowrap", color: t.textMuted, fontSize: 11
             }}>
               <span style={row.tailStrong ? { color: c.weatherSevere, fontWeight: 700 } : undefined}>{row.tail}</span>
               {row.tailSuffix}
@@ -212,7 +212,7 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
         ))}
         {legendNote && <span>{legendNote}</span>}
         <span>faded = forecast</span>
-        <span>Hover for details, click for every direction. Open-Meteo model data, not observations — a heuristic, not a record of flights.</span>
+        <span>Open-Meteo model data, not observations — drone conditions are a heuristic.</span>
       </div>
 
       {card}
@@ -314,7 +314,7 @@ function useDescriptorColors(): DescriptorColors {
 
 function useStatusLine(error: string | null, ready: boolean, hasData: boolean, empty: string): ReactNode | null {
   const { theme: t } = useTheme();
-  const style = { fontFamily: FONTS.mono, fontSize: 10, color: t.textMuted };
+  const style = { fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted };
   if (error) return <div style={style}>Weather data unavailable.</div>;
   if (!ready) return <div style={style}>Loading weather…</div>;
   if (!hasData) return <div style={style}>{empty}</div>;
@@ -422,7 +422,7 @@ export function WeatherStripDaily({ startDate, endDate }: { startDate: string; e
           count={{ label: "Σ severe", title: "How many directions had a severe day for drones", values: strip.severeCount }}
           tailHeader="SEVERE"
           legend={LEGEND(c)}
-          legendNote="A day: severe with ≥6 severe hours, limited with ≥6 limited."
+          legendNote="A day is severe with ≥6 severe hours, limited likewise."
           cellDescriptor={(r, i) => dayCellDescriptor(strip.rows[r].sector.key, strip.rows[r].cells[i], colors)}
           columnDescriptor={(i) => dayColumnDescriptor(strip, i, colors)}
           columnLabel={(i) => `${weekdayDate(strip.dates[i])}${i >= nWindow ? " (forecast)" : ""}`}
