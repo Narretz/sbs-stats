@@ -1,0 +1,107 @@
+name: Update Weather Database
+
+on:
+  workflow_dispatch: # allow manual trigger from GitHub UI
+    inputs:
+      backfill_from:
+        description: >-
+          Fill `hourly` from Open-Meteo's archive from this day (YYYY-MM-DD)
+          up to three days ago, before the live run. For the first run
+          (2025-10-26, the start of the SBS hourly data) and for a gap longer
+          than the ~90 days the live endpoint reaches back; a shorter gap
+          closes itself on the next scheduled run.
+        required: false
+        default: ""
+  # No `schedule:` here. The cron Worker (cloudflare/worker.ts) dispatches
+  # this hourly at :25 — GitHub's own scheduler runs late and sometimes not at
+  # all, and the strip's "today" would show it. Hourly because the models
+  # behind Open-Meteo publish new runs every 1–6 h; one request per run covers
+  # every sector (~15 weighted calls of the free tier's 10,000 a day).
+
+# One at a time: each run uploads the whole DB, so overlapping runs would drop
+# each other's hours.
+concurrency:
+  group: weather-db
+  cancel-in-progress: false
+
+env:
+  R2_BUCKET: russia-ukraine-war
+  WEATHER_DB_NAME: weather.db
+  WEATHER_APP_DB_NAME: weather.app.db
+
+jobs:
+  update-weather-db:
+    runs-on: ubuntu-latest
+
+    env:
+      # Findings land here as JSONL; the last step turns them into annotations
+      # (scripts/ingest_log.py). What this ingest raises: a field Open-Meteo
+      # stopped returning, hours missing from a response, a gap only a
+      # backfill can close, a fetch that failed after its retries.
+      INGEST_LOG: ${{ github.workspace }}/ingest-diagnostics.jsonl
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # The authoritative DB: settled hours are never re-fetched, and the
+      # forecast snapshots exist nowhere else. `continue-on-error` covers the
+      # first run before the object exists (dispatch it with backfill_from).
+      - name: Download current DB from R2
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          mkdir -p data
+          npx --yes wrangler@4 r2 object get \
+            "$R2_BUCKET/$WEATHER_DB_NAME" \
+            --file "data/$WEATHER_DB_NAME" \
+            --remote
+
+      # Stdlib only, no secrets: Open-Meteo's free non-commercial API.
+      # Writes `changed=true|false` to $GITHUB_OUTPUT for the upload gate.
+      - name: Fetch weather
+        id: ingest
+        env:
+          BACKFILL_FROM: ${{ inputs.backfill_from }}
+        run: |
+          args=(--db "data/$WEATHER_DB_NAME")
+          if [ -n "$BACKFILL_FROM" ]; then
+            args+=(--backfill-from "$BACKFILL_FROM")
+          fi
+          python3 scripts/weather/ingest.py "${args[@]}"
+
+      # Built from the same DB in the same job, so the two can't drift on R2.
+      # `!cancelled()`: a backfill whose live run then failed still uploads
+      # the months it committed (ingest.py reports changed=true for them).
+      - name: Build app copy
+        if: ${{ !cancelled() && steps.ingest.outputs.changed == 'true' }}
+        run: |
+          python3 scripts/build_app_db.py \
+            --in "data/$WEATHER_DB_NAME" --out "data/$WEATHER_APP_DB_NAME" \
+            --sql scripts/weather/app_db.sql
+
+      - name: Upload DBs to R2
+        if: ${{ !cancelled() && steps.ingest.outputs.changed == 'true' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          for name in "$WEATHER_DB_NAME" "$WEATHER_APP_DB_NAME"; do
+            npx --yes wrangler@4 r2 object put \
+              "$R2_BUCKET/$name" \
+              --file "data/$name" \
+              --content-type application/vnd.sqlite3 \
+              --remote
+          done
+
+      # Always, so a run that dies still reports what it found on the way.
+      - name: Annotate ingest diagnostics
+        if: always()
+        run: python3 scripts/annotate_log.py

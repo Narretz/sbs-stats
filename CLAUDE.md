@@ -35,6 +35,18 @@ in the bundle. Import its code only through there, or it leaks back in. See
 [`DATASETS.md`](DATASETS.md) tracks source research, recency, and candidate
 datasets for future views.
 
+Not a view of its own: **front-line weather**
+([`scripts/weather/`](scripts/weather/README.md) → `weather.db`, app copy
+`weather.app.db`) is Open-Meteo model data per GSUA direction, shown as a strip
+above the charts on the SBS hourly page and every daily page
+(`components/WeatherStripHourly.tsx` / `WeatherStripDaily.tsx` on the generic
+`WeatherStripGrid.tsx`) — opt-in under Show more, and not fetched while
+off — plus a CLI report.
+Only the weather is stored; the drone ratings are derived in code from
+thresholds in `src/data/weatherRules.json`, shared by `scripts/weather/assess.py`
+and `src/utils/weatherRating.ts` — `src/data/weatherRatingCases.json` runs
+against both, so change the rule on one side and both suites say so.
+
 ## Architecture
 
 - **Frontend** (`src/`): one `useDatabase*` hook per dataset
@@ -139,6 +151,10 @@ that bite when changing code:
   stored, so only a re-scrape (the workflow's widen input) recovers it; one it
   *misread* is stored, and a re-scrape re-ingests identical text — only a
   reparse fixes it. Know which before dispatching anything.
+- **Hourly or time-critical schedules go through the Cloudflare cron Worker**
+  (`cloudflare/worker.ts` `dispatchesFor()`), not a workflow `schedule:` —
+  GitHub's scheduler runs late and drops runs. Rule and details in
+  [CI.md](CI.md#the-cron-worker).
 - **Uploads are gated on `changed=`** where the ingest can tell — a new ingest
   should write it to `$GITHUB_OUTPUT` too, rather than overwrite a live R2
   object on every run.
@@ -233,4 +249,8 @@ node scripts/setup-dev.cjs
   `src/utils/gsuaSql.ts` — `gsuaSql.test.ts` holds them to it; change one,
   change both. **CIT and Mediazona read the full DB in dev**, deliberately: each is a whole
   fetch, not a range fetch, so the app copy changes only the download size and
-  using it locally would buy that same staleness trap for nothing.
+  using it locally would buy that same staleness trap for nothing. **Weather**
+  publishes a pair too, but its app copy is a different schema (one compact
+  `app_hourly` table, `scripts/weather/app_db.sql`), so dev has to read
+  `data/weather.app.db` — after a local ingest, rebuild it with
+  `build_app_db.py` (command in scripts/weather/README.md).

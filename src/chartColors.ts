@@ -113,6 +113,14 @@ export interface ChartColors {
   prisonersToUkraine: string;
   prisonersToRussia: string;
 
+  // Front-line weather strip (SBS hourly): how limited small drones were in
+  // an hour. Ordered levels, so one hue getting stronger rather than three
+  // categorical colours — red, the series2 family, since it reads as
+  // "against" the drone counts plotted below it.
+  weatherOk: string;
+  weatherDegraded: string;
+  weatherSevere: string;
+
   // De-emphasised / unattributed slices of an otherwise colored chart
   neutral: string;
   // The month-end projection atop a multi-colored stack (GSUA composition by
@@ -168,6 +176,10 @@ export function chartColors(t: Theme): ChartColors {
 
     territoryUaControlled: t.territoryUa,
     territoryRuControlled: t.territoryRu,
+
+    weatherOk: t.chartGrid,
+    weatherDegraded: t.series2Trend,
+    weatherSevere: t.series2Current,
 
     neutral: t.seriesNeutral,
     stackProjected: withFillAlpha(t.text, 0.2),

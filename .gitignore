@@ -45,6 +45,8 @@ data/ua-losses.db
 data/cit-civilians.db
 data/cit-civilians.app.db
 data/zelensky-weekly.db
+data/weather.db
+data/weather.app.db
 # Local only — the sheet carries no licence, so this one is never published
 data/ua-losses-ru-mod-john-felix.db
 # backfill_history.py's working DB and caches (scripts/gsua/README.md)

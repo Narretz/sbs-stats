@@ -10,6 +10,9 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { WindowStartNav } from "@/components/WindowStartNav";
 import { MoreControls } from "@/components/MoreControls";
+import { WeatherStripDaily } from "@/components/WeatherStripDaily";
+import { WeatherToggle } from "@/components/WeatherToggle";
+import { useWeatherStripPref } from "@/hooks/useWeatherStripPref";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows, weekdayPredicate } from "@/utils/dayRange";
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
@@ -57,6 +60,8 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
+  // Mounted only while on: mounting the strip is what fetches its DB.
+  const [showWeather, setShowWeather] = useWeatherStripPref();
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>(initial.weekdays);
   const [selectedDate, setSelectedDate] = useState<string>(initial.date);
   const [rows, setRows] = useState<DailyRow[]>([]);
@@ -154,12 +159,15 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
             todayDow={todayDow}
           />
           <StatScopeToggle />
+          <WeatherToggle checked={showWeather} onChange={setShowWeather} />
         </MoreControls>
       </>}
       loadState={loadState}
       error={error}
       hasData={hasData}
-      gridChildren={metrics.map((m: Metric) => (
+      gridChildren={[
+        ...(showWeather ? [<WeatherStripDaily key="weather" startDate={startDate} endDate={endDate} />] : []),
+        ...metrics.map((m: Metric) => (
         <DailyLineChart
           key={m.id}
           title={m.label}
@@ -180,7 +188,7 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
           eod2={m.pairedKey ? (eod[m.pairedKey] ?? null) : undefined}
           drillAnchor={m.pairedKey ? chartAnchor(unpairedLabel(m.key) ?? m.label) : undefined}
         />
-      ))}
+      ))]}
     />
   );
 }

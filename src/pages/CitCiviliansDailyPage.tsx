@@ -8,6 +8,9 @@ import { PageScaffold } from "@/components/PageScaffold";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { MoreControls } from "@/components/MoreControls";
+import { WeatherStripDaily } from "@/components/WeatherStripDaily";
+import { WeatherToggle } from "@/components/WeatherToggle";
+import { useWeatherStripPref } from "@/hooks/useWeatherStripPref";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import {
   DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR,
@@ -58,6 +61,8 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
 
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
+  // Mounted only while on: mounting the strip is what fetches its DB.
+  const [showWeather, setShowWeather] = useWeatherStripPref();
   const [selectedDate, setSelectedDate] = useState<string>(initial.date);
 
   const [rows, setRows] = useState<CitDailyRow[]>([]);
@@ -139,6 +144,7 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
                  canGoNext={canGoNext} canGoPrev={canGoPrev} />
         <MoreControls>
           <StatScopeToggle />
+          <WeatherToggle checked={showWeather} onChange={setShowWeather} />
         </MoreControls>
       </>}
       loadState={loadState}
@@ -146,6 +152,7 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
       hasData={hasData}
       loadingMessage="Loading CIT civilian-casualties database…"
       gridChildren={<>
+        {showWeather && <WeatherStripDaily key="weather" startDate={startDate} endDate={endDate} />}
         <CitTerritoryChart
           data={territory}
           granularity="daily"
