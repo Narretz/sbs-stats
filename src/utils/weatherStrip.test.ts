@@ -23,8 +23,8 @@ const colors: DescriptorColors = { text: "T", muted: "M", level: (l) => `L${l}` 
 describe("buildHourlyStrip", () => {
   it("rates each direction's day and counts severe directions per hour", () => {
     const m = buildHourlyStrip(sectors, [...day(1, "2026-10-11"), ...day(2, "2026-10-11", fog)]);
-    expect(m.rows.map((r) => r.day)).toEqual(["GOOD", "POOR"]);
-    expect(m.poorSectors).toBe(1);
+    expect(m.rows.map((r) => r.day)).toEqual(["ok", "severe"]);
+    expect(m.severeSectors).toBe(1);
     expect(m.severeCount.slice(0, 11)).toEqual([0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]);
     expect(m.rows[1].windows).toEqual([{ start: 1, end: 10, reasons: ["fog"] }]);
   });
@@ -45,15 +45,15 @@ describe("buildDailyStrip", () => {
   it("has a column per date, gaps where nothing is stored", () => {
     const m = buildDailyStrip(sectors, [...day(1, "2026-10-11"), ...day(2, "2026-10-11", fog)], dates);
     expect(m.dates).toEqual(["2026-10-10", "2026-10-11", "2026-10-12"]);
-    expect(m.rows[1].cells.map((c) => c.summary?.rating ?? null)).toEqual([null, "POOR", null]);
-    expect(m.poorCount).toEqual([0, 1, 0]);
+    expect(m.rows[1].cells.map((c) => c.summary?.rating ?? null)).toEqual([null, "severe", null]);
+    expect(m.severeCount).toEqual([0, 1, 0]);
     expect(m.hasData).toBe(true);
   });
 
   it("summarises a day: hours, reasons, windows, extremes", () => {
     const s = summariseDay(day(2, "2026-10-11", fog, 20))!;
     expect(s).toMatchObject({
-      rating: "POOR", hours: 24, forecastHours: 4, severeHours: 9, limitedHours: 9,
+      rating: "severe", hours: 24, forecastHours: 4, severeHours: 9, limitedHours: 9,
       reasons: ["fog"], windows: [{ start: 1, end: 10, reasons: ["fog"] }],
       precip: 0, tMin: 9, tMax: 10, gustMax: 6, visMin: 40,
     });
@@ -70,7 +70,7 @@ describe("descriptors", () => {
     const d = hourCellDescriptor("Pokrovsk", "2026-10-11", hourly.rows[1].cells[7], colors);
     expect(d.header).toBe("Pokrovsk · 2026-10-11 07:00 (forecast)");
     expect(d.rows.map((r) => [r.label, r.value])).toEqual([
-      ["Drones", "severely limited — fog"],
+      ["Drones", "severe — fog"],
       ["Temperature", "9 °C"],
       ["Precipitation", "0.0 mm"],
       ["Wind / gusts", "3 / 6 m/s"],
@@ -81,10 +81,10 @@ describe("descriptors", () => {
 
   it("an hour column: every direction, for the sheet", () => {
     const d = hourColumnDescriptor(hourly, "2026-10-11", 4, colors);
-    expect(d.header).toBe("2026-10-11 04:00 · drones severely limited at 1 of 2 directions");
+    expect(d.header).toBe("2026-10-11 04:00 · severe for drones at 1 of 2 directions");
     expect(d.rows.map((r) => [r.label, r.value, r.extra?.[0]])).toEqual([
       ["Kupiansk", "ok", ""],
-      ["Pokrovsk", "severely limited", "fog"],
+      ["Pokrovsk", "severe", "fog"],
     ]);
   });
 
@@ -93,8 +93,8 @@ describe("descriptors", () => {
     expect(cell.header).toBe("Pokrovsk · Sun 2026-10-11");
     expect(cell.rows.find((r) => r.label === "Drone-denied")?.value).toBe("01–10h fog");
     const col = dayColumnDescriptor(daily, 0, colors);
-    expect(col.header).toBe("Sun 2026-10-11 · drones POOR at 1 of 2 directions");
-    expect(col.rows.map((r) => [r.label, r.value])).toEqual([["Kupiansk", "GOOD"], ["Pokrovsk", "POOR"]]);
+    expect(col.header).toBe("Sun 2026-10-11 · a severe day for drones at 1 of 2 directions");
+    expect(col.rows.map((r) => [r.label, r.value])).toEqual([["Kupiansk", "ok"], ["Pokrovsk", "severe"]]);
   });
 
   it("says when there is no data", () => {

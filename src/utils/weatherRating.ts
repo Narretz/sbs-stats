@@ -79,16 +79,18 @@ export function droneHour(h: WeatherHour): HourRating {
   return { level, reasons };
 }
 
-export type DayRating = "GOOD" | "MARGINAL" | "POOR";
+// One scale for hours and days alike — ok / limited / severe — so the strips,
+// tooltips and CLI share three words. A day takes it from counting its hours.
+export type DayRating = "ok" | "limited" | "severe";
 
-/** POOR with ≥ day_poor_hours severe hours, MARGINAL with ≥ day_marginal_hours
- *  degraded-or-worse ones. */
+/** severe with ≥ day_severe_hours severe hours, limited with
+ *  ≥ day_limited_hours limited-or-worse ones, ok otherwise. */
 export function droneDay(levels: Level[]): DayRating {
   const severe = levels.filter((l) => l === SEVERE).length;
   const limited = levels.filter((l) => l >= DEGRADED).length;
-  if (severe >= D.day_poor_hours) return "POOR";
-  if (limited >= D.day_marginal_hours) return "MARGINAL";
-  return "GOOD";
+  if (severe >= D.day_severe_hours) return "severe";
+  if (limited >= D.day_limited_hours) return "limited";
+  return "ok";
 }
 
 export interface CoverWindow {

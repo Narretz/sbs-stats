@@ -111,12 +111,14 @@ thumb and deliberately easy to change.
 
 - **Drones** (CLI `DRONES`, the strip's cells): small multirotor, FPV and
   light fixed-wing UAVs, judged hour by hour.
-  - Each hour is graded `ok`, `degraded` or `severe` on wind and gusts, rain,
-    snow, fog or mist, thunderstorms, icing and deep cold.
+  - **One scale for hours and days: `ok` / `limited` / `severe`.** Each hour
+    is graded on wind and gusts, rain, snow, fog or mist, thunderstorms, icing
+    and deep cold.
   - Icing needs liquid water: near-freezing drizzle, rain or fog, not dry
     snow.
-  - The day is **POOR** with ≥6 severe hours, **MARGINAL** with ≥6 hours that
-    are degraded or worse, and **GOOD** otherwise.
+  - A day takes the same three words from counting its hours: **severe**
+    with ≥6 severe hours, **limited** with ≥6 hours limited or worse, **ok**
+    otherwise. The CLI prints them as OK / LIMITED / SEVERE.
   - Larger fixed-wing UAVs (Orlan, Lancet, long-range one-way drones) tolerate
     more of all of this.
 - **Ground** (CLI only): off-road going plus troop exposure, judged per day.
@@ -129,7 +131,7 @@ thumb and deliberately easy to change.
   This is the interaction that matters at today's front: weather that grounds
   drones is weather in which infantry can move with less observation. A
   bad-weather day may therefore be a *busier* one on the ground.
-- **`*` (CLI bad-weather day)**: drones POOR, or mud, or extreme cold.
+- **`*` (CLI bad-weather day)**: a severe drone day, or mud, or extreme cold.
 
 ## The strips
 
@@ -140,18 +142,18 @@ strip isn't mounted, so `weather.app.db` (~4 MB) is never fetched.
 
 - **Hourly** (`WeatherStripHourly`): the viewed day, which is the picked end
   date or today. One row per direction, 24 hour cells coloured by how limited
-  small drones were (ok / limited / severely limited). Forecast hours are
-  faded. The last column is each direction's day rating.
+  small drones were (ok / limited / severe). Forecast hours are faded. The
+  last column is each direction's rating for the day as a whole.
 - **Daily** (`WeatherStripDaily`): the page's window, one column per day.
-  Each cell is that direction's day rating (GOOD / MARGINAL / POOR), and a day
-  with forecast hours in it is faded. The last column is how many POOR days the
-  direction had in the window.
-- **The count row** above the grid (`Σ severe` hourly, `Σ POOR` daily) says,
-  per column, how many directions were severely limited in that hour or had a
-  POOR day. It's the line to read against the charts below: "how much of the
+  Each cell is that direction's day rating on the same scale, and a day with
+  forecast hours in it is faded. The last column is the direction's severe
+  days out of the window's days, e.g. `4/30`.
+- **The count row** above the grid (`Σ severe` on both) says, per column, how
+  many directions were severe for drones in that hour, or had a severe day. It's the line to read against the charts below: "how much of the
   front could fly".
 - **Tooltip and sheet:** the charts' own. Hovering a cell (mouse or pen)
-  shows the floating card for that one direction. Clicking pins the column
+  shows the floating card for that one direction, measured and placed where
+  it fits rather than squeezed against the viewport's edge. Clicking pins the column
   and opens the sheet with every direction, and the sheet's stepper walks the
   hours or the days. On a daily page whose site has an hourly view, the sheet
   links to that day "By hour".

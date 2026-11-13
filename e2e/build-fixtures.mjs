@@ -507,7 +507,7 @@ function buildCitCivilians(SQL) {
 // Built like CI builds weather.app.db: rows into the authoritative schema, then
 // scripts/weather/app_db.sql — so the app copy's SQL is exercised too. Two
 // sectors. On WEATHER_DAY (settled) Pokrovsk is fogged in for the six hours
-// FOG_HOURS — a POOR day — and Kupiansk is clear. Today runs to 11:00 as
+// FOG_HOURS — a severe day — and Kupiansk is clear. Today runs to 11:00 as
 // hindcast, the rest is forecast. WEATHER_EMPTY_DAY has no rows at all.
 export const WEATHER_DAY = dayISO(-2);
 export const WEATHER_EMPTY_DAY = dayISO(-6);

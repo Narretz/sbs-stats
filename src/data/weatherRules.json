@@ -18,8 +18,8 @@
     "fog_codes": [45, 48],
     "freezing_codes": [56, 57, 66, 67],
     "thunder_codes": [95, 96, 99],
-    "day_poor_hours": 6,
-    "day_marginal_hours": 6,
+    "day_severe_hours": 6,
+    "day_limited_hours": 6,
     "cover_min_hours": 2,
     "cover_max_gap": 1
   },

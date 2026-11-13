@@ -32,7 +32,8 @@ export interface HourlyStrip {
   /** Per hour, how many directions were severely limited. */
   severeCount: number[];
   hasData: boolean;
-  poorSectors: number;
+  /** Directions whose day was severe. */
+  severeSectors: number;
 }
 
 function bySectorHour(cells: Cell[]): Map<number, Map<number, Cell>> {
@@ -69,7 +70,7 @@ export function buildHourlyStrip(sectors: StripSector[], cells: Cell[]): HourlyS
     rows,
     severeCount,
     hasData: rows.some((r) => r.day !== null),
-    poorSectors: rows.filter((r) => r.day === "POOR").length,
+    severeSectors: rows.filter((r) => r.day === "severe").length,
   };
 }
 
@@ -100,8 +101,8 @@ export interface DailyRow { sector: StripSector; cells: DayCell[] }
 export interface DailyStrip {
   dates: string[];
   rows: DailyRow[];
-  /** Per date, how many directions had a POOR drone day. */
-  poorCount: number[];
+  /** Per date, how many directions had a severe day for drones. */
+  severeCount: number[];
   hasData: boolean;
 }
 
@@ -142,21 +143,21 @@ export function buildDailyStrip(sectors: StripSector[], cells: Cell[], dates: st
     if (!byKey.has(k)) byKey.set(k, []);
     byKey.get(k)!.push(c);
   }
-  const poorCount = Array<number>(dates.length).fill(0);
+  const severeCount = Array<number>(dates.length).fill(0);
   const rows = sectors.map((sector) => ({
     sector,
     cells: dates.map((date, i) => {
       const summary = summariseDay(byKey.get(`${sector.id}|${date}`) ?? []);
-      if (summary?.rating === "POOR") poorCount[i]++;
+      if (summary?.rating === "severe") severeCount[i]++;
       return { date, summary };
     }),
   }));
-  return { dates, rows, poorCount, hasData: rows.some((r) => r.cells.some((c) => c.summary)) };
+  return { dates, rows, severeCount, hasData: rows.some((r) => r.cells.some((c) => c.summary)) };
 }
 
 /** A day rating on the strip's three-step colour scale. */
 export function dayLevel(rating: DayRating): Level {
-  return rating === "POOR" ? SEVERE : rating === "MARGINAL" ? DEGRADED : OK;
+  return rating === "severe" ? SEVERE : rating === "limited" ? DEGRADED : OK;
 }
 
 /** YYYY-MM-DD for every day from `start` to `end`, inclusive. */

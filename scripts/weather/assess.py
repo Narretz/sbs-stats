@@ -12,7 +12,7 @@ Three readings per sector-day:
   drones   small multirotor / FPV / light fixed-wing. Wind, precipitation,
            fog, icing and deep cold, judged hour by hour. Larger fixed-wing
            (Orlan, Lancet, long-range one-way UAVs) tolerate more of all of
-           it, so a POOR day thins the sky rather than empties it.
+           it, so a severe day thins the sky rather than empties it.
   ground   off-road trafficability (mud season) and cold/heat exposure,
            judged per day — soil does not change hour to hour.
   cover    the interaction that matters most at the front now: hours when
@@ -70,11 +70,12 @@ FOG_CODES = set(_D["fog_codes"])
 FREEZING_CODES = set(_D["freezing_codes"])
 THUNDER_CODES = set(_D["thunder_codes"])
 
-# A day is POOR for drones with this many SEVERE hours, MARGINAL with this
-# many DEGRADED-or-worse hours. Six hours ≈ a quarter of the day: long enough
+# One scale for hours and days alike: ok / limited / severe. A day is severe
+# for drones with this many severe hours, limited with this many limited-or-
+# worse hours. Six hours ≈ a quarter of the day: long enough
 # to plan an operation around, not just wait out.
-DAY_POOR_HOURS = _D["day_poor_hours"]
-DAY_MARGINAL_HOURS = _D["day_marginal_hours"]
+DAY_SEVERE_HOURS = _D["day_severe_hours"]
+DAY_LIMITED_HOURS = _D["day_limited_hours"]
 # A drone-limited run has to last this long to count as a window for movement,
 # and a lull this short inside one doesn't break it (gusts come and go).
 COVER_MIN_HOURS = _D["cover_min_hours"]
@@ -95,7 +96,7 @@ EXPOSURE_COLD = _G["exposure_cold"]       # °C apparent (wind chill)
 EXPOSURE_EXTREME = _G["exposure_extreme"]
 EXPOSURE_HEAT = _G["exposure_heat"]
 
-LEVEL_NAME = {OK: "ok", DEGRADED: "degraded", SEVERE: "severe"}
+LEVEL_NAME = {OK: "ok", DEGRADED: "limited", SEVERE: "severe"}
 
 
 def _v(h: dict, key: str) -> float | None:
@@ -225,16 +226,16 @@ class DaySummary:
 
     @property
     def drone_rating(self) -> str:
-        if self.drone_severe_hours >= DAY_POOR_HOURS:
-            return "POOR"
-        if self.drone_severe_hours + self.drone_degraded_hours >= DAY_MARGINAL_HOURS:
-            return "MARGINAL"
-        return "GOOD"
+        if self.drone_severe_hours >= DAY_SEVERE_HOURS:
+            return "severe"
+        if self.drone_severe_hours + self.drone_degraded_hours >= DAY_LIMITED_HOURS:
+            return "limited"
+        return "ok"
 
     @property
     def bad(self) -> bool:
         """The headline question: is this a bad-weather day at this sector?"""
-        return (self.drone_rating == "POOR" or self.going_level == SEVERE
+        return (self.drone_rating == "severe" or self.going_level == SEVERE
                 or self.exposure_level == SEVERE)
 
     def to_dict(self) -> dict:

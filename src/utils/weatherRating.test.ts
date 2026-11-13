@@ -19,14 +19,14 @@ describe("droneDay", () => {
   const day = (severe: number, degraded: number): Level[] =>
     [...Array(severe).fill(SEVERE), ...Array(degraded).fill(DEGRADED), ...Array(24 - severe - degraded).fill(OK)];
 
-  it("is POOR from six severe hours", () => {
-    expect(droneDay(day(6, 0))).toBe("POOR");
-    expect(droneDay(day(5, 0))).toBe("GOOD");
+  it("is severe from six severe hours", () => {
+    expect(droneDay(day(6, 0))).toBe("severe");
+    expect(droneDay(day(5, 0))).toBe("ok");
   });
-  it("is MARGINAL from six limited hours, severe counting too", () => {
-    expect(droneDay(day(5, 1))).toBe("MARGINAL");
-    expect(droneDay(day(0, 6))).toBe("MARGINAL");
-    expect(droneDay(day(0, 5))).toBe("GOOD");
+  it("is limited from six limited hours, severe counting too", () => {
+    expect(droneDay(day(5, 1))).toBe("limited");
+    expect(droneDay(day(0, 6))).toBe("limited");
+    expect(droneDay(day(0, 5))).toBe("ok");
   });
 });
 

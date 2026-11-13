@@ -94,11 +94,11 @@ def test_exposure():
 D = date(2026, 10, 10)
 
 
-def test_day_with_morning_fog_is_poor_with_a_cover_window():
+def test_day_with_morning_fog_is_severe_with_a_cover_window():
     fog = lambda t: {"visibility": 300.0, "weather_code": 45} if t.date() == D and 4 <= t.hour < 10 else {}
     s = assess.summarise_day(series(D - timedelta(days=2), 3, fog), D)
     assert s.drone_severe_hours == 6
-    assert s.drone_rating == "POOR"
+    assert s.drone_rating == "severe"
     assert s.fog_hours == 6
     assert [(w.start, w.end, w.reasons) for w in s.cover_windows] == [(4, 10, ["fog"])]
     assert s.bad
@@ -108,7 +108,7 @@ def test_single_severe_hour_is_not_a_window():
     gust = lambda t: {"wind_gusts_10m": 16.0} if t.date() == D and t.hour in (3, 9, 10) else {}
     s = assess.summarise_day(series(D, 1, gust), D)
     assert [(w.start, w.end) for w in s.cover_windows] == [(9, 11)]
-    assert s.drone_rating == "GOOD"
+    assert s.drone_rating == "ok"
 
 
 def test_wet72_reads_back_two_days_and_drives_mud():
@@ -183,7 +183,7 @@ def test_cli_renders_saved_payload(tmp_path, capsys):
     assert report.main(["--input", str(path), "--now", "2026-10-10T14:00", "--json"]) == 0
     data = json.loads(capsys.readouterr().out)
     day = data["sectors"][1]["days"][0]
-    assert day["drones"]["rating"] == "POOR" and day["bad"]
+    assert day["drones"]["rating"] == "severe" and day["bad"]
     assert data["sectors"][0]["gsua"] == ["N-Slobozhanshchyna", "Kursk"]
 
 
@@ -228,9 +228,9 @@ def test_real_open_meteo_response(capsys):
     today, tomorrow = data["Pokrovsk"]["days"]
     assert today["hindcast_hours"] == 20   # 00:00–19:00 are before 19:05
     assert tomorrow["hindcast_hours"] == 0
-    assert tomorrow["drones"]["rating"] == "POOR"
+    assert tomorrow["drones"]["rating"] == "severe"
     assert tomorrow["drones"]["reasons"]["fog"] >= 6
-    assert data["Orikhiv"]["days"][1]["drones"]["rating"] == "GOOD"
+    assert data["Orikhiv"]["days"][1]["drones"]["rating"] == "ok"
 
 
 @pytest.mark.parametrize("when,days,past,want", [

@@ -57,15 +57,15 @@ test.describe("weather strip", () => {
   test("hourly: each direction's hours for the viewed day", async ({ page }) => {
     await page.goto(`/?site=sbs&page=hourly&days=7&date=${WEATHER_DAY}`);
     await expect(strip(page).getByRole("grid")).toBeVisible();
-    await expect(strip(page)).toContainText(`${WEATHER_DAY} · drones POOR at 1 of 2 directions`);
+    await expect(strip(page)).toContainText(`${WEATHER_DAY} · a severe day for drones at 1 of 2 directions`);
 
     const fogged = row(page, "Pokrovsk").getByRole("gridcell");
     await expect(fogged).toHaveCount(24);
     for (let h = 0; h < 24; h++) {
       await expect(fogged.nth(h)).toHaveAttribute("data-level", FOG_HOURS.includes(h) ? "2" : "0");
     }
-    await expect(row(page, "Pokrovsk").getByTestId("weather-tail")).toHaveText("POOR");
-    await expect(row(page, "Kupiansk").getByTestId("weather-tail")).toHaveText("GOOD");
+    await expect(row(page, "Pokrovsk").getByTestId("weather-tail")).toHaveText("severe");
+    await expect(row(page, "Kupiansk").getByTestId("weather-tail")).toHaveText("ok");
 
     // The count row: directions severely limited per hour.
     const counts = strip(page).getByTestId("weather-count");
@@ -82,10 +82,10 @@ test.describe("weather strip", () => {
     const cell = row(page, "Pokrovsk").getByRole("gridcell").nth(h);
     await cell.hover();
     await expect(page.getByText(`Pokrovsk · ${WEATHER_DAY} 0${h}:00`)).toBeVisible();
-    await expect(page.getByText("severely limited — fog")).toBeVisible();
+    await expect(page.getByText("severe — fog")).toBeVisible();
 
     await cell.click();
-    await expect(sheet(page)).toContainText(`${WEATHER_DAY} 0${h}:00 · drones severely limited at 1 of 2 directions`);
+    await expect(sheet(page)).toContainText(`${WEATHER_DAY} 0${h}:00 · severe for drones at 1 of 2 directions`);
     await expect(sheet(page)).toContainText("Kupiansk");
     await expect(sheet(page)).toContainText("Pokrovsk");
     await expect(page.locator(".chart-sheet-label")).toHaveText(`${WEATHER_DAY} 0${h}:00`);
@@ -116,20 +116,41 @@ test.describe("weather strip", () => {
     const fogged = row(page, "Pokrovsk").getByRole("gridcell");
     await expect(fogged).toHaveCount(7);
     // Columns run oldest to newest, ending today: WEATHER_DAY is today − 2.
-    await expect(fogged.nth(4)).toHaveAttribute("data-level", "2");   // POOR
+    await expect(fogged.nth(4)).toHaveAttribute("data-level", "2");   // a severe day
     await expect(fogged.nth(6)).toHaveAttribute("data-level", "0");   // today, clear
     await expect(fogged.nth(6)).toHaveAttribute("data-forecast", "1");
     await expect(fogged.nth(0)).toHaveAttribute("data-level", "");    // nothing stored
-    await expect(row(page, "Pokrovsk").getByTestId("weather-tail")).toHaveText("1 d");
+    await expect(row(page, "Pokrovsk").getByTestId("weather-tail")).toHaveText("1/7");
 
     await fogged.nth(4).hover();
     await expect(page.getByText(`Pokrovsk · `).first()).toBeVisible();
 
     await fogged.nth(4).click();
-    await expect(sheet(page)).toContainText("drones POOR at 1 of 2 directions");
+    await expect(sheet(page)).toContainText("a severe day for drones at 1 of 2 directions");
     await sheet(page).getByText("By hour").click();
     await expect(page).toHaveURL(new RegExp(`[?&]page=hourly\\b.*date=${WEATHER_DAY}|date=${WEATHER_DAY}.*page=hourly`));
-    await expect(strip(page)).toContainText(`${WEATHER_DAY} · drones POOR at 1 of 2 directions`);
+    await expect(strip(page)).toContainText(`${WEATHER_DAY} · a severe day for drones at 1 of 2 directions`);
+  });
+
+  // Regression: the card was a fixed box at `left: cursor`, only as wide as
+  // the room left before the viewport's edge — towards the right it squeezed,
+  // and its table's label column went to nothing.
+  test("the hover card keeps its width and stays on screen near the right edge", async ({ page }) => {
+    await page.setViewportSize({ width: 560, height: 800 });
+    await page.goto(`/?site=sbs&page=daily&days=30&date=${FIXED_TODAY}`);
+    const cells = row(page, "Pokrovsk").getByRole("gridcell");
+    await expect(cells).toHaveCount(30);
+    for (const i of [0, 15, 26, 29]) {
+      await cells.nth(i).hover();
+      const card = page.locator("[data-weather-hover]");
+      await expect(card).toBeVisible();
+      const box = (await card.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(560);
+      const cut = await card.locator("span").evaluateAll((els) =>
+        els.filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent));
+      expect(cut).toEqual([]);
+    }
   });
 
   test("daily: GSUA, which lays out its own chart grids", async ({ page }) => {

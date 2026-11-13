@@ -87,10 +87,10 @@ def _vis(m: float | None) -> str:
 
 
 def _drones(s: assess.DaySummary) -> str:
-    if s.drone_rating == "GOOD":
-        return "GOOD"
+    if s.drone_rating == "ok":
+        return "OK"
     top = [r for r, _ in s.drone_reasons.most_common(2)]
-    return f"{s.drone_rating} {','.join(top)}"
+    return f"{s.drone_rating.upper()} {','.join(top)}"
 
 
 def _ground(s: assess.DaySummary) -> str:
@@ -116,10 +116,10 @@ def render_day(day: date, rows: list[tuple[Sector, assess.DaySummary]]) -> str:
     split = _split_note(rows[0][1])
     lines.append(f"── {day:%a %Y-%m-%d} · {split}")
     bad = [sec.key for sec, s in rows if s.bad]
-    poor = sum(1 for _, s in rows if s.drone_rating == "POOR")
+    severe = sum(1 for _, s in rows if s.drone_rating == "severe")
     mud = sum(1 for _, s in rows if s.going == "mud")
     lines.append(f"   {len(bad)}/{len(rows)} sectors with bad weather"
-                 f" · drones POOR in {poor} · mud in {mud}")
+                 f" · drones SEVERE in {severe} · mud in {mud}")
     lines.append("")
     lines.append("".join(name.ljust(w) if w else name for name, w in COLUMNS))
     for sec, s in rows:
@@ -169,7 +169,7 @@ def render_hourly(sec: Sector, hourly: list[dict], days: list[date], now: dateti
 
 HEADER = """FRONTLINE WEATHER · Open-Meteo (best-match model mix) · {stamp} Kyiv
 Model data, not station observations. Drone/ground effects are heuristics — see scripts/weather/assess.py.
-* = bad-weather day (drones POOR, mud, or extreme cold). PRECIP mm (* incl. snow) · WIND/GUST m/s · WET72 = rain mm over 72 h
+* = bad-weather day (drones SEVERE, mud, or extreme cold). DRONES: OK / LIMITED / SEVERE (a day: ≥6 severe hours = SEVERE, ≥6 limited = LIMITED). PRECIP mm (* incl. snow) · WIND/GUST m/s · WET72 = rain mm over 72 h
 """
 
 

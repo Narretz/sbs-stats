@@ -13,7 +13,8 @@ export interface DescriptorColors {
   level: (l: Level) => string;
 }
 
-const LEVEL_WORD = ["ok", "limited", "severely limited"] as const;
+// The one scale, for hours and days alike.
+const LEVEL_WORD = ["ok", "limited", "severe"] as const;
 const FOOTER = "Open-Meteo model data, not observations. Small-drone conditions — a heuristic, not a record of flights.";
 
 const fmt = (v: number | null | undefined, digits = 0) => (v == null ? "–" : v.toFixed(digits));
@@ -63,7 +64,7 @@ export function hourColumnDescriptor(strip: HourlyStrip, date: string, hour: num
   const cells = strip.rows.map((r) => r.cells[hour]);
   const forecast = cells.some((x) => x.forecast);
   return {
-    header: `${date} ${hh(hour)}${forecast ? " (forecast)" : ""} · drones severely limited at ${strip.severeCount[hour]} of ${strip.rows.length} directions`,
+    header: `${date} ${hh(hour)}${forecast ? " (forecast)" : ""} · severe for drones at ${strip.severeCount[hour]} of ${strip.rows.length} directions`,
     valueLabel: "Drones",
     extraColumns: ["Why", "°C", "mm", "Wind m/s", "Vis km"],
     rows: strip.rows.map(({ sector, cells }) => {
@@ -120,7 +121,7 @@ export function dayColumnDescriptor(strip: DailyStrip, index: number, c: Descrip
   const date = strip.dates[index];
   const forecast = strip.rows.some((r) => (r.cells[index].summary?.forecastHours ?? 0) > 0);
   return {
-    header: `${weekdayDate(date)}${forecast ? " (partly forecast)" : ""} · drones POOR at ${strip.poorCount[index]} of ${strip.rows.length} directions`,
+    header: `${weekdayDate(date)}${forecast ? " (partly forecast)" : ""} · a severe day for drones at ${strip.severeCount[index]} of ${strip.rows.length} directions`,
     valueLabel: "Drones",
     extraColumns: ["Severe h", "Mainly", "Drone-denied", "mm", "Gust m/s", "Vis km"],
     rows: strip.rows.map(({ sector, cells }) => {

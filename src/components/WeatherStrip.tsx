@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useDatabaseWeather } from "@/hooks/useDatabaseWeather";
 import { useChartPin } from "@/hooks/ChartPinProvider";
@@ -38,6 +38,7 @@ interface GridRow {
   cells: { level: Level | null; faded: boolean }[];
   tail: string;
   tailStrong: boolean;
+  tailTitle?: string;
 }
 
 interface GridProps {
@@ -48,13 +49,15 @@ interface GridProps {
   /** Header of the column at the row ends. */
   tailHeader: string;
   legend: [string, string][];
+  /** How a cell's level is arrived at, after the swatches. */
+  legendNote?: string;
   cellDescriptor: (row: number, col: number) => TooltipDescriptor;
   columnDescriptor: (col: number) => TooltipDescriptor;
   columnLabel: (col: number) => string;
   link?: (col: number) => SheetLink | null;
 }
 
-function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, cellDescriptor, columnDescriptor, columnLabel, link }: GridProps) {
+function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendNote, cellDescriptor, columnDescriptor, columnLabel, link }: GridProps) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
   const keys = useMemo(() => columns.map((x) => x.key), [columns]);
@@ -86,14 +89,9 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, cellDes
     col === pinnedCol ? { outline: `1.5px solid ${t.text}`, outlineOffset: -1 } : {};
 
   const card = hover && !pin.isPinned ? (
-    <div style={{
-      position: "fixed", zIndex: 9999, pointerEvents: "none",
-      left: hover.x + 14, top: hover.y + 14,
-      // Hang it on whichever side of the cursor has room.
-      transform: `translate(${hover.x > window.innerWidth - 320 ? "calc(-100% - 28px)" : "0"}, ${hover.y > window.innerHeight * 0.55 ? "calc(-100% - 28px)" : "0"})`,
-    }}>
+    <FloatingCard x={hover.x} y={hover.y}>
       <DescriptorCard d={hover.row == null ? columnDescriptor(hover.col) : cellDescriptor(hover.row, hover.col)} />
-    </div>
+    </FloatingCard>
   ) : null;
 
   return (
@@ -160,7 +158,7 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, cellDes
                 }}
               />
             ))}
-            <div data-testid="weather-tail" style={{
+            <div data-testid="weather-tail" title={row.tailTitle} style={{
               paddingLeft: 6, whiteSpace: "nowrap",
               color: row.tailStrong ? c.weatherSevere : t.textMuted,
               fontWeight: row.tailStrong ? 700 : 400,
@@ -177,6 +175,7 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, cellDes
             {label}
           </span>
         ))}
+        {legendNote && <span>{legendNote}</span>}
         <span>faded = forecast</span>
         <span>Hover for details, click for every direction. Open-Meteo model data, not observations — a heuristic, not a record of flights.</span>
       </div>
@@ -198,6 +197,53 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, cellDes
     </>
   );
 }
+
+// The hover card, placed by measuring it: beside the cursor where it fits,
+// on the other side where it doesn't, and pushed back inside the viewport
+// when neither side has room. Sized to its content (max-content): a fixed box
+// placed at `left: x` is otherwise only as wide as the space between x and the
+// viewport's edge, so hovering towards the right squeezed the card — and the
+// label column of its table (minmax(0, 1fr)) went first, down to nothing.
+const CARD_GAP = 14;
+const CARD_MARGIN = 8;
+
+function FloatingCard({ x, y, children }: { x: number; y: number; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  // On every move and every new content — the card's size follows what it
+  // shows. Converges in one pass (the size doesn't depend on the position),
+  // and the state update is skipped when nothing moved.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const { width: w, height: h } = el.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth;
+    const vh = document.documentElement.clientHeight;
+    const place = (at: number, size: number, view: number) => {
+      let p = at + CARD_GAP;
+      if (p + size > view - CARD_MARGIN) p = at - CARD_GAP - size;
+      if (p < CARD_MARGIN) p = Math.max(CARD_MARGIN, view - CARD_MARGIN - size);
+      return Math.round(p);
+    };
+    const next = { left: place(x, w, vw), top: place(y, h, vh) };
+    setPos((prev) => (prev && prev.left === next.left && prev.top === next.top ? prev : next));
+  }, [x, y, children]);
+  return (
+    <div ref={ref} data-weather-hover="" style={{
+      position: "fixed", zIndex: 9999, pointerEvents: "none",
+      width: "max-content", maxWidth: `calc(100vw - ${2 * CARD_MARGIN}px)`,
+      left: pos?.left ?? 0, top: pos?.top ?? 0,
+      // Measured before it is shown, so it never paints in the wrong place.
+      visibility: pos ? "visible" : "hidden",
+    }}>
+      {children}
+    </div>
+  );
+}
+
+// One scale, one legend, for hours and days alike.
+const LEGEND = (c: { weatherOk: string; weatherDegraded: string; weatherSevere: string }): [string, string][] =>
+  [["ok", c.weatherOk], ["limited", c.weatherDegraded], ["severe", c.weatherSevere]];
 
 // ── The card shell and the two strips ───────────────────────────────────────
 
@@ -261,16 +307,17 @@ export function WeatherStripHourly({ date }: { date: string }) {
     <StripCard>
       {status ?? (strip && (
         <StripGrid
-          subtitle={`${date} · drones POOR at ${strip.poorSectors} of ${strip.rows.length} directions${asOfText(data!.asOf)}`}
+          subtitle={`${date} · a severe day for drones at ${strip.severeSectors} of ${strip.rows.length} directions${asOfText(data!.asOf)}`}
           columns={columns}
           rows={strip.rows.map((r) => ({
             key: r.sector.key, label: r.sector.key, title: r.sector.near,
             cells: r.cells.map((x) => ({ level: x.rating?.level ?? null, faded: x.forecast })),
-            tail: r.day ?? "–", tailStrong: r.day === "POOR",
+            tail: r.day ?? "–", tailStrong: r.day === "severe",
+            tailTitle: "The day as a whole: severe with ≥6 severe hours, limited with ≥6 limited ones",
           }))}
-          count={{ label: "Σ severe", title: "How many directions had small drones severely limited in this hour", values: strip.severeCount }}
+          count={{ label: "Σ severe", title: "How many directions were severe for drones in this hour", values: strip.severeCount }}
           tailHeader="DAY"
-          legend={[["ok", c.weatherOk], ["limited", c.weatherDegraded], ["severely limited", c.weatherSevere]]}
+          legend={LEGEND(c)}
           cellDescriptor={(r, h) => hourCellDescriptor(strip.rows[r].sector.key, date, strip.rows[r].cells[h], colors)}
           columnDescriptor={(h) => hourColumnDescriptor(strip, date, h, colors)}
           columnLabel={(h) => `${date} ${String(h).padStart(2, "0")}:00`}
@@ -302,22 +349,25 @@ export function WeatherStripDaily({ startDate, endDate }: { startDate: string; e
     <StripCard>
       {status ?? (strip && (
         <StripGrid
-          subtitle={`${startDate} – ${endDate} · ${strip.poorCount.reduce((a, b) => a + b, 0)} direction-days with drones POOR${asOfText(data!.asOf)}`}
+          subtitle={`${startDate} – ${endDate} · ${strip.severeCount.reduce((a, b) => a + b, 0)} severe direction-days for drones${asOfText(data!.asOf)}`}
           columns={columns}
           rows={strip.rows.map((r) => {
-            const poor = r.cells.filter((x) => x.summary?.rating === "POOR").length;
+            const severe = r.cells.filter((x) => x.summary?.rating === "severe").length;
             return {
               key: r.sector.key, label: r.sector.key, title: r.sector.near,
               cells: r.cells.map((x) => ({
                 level: x.summary ? dayLevel(x.summary.rating) : null,
                 faded: (x.summary?.forecastHours ?? 0) > 0,
               })),
-              tail: `${poor} d`, tailStrong: poor > 0,
+              // Severe days out of the window's days.
+              tail: `${severe}/${dates.length}`, tailStrong: severe > 0,
+              tailTitle: `${severe} of ${dates.length} days severe for drones`,
             };
           })}
-          count={{ label: "Σ POOR", title: "How many directions had a POOR day for small drones", values: strip.poorCount }}
-          tailHeader="POOR"
-          legend={[["GOOD", c.weatherOk], ["MARGINAL", c.weatherDegraded], ["POOR", c.weatherSevere]]}
+          count={{ label: "Σ severe", title: "How many directions had a severe day for drones", values: strip.severeCount }}
+          tailHeader="SEVERE"
+          legend={LEGEND(c)}
+          legendNote="A day: severe with ≥6 severe hours, limited with ≥6 limited."
           cellDescriptor={(r, i) => dayCellDescriptor(strip.rows[r].sector.key, strip.rows[r].cells[i], colors)}
           columnDescriptor={(i) => dayColumnDescriptor(strip, i, colors)}
           columnLabel={(i) => weekdayDate(dates[i])}
