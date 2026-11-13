@@ -216,3 +216,17 @@ def test_main_reports_a_failed_fetch(tmp_path, monkeypatch, caplog):
         assert ingest.main(["--db", str(tmp_path / "w.db"), "--now", "2026-11-13T10:30:00"]) == 1
     assert out.read_text() == "changed=false\n"
     assert "after 4 attempts" in caplog.text
+
+
+def test_main_keeps_a_backfill_when_the_live_run_fails(tmp_path, monkeypatch):
+    def live_boom(*a):
+        raise openmeteo.OpenMeteoError("HTTP 502 (after 4 attempts)")
+    monkeypatch.setattr(ingest.run_backfill, "__defaults__", (fake_fetch(), lambda s: None))
+    monkeypatch.setattr(ingest.run_live, "__defaults__", (live_boom,))
+    out = tmp_path / "gh_output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    db = tmp_path / "w.db"
+    assert ingest.main(["--db", str(db), "--backfill-from", "2026-11-01",
+                        "--now", "2026-11-13T10:30:00"]) == 1
+    assert out.read_text() == "changed=true\n"
+    assert sqlite3.connect(db).execute("SELECT COUNT(*) FROM hourly").fetchone()[0] > 0

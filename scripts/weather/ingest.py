@@ -261,16 +261,20 @@ def main(argv: list[str] | None = None) -> int:
     now_utc = (args.now.replace(tzinfo=timezone.utc) if args.now and args.now.tzinfo is None
                else args.now or datetime.now(timezone.utc))
     conn = connect(args.db)
+    changed = False
     try:
         sync_sectors(conn)
-        changed = False
         if args.backfill_from:
             changed |= run_backfill(conn, now_utc, args.backfill_from)
+            conn.commit()
         changed |= run_live(conn, now_utc)
         conn.commit()
     except OpenMeteoError as e:
+        # What was committed before the failure (a backfill's months) is
+        # still worth uploading; the workflow uploads on `changed` even when
+        # this step fails.
         log.error(f"Open-Meteo {e}", extra=ann(title="weather fetch failed"))
-        _emit_changed(False)
+        _emit_changed(changed)
         return 1
     finally:
         conn.close()
