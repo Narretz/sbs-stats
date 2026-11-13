@@ -153,6 +153,23 @@ test.describe("weather strip", () => {
     }
   });
 
+  test("the hover card stays open across the gap between two cells", async ({ page }) => {
+    await page.goto(`/?site=sbs&page=daily&days=7&date=${FIXED_TODAY}`);
+    const cells = row(page, "Pokrovsk").getByRole("gridcell");
+    const a = (await cells.nth(2).boundingBox())!;
+    const b = (await cells.nth(3).boundingBox())!;
+    expect(b.x).toBeGreaterThan(a.x + a.width);   // there is a gap to cross
+    const y = a.y + a.height / 2;
+    await page.mouse.move(a.x + a.width / 2, y);
+    const card = page.locator("[data-weather-hover]");
+    await expect(card).toBeVisible();
+    await page.mouse.move((a.x + a.width + b.x) / 2, y);
+    await expect(card).toBeVisible();
+    // …and it closes off the cells: over the direction's name.
+    await row(page, "Pokrovsk").locator("div").first().hover();
+    await expect(card).toHaveCount(0);
+  });
+
   test("daily: GSUA, which lays out its own chart grids", async ({ page }) => {
     await page.goto(`/?site=ru-attacks-gsua&page=daily&days=7&date=${FIXED_TODAY}`);
     await expect(strip(page).getByRole("grid")).toBeVisible();

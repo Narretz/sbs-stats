@@ -75,7 +75,19 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
   const onPointerMove = useCallback((e: ReactPointerEvent) => {
     if (e.pointerType === "touch") return;
     const el = (e.target as HTMLElement).closest<HTMLElement>("[data-col]");
-    if (!el) { setHover(null); return; }
+    if (!el) {
+      // The gaps between cells belong to the grid itself (its rows are
+      // display: contents, so nothing else is there). Crossing one keeps the
+      // last cell's card, following the pointer, rather than blinking it out
+      // between every two cells. Over anything else — a name, the last
+      // column, the labels — it closes.
+      if (e.target === e.currentTarget) {
+        setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
+      } else {
+        setHover(null);
+      }
+      return;
+    }
     const row = el.dataset.row != null && el.dataset.row !== "" ? Number(el.dataset.row) : null;
     setHover({ row, col: Number(el.dataset.col), x: e.clientX, y: e.clientY });
   }, []);
