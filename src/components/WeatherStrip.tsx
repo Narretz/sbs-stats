@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useDatabaseWeather } from "@/hooks/useDatabaseWeather";
 import { useChartPin } from "@/hooks/ChartPinProvider";
@@ -83,11 +83,12 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
     const el = (e.target as HTMLElement).closest<HTMLElement>("[data-col]");
     if (!el) {
       // The gaps between cells belong to the grid itself (its rows are
-      // display: contents, so nothing else is there). Crossing one keeps the
+      // display: contents, so nothing else is there) — or to the spacer
+      // before a forecast column. Crossing one keeps the
       // last cell's card, following the pointer, rather than blinking it out
       // between every two cells. Over anything else — a name, the last
       // column, the labels — it closes.
-      if (e.target === e.currentTarget) {
+      if (e.target === e.currentTarget || (e.target as HTMLElement).dataset.gap != null) {
         setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
       } else {
         setHover(null);
@@ -103,9 +104,12 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
   }, [pin, keys]);
 
   const pinnedCol = pin.isPinned ? pin.index : -1;
-  // A forecast column stands a little apart: a margin inside its own track,
-  // so the grid's tracks stay one per column.
-  const apart = (col: number): React.CSSProperties => (columns[col].forecast ? { marginLeft: 5 } : {});
+  // A forecast column stands a little apart: a narrow empty track of its own
+  // before it, with an empty spacer in every row to fill it. Not a margin on
+  // the cells — that is taken out of the column's own track, and the forecast
+  // cells came out narrower than the rest.
+  const spacer = (col: number) => (columns[col].forecast ? <div data-gap="" aria-hidden /> : null);
+  const tracks = columns.map((col) => `${col.forecast ? "6px " : ""}minmax(0, 1fr)`).join(" ");
   const ring = (col: number): React.CSSProperties =>
     col === pinnedCol ? { outline: `1.5px solid ${t.text}`, outlineOffset: -1 } : {};
 
@@ -131,22 +135,27 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
           display: "grid",
           // The name column gives way on a phone (ellipsis, full name in the
           // tooltip) so the cells keep a usable width.
-          gridTemplateColumns: `clamp(64px, 22vw, 150px) repeat(${n}, minmax(0, 1fr)) 58px`,
+          gridTemplateColumns: `clamp(64px, 22vw, 150px) ${tracks} 58px`,
           columnGap: gap, rowGap: 2, alignItems: "center", ...mono,
         }}
       >
         <div />
         {columns.map((col, i) => (
-          // Left-aligned on its column and free to overflow into the next.
-          <div key={i} style={{ whiteSpace: "nowrap", overflow: "visible", color: i === pinnedCol ? t.text : undefined, ...apart(i) }}>
-            {col.axis}
-          </div>
+          <Fragment key={i}>
+            {spacer(i)}
+            {/* Left-aligned on its column and free to overflow into the next. */}
+            <div style={{ whiteSpace: "nowrap", overflow: "visible", color: i === pinnedCol ? t.text : undefined }}>
+              {col.axis}
+            </div>
+          </Fragment>
         ))}
         <div style={{ paddingLeft: 6 }}>{tailHeader}</div>
 
         <div title={count.title}>{count.label}</div>
         {count.values.map((k, i) => (
-          <div key={i} data-col={i} data-row="" data-testid="weather-count" style={{
+          <Fragment key={i}>
+          {spacer(i)}
+          <div data-col={i} data-row="" data-testid="weather-count" style={{
             textAlign: "center", borderRadius: 2, height: 14, lineHeight: "14px", cursor: "pointer",
             overflow: "hidden",
             background: k ? c.weatherSevere : "transparent",
@@ -154,8 +163,8 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
             color: k ? "#fff" : t.textFaint,
             ...(columns[i].forecast && k ? { opacity: (0.25 + 0.75 * (k / rows.length)) * FORECAST_OPACITY } : null),
             ...ring(i),
-            ...apart(i),
           }}>{n <= 31 ? (k || "·") : ""}</div>
+          </Fragment>
         ))}
         <div />
 
@@ -165,8 +174,9 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
               {row.label}
             </div>
             {row.cells.map((cell, i) => (
+              <Fragment key={i}>
+              {spacer(i)}
               <div
-                key={i}
                 role="gridcell"
                 data-row={r}
                 data-col={i}
@@ -178,9 +188,9 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
                   border: cell.level != null ? "none" : `1px dashed ${t.chartGrid}`,
                   opacity: cell.faded ? FORECAST_OPACITY : 1,
                   ...ring(i),
-                  ...apart(i),
                 }}
               />
+              </Fragment>
             ))}
             <div data-testid="weather-tail" title={row.tailTitle} style={{
               paddingLeft: 6, whiteSpace: "nowrap", color: t.textMuted,
