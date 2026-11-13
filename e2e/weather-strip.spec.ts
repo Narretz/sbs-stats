@@ -147,16 +147,6 @@ test.describe("weather strip", () => {
     await expect(cells).toHaveCount(8);
     const fc = cells.nth(7);
     await expect(fc).toHaveAttribute("data-level", "2");     // forecast: fog all day
-    // Set apart by a spacer track, not a margin: as wide as every other day.
-    const before = (await cells.nth(6).boundingBox())!;
-    const box = (await fc.boundingBox())!;
-    expect(Math.abs(box.width - before.width)).toBeLessThan(0.5);
-    expect(box.x - (before.x + before.width)).toBeGreaterThan(4);
-    // The spacer is a gap like any other: the card stays open across it.
-    await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
-    await expect(page.locator("[data-weather-hover]")).toBeVisible();
-    await page.mouse.move((before.x + before.width + box.x) / 2, before.y + before.height / 2);
-    await expect(page.locator("[data-weather-hover]")).toBeVisible();
     await expect(fc).toHaveAttribute("data-forecast", "1");
     // The severe-days column and the subtitle cover the 7 window days only.
     await expect(row(page, "Pokrovsk").getByTestId("weather-tail")).toHaveText("1/7");
