@@ -4,13 +4,14 @@ import { useDatabaseWeather } from "@/hooks/useDatabaseWeather";
 import { useChartPin } from "@/hooks/ChartPinProvider";
 import { useDrillDownLink, type SheetLink } from "@/hooks/useDrillDownLink";
 import { chartColors } from "@/chartColors";
+import { getKyivDateString } from "@/hooks/sqlLoader";
 import { FONTS } from "@/theme";
 import { chartAnchor } from "@/utils/chartAnchor";
 import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { ChartSheetContent } from "@/components/ChartSheet";
 import { DescriptorBody, DescriptorCard, type TooltipDescriptor } from "@/components/TooltipTable";
 import { DEGRADED, SEVERE, type Level } from "@/utils/weatherRating";
-import { buildDailyStrip, buildHourlyStrip, datesBetween, dayLevel } from "@/utils/weatherStrip";
+import { buildDailyStrip, buildHourlyStrip, datesBetween, dayLevel, forecastDayAfter } from "@/utils/weatherStrip";
 import {
   dayCellDescriptor, dayColumnDescriptor, hourCellDescriptor, hourColumnDescriptor, weekdayDate,
   type DescriptorColors,
@@ -46,7 +47,9 @@ interface GridRow {
 
 interface GridProps {
   subtitle: ReactNode;
-  columns: { key: string | number; axis: string }[];
+  /** `forecast`: a column that is forecast through and through (the daily
+   *  strip's tomorrow) — set a little apart from the ones before it. */
+  columns: { key: string | number; axis: string; forecast?: boolean }[];
   rows: GridRow[];
   count: { label: string; title: string; values: number[] };
   /** Header of the column at the row ends. */
@@ -100,6 +103,9 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
   }, [pin, keys]);
 
   const pinnedCol = pin.isPinned ? pin.index : -1;
+  // A forecast column stands a little apart: a margin inside its own track,
+  // so the grid's tracks stay one per column.
+  const apart = (col: number): React.CSSProperties => (columns[col].forecast ? { marginLeft: 5 } : {});
   const ring = (col: number): React.CSSProperties =>
     col === pinnedCol ? { outline: `1.5px solid ${t.text}`, outlineOffset: -1 } : {};
 
@@ -132,7 +138,7 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
         <div />
         {columns.map((col, i) => (
           // Left-aligned on its column and free to overflow into the next.
-          <div key={i} style={{ whiteSpace: "nowrap", overflow: "visible", color: i === pinnedCol ? t.text : undefined }}>
+          <div key={i} style={{ whiteSpace: "nowrap", overflow: "visible", color: i === pinnedCol ? t.text : undefined, ...apart(i) }}>
             {col.axis}
           </div>
         ))}
@@ -146,7 +152,9 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
             background: k ? c.weatherSevere : "transparent",
             opacity: k ? 0.25 + 0.75 * (k / rows.length) : 1,
             color: k ? "#fff" : t.textFaint,
+            ...(columns[i].forecast && k ? { opacity: (0.25 + 0.75 * (k / rows.length)) * FORECAST_OPACITY } : null),
             ...ring(i),
+            ...apart(i),
           }}>{n <= 31 ? (k || "·") : ""}</div>
         ))}
         <div />
@@ -170,6 +178,7 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
                   border: cell.level != null ? "none" : `1px dashed ${t.chartGrid}`,
                   opacity: cell.faded ? FORECAST_OPACITY : 1,
                   ...ring(i),
+                  ...apart(i),
                 }}
               />
             ))}
@@ -350,34 +359,54 @@ export function WeatherStripDaily({ startDate, endDate }: { startDate: string; e
   const colors = useDescriptorColors();
   const drillDown = useDrillDownLink();
   const { loadState, error, queryRange } = useDatabaseWeather();
+  // A window ending today gets tomorrow as one extra column: the forecast the
+  // hourly runs store to the end of tomorrow. Shown, never counted — the
+  // severe-days column and the subtitle cover the window's own days.
+  const extraDay = forecastDayAfter(endDate, getKyivDateString());
   const data = useMemo(
-    () => (loadState === "ready" ? queryRange(startDate, endDate) : null),
-    [loadState, queryRange, startDate, endDate],
+    () => (loadState === "ready" ? queryRange(startDate, extraDay ?? endDate) : null),
+    [loadState, queryRange, startDate, endDate, extraDay],
   );
-  const dates = useMemo(() => datesBetween(startDate, endDate), [startDate, endDate]);
-  const strip = useMemo(() => (data ? buildDailyStrip(data.sectors, data.cells, dates) : null), [data, dates]);
+  const windowDates = useMemo(() => datesBetween(startDate, endDate), [startDate, endDate]);
+  const nWindow = windowDates.length;
+  const strip = useMemo(() => {
+    if (!data) return null;
+    const all = extraDay ? [...windowDates, extraDay] : windowDates;
+    const s = buildDailyStrip(data.sectors, data.cells, all);
+    // Only with a forecast to show — the extra column for a DB that has none
+    // (a stale copy, a missed run) would be a column of gaps.
+    if (all.length === nWindow || s.rows.some((r) => r.cells[nWindow].summary)) return s;
+    return {
+      ...s,
+      dates: windowDates,
+      rows: s.rows.map((r) => ({ ...r, cells: r.cells.slice(0, nWindow) })),
+      severeCount: s.severeCount.slice(0, nWindow),
+    };
+  }, [data, windowDates, extraDay, nWindow]);
   const status = useStatusLine(error, !!strip, !!strip?.hasData, `No weather data for ${startDate} – ${endDate}.`);
   // About seven labels across, whatever the window.
-  const every = Math.max(1, Math.ceil(dates.length / 7));
-  const columns = useMemo(() => dates.map((d, i) => ({ key: d, axis: i % every === 0 ? d.slice(5) : "" })), [dates, every]);
+  const every = Math.max(1, Math.ceil(nWindow / 7));
+  const columns = useMemo(() => (strip?.dates ?? []).map((d, i) => i < nWindow
+    ? { key: d, axis: i % every === 0 ? d.slice(5) : "" }
+    : { key: d, axis: "fcst", forecast: true }), [strip, nWindow, every]);
 
   return (
     <StripCard>
       {status ?? (strip && (
         <StripGrid
-          subtitle={`${startDate} – ${endDate} · ${strip.severeCount.reduce((a, b) => a + b, 0)} severe direction-days for drones${asOfText(data!.asOf)}`}
+          subtitle={`${startDate} – ${endDate} · ${strip.severeCount.slice(0, nWindow).reduce((a, b) => a + b, 0)} severe direction-days for drones${strip.dates.length > nWindow ? " · fcst = tomorrow's forecast, not counted" : ""}${asOfText(data!.asOf)}`}
           columns={columns}
           rows={strip.rows.map((r) => {
-            const severe = r.cells.filter((x) => x.summary?.rating === "severe").length;
+            const severe = r.cells.slice(0, nWindow).filter((x) => x.summary?.rating === "severe").length;
             return {
               key: r.sector.key, label: r.sector.key, title: r.sector.near,
               cells: r.cells.map((x) => ({
                 level: x.summary ? dayLevel(x.summary.rating) : null,
                 faded: (x.summary?.forecastHours ?? 0) > 0,
               })),
-              // Severe days out of the window's days.
-              tail: String(severe), tailSuffix: `/${dates.length}`, tailStrong: severe > 0,
-              tailTitle: `${severe} of ${dates.length} days severe for drones`,
+              // Severe days out of the window's days — the forecast day left out.
+              tail: String(severe), tailSuffix: `/${nWindow}`, tailStrong: severe > 0,
+              tailTitle: `${severe} of ${nWindow} days severe for drones`,
             };
           })}
           count={{ label: "Σ severe", title: "How many directions had a severe day for drones", values: strip.severeCount }}
@@ -386,9 +415,10 @@ export function WeatherStripDaily({ startDate, endDate }: { startDate: string; e
           legendNote="A day: severe with ≥6 severe hours, limited with ≥6 limited."
           cellDescriptor={(r, i) => dayCellDescriptor(strip.rows[r].sector.key, strip.rows[r].cells[i], colors)}
           columnDescriptor={(i) => dayColumnDescriptor(strip, i, colors)}
-          columnLabel={(i) => weekdayDate(dates[i])}
-          // The same strip, hour by hour, on the site's hourly page where it has one.
-          link={drillDown ? (i) => drillDown(dates[i], ANCHOR) : undefined}
+          columnLabel={(i) => `${weekdayDate(strip.dates[i])}${i >= nWindow ? " (forecast)" : ""}`}
+          // The same strip, hour by hour, on the site's hourly page where it
+          // has one — which stops at today, so not for the forecast day.
+          link={drillDown ? (i) => (i < nWindow ? drillDown(strip.dates[i], ANCHOR) : null) : undefined}
         />
       ))}
     </StripCard>

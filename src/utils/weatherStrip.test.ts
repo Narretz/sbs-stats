@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDailyStrip, buildHourlyStrip, datesBetween, summariseDay } from "@/utils/weatherStrip";
+import { buildDailyStrip, buildHourlyStrip, datesBetween, forecastDayAfter, summariseDay } from "@/utils/weatherStrip";
 import {
   dayCellDescriptor, dayColumnDescriptor, hourCellDescriptor, hourColumnDescriptor, type DescriptorColors,
 } from "@/utils/weatherDescriptors";
@@ -58,6 +58,14 @@ describe("buildDailyStrip", () => {
       precip: 0, tMin: 9, tMax: 10, gustMax: 6, visMin: 40,
     });
     expect(summariseDay([])).toBeNull();
+  });
+});
+
+describe("forecastDayAfter", () => {
+  it("is tomorrow only for a window ending today", () => {
+    expect(forecastDayAfter("2026-11-13", "2026-11-13")).toBe("2026-11-14");
+    expect(forecastDayAfter("2026-12-31", "2026-12-31")).toBe("2027-01-01");
+    expect(forecastDayAfter("2026-11-12", "2026-11-13")).toBeNull();
   });
 });
 

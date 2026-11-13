@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { FIXED_TODAY, FOG_HOURS, WEATHER_DAY, WEATHER_EMPTY_DAY } from "./build-fixtures.mjs";
+import { FIXED_TODAY, FOG_HOURS, WEATHER_DAY, WEATHER_EMPTY_DAY, WEATHER_FORECAST_DAY } from "./build-fixtures.mjs";
 
 // The front-line weather strip: a card above the charts on the hourly and
 // daily pages, behind a "Front-line weather" checkbox under Show more. What has
@@ -114,7 +114,8 @@ test.describe("weather strip", () => {
     await page.goto(`/?site=sbs&page=daily&days=7&date=${FIXED_TODAY}`);
     await expect(strip(page).getByRole("grid")).toBeVisible();
     const fogged = row(page, "Pokrovsk").getByRole("gridcell");
-    await expect(fogged).toHaveCount(7);
+    // The window's 7 days, then tomorrow's forecast.
+    await expect(fogged).toHaveCount(8);
     // Columns run oldest to newest, ending today: WEATHER_DAY is today − 2.
     await expect(fogged.nth(4)).toHaveAttribute("data-level", "2");   // a severe day
     await expect(fogged.nth(6)).toHaveAttribute("data-level", "0");   // today, clear
@@ -140,12 +141,36 @@ test.describe("weather strip", () => {
   // Regression: the card was a fixed box at `left: cursor`, only as wide as
   // the room left before the viewport's edge — towards the right it squeezed,
   // and its table's label column went to nothing.
+  test("daily: tomorrow's forecast is shown after the window, and not counted", async ({ page }) => {
+    await page.goto(`/?site=sbs&page=daily&days=7&date=${FIXED_TODAY}`);
+    const cells = row(page, "Pokrovsk").getByRole("gridcell");
+    await expect(cells).toHaveCount(8);
+    const fc = cells.nth(7);
+    await expect(fc).toHaveAttribute("data-level", "2");     // forecast: fog all day
+    await expect(fc).toHaveAttribute("data-forecast", "1");
+    // The severe-days column and the subtitle cover the 7 window days only.
+    await expect(row(page, "Pokrovsk").getByTestId("weather-tail")).toHaveText("1/7");
+    await expect(strip(page)).toContainText("1 severe direction-days for drones");
+    await expect(strip(page)).toContainText("fcst");
+
+    await fc.click();
+    await expect(page.locator(".chart-sheet-label")).toContainText(`${WEATHER_FORECAST_DAY} (forecast)`);
+    await expect(sheet(page)).toContainText("(forecast) · a severe day for drones at 1 of 2 directions");
+    await expect(sheet(page).getByText("By hour")).toHaveCount(0);   // the hourly page stops at today
+  });
+
+  test("daily: a window ending before today has no forecast column", async ({ page }) => {
+    await page.goto(`/?site=sbs&page=daily&days=7&date=${WEATHER_DAY}`);
+    await expect(row(page, "Pokrovsk").getByRole("gridcell")).toHaveCount(7);
+    await expect(strip(page)).not.toContainText("fcst");
+  });
+
   test("the hover card keeps its width and stays on screen near the right edge", async ({ page }) => {
     await page.setViewportSize({ width: 560, height: 800 });
     await page.goto(`/?site=sbs&page=daily&days=30&date=${FIXED_TODAY}`);
     const cells = row(page, "Pokrovsk").getByRole("gridcell");
-    await expect(cells).toHaveCount(30);
-    for (const i of [0, 15, 26, 29]) {
+    await expect(cells).toHaveCount(31);   // 30 days + tomorrow's forecast
+    for (const i of [0, 15, 26, 30]) {
       await cells.nth(i).hover();
       const card = page.locator("[data-weather-hover]");
       await expect(card).toBeVisible();

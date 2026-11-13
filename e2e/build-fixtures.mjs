@@ -508,9 +508,13 @@ function buildCitCivilians(SQL) {
 // scripts/weather/app_db.sql — so the app copy's SQL is exercised too. Two
 // sectors. On WEATHER_DAY (settled) Pokrovsk is fogged in for the six hours
 // FOG_HOURS — a severe day — and Kupiansk is clear. Today runs to 11:00 as
-// hindcast, the rest is forecast. WEATHER_EMPTY_DAY has no rows at all.
+// hindcast, the rest is forecast; tomorrow is forecast too (see
+// WEATHER_FORECAST_DAY). WEATHER_EMPTY_DAY has no rows at all.
 export const WEATHER_DAY = dayISO(-2);
 export const WEATHER_EMPTY_DAY = dayISO(-6);
+// Tomorrow, forecast only: Pokrovsk fogged in all day — a severe day the
+// daily strip shows as its forecast column but must not count.
+export const WEATHER_FORECAST_DAY = dayISO(1);
 export const FOG_HOURS = [3, 4, 5, 6, 7, 8];
 const WEATHER_COLS = [
   "temperature_2m", "apparent_temperature", "precipitation", "snowfall", "weather_code",
@@ -539,6 +543,9 @@ function buildWeather(SQL) {
       insH.run([sector, `${WEATHER_DAY}T${hh(h)}:00`, ...v, fetchedAt, 1]);
       if (h < 12) insH.run([sector, `${FIXED_TODAY}T${hh(h)}:00`, ...CALM_WEATHER, fetchedAt, 0]);
       else insF.run([sector, `${FIXED_TODAY}T${hh(h)}:00`, ...CALM_WEATHER, fetchedAt]);
+      const fc = [...CALM_WEATHER];
+      if (sector === "Pokrovsk") { fc[4] = 45; fc[5] = 300; }
+      insF.run([sector, `${WEATHER_FORECAST_DAY}T${hh(h)}:00`, ...fc, fetchedAt]);
     }
   }
   insH.free();

@@ -122,9 +122,12 @@ export function dayCellDescriptor(sectorKey: string, cell: DayCell, c: Descripto
 /** Sheet: every direction on one day. */
 export function dayColumnDescriptor(strip: DailyStrip, index: number, c: DescriptorColors): TooltipDescriptor {
   const date = strip.dates[index];
-  const forecast = strip.rows.some((r) => (r.cells[index].summary?.forecastHours ?? 0) > 0);
+  const days = strip.rows.map((r) => r.cells[index].summary).filter((s) => s != null);
+  const forecast = days.some((s) => s.forecastHours > 0);
+  // The daily strip's extra column is tomorrow: every hour of it forecast.
+  const allForecast = days.length > 0 && days.every((s) => s.forecastHours === s.hours);
   return {
-    header: `${weekdayDate(date)}${forecast ? " (partly forecast)" : ""} · a severe day for drones at ${strip.severeCount[index]} of ${strip.rows.length} directions`,
+    header: `${weekdayDate(date)}${allForecast ? " (forecast)" : forecast ? " (partly forecast)" : ""} · a severe day for drones at ${strip.severeCount[index]} of ${strip.rows.length} directions`,
     valueLabel: "Drones",
     extraColumns: ["Severe h", "Mainly", "Drone-denied", "mm", "Gust m/s", "Vis km"],
     rows: strip.rows.map(({ sector, cells }) => {

@@ -171,3 +171,13 @@ export function datesBetween(start: string, end: string): string[] {
   }
   return out;
 }
+
+/** The forecast day the daily strip adds after its window: tomorrow, when the
+ *  window ends today (Kyiv) — the hourly runs store the forecast to the end of
+ *  tomorrow. Null for a window ending earlier, which has no forecast to show. */
+export function forecastDayAfter(endDate: string, today: string): string | null {
+  if (endDate !== today) return null;
+  const d = new Date(`${today}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}

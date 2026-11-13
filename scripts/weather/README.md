@@ -148,7 +148,11 @@ strip isn't mounted, so `weather.app.db` (~4 MB) is never fetched.
 - **Daily** (`WeatherStripDaily`): the page's window, one column per day.
   Each cell is that direction's day rating on the same scale, and a day with
   forecast hours in it is faded. The last column is the direction's severe
-  days out of the window's days, e.g. `4/30`.
+  days out of the window's days, e.g. `4/30`. When the window ends today, one
+  more column, **`fcst`**, set a little apart, shows tomorrow from the stored
+  forecast. It is never counted: the `4/30` and the subtitle's total cover the
+  window's own days. It has no "By hour" link, because the hourly page stops at
+  today.
 - **The count row** above the grid (`Σ severe` on both) says, per column, how
   many directions were severe for drones in that hour, or had a severe day. It's the line to read against the charts below: "how much of the
   front could fly".
