@@ -144,7 +144,9 @@ strip isn't mounted, so `weather.app.db` (~4 MB) is never fetched.
 - **Hourly** (`WeatherStripHourly`): the viewed day, which is the picked end
   date or today. One row per direction, 24 hour cells coloured by how limited
   small drones were (ok / limited / severe). Forecast hours are faded. The
-  last column is each direction's rating for the day as a whole.
+  last column is each direction's rating for the day as a whole. Viewing today,
+  one more column, **`fcst`**, follows hour 23: tomorrow as a whole day, rated
+  and described like a day on the daily strip.
 - **Daily** (`WeatherStripDaily`): the page's window, one column per day.
   Each cell is that direction's day rating on the same scale, and a day with
   forecast hours in it is faded. The last column is the direction's severe

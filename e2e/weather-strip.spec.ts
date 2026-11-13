@@ -95,13 +95,24 @@ test.describe("weather strip", () => {
     await expect(page.locator(".chart-sheet-label")).toHaveText(`${WEATHER_DAY} 0${h + 1}:00`);
   });
 
-  test("hourly: today's hours still ahead are forecast", async ({ page }) => {
+  test("hourly: today's hours still ahead are forecast, then tomorrow as one column", async ({ page }) => {
     await page.goto("/?site=sbs&page=hourly&days=7");
     const cells = row(page, "Kupiansk").getByRole("gridcell");
-    await expect(cells).toHaveCount(24);
+    await expect(cells).toHaveCount(25);
     await expect(cells.nth(11)).not.toHaveAttribute("data-forecast", "1");
     await expect(cells.nth(12)).toHaveAttribute("data-forecast", "1");
     await expect(strip(page)).toContainText(FIXED_TODAY);
+
+    // Tomorrow, rated as a day: Pokrovsk is fogged in all day in the fixture.
+    const fc = row(page, "Pokrovsk").getByRole("gridcell").nth(24);
+    await expect(fc).toHaveAttribute("data-level", "2");
+    await fc.click();
+    await expect(page.locator(".chart-sheet-label")).toContainText(`${WEATHER_FORECAST_DAY} (forecast)`);
+  });
+
+  test("hourly: a past day has no forecast column", async ({ page }) => {
+    await page.goto(`/?site=sbs&page=hourly&days=7&date=${WEATHER_DAY}`);
+    await expect(row(page, "Pokrovsk").getByRole("gridcell")).toHaveCount(24);
   });
 
   test("hourly: a day without weather data says so, and keeps the page", async ({ page }) => {
