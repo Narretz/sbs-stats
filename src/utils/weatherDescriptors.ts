@@ -17,7 +17,10 @@ export interface DescriptorColors {
 const LEVEL_WORD = ["ok", "limited", "severe"] as const;
 const FOOTER = "Open-Meteo model data, not observations. Small-drone conditions — a heuristic, not a record of flights.";
 
-const fmt = (v: number | null | undefined, digits = 0) => (v == null ? "–" : v.toFixed(digits));
+// A row with nothing to say keeps its place and says so with a dash: rows that
+// came and went made the card change shape from one cell to the next.
+const EMPTY = "–";
+const fmt = (v: number | null | undefined, digits = 0) => (v == null ? EMPTY : v.toFixed(digits));
 export function fmtVis(m: number | null | undefined): string {
   if (m == null) return "–";
   if (m >= 10_000) return ">10";
@@ -51,7 +54,7 @@ export function hourCellDescriptor(sectorKey: string, date: string, cell: HourCe
       row("Drones", droneText(cell.rating), cell.rating.level === OK ? c.text : c.level(cell.rating.level)),
       row("Temperature", `${fmt(w.temperature_2m)} °C`),
       row("Precipitation", `${fmt(w.precipitation, 1)} mm`),
-      ...(w.snowfall ? [row("Snowfall", `${fmt(w.snowfall, 1)} cm`)] : []),
+      row("Snowfall", `${fmt(w.snowfall, 1)} cm`),
       row("Wind / gusts", `${fmt(w.wind_speed_10m)} / ${fmt(w.wind_gusts_10m)} m/s`),
       row("Visibility", `${fmtVis(w.visibility)} km`),
     ],
@@ -76,7 +79,7 @@ export function hourColumnDescriptor(strip: HourlyStrip, date: string, hour: num
         color: x.rating.level === OK ? c.text : c.level(x.rating.level),
         value: LEVEL_WORD[x.rating.level],
         extra: [
-          x.rating.reasons.map(([, r]) => r).join(", ") || "",
+          x.rating.reasons.map(([, r]) => r).join(", ") || EMPTY,
           fmt(w.temperature_2m),
           fmt(w.precipitation, 1),
           `${fmt(w.wind_speed_10m)}/${fmt(w.wind_gusts_10m)}`,
@@ -103,11 +106,11 @@ export function dayCellDescriptor(sectorKey: string, cell: DayCell, c: Descripto
     rows: [
       row("Drones", s.rating, level === OK ? c.text : c.level(level)),
       row("Severe / limited", `${s.severeHours} h / ${s.limitedHours} h`),
-      ...(s.reasons.length ? [row("Mainly", s.reasons.slice(0, 3).join(", "))] : []),
-      ...(s.windows.length ? [row("Drone-denied", windowsText(s.windows))] : []),
+      row("Mainly", s.reasons.slice(0, 3).join(", ") || EMPTY),
+      row("Drone-denied", windowsText(s.windows) || EMPTY),
       row("Temperature", `${fmt(s.tMin)}…${fmt(s.tMax)} °C`),
       row("Precipitation", `${fmt(s.precip, 1)} mm`),
-      ...(s.snow ? [row("Snowfall", `${fmt(s.snow, 1)} cm`)] : []),
+      row("Snowfall", `${fmt(s.snow, 1)} cm`),
       row("Max gust", `${fmt(s.gustMax)} m/s`),
       row("Min visibility", `${fmtVis(s.visMin)} km`),
     ],
@@ -134,8 +137,8 @@ export function dayColumnDescriptor(strip: DailyStrip, index: number, c: Descrip
         value: s.rating,
         extra: [
           s.severeHours,
-          s.reasons.slice(0, 2).join(", "),
-          windowsText(s.windows),
+          s.reasons.slice(0, 2).join(", ") || EMPTY,
+          windowsText(s.windows) || EMPTY,
           fmt(s.precip, 1),
           fmt(s.gustMax),
           fmtVis(s.visMin),

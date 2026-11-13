@@ -73,6 +73,7 @@ describe("descriptors", () => {
       ["Drones", "severe — fog"],
       ["Temperature", "9 °C"],
       ["Precipitation", "0.0 mm"],
+      ["Snowfall", "0.0 cm"],
       ["Wind / gusts", "3 / 6 m/s"],
       ["Visibility", "<0.1 km"],
     ]);
@@ -83,7 +84,7 @@ describe("descriptors", () => {
     const d = hourColumnDescriptor(hourly, "2026-10-11", 4, colors);
     expect(d.header).toBe("2026-10-11 04:00 · severe for drones at 1 of 2 directions");
     expect(d.rows.map((r) => [r.label, r.value, r.extra?.[0]])).toEqual([
-      ["Kupiansk", "ok", ""],
+      ["Kupiansk", "ok", "–"],
       ["Pokrovsk", "severe", "fog"],
     ]);
   });
@@ -92,6 +93,11 @@ describe("descriptors", () => {
     const cell = dayCellDescriptor("Pokrovsk", daily.rows[1].cells[0], colors);
     expect(cell.header).toBe("Pokrovsk · Sun 2026-10-11");
     expect(cell.rows.find((r) => r.label === "Drone-denied")?.value).toBe("01–10h fog");
+    // A clear day keeps every row, with a dash where there is nothing to say.
+    const clear = dayCellDescriptor("Kupiansk", daily.rows[0].cells[0], colors);
+    expect(clear.rows.map((r) => r.label)).toEqual(cell.rows.map((r) => r.label));
+    expect(clear.rows.find((r) => r.label === "Drone-denied")?.value).toBe("–");
+    expect(clear.rows.find((r) => r.label === "Mainly")?.value).toBe("–");
     const col = dayColumnDescriptor(daily, 0, colors);
     expect(col.header).toBe("Sun 2026-10-11 · a severe day for drones at 1 of 2 directions");
     expect(col.rows.map((r) => [r.label, r.value])).toEqual([["Kupiansk", "ok"], ["Pokrovsk", "severe"]]);
