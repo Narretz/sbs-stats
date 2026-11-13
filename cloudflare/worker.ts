@@ -26,6 +26,13 @@ export function dispatchesFor(scheduledTime: number): Dispatch[] {
   if (minute === 10 && hour === 9) {
     jobs.push({ workflow: "update-ru-losses-db.yml" });
   }
+  // Front-line weather, hourly: the SBS hourly page's strip shows today's
+  // hours as they settle and the forecast for the rest of the day, so a late
+  // or skipped GitHub cron run shows as a stale "today". Kyiv's offset is
+  // whole hours, so :25 Kyiv is :25 UTC.
+  if (minute === 25) {
+    jobs.push({ workflow: "update-weather-db.yml" });
+  }
   return jobs;
 }
 

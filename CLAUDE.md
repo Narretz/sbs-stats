@@ -150,6 +150,10 @@ that bite when changing code:
   stored, so only a re-scrape (the workflow's widen input) recovers it; one it
   *misread* is stored, and a re-scrape re-ingests identical text — only a
   reparse fixes it. Know which before dispatching anything.
+- **Hourly or time-critical schedules go through the Cloudflare cron Worker**
+  (`cloudflare/worker.ts` `dispatchesFor()`), not a workflow `schedule:` —
+  GitHub's scheduler runs late and drops runs. Rule and details in
+  [CI.md](CI.md#the-cron-worker).
 - **Uploads are gated on `changed=`** where the ingest can tell — a new ingest
   should write it to `$GITHUB_OUTPUT` too, rather than overwrite a live R2
   object on every run.

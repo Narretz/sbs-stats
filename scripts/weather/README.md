@@ -3,7 +3,8 @@
 The weather at each active General Staff direction, and what it implies for
 drone and ground operations. It exists in two forms:
 
-- **The ingest** (`ingest.py`): runs hourly in CI and builds `weather.db`,
+- **The ingest** (`ingest.py`): runs hourly in CI, dispatched at :25 by the
+  cron Worker (see CI.md), and builds `weather.db`,
   from which comes `weather.app.db` for the **weather strips** on the hourly
   and daily pages (opt-in, under Show more).
 - **The CLI report** (`report.py`): prints the same data as a table, fetched
