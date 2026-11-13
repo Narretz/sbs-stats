@@ -4,8 +4,8 @@ The weather at each active General Staff direction, and what it implies for
 drone and ground operations. It exists in two forms:
 
 - **The ingest** (`ingest.py`): runs hourly in CI and builds `weather.db`,
-  from which comes `weather.app.db` for the **weather strip** at the top of the
-  SBS hourly page.
+  from which comes `weather.app.db` for the **weather strips** on the hourly
+  and daily pages (opt-in, under Show more).
 - **The CLI report** (`report.py`): prints the same data as a table, fetched
   live, for any day since 2022.
 
@@ -30,7 +30,7 @@ python3 scripts/weather/report.py --input raw.json         # …re-render it off
 
 Stdlib only, no key. One HTTP request covers every sector, because Open-Meteo
 takes comma-separated coordinates. Its free tier is non-commercial, allows
-10,000 calls a day and requires attribution, which the strip carries. A run
+10,000 calls a day and requires attribution, which the strips carry. A run
 costs about 15 of those calls.
 
 ## Where the numbers come from
@@ -131,21 +131,36 @@ thumb and deliberately easy to change.
   bad-weather day may therefore be a *busier* one on the ground.
 - **`*` (CLI bad-weather day)**: drones POOR, or mud, or extreme cold.
 
-## The strip
+## The strips
 
-`src/components/WeatherStrip.tsx` is one full-width card above the SBS hourly
-charts, for the day being viewed: the picked end date, or today.
-- **Grid:** one row per direction, 24 hour cells on the same 0–23 clock as the
-  charts, coloured by the drone level. Forecast hours are faded.
-- **Severe row:** above the grid, the number of directions severely limited in
-  each hour. That is the row to read against the SBS lines.
-- **Day column:** each direction's POOR / MARGINAL / GOOD.
-- **Detail:** hovering or tapping a cell gives its weather.
+The **hourly** page (SBS) and **every daily page** can show a card above the
+charts. It's off by default, behind **Show more → Front-line weather**, and
+remembered per reader (`useWeatherStripPref`, localStorage). While it's off the
+strip isn't mounted, so `weather.app.db` (~4 MB) is never fetched.
 
-It loads `weather.app.db` through its own hook (`useDatabaseWeather`), not a
-context. It never holds up the page, and a missing DB shrinks it to one line.
-The model and formatting live in `src/utils/weatherStrip.ts`, unit-tested;
-`e2e/weather-strip.spec.ts` checks it reaches the screen.
+- **Hourly** (`WeatherStripHourly`): the viewed day, which is the picked end
+  date or today. One row per direction, 24 hour cells coloured by how limited
+  small drones were (ok / limited / severely limited). Forecast hours are
+  faded. The last column is each direction's day rating.
+- **Daily** (`WeatherStripDaily`): the page's window, one column per day.
+  Each cell is that direction's day rating (GOOD / MARGINAL / POOR), and a day
+  with forecast hours in it is faded. The last column is how many POOR days the
+  direction had in the window.
+- **The count row** above the grid (`Σ severe` hourly, `Σ POOR` daily) says,
+  per column, how many directions were severely limited in that hour or had a
+  POOR day. It's the line to read against the charts below: "how much of the
+  front could fly".
+- **Tooltip and sheet:** the charts' own. Hovering a cell (mouse or pen)
+  shows the floating card for that one direction. Clicking pins the column
+  and opens the sheet with every direction, and the sheet's stepper walks the
+  hours or the days. On a daily page whose site has an hourly view, the sheet
+  links to that day "By hour".
+
+Code: `components/WeatherStrip.tsx` (one grid, two wrappers), the models in
+`utils/weatherStrip.ts`, the tooltip and sheet wording in
+`utils/weatherDescriptors.ts`. Both utils are unit-tested.
+`e2e/weather-strip.spec.ts` checks the toggle (including no download while
+off), both strips, the hover card, the sheet and the daily → hourly link.
 
 ## Sectors
 

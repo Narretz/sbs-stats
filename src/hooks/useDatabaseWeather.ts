@@ -5,10 +5,11 @@ import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 import type { WeatherHour } from "@/utils/weatherRating";
 
 // The front-line weather strip's data: the compact app copy of weather.db
-// (scripts/weather/app_db.sql), ~3.6 MB a year, fetched whole. Read by one
-// component only — WeatherStrip on the SBS hourly page — so it is a plain hook
-// rather than a context: nothing else should wait on it, and a failure must
-// leave the SBS charts alone.
+// (scripts/weather/app_db.sql), ~3.6 MB a year, fetched whole. Read only by
+// the weather strips on the hourly and daily pages, and only while the reader
+// has them switched on (useWeatherStripPref) — so it is a plain hook rather
+// than a context: nothing else waits on it, and a failure must leave the
+// charts alone.
 const DB_URL =
   import.meta.env.VITE_WEATHER_DB_URL ?? `${import.meta.env.BASE_URL}data/weather.app.db`;
 const loadDatabase = () => loadWholeDb(DB_URL, "Weather");
@@ -28,13 +29,15 @@ export interface WeatherSector {
 
 export interface WeatherCell extends WeatherHour {
   sector: number;
+  date: string;   // YYYY-MM-DD, Kyiv
   hour: number;
   /** Still ahead when the last run fetched it — a forecast, not a hindcast. */
   forecast: boolean;
 }
 
-export interface WeatherDay {
+export interface WeatherRange {
   sectors: WeatherSector[];
+  /** Every stored hour in the range, ordered by date, sector, hour. */
   cells: WeatherCell[];
   /** UTC ISO of the last live run, for the "as of" line. */
   asOf: string | null;
@@ -52,15 +55,19 @@ export function useDatabaseWeather({ enabled = true }: { enabled?: boolean } = {
     enabled,
   });
 
-  const queryDay = useCallback((date: string): WeatherDay | null => {
-    if (!db || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  // A day for the hourly strip, a window of them for the daily one. Dates are
+  // checked rather than escaped: they come from the page's own controls.
+  const queryRange = useCallback((start: string, end: string): WeatherRange | null => {
+    const ISO = /^\d{4}-\d{2}-\d{2}$/;
+    if (!db || !ISO.test(start) || !ISO.test(end)) return null;
     const sectors = queryRows<Record<string, unknown>>(
       db, "SELECT id, key, gsua, near FROM sectors ORDER BY sort",
     ).map((r) => ({ id: Number(r.id), key: String(r.key), gsua: String(r.gsua), near: String(r.near) }));
     const cells = queryRows<Record<string, unknown>>(
-      db, `SELECT * FROM app_hourly WHERE date = '${date}' ORDER BY sector, hour`,
+      db, `SELECT * FROM app_hourly WHERE date BETWEEN '${start}' AND '${end}' ORDER BY date, sector, hour`,
     ).map((r) => ({
       sector: Number(r.sector),
+      date: String(r.date),
       hour: Number(r.hour),
       forecast: Number(r.forecast) === 1,
       temperature_2m: div(r.t10, 10),
@@ -77,5 +84,5 @@ export function useDatabaseWeather({ enabled = true }: { enabled?: boolean } = {
     return { sectors, cells, asOf };
   }, [db]);
 
-  return { loadState, error, queryDay };
+  return { loadState, error, queryRange };
 }

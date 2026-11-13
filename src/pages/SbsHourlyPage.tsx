@@ -11,7 +11,9 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { WindowStartNav } from "@/components/WindowStartNav";
 import { MoreControls } from "@/components/MoreControls";
-import { WeatherStrip } from "@/components/WeatherStrip";
+import { WeatherStripHourly } from "@/components/WeatherStrip";
+import { WeatherToggle } from "@/components/WeatherToggle";
+import { useWeatherStripPref } from "@/hooks/useWeatherStripPref";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { TooltipSortSelect } from "@/components/TooltipSortSelect";
 import { DAY_OPTIONS, type DayOption, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows } from "@/utils/dayRange";
@@ -71,6 +73,8 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
+  // Mounted only while on: mounting the strip is what fetches its DB.
+  const [showWeather, setShowWeather] = useWeatherStripPref();
   const [rows, setRows] = useState<DailyRow[]>([]);
   const [allRows, setAllRows] = useState<DailyRow[]>([]);
   const [eod, setEod] = useState<Partial<Record<StatKey, EodEstimate[]>>>({});
@@ -204,6 +208,7 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
           />
           <StatScopeToggle />
           <TooltipSortSelect value={tooltipSort} onChange={updateSort} />
+          <WeatherToggle checked={showWeather} onChange={setShowWeather} />
         </MoreControls>
       </>}
       loadState={loadState}
@@ -211,7 +216,7 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
       hasData={hasData}
       gridChildren={[
         // The day the charts highlight: the picked end date, or today.
-        <WeatherStrip key="weather" date={endDate} />,
+        ...(showWeather ? [<WeatherStripHourly key="weather" date={endDate} />] : []),
         ...metrics.map((m: Metric) => {
         const srcKey = scaleSourceKey(m.key);
         return (

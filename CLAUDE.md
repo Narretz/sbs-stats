@@ -38,7 +38,9 @@ datasets for future views.
 Not a view of its own: **front-line weather**
 ([`scripts/weather/`](scripts/weather/README.md) → `weather.db`, app copy
 `weather.app.db`) is Open-Meteo model data per GSUA direction, shown as a strip
-above the SBS hourly charts (`components/WeatherStrip.tsx`), plus a CLI report.
+above the charts on the SBS hourly page and every daily page
+(`components/WeatherStrip.tsx`) — opt-in under Show more, and not fetched while
+off — plus a CLI report.
 Only the weather is stored; the drone ratings are derived in code from
 thresholds in `src/data/weatherRules.json`, shared by `scripts/weather/assess.py`
 and `src/utils/weatherRating.ts` — `src/data/weatherRatingCases.json` runs

@@ -9,6 +9,9 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { WindowStartNav } from "@/components/WindowStartNav";
 import { MoreControls } from "@/components/MoreControls";
+import { WeatherStripDaily } from "@/components/WeatherStrip";
+import { WeatherToggle } from "@/components/WeatherToggle";
+import { useWeatherStripPref } from "@/hooks/useWeatherStripPref";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows, weekdayPredicate } from "@/utils/dayRange";
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
@@ -64,6 +67,8 @@ export function UaLossesRuModDailyPage({ refreshKey }: Props) {
 
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
+  // Mounted only while on: mounting the strip is what fetches its DB.
+  const [showWeather, setShowWeather] = useWeatherStripPref();
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>(initial.weekdays);
   const [selectedDate, setSelectedDate] = useState<string>(initial.date);
 
@@ -155,13 +160,16 @@ export function UaLossesRuModDailyPage({ refreshKey }: Props) {
           <WindowStartNav value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
           <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
           <StatScopeToggle />
+          <WeatherToggle checked={showWeather} onChange={setShowWeather} />
         </MoreControls>
       </>}
       loadState={loadState}
       error={error}
       hasData={hasData}
       loadingMessage="Loading RU MoD claims database…"
-      gridChildren={UA_LOSSES_RU_MOD_METRIC_KEYS.map((k) => (
+      gridChildren={[
+        ...(showWeather ? [<WeatherStripDaily key="weather" startDate={startDate} endDate={endDate} />] : []),
+        ...UA_LOSSES_RU_MOD_METRIC_KEYS.map((k) => (
         <DailyLineChart
           key={k}
           title={UA_LOSSES_RU_MOD_METRIC_LABELS[k]}
@@ -172,7 +180,7 @@ export function UaLossesRuModDailyPage({ refreshKey }: Props) {
           wfull={k === "personnel"}
           breakdownByDate={k === "armour" ? armourByDate : undefined}
         />
-      ))}
+      ))]}
     />
   );
 }
