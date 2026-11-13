@@ -121,6 +121,11 @@ test.describe("weather strip", () => {
     await expect(fogged.nth(6)).toHaveAttribute("data-forecast", "1");
     await expect(fogged.nth(0)).toHaveAttribute("data-level", "");    // nothing stored
     await expect(row(page, "Pokrovsk").getByTestId("weather-tail")).toHaveText("1/7");
+    // Only the count is highlighted, not "/7".
+    const tail = row(page, "Pokrovsk").getByTestId("weather-tail");
+    const [count, rest] = await tail.evaluate((el) => [
+      getComputedStyle(el.querySelector("span")!).color, getComputedStyle(el).color]);
+    expect(count).not.toBe(rest);
 
     await fogged.nth(4).hover();
     await expect(page.getByText(`Pokrovsk · `).first()).toBeVisible();

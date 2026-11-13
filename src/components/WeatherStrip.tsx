@@ -37,7 +37,10 @@ interface GridRow {
   title: string;
   cells: { level: Level | null; faded: boolean }[];
   tail: string;
+  /** Draws `tail` in the strip's red, bold. */
   tailStrong: boolean;
+  /** Plain text after `tail`, never highlighted — the "/30" of "4/30". */
+  tailSuffix?: string;
   tailTitle?: string;
 }
 
@@ -171,10 +174,11 @@ function StripGrid({ subtitle, columns, rows, count, tailHeader, legend, legendN
               />
             ))}
             <div data-testid="weather-tail" title={row.tailTitle} style={{
-              paddingLeft: 6, whiteSpace: "nowrap",
-              color: row.tailStrong ? c.weatherSevere : t.textMuted,
-              fontWeight: row.tailStrong ? 700 : 400,
-            }}>{row.tail}</div>
+              paddingLeft: 6, whiteSpace: "nowrap", color: t.textMuted,
+            }}>
+              <span style={row.tailStrong ? { color: c.weatherSevere, fontWeight: 700 } : undefined}>{row.tail}</span>
+              {row.tailSuffix}
+            </div>
           </div>
         ))}
       </div>
@@ -372,7 +376,7 @@ export function WeatherStripDaily({ startDate, endDate }: { startDate: string; e
                 faded: (x.summary?.forecastHours ?? 0) > 0,
               })),
               // Severe days out of the window's days.
-              tail: `${severe}/${dates.length}`, tailStrong: severe > 0,
+              tail: String(severe), tailSuffix: `/${dates.length}`, tailStrong: severe > 0,
               tailTitle: `${severe} of ${dates.length} days severe for drones`,
             };
           })}
