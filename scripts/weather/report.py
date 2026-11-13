@@ -27,29 +27,19 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import urllib.error
-import urllib.parse
-import urllib.request
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import assess  # noqa: E402
+import openmeteo  # noqa: E402
+from openmeteo import (  # noqa: E402
+    ARCHIVE_URL, FORECAST_MAX_DAYS, FORECAST_MAX_PAST_DAYS, FORECAST_URL, TZ,
+    OpenMeteoError, request_url,
+)
 from sectors import SECTORS, Sector, find  # noqa: E402
 
-TZ = "Europe/Kyiv"
-FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
-ARCHIVE_URL = "https://historical-forecast-api.open-meteo.com/v1/forecast"
-# The live endpoint serves roughly three months back; older goes to the archive.
-FORECAST_MAX_PAST_DAYS = 90
-FORECAST_MAX_DAYS = 16
-
-HOURLY = (
-    "temperature_2m", "apparent_temperature", "precipitation", "snowfall",
-    "weather_code", "visibility", "cloud_cover_low", "wind_speed_10m",
-    "wind_gusts_10m", "soil_moisture_3_to_9cm", "snow_depth",
-)
 # wet72 reads 72 h back from the end of the first reported day.
 LOOKBACK_DAYS = 2
 
@@ -64,51 +54,21 @@ def build_url(sectors: list[Sector], start: date, end: date, today: date) -> str
     if not live and end >= today - timedelta(days=1):
         raise ValueError("a range that old can't run up to today — split it, "
                          "or start within the last three months")
-    params = {
-        "latitude": ",".join(f"{s.lat:.2f}" for s in sectors),
-        "longitude": ",".join(f"{s.lon:.2f}" for s in sectors),
-        "hourly": ",".join(HOURLY),
-        "wind_speed_unit": "ms",
-        "timezone": TZ,
-        "start_date": first.isoformat(),
-        "end_date": end.isoformat(),
-    }
-    return (FORECAST_URL if live else ARCHIVE_URL) + "?" + urllib.parse.urlencode(params, safe=",")
+    return request_url(FORECAST_URL if live else ARCHIVE_URL, sectors, first, end)
 
 
 def fetch(url: str) -> object:
-    req = urllib.request.Request(url, headers={"User-Agent": "sbs-stats frontline-weather"})
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            return json.load(resp)
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", "replace")
-        try:
-            body = json.loads(body).get("reason", body)
-        except ValueError:
-            pass
-        raise SystemExit(f"Open-Meteo HTTP {e.code}: {body}") from None
-    except urllib.error.URLError as e:
-        raise SystemExit(f"Open-Meteo unreachable: {e.reason}") from None
+        return openmeteo.fetch(url)
+    except OpenMeteoError as e:
+        raise SystemExit(f"Open-Meteo {e}") from None
 
 
 def hourly_rows(payload: object, n: int) -> list[list[dict]]:
-    """Open-Meteo's column-wise `hourly` block → one row list per location.
-
-    One location comes back as an object, several as a list in request order.
-    """
-    items = payload if isinstance(payload, list) else [payload]
-    if len(items) != n:
-        raise SystemExit(f"Open-Meteo returned {len(items)} locations for {n} sectors")
-    out = []
-    for item in items:
-        if item.get("error"):
-            raise SystemExit(f"Open-Meteo error: {item.get('reason')}")
-        cols = item["hourly"]
-        times = cols["time"]
-        out.append([{k: (v[i] if i < len(v) else None) for k, v in cols.items()}
-                    for i in range(len(times))])
-    return out
+    try:
+        return openmeteo.hourly_rows(payload, n)
+    except OpenMeteoError as e:
+        raise SystemExit(f"Open-Meteo {e}") from None
 
 
 # ── Render ──────────────────────────────────────────────────────────────────

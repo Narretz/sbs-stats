@@ -13,6 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import assess  # noqa: E402
+import openmeteo  # noqa: E402
 import report  # noqa: E402
 from assess import DEGRADED, OK, SEVERE  # noqa: E402
 from sectors import SECTORS, find  # noqa: E402
@@ -41,52 +42,28 @@ def series(start: date, days: int, per_hour=None) -> list[dict]:
 
 def payload(rows_per_location: list[list[dict]]):
     items = [{"latitude": 0, "longitude": 0,
-              "hourly": {k: [r.get(k) for r in rows] for k in ("time", *report.HOURLY)}}
+              "hourly": {k: [r.get(k) for r in rows] for k in ("time", *openmeteo.HOURLY)}}
              for rows in rows_per_location]
     return items[0] if len(items) == 1 else items
 
 
 # ── drone_hour ──────────────────────────────────────────────────────────────
 
-def test_calm_hour_is_ok():
-    assert assess.drone_hour(hour()) == (OK, [])
+# The hourly drone rules are pinned by a case file the app's vitest suite
+# (src/utils/weatherRating.test.ts) runs too, so the two can't drift apart.
+CASES = json.loads((assess.RULES_PATH.parent / "weatherRatingCases.json").read_text())
 
 
-@pytest.mark.parametrize("over,level,reason", [
-    ({"wind_speed_10m": 8.0}, DEGRADED, "wind"),
-    ({"wind_gusts_10m": 15.0}, SEVERE, "wind"),
-    ({"wind_speed_10m": 12.5, "wind_gusts_10m": 9.0}, SEVERE, "wind"),
-    ({"precipitation": 0.6}, DEGRADED, "rain"),
-    ({"precipitation": 3.0}, SEVERE, "rain"),
-    ({"visibility": 3000.0}, DEGRADED, "mist"),
-    ({"visibility": 400.0}, SEVERE, "fog"),
-    ({"weather_code": 45, "visibility": None}, SEVERE, "fog"),
-    ({"weather_code": 95}, SEVERE, "thunderstorm"),
-    ({"temperature_2m": -18.0}, DEGRADED, "cold"),
-    ({"temperature_2m": -27.0}, SEVERE, "cold"),
-    ({"weather_code": 66, "temperature_2m": -2.0, "precipitation": 0.2}, SEVERE, "icing"),
-])
-def test_drone_hour_thresholds(over, level, reason):
-    got_level, reasons = assess.drone_hour(hour(**over))
-    assert got_level == level
-    assert (level, reason) in reasons
+@pytest.mark.parametrize("case", CASES["cases"], ids=lambda c: c["name"])
+def test_drone_hour_shared_cases(case):
+    level, reasons = assess.drone_hour({**CASES["base"], **case["hour"]})
+    assert (level, [[lv, r] for lv, r in reasons]) == (case["level"], case["reasons"])
 
 
-def test_snow_is_not_also_counted_as_rain():
-    # 1 cm of snow ≈ 1.4 mm water: precipitation alone would read as rain.
-    level, reasons = assess.drone_hour(hour(temperature_2m=-8.0, snowfall=1.0, precipitation=1.43))
-    assert level == SEVERE
-    assert [r for _, r in reasons] == ["snow"]
-
-
-def test_icing_needs_moisture():
-    assert assess.drone_hour(hour(temperature_2m=0.0))[0] == OK
-    assert (SEVERE, "icing") in assess.drone_hour(hour(temperature_2m=0.0, precipitation=0.1))[1]
-
-
-def test_missing_fields_are_not_findings():
-    h = {"time": "2026-10-10T00:00", **{k: None for k in CALM}}
-    assert assess.drone_hour(h) == (OK, [])
+def test_drone_hour_ignores_the_ground_fields():
+    # The app's copy carries only the fields the drone rating reads; the extra
+    # ones the CLI fetches must not change the answer.
+    assert assess.drone_hour(hour()) == assess.drone_hour({**CASES["base"]}) == (OK, [])
 
 
 # ── ground ──────────────────────────────────────────────────────────────────
@@ -243,7 +220,7 @@ def test_real_open_meteo_response(capsys):
     path = Path(__file__).parent / "fixtures" / "live-2026-10-10.json"
     saved = json.loads(path.read_text())
     for item in saved["response"]:
-        for key in report.HOURLY:
+        for key in openmeteo.HOURLY:
             assert all(v is not None for v in item["hourly"][key]), key
 
     assert report.main(["--input", str(path), "--json"]) == 0

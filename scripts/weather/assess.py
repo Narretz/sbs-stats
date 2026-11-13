@@ -26,63 +26,74 @@ mm, snowfall cm, snow depth m, soil moisture m³/m³, temperature °C.
 """
 from __future__ import annotations
 
+import json
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from pathlib import Path
 
 OK, DEGRADED, SEVERE = 0, 1, 2
+
+# The numbers live in src/data/weatherRules.json, shared with the app's
+# src/utils/weatherRating.ts so the CLI and the site rate the same hour the
+# same way; src/data/weatherRatingCases.json is run against both. The
+# reasoning stays here, next to the names.
+RULES_PATH = Path(__file__).resolve().parents[2] / "src" / "data" / "weatherRules.json"
+_RULES = json.loads(RULES_PATH.read_text())
+_D, _G = _RULES["drone"], _RULES["ground"]
 
 # ── Small-UAV limits ────────────────────────────────────────────────────────
 # Consumer-derived quadcopters (Mavic class) are rated ~12 m/s; FPVs fly in
 # more but lose range and accuracy, and gusts are what knock them down. At
 # 10 m height the model wind understates what a drone at 50–100 m sees, which
 # is why the bands start lower than the spec sheets.
-WIND_DEGRADED = 8.0       # m/s sustained
-WIND_SEVERE = 12.0
-GUST_DEGRADED = 11.0      # m/s
-GUST_SEVERE = 15.0
+WIND_DEGRADED = _D["wind_degraded"]       # m/s sustained
+WIND_SEVERE = _D["wind_severe"]
+GUST_DEGRADED = _D["gust_degraded"]       # m/s
+GUST_SEVERE = _D["gust_severe"]
 # Most of these airframes are not sealed, and water on the lens blinds them.
-RAIN_DEGRADED = 0.5       # mm/h
-RAIN_SEVERE = 2.5
-SNOW_DEGRADED = 0.1       # cm/h
-SNOW_SEVERE = 0.5
+RAIN_DEGRADED = _D["rain_degraded"]       # mm/h
+RAIN_SEVERE = _D["rain_severe"]
+SNOW_DEGRADED = _D["snow_degraded"]       # cm/h
+SNOW_SEVERE = _D["snow_severe"]
 # Fog blinds day cameras outright and attenuates thermal heavily.
-VIS_SEVERE = 1000.0       # m
-VIS_DEGRADED = 4000.0
+VIS_SEVERE = _D["vis_severe"]             # m
+VIS_DEGRADED = _D["vis_degraded"]
 # LiPo capacity falls off hard below freezing.
-COLD_DEGRADED = -15.0     # °C air temperature
-COLD_SEVERE = -25.0
+COLD_DEGRADED = _D["cold_degraded"]       # °C air temperature
+COLD_SEVERE = _D["cold_severe"]
 # Supercooled water on props/airframe: near-freezing air with something wet.
-ICING_TEMP = (-6.0, 1.0)
+ICING_TEMP = tuple(_D["icing_temp"])
+ICING_MIN_LIQUID = _D["icing_min_liquid"]  # mm/h of liquid (non-snow) precipitation
 
-FOG_CODES = {45, 48}
-FREEZING_CODES = {56, 57, 66, 67}
-THUNDER_CODES = {95, 96, 99}
+FOG_CODES = set(_D["fog_codes"])
+FREEZING_CODES = set(_D["freezing_codes"])
+THUNDER_CODES = set(_D["thunder_codes"])
 
 # A day is POOR for drones with this many SEVERE hours, MARGINAL with this
 # many DEGRADED-or-worse hours. Six hours ≈ a quarter of the day: long enough
 # to plan an operation around, not just wait out.
-DAY_POOR_HOURS = 6
-DAY_MARGINAL_HOURS = 6
+DAY_POOR_HOURS = _D["day_poor_hours"]
+DAY_MARGINAL_HOURS = _D["day_marginal_hours"]
 # A drone-limited run has to last this long to count as a window for movement,
 # and a lull this short inside one doesn't break it (gusts come and go).
-COVER_MIN_HOURS = 2
-COVER_MAX_GAP = 1
+COVER_MIN_HOURS = _D["cover_min_hours"]
+COVER_MAX_GAP = _D["cover_max_gap"]
 
 # ── Ground ──────────────────────────────────────────────────────────────────
 # Rain over the 72 h ending with the day: the mud-season signal. Chernozem
 # goes from dusty to unworkable on a couple of autumn fronts.
-WET72_SOFT = 10.0         # mm
-WET72_MUD = 25.0
+WET72_SOFT = _G["wet72_soft"]             # mm
+WET72_MUD = _G["wet72_mud"]
 # Model soil moisture, 3–9 cm layer. Black-earth field capacity sits near
 # 0.30–0.35; above ~0.40 it is close to saturation.
-SOIL_SOFT = 0.34          # m³/m³
-SOIL_MUD = 0.40
-SNOW_DEEP = 0.25          # m
-FROZEN_TMAX = 0.0         # a day that never thaws keeps the ground firm
-EXPOSURE_COLD = -15.0     # °C apparent (wind chill)
-EXPOSURE_EXTREME = -25.0
-EXPOSURE_HEAT = 33.0
+SOIL_SOFT = _G["soil_soft"]               # m³/m³
+SOIL_MUD = _G["soil_mud"]
+SNOW_DEEP = _G["snow_deep"]               # m
+FROZEN_TMAX = _G["frozen_tmax"]           # a day that never thaws keeps the ground firm
+EXPOSURE_COLD = _G["exposure_cold"]       # °C apparent (wind chill)
+EXPOSURE_EXTREME = _G["exposure_extreme"]
+EXPOSURE_HEAT = _G["exposure_heat"]
 
 LEVEL_NAME = {OK: "ok", DEGRADED: "degraded", SEVERE: "severe"}
 
@@ -137,7 +148,10 @@ def drone_hour(h: dict) -> tuple[int, list[tuple[int, str]]]:
             add(SEVERE, "cold")
         elif temp <= COLD_DEGRADED:
             add(DEGRADED, "cold")
-        wet = precip > 0 or code in FOG_CODES or (vis is not None and vis < VIS_SEVERE)
+        # Only liquid water ices an airframe: drizzle, rain, fog droplets.
+        # Dry snow at -3 °C does not, so the snow's share doesn't count.
+        wet = (rain >= ICING_MIN_LIQUID or code in FOG_CODES
+               or (vis is not None and vis < VIS_SEVERE))
         if code in FREEZING_CODES or (ICING_TEMP[0] <= temp <= ICING_TEMP[1] and wet):
             add(SEVERE, "icing")
 

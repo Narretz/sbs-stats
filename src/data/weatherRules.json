@@ -1,0 +1,37 @@
+{
+  "_about": "Thresholds for the front-line weather ratings, shared by scripts/weather/assess.py (CLI) and src/utils/weatherRating.ts (app). The reasoning behind each number is in assess.py. weatherRatingCases.json holds the cases both implementations are tested against.",
+  "drone": {
+    "wind_degraded": 8.0,
+    "wind_severe": 12.0,
+    "gust_degraded": 11.0,
+    "gust_severe": 15.0,
+    "rain_degraded": 0.5,
+    "rain_severe": 2.5,
+    "snow_degraded": 0.1,
+    "snow_severe": 0.5,
+    "vis_severe": 1000.0,
+    "vis_degraded": 4000.0,
+    "cold_degraded": -15.0,
+    "cold_severe": -25.0,
+    "icing_temp": [-6.0, 1.0],
+    "icing_min_liquid": 0.1,
+    "fog_codes": [45, 48],
+    "freezing_codes": [56, 57, 66, 67],
+    "thunder_codes": [95, 96, 99],
+    "day_poor_hours": 6,
+    "day_marginal_hours": 6,
+    "cover_min_hours": 2,
+    "cover_max_gap": 1
+  },
+  "ground": {
+    "wet72_soft": 10.0,
+    "wet72_mud": 25.0,
+    "soil_soft": 0.34,
+    "soil_mud": 0.40,
+    "snow_deep": 0.25,
+    "frozen_tmax": 0.0,
+    "exposure_cold": -15.0,
+    "exposure_extreme": -25.0,
+    "exposure_heat": 33.0
+  }
+}

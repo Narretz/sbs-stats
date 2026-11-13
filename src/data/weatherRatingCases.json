@@ -1,0 +1,332 @@
+{
+  "_about": "Hourly drone-rating cases run by both scripts/weather/test_report.py and src/utils/weatherRating.test.ts. Each hour is `base` with `hour` laid over it; `reasons` is exact and ordered, [level, reason], level 1 = degraded, 2 = severe.",
+  "base": {
+    "temperature_2m": 10.0,
+    "precipitation": 0.0,
+    "snowfall": 0.0,
+    "weather_code": 1,
+    "visibility": 24000.0,
+    "wind_speed_10m": 3.0,
+    "wind_gusts_10m": 6.0
+  },
+  "cases": [
+    {
+      "name": "calm",
+      "hour": {},
+      "level": 0,
+      "reasons": []
+    },
+    {
+      "name": "wind at the degraded line",
+      "hour": {
+        "wind_speed_10m": 8.0
+      },
+      "level": 1,
+      "reasons": [
+        [
+          1,
+          "wind"
+        ]
+      ]
+    },
+    {
+      "name": "wind just under the degraded line",
+      "hour": {
+        "wind_speed_10m": 7.9,
+        "wind_gusts_10m": 10.9
+      },
+      "level": 0,
+      "reasons": []
+    },
+    {
+      "name": "gust at the severe line",
+      "hour": {
+        "wind_gusts_10m": 15.0
+      },
+      "level": 2,
+      "reasons": [
+        [
+          2,
+          "wind"
+        ]
+      ]
+    },
+    {
+      "name": "sustained wind severe, gusts not",
+      "hour": {
+        "wind_speed_10m": 12.5,
+        "wind_gusts_10m": 9.0
+      },
+      "level": 2,
+      "reasons": [
+        [
+          2,
+          "wind"
+        ]
+      ]
+    },
+    {
+      "name": "light rain",
+      "hour": {
+        "precipitation": 0.6
+      },
+      "level": 1,
+      "reasons": [
+        [
+          1,
+          "rain"
+        ]
+      ]
+    },
+    {
+      "name": "rain just under degraded",
+      "hour": {
+        "precipitation": 0.4
+      },
+      "level": 0,
+      "reasons": []
+    },
+    {
+      "name": "heavy rain",
+      "hour": {
+        "precipitation": 3.0
+      },
+      "level": 2,
+      "reasons": [
+        [
+          2,
+          "rain"
+        ]
+      ]
+    },
+    {
+      "name": "mist",
+      "hour": {
+        "visibility": 3000.0
+      },
+      "level": 1,
+      "reasons": [
+        [
+          1,
+          "mist"
+        ]
+      ]
+    },
+    {
+      "name": "fog by visibility",
+      "hour": {
+        "visibility": 400.0
+      },
+      "level": 2,
+      "reasons": [
+        [
+          2,
+          "fog"
+        ]
+      ]
+    },
+    {
+      "name": "fog by code, visibility missing",
+      "hour": {
+        "weather_code": 45,
+        "visibility": null
+      },
+      "level": 2,
+      "reasons": [
+        [
+          2,
+          "fog"
+        ]
+      ]
+    },
+    {
+      "name": "fog code wins over a clear visibility",
+      "hour": {
+        "weather_code": 45,
+        "visibility": 20000.0
+      },
+      "level": 2,
+      "reasons": [
+        [
+          2,
+          "fog"
+        ]
+      ]
+    },
+    {
+      "name": "thunderstorm",
+      "hour": {
+        "weather_code": 95
+      },
+      "level": 2,
+      "reasons": [
+        [
+          2,
+          "thunderstorm"
+        ]
+      ]
+    },
+    {
+      "name": "cold",
+      "hour": {
+        "temperature_2m": -18.0
+      },
+      "level": 1,
+      "reasons": [
+        [
+          1,
+          "cold"
+        ]
+      ]
+    },
+    {
+      "name": "deep cold",
+      "hour": {
+        "temperature_2m": -27.0
+      },
+      "level": 2,
+      "reasons": [
+        [
+          2,
+          "cold"
+        ]
+      ]
+    },
+    {
+      "name": "freezing rain",
+      "hour": {
+        "weather_code": 66,
+        "temperature_2m": -2.0,
+        "precipitation": 0.2
+      },
+      "level": 2,
+      "reasons": [
+        [
+          2,
+          "icing"
+        ]
+      ]
+    },
+    {
+      "name": "near-freezing and dry: no icing",
+      "hour": {
+        "temperature_2m": 0.0
+      },
+      "level": 0,
+      "reasons": []
+    },
+    {
+      "name": "near-freezing drizzle: icing",
+      "hour": {
+        "temperature_2m": 0.0,
+        "precipitation": 0.1
+      },
+      "level": 2,
+      "reasons": [
+        [
+          2,
+          "icing"
+        ]
+      ]
+    },
+    {
+      "name": "near-freezing fog: fog and icing",
+      "hour": {
+        "temperature_2m": -1.0,
+        "visibility": 300.0
+      },
+      "level": 2,
+      "reasons": [
+        [
+          2,
+          "fog"
+        ],
+        [
+          2,
+          "icing"
+        ]
+      ]
+    },
+    {
+      "name": "snow is not counted again as rain",
+      "hour": {
+        "temperature_2m": -8.0,
+        "snowfall": 1.0,
+        "precipitation": 1.43
+      },
+      "level": 2,
+      "reasons": [
+        [
+          2,
+          "snow"
+        ]
+      ]
+    },
+    {
+      "name": "light snow",
+      "hour": {
+        "temperature_2m": -3.0,
+        "snowfall": 0.2,
+        "precipitation": 0.29
+      },
+      "level": 1,
+      "reasons": [
+        [
+          1,
+          "snow"
+        ]
+      ]
+    },
+    {
+      "name": "rain on top of snow",
+      "hour": {
+        "temperature_2m": 1.5,
+        "snowfall": 0.2,
+        "precipitation": 3.3
+      },
+      "level": 2,
+      "reasons": [
+        [
+          1,
+          "snow"
+        ],
+        [
+          2,
+          "rain"
+        ]
+      ]
+    },
+    {
+      "name": "fog and wind together",
+      "hour": {
+        "visibility": 500.0,
+        "wind_gusts_10m": 12.0
+      },
+      "level": 2,
+      "reasons": [
+        [
+          1,
+          "wind"
+        ],
+        [
+          2,
+          "fog"
+        ]
+      ]
+    },
+    {
+      "name": "everything missing",
+      "hour": {
+        "temperature_2m": null,
+        "precipitation": null,
+        "snowfall": null,
+        "weather_code": null,
+        "visibility": null,
+        "wind_speed_10m": null,
+        "wind_gusts_10m": null
+      },
+      "level": 0,
+      "reasons": []
+    }
+  ]
+}
