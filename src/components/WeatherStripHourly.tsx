@@ -36,12 +36,15 @@ export function WeatherStripHourly({ date }: { date: string }) {
     return day.hasData ? day : null;
   }, [data, extraDay]);
   const status = stripStatus(error, !!strip, !!strip?.hasData, `No weather data for ${date}.`);
+
+  const columnHeaders = [0, 6, 12, 18, 23];
+
   const columns = useMemo(() => [
     ...Array.from({ length: 24 }, (_, h) => ({
-      key: h as string | number, axis: h % 6 === 0 ? `${String(h).padStart(2, "0")}:00` : "",
+      key: h as string | number, axis: columnHeaders.includes(h) ? `${String(h).padStart(2, "0")}:00` : "",
     })),
     ...(fc ? [{ key: fc.dates[0], axis: "fcst", forecast: true }] : []),
-  ], [fc]);
+  ], [fc, columnHeaders]);
 
   return (
     <StripCard status={status}>

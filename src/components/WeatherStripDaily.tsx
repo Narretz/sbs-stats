@@ -44,8 +44,8 @@ export function WeatherStripDaily({ startDate, endDate }: { startDate: string; e
   const status = stripStatus(error, !!strip, !!strip?.hasData, `No weather data for ${startDate} – ${endDate}.`);
   // About seven labels across, whatever the window.
   const every = Math.max(1, Math.ceil(nWindow / 7));
-  const columns = useMemo(() => (strip?.dates ?? []).map((d, i) => i < nWindow
-    ? { key: d, axis: i % every === 0 ? d.slice(5) : "" }
+  const columns = useMemo(() => (strip?.dates ?? []).map((d, i, arr) => i < nWindow
+    ? { key: d, axis: i % every === 0 || i === arr.length - 1 ? d.slice(5) : "" }
     : { key: d, axis: "fcst", forecast: true }), [strip, nWindow, every]);
 
   return (
