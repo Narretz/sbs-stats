@@ -13,6 +13,8 @@ import { fileURLToPath } from "node:url";
 //   - GSUA      → scripts/gsua/schema.sql      (posts)
 //   - Zelensky  → scripts/zelensky_weekly/schema.sql (reports, counters)
 //   - CIT       → scripts/cit_civilians/schema.sql (reports, casualties)
+//   - Weather   → scripts/weather/schema.sql, then app_db.sql — the same two
+//                 steps CI takes to build weather.app.db
 //
 // Freshness matters only for the end-of-day projection, which keys off the real
 // "today": so we anchor the synthetic days to the current Kyiv date and stop
@@ -501,6 +503,52 @@ function buildCitCivilians(SQL) {
   db.close();
 }
 
+// ── Weather: the SBS hourly page's strip ─────────────────────────────────────
+// Built like CI builds weather.app.db: rows into the authoritative schema, then
+// scripts/weather/app_db.sql — so the app copy's SQL is exercised too. Two
+// sectors. On WEATHER_DAY (settled) Pokrovsk is fogged in for the six hours
+// FOG_HOURS — a POOR day — and Kupiansk is clear. Today runs to 11:00 as
+// hindcast, the rest is forecast. WEATHER_EMPTY_DAY has no rows at all.
+export const WEATHER_DAY = dayISO(-2);
+export const WEATHER_EMPTY_DAY = dayISO(-6);
+export const FOG_HOURS = [3, 4, 5, 6, 7, 8];
+const WEATHER_COLS = [
+  "temperature_2m", "apparent_temperature", "precipitation", "snowfall", "weather_code",
+  "visibility", "cloud_cover_low", "wind_speed_10m", "wind_gusts_10m",
+  "soil_moisture_3_to_9cm", "snow_depth",
+];
+const CALM_WEATHER = [10, 8, 0, 0, 1, 24000, 10, 3, 6, 0.25, 0];
+
+function buildWeather(SQL) {
+  const db = new SQL.Database();
+  db.run(fs.readFileSync(path.join(ROOT, "scripts/weather/schema.sql"), "utf8"));
+  db.run(`INSERT INTO sectors (key, gsua, near, lat, lon, placed, sort) VALUES
+    ('Kupiansk', 'Kupiansk', 'Kupiansk', 49.71, 37.62, '2026-10', 0),
+    ('Pokrovsk', 'Pokrovsk', 'Pokrovsk–Myrnohrad', 48.30, 37.15, '2026-10', 1)`);
+  const cols = WEATHER_COLS.join(", ");
+  const marks = WEATHER_COLS.map(() => "?").join(", ");
+  const insH = db.prepare(`INSERT INTO hourly (sector, time, ${cols}, source, fetched_at, settled)
+                           VALUES (?, ?, ${marks}, 'forecast', ?, ?)`);
+  const insF = db.prepare(`INSERT INTO forecast (sector, time, ${cols}, fetched_at) VALUES (?, ?, ${marks}, ?)`);
+  const fetchedAt = `${FIXED_TODAY}T09:17:00Z`;
+  const hh = (h) => String(h).padStart(2, "0");
+  for (const sector of ["Kupiansk", "Pokrovsk"]) {
+    for (let h = 0; h < 24; h++) {
+      const v = [...CALM_WEATHER];
+      if (sector === "Pokrovsk" && FOG_HOURS.includes(h)) { v[4] = 45; v[5] = 300; }
+      insH.run([sector, `${WEATHER_DAY}T${hh(h)}:00`, ...v, fetchedAt, 1]);
+      if (h < 12) insH.run([sector, `${FIXED_TODAY}T${hh(h)}:00`, ...CALM_WEATHER, fetchedAt, 0]);
+      else insF.run([sector, `${FIXED_TODAY}T${hh(h)}:00`, ...CALM_WEATHER, fetchedAt]);
+    }
+  }
+  insH.free();
+  insF.free();
+  db.run(`INSERT INTO runs VALUES ('${fetchedAt}', 'live', '${WEATHER_DAY}', '${FIXED_TODAY}', 0, 24, 0)`);
+  db.run(fs.readFileSync(path.join(ROOT, "scripts/weather/app_db.sql"), "utf8"));
+  fs.writeFileSync(path.join(FIX_DIR, "weather.app.db"), Buffer.from(db.export()));
+  db.close();
+}
+
 export async function buildFixtures() {
   fs.mkdirSync(FIX_DIR, { recursive: true });
   const SQL = await initSqlJs({ locateFile: (f) => path.join(ROOT, "node_modules/sql.js/dist", f) });
@@ -511,6 +559,7 @@ export async function buildFixtures() {
   buildRuAirAttacks(SQL);
   buildZelenskyWeekly(SQL);
   buildCitCivilians(SQL);
+  buildWeather(SQL);
 }
 
 // Run the build when invoked directly (`node e2e/build-fixtures.mjs`).

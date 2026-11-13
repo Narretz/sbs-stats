@@ -22,6 +22,7 @@ dataset's README, linked from the table.
 | `update-cit-civilians-db.yml` | CIT — [README](scripts/cit_civilians/README.md) | 19:00 UTC (after the ~20:00 MSK post) and 07:00 UTC (late post / edit) | `pages` (default 4) | `changed=true` |
 | `update-ua-losses-ru-mod-db.yml` | UA losses, RU MoD — [README](scripts/ua_losses_ru_mod/README.md) | 08:15 / 20:15 UTC | — | `changed=true` |
 | `update-zelensky-weekly-db.yml` | President's weekly tally — [README](scripts/zelensky_weekly/README.md) | 20:00 Kyiv, Sat / Sun / Mon | `pages` | `changed=true` |
+| `update-weather-db.yml` | Front-line weather (Open-Meteo) — [README](scripts/weather/README.md) | hourly, :17 UTC | `backfill_from` (date) — archive history; a short gap closes itself | `changed=true` (in practice every run: the forecast moves) |
 | `reparse-cit-civilians-db.yml` | CIT, manual | `dry_run` (on) | — | `changed=true` |
 | `reparse-gsua-db.yml` | GSUA, manual | `since` (date or `all`), `dry_run` (on) | — | unless dry run |
 | `reparse-ru-mod-db.yml` | RU MoD, manual | `since` (date or `all`), `dry_run` (on) | — | unless dry run |
@@ -94,12 +95,14 @@ it, and uploads it back — never rebuilt from what the source still shows.
   the frontend reads. GSUA gates each of its two objects on its own change
   (see its README). The append-on-change ones store nothing new for an
   unchanged source, but still upload.
-- **App copies.** GSUA, RU MoD, CIT and Mediazona publish two objects: the
+- **App copies.** GSUA, RU MoD, CIT, Mediazona and weather publish two objects: the
   authoritative `<name>.db` with the raw post text, and a stripped
   `<name>.app.db` the frontend reads, built in the same job by
   `scripts/build_app_db.py` from the same source, so they can't drift on R2.
   GSUA's also carries derived tables (`scripts/gsua/app_db.sql`); Mediazona's
-  keeps only each week's latest version (`scripts/mediazona/app_db.sql`).
+  keeps only each week's latest version (`scripts/mediazona/app_db.sql`);
+  weather's is one compact table of the fields the strip reads
+  (`scripts/weather/app_db.sql`).
 
 ## Findings and the triage routine
 

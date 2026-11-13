@@ -11,6 +11,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { WindowStartNav } from "@/components/WindowStartNav";
 import { MoreControls } from "@/components/MoreControls";
+import { WeatherStrip } from "@/components/WeatherStrip";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { TooltipSortSelect } from "@/components/TooltipSortSelect";
 import { DAY_OPTIONS, type DayOption, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows } from "@/utils/dayRange";
@@ -208,7 +209,10 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
       loadState={loadState}
       error={error}
       hasData={hasData}
-      gridChildren={metrics.map((m: Metric) => {
+      gridChildren={[
+        // The day the charts highlight: the picked end date, or today.
+        <WeatherStrip key="weather" date={endDate} />,
+        ...metrics.map((m: Metric) => {
         const srcKey = scaleSourceKey(m.key);
         return (
           <HourlyLineChart
@@ -228,7 +232,7 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
             pairedGlobalMax={srcKey ? statsFor(srcKey).max : undefined}
           />
         );
-      })}
+      })]}
     />
   );
 }
