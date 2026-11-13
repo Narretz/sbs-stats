@@ -165,7 +165,16 @@ strip isn't mounted, so `weather.app.db` (~4 MB) is never fetched.
   hours or the days. On a daily page whose site has an hourly view, the sheet
   links to that day "By hour".
 
-Code: `components/WeatherStrip.tsx` (one grid, two wrappers), the models in
+Code, in `src/components/`:
+- **Generic:** `WeatherStripGrid.tsx` (the grid, hover card, pin and sheet; it
+  knows nothing about hours or days) and `FloatingCard.tsx` (the measured hover
+  card).
+- **Shared:** `WeatherStripCard.tsx` (the card shell) and
+  `weatherStripShared.ts` (title, anchor, legend, colours, status line).
+- **Specific:** `WeatherStripHourly.tsx` and `WeatherStripDaily.tsx`, which
+  build the columns, rows and descriptors for each strip.
+
+The models are in
 `utils/weatherStrip.ts`, the tooltip and sheet wording in
 `utils/weatherDescriptors.ts`. Both utils are unit-tested.
 `e2e/weather-strip.spec.ts` checks the toggle (including no download while

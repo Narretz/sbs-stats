@@ -183,7 +183,7 @@ test.describe("weather strip", () => {
     await expect(cells).toHaveCount(31);   // 30 days + tomorrow's forecast
     for (const i of [0, 15, 26, 30]) {
       await cells.nth(i).hover();
-      const card = page.locator("[data-weather-hover]");
+      const card = page.locator("[data-floating-card]");
       await expect(card).toBeVisible();
       const box = (await card.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(0);
@@ -202,7 +202,7 @@ test.describe("weather strip", () => {
     expect(b.x).toBeGreaterThan(a.x + a.width);   // there is a gap to cross
     const y = a.y + a.height / 2;
     await page.mouse.move(a.x + a.width / 2, y);
-    const card = page.locator("[data-weather-hover]");
+    const card = page.locator("[data-floating-card]");
     await expect(card).toBeVisible();
     await page.mouse.move((a.x + a.width + b.x) / 2, y);
     await expect(card).toBeVisible();

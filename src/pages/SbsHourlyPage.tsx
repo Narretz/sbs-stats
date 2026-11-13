@@ -11,7 +11,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { WindowStartNav } from "@/components/WindowStartNav";
 import { MoreControls } from "@/components/MoreControls";
-import { WeatherStripHourly } from "@/components/WeatherStrip";
+import { WeatherStripHourly } from "@/components/WeatherStripHourly";
 import { WeatherToggle } from "@/components/WeatherToggle";
 import { useWeatherStripPref } from "@/hooks/useWeatherStripPref";
 import { DayRangeSelect } from "@/components/DayRangeSelect";

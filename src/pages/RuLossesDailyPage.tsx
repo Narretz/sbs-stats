@@ -9,7 +9,7 @@ import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { DateNav } from "@/components/DateNav";
 import { WindowStartNav } from "@/components/WindowStartNav";
 import { MoreControls } from "@/components/MoreControls";
-import { WeatherStripDaily } from "@/components/WeatherStrip";
+import { WeatherStripDaily } from "@/components/WeatherStripDaily";
 import { WeatherToggle } from "@/components/WeatherToggle";
 import { useWeatherStripPref } from "@/hooks/useWeatherStripPref";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
