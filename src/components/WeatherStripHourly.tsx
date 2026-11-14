@@ -5,13 +5,15 @@ import { getKyivDateString } from "@/hooks/sqlLoader";
 import { chartColors } from "@/chartColors";
 import { StripCard } from "@/components/WeatherStripCard";
 import { StripGrid } from "@/components/WeatherStripGrid";
-import { asOfText, LEGEND, STRIP_ANCHOR, STRIP_TITLE, stripStatus, useDescriptorColors } from "@/components/weatherStripShared";
+import { asOfText, FCST_AXIS, LEGEND, STRIP_ANCHOR, STRIP_TITLE, stripStatus, useDescriptorColors } from "@/components/weatherStripShared";
 import { buildDailyStrip, buildHourlyStrip, dayLevel, forecastDayAfter } from "@/utils/weatherStrip";
 import { dayCellDescriptor, dayColumnDescriptor, hourCellDescriptor, hourColumnDescriptor, weekdayDate } from "@/utils/weatherDescriptors";
 
 /** The SBS hourly page's strip: one day, hour by hour. Mount it only while
  *  the reader has the strip switched on — mounting is what fetches the DB. */
-export function WeatherStripHourly({ date }: { date: string }) {
+/** `sbsHour`: the latest hour the SBS figures for `date` have reached — the
+ *  strip marks it with a bar above the hours. */
+export function WeatherStripHourly({ date, sbsHour }: { date: string; sbsHour?: number | null }) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
   const colors = useDescriptorColors();
@@ -37,14 +39,17 @@ export function WeatherStripHourly({ date }: { date: string }) {
   }, [data, extraDay]);
   const status = stripStatus(error, !!strip, !!strip?.hasData, `No weather data for ${date}.`);
 
-  const columnHeaders = [0, 6, 12, 18, 23];
-
-  const columns = useMemo(() => [
-    ...Array.from({ length: 24 }, (_, h) => ({
-      key: h as string | number, axis: columnHeaders.includes(h) ? `${String(h).padStart(2, "0")}:00` : "",
-    })),
-    ...(fc ? [{ key: fc.dates[0], axis: "fcst", forecast: true }] : []),
-  ], [fc, columnHeaders]);
+  const columns = useMemo(() => {
+    const labelled = [0, 6, 12, 18, 23];
+    return [
+      ...Array.from({ length: 24 }, (_, h) => ({
+        key: h as string | number,
+        // The ":00" goes on a narrow screen, before the labels run together.
+        axis: labelled.includes(h) ? <>{String(h).padStart(2, "0")}<span className="weather-axis-min">:00</span></> : "",
+      })),
+      ...(fc ? [{ key: fc.dates[0], axis: FCST_AXIS, forecast: true }] : []),
+    ];
+  }, [fc]);
 
   return (
     <StripCard status={status}>
@@ -54,6 +59,10 @@ export function WeatherStripHourly({ date }: { date: string }) {
           title={STRIP_TITLE}
           subtitle={`${date} · a severe day for drones at ${strip.severeSectors} of ${strip.rows.length} directions${fc ? " · fcst = tomorrow's forecast" : ""}${asOfText(data!.asOf)}`}
           columns={columns}
+          progress={sbsHour != null ? {
+            columns: sbsHour + 1,
+            title: `SBS figures up to ${String(sbsHour).padStart(2, "0")}:00`,
+          } : undefined}
           rows={strip.rows.map((r, i) => {
             const tomorrow = fc?.rows[i].cells[0].summary;
             return {

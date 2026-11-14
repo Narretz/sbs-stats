@@ -103,6 +103,13 @@ test.describe("weather strip", () => {
     await expect(cells.nth(12)).toHaveAttribute("data-forecast", "1");
     await expect(strip(page)).toContainText(FIXED_TODAY);
 
+    // The bar above the hours runs to SBS's latest hour today (14 in the
+    // fixture), not the weather's (11).
+    const bar = await strip(page).getByTestId("weather-progress").boundingBox();
+    const [first, last] = await Promise.all([cells.nth(0).boundingBox(), cells.nth(14).boundingBox()]);
+    expect(bar!.x).toBeCloseTo(first!.x, 0);
+    expect(bar!.x + bar!.width).toBeCloseTo(last!.x + last!.width, 0);
+
     // Tomorrow, rated as a day: Pokrovsk is fogged in all day in the fixture.
     const fc = row(page, "Pokrovsk").getByRole("gridcell").nth(24);
     await expect(fc).toHaveAttribute("data-level", "2");

@@ -6,8 +6,8 @@ import { getKyivDateString } from "@/hooks/sqlLoader";
 import { chartColors } from "@/chartColors";
 import { StripCard } from "@/components/WeatherStripCard";
 import { StripGrid } from "@/components/WeatherStripGrid";
-import { asOfText, LEGEND, STRIP_ANCHOR, STRIP_TITLE, stripStatus, useDescriptorColors } from "@/components/weatherStripShared";
-import { buildDailyStrip, datesBetween, dayLevel, forecastDayAfter } from "@/utils/weatherStrip";
+import { asOfText, FCST_AXIS, LEGEND, STRIP_ANCHOR, STRIP_TITLE, stripStatus, useDescriptorColors } from "@/components/weatherStripShared";
+import { buildDailyStrip, dateAxisLabels, datesBetween, dayLevel, forecastDayAfter } from "@/utils/weatherStrip";
 import { dayCellDescriptor, dayColumnDescriptor, weekdayDate } from "@/utils/weatherDescriptors";
 
 /** The daily pages' strip: the window's days. Mount only while switched on. */
@@ -42,11 +42,12 @@ export function WeatherStripDaily({ startDate, endDate }: { startDate: string; e
     };
   }, [data, windowDates, extraDay, nWindow]);
   const status = stripStatus(error, !!strip, !!strip?.hasData, `No weather data for ${startDate} – ${endDate}.`);
-  // About seven labels across, whatever the window.
-  const every = Math.max(1, Math.ceil(nWindow / 7));
-  const columns = useMemo(() => (strip?.dates ?? []).map((d, i, arr) => i < nWindow
-    ? { key: d, axis: i % every === 0 || i === arr.length - 1 ? d.slice(5) : "" }
-    : { key: d, axis: "fcst", forecast: true }), [strip, nWindow, every]);
+  const columns = useMemo(() => {
+    const labels = dateAxisLabels(nWindow);
+    return (strip?.dates ?? []).map((d, i) => i < nWindow
+      ? { key: d, axis: labels[i] ? d.slice(5) : "", thinAxis: labels[i] === "thin" }
+      : { key: d, axis: FCST_AXIS, forecast: true });
+  }, [strip, nWindow]);
 
   return (
     <StripCard status={status}>

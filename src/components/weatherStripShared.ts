@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { createElement, Fragment, useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
 import { chartAnchor } from "@/utils/chartAnchor";
@@ -18,6 +18,10 @@ export const STRIP_ANCHOR = chartAnchor(STRIP_TITLE);
 // One scale, one legend, for hours and days alike.
 export const LEGEND = (c: { weatherOk: string; weatherDegraded: string; weatherSevere: string }): [string, string][] =>
   [["ok", c.weatherOk], ["limited", c.weatherDegraded], ["severe", c.weatherSevere]];
+
+/** The forecast column's axis label: "fcst", cut to "f" on a narrow screen
+ *  (.weather-axis-min), where the full word runs into the last hour or date. */
+export const FCST_AXIS = createElement(Fragment, null, "f", createElement("span", { className: "weather-axis-min" }, "cst"));
 
 export const asOfText = (asOf: string | null) =>
   (asOf ? ` · as of ${asOf.slice(0, 10)} ${asOf.slice(11, 16)} UTC` : "");

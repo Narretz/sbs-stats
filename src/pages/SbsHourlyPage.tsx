@@ -161,6 +161,13 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
     }
   }, [loadState, days, selectedDate, queryHourly, refreshKey]);
 
+  // How far the SBS figures for the strip's day have got — the latest hour
+  // with a reading, not the weather data's.
+  const sbsHour = useMemo(() => {
+    const hours = rows.filter((r) => r.date === endDate).map((r) => r.hour);
+    return hours.length ? Math.max(...hours) : null;
+  }, [rows, endDate]);
+
   const todayDow = new Date(
     new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00"
   ).getDay();
@@ -216,7 +223,7 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
       hasData={hasData}
       gridChildren={[
         // The day the charts highlight: the picked end date, or today.
-        ...(showWeather ? [<WeatherStripHourly key="weather" date={endDate} />] : []),
+        ...(showWeather ? [<WeatherStripHourly key="weather" date={endDate} sbsHour={sbsHour} />] : []),
         ...metrics.map((m: Metric) => {
         const srcKey = scaleSourceKey(m.key);
         return (

@@ -45,7 +45,11 @@ export interface GridProps {
   subtitle: ReactNode;
   /** `forecast`: a column that is forecast through and through (the daily
    *  strip's tomorrow) — set a little apart from the ones before it. */
-  columns: { key: string | number; axis: string; forecast?: boolean }[];
+  columns: { key: string | number; axis: ReactNode; forecast?: boolean; thinAxis?: boolean }[];
+  /** A bar above the header over the first `progress` columns, in the
+   *  charts' main-series blue — how far the page's own data has got (the
+   *  SBS hourly page: up to its latest hour). */
+  progress?: { columns: number; title: string };
   rows: GridRow[];
   count: { label: string; title: string; values: number[] };
   /** Header of the column at the row ends. */
@@ -59,7 +63,7 @@ export interface GridProps {
   link?: (col: number) => SheetLink | null;
 }
 
-export function StripGrid({ id, title, subtitle, columns, rows, count, tailHeader, legend, legendNote, cellDescriptor, columnDescriptor, columnLabel, link }: GridProps) {
+export function StripGrid({ id, title, subtitle, columns, progress, rows, count, tailHeader, legend, legendNote, cellDescriptor, columnDescriptor, columnLabel, link }: GridProps) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
   const keys = useMemo(() => columns.map((x) => x.key), [columns]);
@@ -105,7 +109,14 @@ export function StripGrid({ id, title, subtitle, columns, rows, count, tailHeade
   // the cells — that is taken out of the column's own track, and the forecast
   // cells came out narrower than the rest.
   const spacer = (col: number) => (columns[col].forecast ? <div data-gap="" aria-hidden /> : null);
-  const tracks = columns.map((col) => `${col.forecast ? "3px " : ""}minmax(0, 1fr)`).join(" ");
+  // The widths that give way on a narrow screen are CSS variables, set on
+  // .weather-grid in theme.css.
+  const tracks = columns.map((col) => `${col.forecast ? "var(--wx-fcst-gap) " : ""}minmax(0, 1fr)`).join(" ");
+  // Grid line a column starts at: after the name column and every forecast
+  // spacer up to and including its own.
+  const line = (col: number) => 2 + col + columns.slice(0, col + 1).filter((x) => x.forecast).length;
+  // Forecast columns come last.
+  const lastPlain = columns.filter((x) => !x.forecast).length - 1;
   const ring = (col: number): React.CSSProperties =>
     col === pinnedCol ? { outline: `1.5px solid ${t.text}`, outlineOffset: -1 } : {};
 
@@ -123,6 +134,7 @@ export function StripGrid({ id, title, subtitle, columns, rows, count, tailHeade
       <div {...pin.cardProps}>
       <div
         role="grid"
+        className="weather-grid"
         aria-label={title}
         onPointerMove={onPointerMove}
         onPointerLeave={() => setHover(null)}
@@ -131,21 +143,31 @@ export function StripGrid({ id, title, subtitle, columns, rows, count, tailHeade
           display: "grid",
           // The name column gives way on a phone (ellipsis, full name in the
           // tooltip) so the cells keep a usable width.
-          gridTemplateColumns: `clamp(64px, 22vw, 150px) ${tracks} 58px`,
+          gridTemplateColumns: `var(--wx-name) ${tracks} minmax(var(--wx-tail-min), max-content)`,
           columnGap: gap, rowGap: 2, alignItems: "center", ...mono,
         }}
       >
-        <div />
+        {/* A row of its own above the header, on explicit columns. */}
+        {progress && progress.columns > 0 && (
+          <div data-testid="weather-progress" title={progress.title} style={{
+            gridColumn: `2 / ${line(progress.columns - 1) + 1}`, alignSelf: "end",
+            height: 3, borderRadius: 1, marginBottom: 2, background: c.hourlyToday,
+          }} />
+        )}
+        <div style={{ gridColumn: 1 }} />
         {columns.map((col, i) => (
           <Fragment key={i}>
             {spacer(i)}
             {/* Left-aligned on its column and free to overflow into the next. */}
-            <div style={{ whiteSpace: "nowrap", fontSize: 10, overflow: "visible", color: i === pinnedCol ? t.text : undefined }}>
+            <div
+              className={[col.thinAxis && "weather-axis-thin", i === lastPlain && "weather-axis-last"].filter(Boolean).join(" ") || undefined}
+              style={{ whiteSpace: "nowrap", fontSize: 10, overflow: "visible", color: i === pinnedCol ? t.text : undefined }}
+            >
               {col.axis}
             </div>
           </Fragment>
         ))}
-        <div style={{ paddingLeft: 6, fontSize: 10 }}>{tailHeader}</div>
+        <div className="weather-tail" style={{ fontSize: 10 }}>{tailHeader}</div>
 
         <div title={count.title}>{count.label}</div>
         {count.values.map((k, i) => (
@@ -188,8 +210,8 @@ export function StripGrid({ id, title, subtitle, columns, rows, count, tailHeade
               />
               </Fragment>
             ))}
-            <div data-testid="weather-tail" title={row.tailTitle} style={{
-              paddingLeft: 6, whiteSpace: "nowrap", color: t.textMuted, fontSize: 11
+            <div data-testid="weather-tail" className="weather-tail" title={row.tailTitle} style={{
+              whiteSpace: "nowrap", color: t.textMuted,
             }}>
               <span style={row.tailStrong ? { color: c.weatherSevere, fontWeight: 700 } : undefined}>{row.tail}</span>
               {row.tailSuffix}

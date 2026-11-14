@@ -470,3 +470,28 @@ summary::marker {
 @media (max-width: 560px) {
   .tt-break { display: block; }
 }
+
+/* The weather strip's grid (components/WeatherStripGrid.tsx): the widths that
+   give way on a narrow screen — the direction names (ellipsised, full name in
+   the tooltip), the summary column, the step before the forecast column — and
+   the axis labels that would otherwise run together: "06:00" loses its ":00",
+   a daily axis every second date (never the first or last), the last hour or
+   date ends at its column instead of starting there, and "fcst" is cut to
+   "f". */
+.weather-grid {
+  --wx-name: clamp(64px, 22vw, 150px);
+  --wx-tail-min: 58px;
+  --wx-fcst-gap: 3px;
+}
+.weather-tail { padding-left: 6px; font-size: 11px; }
+@media (max-width: 560px) {
+  .weather-grid {
+    --wx-name: clamp(44px, 15vw, 150px);
+    --wx-tail-min: 0px;
+    --wx-fcst-gap: 0px;
+  }
+  .weather-tail { padding-left: 3px; font-size: 10px; }
+  .weather-axis-min { display: none; }
+  .weather-axis-thin { visibility: hidden; }
+  .weather-axis-last { display: flex; justify-content: flex-end; }
+}

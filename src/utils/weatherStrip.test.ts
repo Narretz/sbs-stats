@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDailyStrip, buildHourlyStrip, datesBetween, forecastDayAfter, summariseDay } from "@/utils/weatherStrip";
+import { buildDailyStrip, buildHourlyStrip, dateAxisLabels, datesBetween, forecastDayAfter, summariseDay } from "@/utils/weatherStrip";
 import {
   dayCellDescriptor, dayColumnDescriptor, hourCellDescriptor, hourColumnDescriptor, type DescriptorColors,
 } from "@/utils/weatherDescriptors";
@@ -115,5 +115,26 @@ describe("descriptors", () => {
     const empty = buildDailyStrip(sectors, [], ["2026-10-11"]);
     expect(dayCellDescriptor("Kupiansk", empty.rows[0].cells[0], colors).footer).toBe("No weather data for this day.");
     expect(dayColumnDescriptor(empty, 0, colors).rows.every((r) => r.value === null)).toBe(true);
+  });
+});
+
+describe("dateAxisLabels", () => {
+  const shown = (xs: string[], keep: string[]) => xs.flatMap((x, i) => (keep.includes(x) ? [i] : []));
+  it("labels every day of a week, every second on a narrow screen", () => {
+    const l = dateAxisLabels(7);
+    expect(shown(l, ["label", "thin"])).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(shown(l, ["label"])).toEqual([0, 2, 4, 6]);
+  });
+  it("keeps the last, and drops the label crowding it", () => {
+    // every 5: 0 5 10 15 20 25 29 — 25 sits 4 from the last.
+    const l = dateAxisLabels(30);
+    expect(shown(l, ["label", "thin"])).toEqual([0, 5, 10, 15, 20, 25, 29]);
+    expect(shown(l, ["label"])).toEqual([0, 10, 20, 29]);
+    // every 4: 0 … 16 20 24 25 — 24 is on an even step but crowds 25.
+    expect(shown(dateAxisLabels(26), ["label"])).toEqual([0, 8, 16, 25]);
+  });
+  it("never thins a one- or two-label axis", () => {
+    expect(dateAxisLabels(1)).toEqual(["label"]);
+    expect(dateAxisLabels(2)).toEqual(["label", "label"]);
   });
 });

@@ -181,3 +181,20 @@ export function forecastDayAfter(endDate: string, today: string): string | null 
   d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString().slice(0, 10);
 }
+
+/** Which of a daily strip's `n` date columns carry a label: about seven across
+ *  (one every `ceil(n / 7)` days from the first), plus the last. `thin` marks
+ *  the ones a narrow screen drops: every second label — never the first or
+ *  the last — and the one before the last when it sits less than a stride
+ *  from it. */
+export function dateAxisLabels(n: number): ("" | "label" | "thin")[] {
+  const every = Math.max(1, Math.ceil(n / 7));
+  const out: ("" | "label" | "thin")[] = Array.from({ length: n }, (_, i) =>
+    i % every === 0 || i === n - 1 ? "label" : "");
+  const labelled = out.flatMap((x, i) => (x ? [i] : []));
+  labelled.forEach((i, j) => {
+    if (j === 0 || j === labelled.length - 1) return;
+    if (j % 2 === 1 || n - 1 - i < every) out[i] = "thin";
+  });
+  return out;
+}
