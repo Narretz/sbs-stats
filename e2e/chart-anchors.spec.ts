@@ -91,18 +91,7 @@ test.describe("Chart deep links", () => {
     expect(await scrollY(page)).toBe(0);
   });
 
-  test("the '#' affordance stays out of the title's text content", async ({ page }) => {
-    // It has to be CSS generated content. As a real <span> it joined the
-    // heading's textContent, so titles read "Mortars #" and every
-    // `getByText(title, { exact: true })` lookup broke — which is exactly how
-    // this was caught (4 failures in undisclosed-counts.spec.ts).
-    await loadCharts(page, "/?site=sbs&page=daily");
-    const titles = await page.$$eval(".chart-anchor", (els) =>
-      els.map((e) => e.textContent ?? ""),
-    );
-    expect(titles.length).toBeGreaterThan(0);
-    for (const text of titles) expect(text).not.toContain("#");
-  });
+  // The '#' affordance staying out of the title's text: ChartCardTitle.browser.test.tsx.
 
   test("clicking a chart title puts its deep link in the URL", async ({ page }) => {
     await loadCharts(page, "/?site=sbs&page=daily");

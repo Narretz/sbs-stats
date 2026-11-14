@@ -54,27 +54,9 @@ test("monthly bar chart pins and marks the bar", async ({ page }) => {
   await pin(page, card, 0.3);
   await expect(page.locator(".chart-sheet-title")).toHaveText("Combat Engagements");
   expect(await hasCursor(card)).toBe(true);
-
-  // The fixture is today and the seven days before it: one month, or two in a
-  // month's first week. Either way stepping stops at the ends rather than
-  // wrapping, whichever bar the click landed on.
-  const months = [...new Set(Array.from({ length: 8 }, (_, i) => {
-    const d = new Date(`${FIXED_TODAY}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() - i);
-    return d.toISOString().slice(0, 7);
-  }))].sort();
-  const pinned = months.indexOf(((await label(page).textContent()) ?? "").trim());
-  expect(pinned, `pinned label is one of ${months.join(", ")}`).toBeGreaterThanOrEqual(0);
-  const ends = async (i: number) => {
-    await expect(page.getByLabel("Previous point")).toBeEnabled({ enabled: i > 0 });
-    await expect(page.getByLabel("Next point")).toBeEnabled({ enabled: i < months.length - 1 });
-  };
-  await ends(pinned);
-  if (months.length > 1) {
-    await page.getByLabel(pinned === 0 ? "Next point" : "Previous point").click();
-    await expect(label(page)).toHaveText(months[pinned === 0 ? 1 : 0]);
-    await ends(pinned === 0 ? 1 : 0);
-  }
+  // A month label, not a raw index; the stepper stopping at the ends is
+  // ChartSheet.browser.test.tsx.
+  await expect(label(page)).toHaveText(/^\d{4}-\d{2}$/);
   await expect(sheet(page)).toContainText("Actual");
 });
 

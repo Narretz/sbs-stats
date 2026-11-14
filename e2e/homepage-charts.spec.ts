@@ -11,31 +11,9 @@ async function openHomeWithDefaults(page: Page) {
   await page.locator('button:has-text("metric")').first().waitFor();
 }
 
-// Add the first unchecked metric in the first chart's MetricPicker.
-async function addOneMetricToFirstChart(page: Page) {
-  const trigger = page.locator('button:has-text("metric")').first();
-  const beforeLabel = await trigger.innerText();
-  await trigger.click();
-  const popover = page.locator("[popover]").first();
-  await popover.waitFor({ state: "visible" });
-  await popover.locator('input[type="checkbox"]:not(:checked)').first().check();
-  await page.keyboard.press("Escape");
-  // Trigger label updates on the next render — wait for it to reflect +1.
-  await expect(trigger).not.toHaveText(beforeLabel);
-  return trigger;
-}
-
 test.describe("Homepage custom charts", () => {
-  test("changing the time window via the preset dropdown preserves a just-added metric", async ({ page }) => {
-    await openHomeWithDefaults(page);
-    const trigger = await addOneMetricToFirstChart(page);
-    const afterAdd = await trigger.innerText();
-
-    const drop = page.locator('[data-testid="day-range"]').first();
-    await drop.selectOption("30");
-    await page.waitForFunction(() => /[?&]charts=.*d30/.test(location.search));
-    await expect(trigger).toHaveText(afterAdd);
-  });
+  // A just-added metric surviving a time-window change (a stale onChange in
+  // the window picker once dropped it) is DayRangeSelect.browser.test.tsx.
 
   // The `charts=` encoding itself — delimiters in a name, single-encoding
   // through URLSearchParams, malformed specs — is covered in
