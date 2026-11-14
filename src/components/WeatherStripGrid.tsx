@@ -203,7 +203,7 @@ export function StripGrid({ id, title, subtitle, columns, progress, rows, count,
             {/* A border, not a 1.5px-wide background: a fractional width at a
                 fractional x snaps to 1 device pixel in one column, 2 in the
                 next; a border's width is rounded once, the same everywhere. */}
-            <div style={{ position: "absolute", top: 0, bottom: 0, left: "calc(50% - var(--wx-pin-w) / 2)", borderLeft: `var(--wx-pin-w) solid ${t.textMuted}`, opacity: 1 }} />
+            <div style={{ position: "absolute", top: 0, bottom: 0, left: "calc(50% - var(--wx-pin-w) / 2)", borderLeft: `var(--wx-pin-w) solid ${c.pinnedCursor}` }} />
           </div>
         )}
         {rows.map((row, r) => (
