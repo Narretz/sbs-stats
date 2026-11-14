@@ -198,3 +198,11 @@ export function dateAxisLabels(n: number): ("" | "label" | "thin")[] {
   });
   return out;
 }
+
+/** The gap between a strip's cells, in px, for a window of `days` columns
+ *  (forecast ones not counted): 2 while the cells are roomy, 1, then none once
+ *  a gap would eat most of a cell — at 41 days on a narrow screen, 61 on a
+ *  wide one. */
+export function cellGap(days: number, narrow: boolean): number {
+  return days > (narrow ? 40 : 60) ? 0 : days > 31 ? 1 : 2;
+}

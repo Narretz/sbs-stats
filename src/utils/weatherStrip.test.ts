@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDailyStrip, buildHourlyStrip, dateAxisLabels, datesBetween, forecastDayAfter, summariseDay } from "@/utils/weatherStrip";
+import { buildDailyStrip, buildHourlyStrip, cellGap, dateAxisLabels, datesBetween, forecastDayAfter, summariseDay } from "@/utils/weatherStrip";
 import {
   dayCellDescriptor, dayColumnDescriptor, hourCellDescriptor, hourColumnDescriptor, type DescriptorColors,
 } from "@/utils/weatherDescriptors";
@@ -136,5 +136,12 @@ describe("dateAxisLabels", () => {
   it("never thins a one- or two-label axis", () => {
     expect(dateAxisLabels(1)).toEqual(["label"]);
     expect(dateAxisLabels(2)).toEqual(["label", "label"]);
+  });
+});
+
+describe("cellGap", () => {
+  it("drops the gaps at 61 days, or 41 on a narrow screen", () => {
+    expect([31, 32, 60, 61].map((d) => cellGap(d, false))).toEqual([2, 1, 1, 0]);
+    expect([31, 32, 40, 41].map((d) => cellGap(d, true))).toEqual([2, 1, 1, 0]);
   });
 });

@@ -475,17 +475,35 @@ summary::marker {
    give way on a narrow screen — the direction names (ellipsised, full name in
    the tooltip), the summary column, the step before the forecast column — and
    the axis labels that would otherwise run together: "06:00" loses its ":00",
-   a daily axis every second date (never the first or last), the last hour or
-   date ends at its column instead of starting there, and "fcst" is cut to
-   "f". */
+   and a daily axis every second date (never the first or last). Two go by
+   their own column's width rather than the screen's, so a long window on a
+   desktop gets them too: "fcst" is cut to "f", and the last hour or date ends
+   at its column instead of starting there, wherever the column is narrower
+   than the label. */
 .weather-grid {
+  --wx-gap: var(--wx-gap-wide);
+  column-gap: var(--wx-gap);
   --wx-name: clamp(64px, 22vw, 150px);
   --wx-tail-min: 58px;
   --wx-fcst-gap: 3px;
 }
 .weather-tail { padding-left: 6px; font-size: 11px; }
+.weather-axis-fcst { container: wx-fcst / inline-size; }
+@container wx-fcst (width < 24px) {
+  .weather-fcst-rest { display: none; }
+}
+/* The Σ row's numbers, while a cell can hold two digits. */
+.weather-count { container: wx-count / inline-size; }
+@container wx-count (width < 14px) {
+  .weather-count-n { display: none; }
+}
+.weather-axis-last { container: wx-last / inline-size; }
+@container wx-last (width < 32px) {
+  .weather-axis-end { display: flex; justify-content: flex-end; }
+}
 @media (max-width: 560px) {
   .weather-grid {
+    --wx-gap: var(--wx-gap-narrow);
     --wx-name: clamp(44px, 15vw, 150px);
     --wx-tail-min: 0px;
     --wx-fcst-gap: 0px;
@@ -493,5 +511,4 @@ summary::marker {
   .weather-tail { padding-left: 3px; font-size: 10px; }
   .weather-axis-min { display: none; }
   .weather-axis-thin { visibility: hidden; }
-  .weather-axis-last { display: flex; justify-content: flex-end; }
 }

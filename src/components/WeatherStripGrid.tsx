@@ -8,6 +8,7 @@ import { ChartSheetContent } from "@/components/ChartSheet";
 import { DescriptorBody, DescriptorCard, type TooltipDescriptor } from "@/components/TooltipTable";
 import { FloatingCard } from "@/components/FloatingCard";
 import { DEGRADED, SEVERE, type Level } from "@/utils/weatherRating";
+import { cellGap } from "@/utils/weatherStrip";
 
 // The grid both weather strips are drawn with: a row per direction, a cell per
 // column (hours or days) coloured by level, a count row above and a summary
@@ -71,9 +72,6 @@ export function StripGrid({ id, title, subtitle, columns, progress, rows, count,
   const [hover, setHover] = useState<{ row: number | null; col: number; x: number; y: number } | null>(null);
 
   const levelColor = (l: Level) => (l === SEVERE ? c.weatherSevere : l === DEGRADED ? c.weatherDegraded : c.weatherOk);
-  const n = columns.length;
-  // A long window squeezes the cells; drop the gaps before the cells vanish.
-  const gap = n > 60 ? 0 : n > 31 ? 1 : 2;
   const mono: React.CSSProperties = { fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted };
 
   // The hover card is for a pointer that can hover — a mouse or a pen — as on
@@ -117,6 +115,11 @@ export function StripGrid({ id, title, subtitle, columns, progress, rows, count,
   const line = (col: number) => 2 + col + columns.slice(0, col + 1).filter((x) => x.forecast).length;
   // Forecast columns come last.
   const lastPlain = columns.filter((x) => !x.forecast).length - 1;
+  // A long window squeezes the cells — sooner on a narrow screen; drop the
+  // gaps before the cells vanish. Both widths' gaps go to CSS
+  // (.weather-grid picks one by media query), and a cell's corners round
+  // only with a gap to show them.
+  const gaps = { "--wx-gap-wide": `${cellGap(lastPlain + 1, false)}px`, "--wx-gap-narrow": `${cellGap(lastPlain + 1, true)}px` };
   const ring = (col: number): React.CSSProperties =>
     col === pinnedCol ? { outline: `1.5px solid ${t.text}`, outlineOffset: -1 } : {};
 
@@ -144,7 +147,7 @@ export function StripGrid({ id, title, subtitle, columns, progress, rows, count,
           // The name column gives way on a phone (ellipsis, full name in the
           // tooltip) so the cells keep a usable width.
           gridTemplateColumns: `var(--wx-name) ${tracks} minmax(var(--wx-tail-min), max-content)`,
-          columnGap: gap, rowGap: 2, alignItems: "center", ...mono,
+          rowGap: 2, alignItems: "center", ...mono, ...gaps,
         }}
       >
         {/* A row of its own above the header, on explicit columns. */}
@@ -160,10 +163,12 @@ export function StripGrid({ id, title, subtitle, columns, progress, rows, count,
             {spacer(i)}
             {/* Left-aligned on its column and free to overflow into the next. */}
             <div
-              className={[col.thinAxis && "weather-axis-thin", i === lastPlain && "weather-axis-last"].filter(Boolean).join(" ") || undefined}
+              className={[col.thinAxis && "weather-axis-thin", col.forecast && "weather-axis-fcst", i === lastPlain && "weather-axis-last"].filter(Boolean).join(" ") || undefined}
               style={{ whiteSpace: "nowrap", fontSize: 10, overflow: "visible", color: i === pinnedCol ? t.text : undefined }}
             >
-              {col.axis}
+              {/* The last label ends at its column, where it is wider than that
+                  (a container query): spilling on, it would run into "fcst". */}
+              {i === lastPlain ? <div className="weather-axis-end">{col.axis}</div> : col.axis}
             </div>
           </Fragment>
         ))}
@@ -173,7 +178,9 @@ export function StripGrid({ id, title, subtitle, columns, progress, rows, count,
         {count.values.map((k, i) => (
           <Fragment key={i}>
           {spacer(i)}
-          <div data-col={i} data-row="" data-testid="weather-count" style={{
+          {/* The number shows only while the cell is wide enough for two
+              digits (a container query on .weather-count). */}
+          <div data-col={i} data-row="" data-testid="weather-count" className="weather-count" style={{
             textAlign: "center", borderRadius: 2, height: 14, lineHeight: "14px", cursor: "pointer",
             overflow: "hidden",
             background: k ? c.weatherSevere : "transparent",
@@ -181,7 +188,7 @@ export function StripGrid({ id, title, subtitle, columns, progress, rows, count,
             color: k ? "#fff" : t.textFaint,
             ...(columns[i].forecast && k ? { opacity: (0.25 + 0.75 * (k / rows.length)) * FORECAST_OPACITY } : null),
             ...ring(i),
-          }}>{n <= 31 ? (k || "·") : ""}</div>
+          }}><span className="weather-count-n">{k || "·"}</span></div>
           </Fragment>
         ))}
         <div />
@@ -201,7 +208,7 @@ export function StripGrid({ id, title, subtitle, columns, progress, rows, count,
                 data-level={cell.level ?? ""}
                 data-forecast={cell.faded ? "1" : undefined}
                 style={{
-                  height: 14, borderRadius: gap ? 2 : 0, cursor: "pointer",
+                  height: 14, borderRadius: "min(var(--wx-gap) * 2, 2px)", cursor: "pointer",
                   background: cell.level != null ? levelColor(cell.level) : "transparent",
                   border: cell.level != null ? "none" : `1px dashed ${t.chartGrid}`,
                   opacity: cell.faded ? FORECAST_OPACITY : 1,

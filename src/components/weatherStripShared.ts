@@ -19,9 +19,10 @@ export const STRIP_ANCHOR = chartAnchor(STRIP_TITLE);
 export const LEGEND = (c: { weatherOk: string; weatherDegraded: string; weatherSevere: string }): [string, string][] =>
   [["ok", c.weatherOk], ["limited", c.weatherDegraded], ["severe", c.weatherSevere]];
 
-/** The forecast column's axis label: "fcst", cut to "f" on a narrow screen
- *  (.weather-axis-min), where the full word runs into the last hour or date. */
-export const FCST_AXIS = createElement(Fragment, null, "f", createElement("span", { className: "weather-axis-min" }, "cst"));
+/** The forecast column's axis label: "fcst", cut to "f" when its column is
+ *  too narrow for the word (a container query on .weather-axis-fcst) — on a
+ *  phone, or a long window — where it would run into its neighbours. */
+export const FCST_AXIS = createElement(Fragment, null, "f", createElement("span", { className: "weather-fcst-rest" }, "cst"));
 
 export const asOfText = (asOf: string | null) =>
   (asOf ? ` · as of ${asOf.slice(0, 10)} ${asOf.slice(11, 16)} UTC` : "");
