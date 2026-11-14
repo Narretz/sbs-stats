@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDailyStrip, buildHourlyStrip, cellGap, dateAxisLabels, datesBetween, forecastDayAfter, summariseDay } from "@/utils/weatherStrip";
+import { buildDailyStrip, buildHourlyStrip, cellGap, dateAxisLabels, datesBetween, forecastDayAfter, summariseDay, windowSevereDays } from "@/utils/weatherStrip";
 import {
   dayCellDescriptor, dayColumnDescriptor, hourCellDescriptor, hourColumnDescriptor, type DescriptorColors,
 } from "@/utils/weatherDescriptors";
@@ -143,5 +143,18 @@ describe("cellGap", () => {
   it("drops the gaps at 61 days, or 41 on a narrow screen", () => {
     expect([31, 32, 60, 61].map((d) => cellGap(d, false))).toEqual([2, 1, 1, 0]);
     expect([31, 32, 40, 41].map((d) => cellGap(d, true))).toEqual([2, 1, 1, 0]);
+  });
+});
+
+describe("windowSevereDays", () => {
+  // Pokrovsk fogged in on the window's one day, and all of tomorrow's forecast.
+  const strip = buildDailyStrip(sectors, [
+    ...day(1, "2026-10-11"), ...day(2, "2026-10-11", fog),
+    ...day(1, "2026-10-12", () => ({}), 0), ...day(2, "2026-10-12", () => ({ visibility: 40, weather_code: 45 }), 0),
+  ], ["2026-10-11", "2026-10-12"]);
+  it("counts the window's days, not the forecast day after it", () => {
+    expect(strip.rows[1].cells[1].summary?.rating).toBe("severe");   // the forecast is severe…
+    expect(windowSevereDays(strip, 1)).toEqual({ perRow: [0, 1], total: 1 });   // …and not counted
+    expect(windowSevereDays(strip, 2)).toEqual({ perRow: [0, 2], total: 2 });
   });
 });

@@ -206,3 +206,11 @@ export function dateAxisLabels(n: number): ("" | "label" | "thin")[] {
 export function cellGap(days: number, narrow: boolean): number {
   return days > (narrow ? 40 : 60) ? 0 : days > 31 ? 1 : 2;
 }
+
+/** Severe days in a daily strip's window — its first `days` columns, so a
+ *  forecast day after the window is shown but never counted: per direction
+ *  (the strip's summary column) and in all (its subtitle). */
+export function windowSevereDays(strip: DailyStrip, days: number): { perRow: number[]; total: number } {
+  const perRow = strip.rows.map((r) => r.cells.slice(0, days).filter((x) => x.summary?.rating === "severe").length);
+  return { perRow, total: strip.severeCount.slice(0, days).reduce((a, b) => a + b, 0) };
+}
