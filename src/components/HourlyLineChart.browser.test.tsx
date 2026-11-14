@@ -8,7 +8,8 @@ import { RouteProvider } from "@/hooks/RouteContext";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { ChartSheet } from "@/components/ChartSheet";
 import { HourlyLineChart } from "@/components/HourlyLineChart";
-import type { DailyDaySeries } from "@/types";
+import type { DailyDaySeries, EodEstimate } from "@/types";
+import { getKyivDateString } from "@/hooks/sqlLoader";
 
 // The hourly overlay on its own: one line per day, synthetic readings at every
 // hour so any x lands on values. Its tooltip — the per-day list and the
@@ -29,10 +30,14 @@ function Shell({ children }: { children: ReactNode }) {
   );
 }
 
-/** `n` days ending today, each read at every hour; today up to 14:00. */
+/** `n` days ending today — Kyiv's real today, which is how the chart picks
+ *  out the day its end-of-day estimate belongs to — each read at every hour;
+ *  today up to 14:00. */
 function days(n: number): DailyDaySeries[] {
+  const end = new Date(`${getKyivDateString()}T12:00:00Z`);
   return Array.from({ length: n }, (_, i) => {
-    const d = new Date(Date.UTC(2026, 9, 1 + i));
+    const d = new Date(end);
+    d.setUTCDate(end.getUTCDate() - (n - 1 - i));
     const today = i === n - 1;
     return {
       date: d.toISOString().slice(0, 10),
@@ -43,9 +48,9 @@ function days(n: number): DailyDaySeries[] {
 }
 
 let doc: Document = document;
-async function mount(n: number) {
+async function mount(n: number, { data = days(n), eodSteps }: { data?: DailyDaySeries[]; eodSteps?: EodEstimate[] } = {}) {
   const r = await render(
-    <Shell><HourlyLineChart title={TITLE} data={days(n)} globalMax={0} globalMedian={0} wfull /></Shell>,
+    <Shell><HourlyLineChart title={TITLE} data={data} globalMax={0} globalMedian={0} wfull eodSteps={eodSteps} /></Shell>,
   );
   doc = r.container.ownerDocument;
 }
@@ -107,5 +112,44 @@ describe("HourlyLineChart tooltip", () => {
     await userEvent.click(s, { position: { x: box.width * 0.3, y: box.height * 0.5 } });
     await expect.poll(() => doc.querySelector(".chart-sheet-label")?.textContent ?? "").toMatch(/^(00:00|\d{2}:00–\d{2}:59)$/);
     await expect.element(page.getByRole("region")).toMatchTextContent(stats);
+  });
+});
+
+// Today's end-of-day estimate, one per reading: which one an hour shows is
+// eodAtHour (hourlyTooltip.test.ts). This is the chart handing it the right
+// hour — its x-axis runs one ahead of the DB's (position N is hour N−1) — and
+// the estimate reaching the pinned sheet. The estimates themselves come from
+// the hook; e2e/eod-projection checks that wiring.
+describe("HourlyLineChart — today's end-of-day estimate", () => {
+  it("each hour shows the estimate made at it, none where today has no reading", async () => {
+    const data = days(7);
+    // Today read at 00, 06, 10 and 14 only.
+    data[6] = { ...data[6], points: [0, 6, 10, 14].map((hour) => ({ hour, value: (hour + 1) * 10 })) };
+    const step = (h: number, fraction: number): EodEstimate =>
+      ({ bucket: String(h), asOf: `${String(h).padStart(2, "0")}:00`, fraction, projected: 1000 + h });
+    await mount(7, { data, eodSteps: [step(0, 0.05), step(6, 0.3), step(10, 0.5), step(14, 0.62)] });
+
+    const s = await svg();
+    const box = s.getBoundingClientRect();
+    await userEvent.click(s, { position: { x: box.width * 0.5, y: box.height * 0.5 } });
+    await expect.poll(() => doc.querySelector(".chart-sheet-label")?.textContent ?? "").toMatch(/:00/);
+    const sheet = () => page.getByRole("region");
+    const stepTo = async (hh: number) => {
+      for (let i = 0; i < 30; i++) {
+        const cur = Number((doc.querySelector(".chart-sheet-label")?.textContent ?? "").slice(0, 2));
+        if (cur === hh) return;
+        await page.getByLabelText(cur < hh ? "Next point" : "Previous point").click();
+      }
+      throw new Error(`could not step to ${hh}:00`);
+    };
+
+    await stepTo(10);
+    await expect.element(sheet()).toMatchTextContent(/EoD est \(50% in\)\s*~1,010/);
+    // No reading at 08:00, so no estimate — not 06:00's, and not the latest.
+    await stepTo(8);
+    await expect.element(sheet()).not.toMatchTextContent("EoD est");
+    // Past the latest reading: the current estimate, made at 14:00.
+    await stepTo(18);
+    await expect.element(sheet()).toMatchTextContent(/EoD est \(62% in\)\s*~1,014/);
   });
 });

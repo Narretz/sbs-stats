@@ -36,19 +36,13 @@ async function loadCharts(page: Page, url: string) {
 }
 
 test.describe("Chart deep links", () => {
-  test("every chart card exposes a slug derived from its title", async ({ page }) => {
-    await loadCharts(page, "/?site=sbs&page=daily");
-    const ids = await chartIds(page);
-    expect(ids.length).toBeGreaterThan(3);
-    // Slugs are URL-safe and unique — a duplicate would make one of the two
-    // charts unreachable by fragment.
-    for (const id of ids) expect(id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
-    expect(new Set(ids).size).toBe(ids.length);
-  });
-
   test("a fragment scrolls to that chart, clear of the sticky header", async ({ page }) => {
     await loadCharts(page, "/?site=sbs&page=daily");
     const ids = await chartIds(page);
+    // Every card has one (chartAnchor.test.ts has their shape), and no two
+    // match — a duplicate would leave one of the two charts unreachable.
+    expect(ids.length).toBeGreaterThan(3);
+    expect(new Set(ids).size).toBe(ids.length);
     // A chart mid-page: far enough down to require scrolling, but with enough
     // content below it that the browser can actually seat it at the intended
     // offset. (The very last card can't be — see the next test.)

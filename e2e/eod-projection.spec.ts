@@ -71,18 +71,7 @@ test.describe("End-of-day projection", () => {
     expect((txt.match(/~[\d,]+\s*\(\d+%\)/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 
-  test("SBS daily — hovered card is elevated so the tooltip isn't clipped", async ({ page }) => {
-    await page.goto(SBS_DAILY);
-    await eodTooltip(page, 1); // leaves the mouse hovering this card
-    const z = await page.evaluate(() => {
-      const el = document.querySelector(".chart-card:hover");
-      return el ? getComputedStyle(el).zIndex : null;
-    });
-    // src/styles/theme.css: `.chart-card:hover { z-index: 2; }` — enough to sit above the
-    // sibling `.chart-card { z-index: 1; }` whose top edge would otherwise
-    // paint over the hover-card's tooltip.
-    expect(z).toBe("2");
-  });
+  // The hovered card lifting above its neighbours: ChartSheet.browser.test.tsx.
 
   test("SBS hourly — tooltip header shows the EoD estimate", async ({ page }) => {
     await page.goto(SBS_HOURLY);
@@ -90,41 +79,8 @@ test.describe("End-of-day projection", () => {
     expect(txt).toMatch(/TODAY (?:00:00|\d{2}:00–\d{2}:59)[\s\S]*Today\s*(?:—|[\d,]+)[\s\S]*EoD est \(\d+% in\)\s*~[\d,]+/);
   });
 
-  test("SBS hourly — each passed hour shows the estimate made at it", async ({ page }) => {
-    // The fixture's today has readings at 00, 06, 10 and 14 against history
-    // that is 50% in by 10:00 and 62% by 14:00.
-    await page.goto(SBS_HOURLY);
-    await page.waitForSelector(".hourly-card");
-    const card = page.locator(".hourly-card").first();
-    await card.scrollIntoViewIfNeeded();
-    const svg = card.locator("svg.recharts-surface").first();
-    const box = (await svg.boundingBox())!;
-    await svg.click({ position: { x: box.width * 0.5, y: box.height * 0.5 } });
-    const sheet = page.locator(".chart-sheet[data-open]");
-    await expect(sheet).toBeVisible();
-    const label = page.locator(".chart-sheet-label");
-
-    // Step the pinned hour to `hh:00–hh:59`, from wherever the click landed.
-    const stepTo = async (hh: number) => {
-      for (let i = 0; i < 30; i++) {
-        const cur = Number(((await label.textContent()) ?? "").slice(0, 2));
-        if (cur === hh) return;
-        await page.getByLabel(cur < hh ? "Next point" : "Previous point").click();
-      }
-      throw new Error(`could not step to ${hh}:00`);
-    };
-
-    await stepTo(10);
-    await expect(sheet).toContainText(/TODAY 10:00–10:59[\s\S]*Today\s*[\d,]+[\s\S]*EoD est \(50% in\)\s*~[\d,]+/);
-    // No reading at 08:00, so no estimate — not 06:00's, and not the latest.
-    await stepTo(8);
-    await expect(sheet).toContainText(/TODAY 08:00–08:59[\s\S]*Today\s*—/);
-    await expect(sheet).not.toContainText("EoD est");
-    // Past the latest reading, the current estimate.
-    await stepTo(18);
-    // 62% is the share in by 14:00, the latest reading: the current estimate.
-    await expect(sheet).toContainText(/TODAY 18:00–18:59[\s\S]*Today\s*—[\s\S]*EoD est \(62% in\)\s*~[\d,]+/);
-  });
+  // Which estimate each passed hour shows: eodAtHour (hourlyTooltip.test.ts),
+  // and the chart handing it the right hour, HourlyLineChart.browser.test.tsx.
 
   test("GSUA ru-attacks daily — single-series tooltip shows a projected value", async ({ page }) => {
     await page.goto(GSUA_DAILY);

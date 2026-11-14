@@ -31,15 +31,18 @@ beforeAll(async () => {
       time_start TEXT, time_end TEXT, model TEXT, launch_place TEXT, target TEXT,
       launched INTEGER, destroyed INTEGER, source TEXT,
       attack_date TEXT, category TEXT, scraped_at TEXT, status_data TEXT DEFAULT '',
-      destroyed_types TEXT DEFAULT ''
+      destroyed_types TEXT DEFAULT '',
+      num_hit_location TEXT DEFAULT '', num_fall_fragment_location TEXT DEFAULT ''
     );
     CREATE VIEW missile_attacks_latest AS SELECT * FROM missile_attacks;
   `);
+  // `impacts` as piterfm stores them: [hit, debris], text, "" for none.
   const row = (date: string, model: string, category: string, launched: number, destroyed: number,
-    { status = "", types = "", source }: { status?: string; types?: string; source?: string } = {}) =>
-    db.run("INSERT INTO missile_attacks VALUES (?, ?, ?, '', '', ?, ?, ?, ?, ?, ?, ?, ?)", [
+    { status = "", types = "", source, impacts = ["", ""] }:
+      { status?: string; types?: string; source?: string; impacts?: [string, string] } = {}) =>
+    db.run("INSERT INTO missile_attacks VALUES (?, ?, ?, '', '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
       `${date} 18:00`, `${date} 09:00`, model, launched, destroyed, source ?? `kpszsu/${date}/${model}`,
-      date, category, `${date}T12:00:00+00:00`, status, types,
+      date, category, `${date}T12:00:00+00:00`, status, types, ...impacts,
     ]);
 
   row(WITHHELD, "Iskander-M and 3M22 Zircon", "ballistic", 0, 0, { status: "hidden" });
@@ -49,12 +52,15 @@ beforeAll(async () => {
   row(INTERCEPTS_ONLY, "C-400 and Iskander-M", "ballistic", 2, 2, { status: "hidden" });
   // A Python dict repr, as piterfm publishes it — and a sub-type with no
   // `destroyed` key at all.
+  // Locations hit / debris are one figure per REPORT. Two reports this day,
+  // each with its own: they add up.
   row(SUBTYPES, "Shahed-136/131", "drone", 104, 94,
-    { types: "{'Banderol': {'launched': 4, 'destroyed': 4}, 'Turbojet': {'launched': 9}}" });
-  row(SUBTYPES, "X-101", "cruise", 10, 5);
+    { types: "{'Banderol': {'launched': 4, 'destroyed': 4}, 'Turbojet': {'launched': 9}}", impacts: ["12.0", "4.0"] });
+  row(SUBTYPES, "X-101", "cruise", 10, 5, { impacts: ["4.0", "1.0"] });
+  // One report, two rows, and piterfm copies its figure onto both: counted once.
   row(ROWED_SEPARATELY, "Shahed-136/131", "drone", 105, 95,
-    { types: "{'Banderol': {'launched': 2, 'destroyed': 2}}", source: "kpszsu/shared" });
-  row(ROWED_SEPARATELY, "Banderol", "cruise", 2, 2, { source: "kpszsu/shared" });
+    { types: "{'Banderol': {'launched': 2, 'destroyed': 2}}", source: "kpszsu/shared", impacts: ["15.0", "5.0"] });
+  row(ROWED_SEPARATELY, "Banderol", "cruise", 2, 2, { source: "kpszsu/shared", impacts: ["15.0", "5.0"] });
   row(PLAIN, "Shahed-136/131", "drone", 102, 92);
   row(MAX_DAY, "Iskander-M", "ballistic", 7, 1);
   installDisclosureAwareViews(db);
@@ -151,5 +157,23 @@ describe("breakdownToRows", () => {
     expect(text(nested.subset)).toBe("—");
     expect(nested.share).toBeUndefined();
     expect(rows.indexOf(nested)).toBe(rows.findIndex((r) => r.label === "Shahed-136/131") + 1);
+  });
+});
+
+// Locations hit / hit by falling debris (PLAIN gives no figure at all).
+describe("impact figures", () => {
+  it("counts a figure copied onto two rows of one report once", () => {
+    expect(day(ROWED_SEPARATELY)).toMatchObject({ impact_hit: 15, impact_debris: 5 });
+  });
+
+  it("adds up two reports of a day", () => {
+    expect(day(SUBTYPES)).toMatchObject({ impact_hit: 16, impact_debris: 5 });
+  });
+
+  it("leaves a day without a figure a gap, out of the stats", () => {
+    expect(day(PLAIN)).toMatchObject({ impact_hit: null, impact_debris: null });
+    // Only the two days with a figure, 16 and 15: read as 0s, the five days
+    // without one would pull the median down to 0.
+    expect(queryGlobalStats(db).impacts!.impact_hit).toMatchObject({ max: 16, median: 16, total: 31 });
   });
 });

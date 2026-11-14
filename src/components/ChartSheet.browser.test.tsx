@@ -122,6 +122,19 @@ async function hover(title: string) {
 const tooltipText = (title: string) =>
   (card(title).querySelector<HTMLElement>(".recharts-tooltip-wrapper")?.innerText ?? "").trim();
 
+// theme.css lifts the hovered card (`.chart-card:hover`, z-index 2) above its
+// siblings (1): otherwise the next card's top edge paints over the hover
+// card's tooltip where it hangs past its own card.
+describe("Chart card stacking", () => {
+  it("the hovered card sits above its neighbours", async () => {
+    await mount(<Charts />);
+    await hover(FIRST);
+    await expect.poll(() => tooltipText(FIRST)).not.toBe("");
+    expect(getComputedStyle(card(FIRST)).zIndex).toBe("2");
+    expect(getComputedStyle(card(SECOND)).zIndex).toBe("1");
+  });
+});
+
 describe("Chart pin sheet", () => {
   it("clicking a point opens the sheet with that date's values", async () => {
     await mount(<Charts />);
