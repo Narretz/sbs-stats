@@ -15,8 +15,9 @@ import {
   type ZelenskyWeekRow,
 } from "@/types";
 import {
-  formatHedged, formatJetDrones, formatWeekRange, formatWeekTick, mondaysBetween, monthsSpanned, toWeeklyDataset,
+  formatWeekRange, formatWeekTick, mondaysBetween, monthsSpanned, toWeeklyDataset,
   weeklySources, weeksInMonthWindow, windowTicks,
+  weekNote,
 } from "@/utils/zelenskyWeekly";
 
 interface Props {
@@ -74,24 +75,12 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
     [rows],
   );
 
-  // Tooltip header: the week spelled out, plus the figure as the post hedged
-  // it — the bar height alone would present "понад 3170" as exactly 3,170.
-  const footerFor = (category: ZelenskyCategory) => (d: MonthlyDataPoint) => {
-    const r = byMonday.get(d.date);
-    // On the drones chart, how many of them were jet-powered, when the post
-    // said (a count or a share — as given).
-    const jet = r && category === "drones" ? formatJetDrones(r) : null;
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <span>
-          {r
-            ? <>{r.period} · as posted: {formatHedged(r[category], r[`${category}_bound`])}</>
-            : "no weekly tally posted"}
-        </span>
-        {jet && <span>of which jet-powered: {jet}</span>}
-      </div>
-    );
-  };
+  // Tooltip footer: the week's figure as posted (utils/zelenskyWeekly weekNote).
+  const footerFor = (category: ZelenskyCategory) => (d: MonthlyDataPoint) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {weekNote(byMonday.get(d.date), category).map((line) => <span key={line}>{line}</span>)}
+    </div>
+  );
 
   return (
     <PageScaffold

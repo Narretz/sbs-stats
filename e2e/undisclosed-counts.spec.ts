@@ -13,13 +13,16 @@ import { FIXED_TODAY } from "./build-fixtures.mjs";
 // and a genuinely-quiet day stay *distinguishable*: build-fixtures.mjs seeds
 // ballistic 0 disclosed on day −2 and ballistic withheld on day −1, both of
 // which carry a literal 0 in the DB.
+//
+// What the queries make of those rows — the gap, the flags, the lower bound,
+// the stats over disclosed days — is src/data/ruAirAttacksDb.test.ts. These
+// two hovers are for it reaching the screen, with the notes that explain it.
 const dayISO = (offset: number) => {
   const d = new Date(`${FIXED_TODAY}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + offset);
   return d.toISOString().slice(0, 10);
 };
 const WITHHELD = dayISO(-1);   // reported without figures → gap
-const REAL_ZERO = dayISO(-2);  // disclosed, nothing launched → plots at 0
 const INTERCEPTS_ONLY = dayISO(-3); // a withheld report that gave its intercepts
 
 // Tooltip headers are the ISO date itself (utils/dateFormat).
@@ -68,13 +71,6 @@ test.describe("RU air attacks — withheld counts", () => {
     await page.waitForTimeout(1200);
   });
 
-  test("a disclosed zero still reads as zero", async ({ page }) => {
-    const tip = await tooltipAt(page, "Ballistic Missiles", REAL_ZERO);
-    expect(tip).toContain(fmt(REAL_ZERO));
-    expect(tip).toMatch(/Launched\s+0/);
-    expect(tip).not.toContain("not disclosed");
-  });
-
   test("a withheld day charts as a gap and says why", async ({ page }) => {
     const tip = await tooltipAt(page, "Ballistic Missiles", WITHHELD);
     expect(tip).toContain(fmt(WITHHELD));
@@ -91,21 +87,5 @@ test.describe("RU air attacks — withheld counts", () => {
     // The withheld model row reads "≥ 2" (share 40%), then its 2 intercepts —
     // and no rate after them, which over a lower bound would be fiction.
     expect(tip).toMatch(/C-400 and Iskander-M\s+≥ 2\s+40\.0%\s+2\s+⚠/);
-  });
-
-  test("the aggregate tooltip marks ballistic 'not disclosed', not 0", async ({ page }) => {
-    const tip = await tooltipAt(page, "All — Drones + Missiles · Launched", WITHHELD);
-    expect(tip).toContain("Ballistic Missiles");
-    expect(tip).toContain("not disclosed");
-    // The total is the sum of what *was* disclosed, flagged as a lower bound.
-    expect(tip).toContain("a lower bound");
-  });
-
-  test("withheld days are excluded from the ballistic MAX/MED stats", async ({ page }) => {
-    // Day −1 is withheld; the largest disclosed ballistic value is day −7 (7).
-    // A placeholder 0 leaking through would not change MAX, but a withheld day
-    // counted as 0 would drag MED down — assert the stats read off real days.
-    const text = await chartCard(page, "Ballistic Missiles").innerText();
-    expect(text).toMatch(/MAX\s+7\b/);
   });
 });

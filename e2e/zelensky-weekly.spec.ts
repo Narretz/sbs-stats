@@ -45,25 +45,13 @@ test.describe("Zelensky weekly tally", () => {
     }
   });
 
+  // What each week's note says — hedges, the jet share, an unposted week, an
+  // unnamed weapon — is weekNote in zelenskyWeekly.test.ts. One hover for it
+  // reaching the tooltip:
   test("the tooltip quotes the figure as hedged in the post", async ({ page }) => {
     const tip = await tooltipAt(page, DRONES, "2026-01-05/11");
     expect(tip).toContain("as posted: > 1,000");
-    // The fixture's full week also gives a jet share, which the drones chart
-    // adds; a week without one says nothing about it.
     expect(tip).toContain("of which jet-powered: ≈ 60%");
-    expect(await tooltipAt(page, DRONES, "2026-01-19/25")).not.toContain("jet-powered");
-    expect(await tooltipAt(page, BOMBS, "2026-01-05/11")).not.toContain("jet-powered");
-  });
-
-  test("a week with no post says so, rather than reading as zero", async ({ page }) => {
-    const tip = await tooltipAt(page, DRONES, "2026-01-12/18");
-    expect(tip).toContain("no weekly tally posted");
-    expect(tip).not.toMatch(/Actual\s+0/);
-  });
-
-  test("a weapon the week's post didn't name is 'not reported'", async ({ page }) => {
-    const tip = await tooltipAt(page, BOMBS, "2026-01-19/25");
-    expect(tip).toContain("as posted: not reported");
   });
 
   // A pinned week links the post its figures were read from; the label
