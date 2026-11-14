@@ -164,6 +164,48 @@ export function sourceKey(src: ColumnSource): string {
   return src.unit ? `${src.entity}:${src.unit}` : src.entity;
 }
 
+// A column's `cols=` token: `sbs:2026-08` for an entity, `sbs:fenix:2026-08`
+// for one of its sub-units, either with a trailing `:proj` — the month-end
+// projection rather than the figure reported so far. The marker rides at the
+// end, so the month stays the last positional token, and the two-token form
+// is the original and still parses: links shared before sub-units existed
+// keep working.
+export const PROJ_TOKEN = ":proj";
+export type ColumnSpec = ColumnSource & { month: string };
+
+export function columnToken(c: ColumnSpec): string {
+  return `${sourceKey(c)}:${c.month}${c.proj ? PROJ_TOKEN : ""}`;
+}
+
+const MONTH_RE = /^\d{4}-\d{2}$/;
+
+export function parseColumns(raw: string | null): ColumnSpec[] {
+  if (!raw) return [];
+  const out: ColumnSpec[] = [];
+  for (const part of raw.split(",")) {
+    const bits = part.split(":");
+    // Stripped before the positional tokens are read, so the month stays last
+    // whether or not the marker is there.
+    const proj = bits.length > 2 && bits[bits.length - 1] === "proj";
+    if (proj) bits.pop();
+    const entity = bits[0];
+    const unit = bits.length >= 3 ? bits[1] : undefined;
+    const month = bits[bits.length - 1];
+    if (!(COMPARE_ENTITIES as readonly string[]).includes(entity)) continue;
+    if (!MONTH_RE.test(month ?? "")) continue;
+    // A unit slug is only meaningful on SBS; anywhere else it is a malformed
+    // link, and dropping the token is friendlier than dropping the column.
+    // Same for `:proj` — only SBS derives one.
+    out.push({
+      entity: entity as CompareEntityId,
+      ...(unit && entity === "sbs" ? { unit } : {}),
+      ...(proj && entity === "sbs" ? { proj: true } : {}),
+      month,
+    });
+  }
+  return out;
+}
+
 // Column header text. A sub-unit column says whose sub-unit it is, because the
 // comparison it is usually in — one unit against «Рубикон», or against the
 // grouping it belongs to — is unreadable without that.
@@ -491,6 +533,70 @@ export function visibleRowsFor(
     }
   }
   return out;
+}
+
+// ─── Comparable subset ──────────────────────────────────────────────────────
+// "All targets engaged" is each unit's WHOLE reported output, which is the
+// honest headline but not a like-for-like: SBS counts target classes nobody
+// else publishes, «Альфа» and «Рубикон» each report lines the others don't.
+// Two columns can differ because one unit did more, or merely because it
+// counts more things. The compare page's "of which comparable" child adds up
+// only the categories EVERY selected column can fill.
+//
+// Parents only — the canonical children are subdivisions of their parent's
+// mapping, so including them would double-count. Groups: `struck` plus
+// `personnel`, because all three entities fold personnel INTO their targets
+// total (see the targets_all comment above), so leaving it out would compare
+// against a different bucket than the parent does.
+const COMPARABLE_GROUPS: CompareGroup[] = ["personnel", "struck"];
+
+// Shared is a question about VOCABULARY, not about this month's values: a
+// category counts unless it is unique to some of the selected units.
+//
+// The distinction is not academic. In 2026-08, «Рубикон» reported no air
+// defence — but it does report air defence as a rule, so the category IS
+// comparable and its silence means zero, not "incomparable". Keying off
+// values instead dropped the whole row, took 17 off «Альфа» for a reason
+// that had nothing to do with «Альфа», and made the shared set flicker from
+// month to month. Aircraft and watercraft, which «Рубикон» has no counter
+// for at all, stay out under either reading — those really are unique.
+export function comparableSet(
+  columns: readonly { entity: CompareEntityId; month: string }[],
+): { shared: CompareRow[]; dropped: string[] } {
+  const shared: CompareRow[] = [];
+  const dropped: string[] = [];
+  if (!columns.length) return { shared, dropped };
+  for (const r of CANONICAL_ROWS) {
+    if (!COMPARABLE_GROUPS.includes(r.group) || r.resolve) continue;
+    const owners = columns.map((c) => mapsIn(r, c.entity, c.month));
+    if (owners.every(Boolean)) shared.push(r);
+    else if (owners.some(Boolean)) dropped.push(r.label);
+  }
+  return { shared, dropped };
+}
+
+// The row's caption. It says what was LEFT OUT, not what went in: the rows
+// that went in are visible further down the table, while the difference
+// between this figure and the total above it is otherwise unexplained — the
+// question the caption exists to answer.
+export function comparableCaption({ shared, dropped }: { shared: readonly CompareRow[]; dropped: readonly string[] }): string {
+  return `${shared.length} categories every column reports` +
+    (dropped.length ? ` · left out as unique to some: ${dropped.join(", ")}` : "");
+}
+
+// One column's comparable figure. A shared category the column reported
+// nothing for counts as zero: these sources enumerate what they hit, so an
+// absent line is none — and the column's entity does carry the counter, or
+// the row would not be shared at all. Derived: this app added it up, no
+// source publishes it.
+export function comparableValue(
+  shared: readonly CompareRow[], snap: EntitySnapshot, entity: CompareEntityId, month: string,
+): CompareValue | null {
+  const parts = shared
+    .map((r) => sumNatives(snap, month, keysFor(r, entity, month)))
+    .filter((v): v is CompareValue => v != null);
+  const value = sumCompareValues(parts);
+  return value ? { ...value, derived: true } : null;
 }
 
 export const GROUP_LABELS: Record<CompareGroup, string> = {
