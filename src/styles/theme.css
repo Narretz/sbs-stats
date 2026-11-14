@@ -486,6 +486,8 @@ summary::marker {
   --wx-name: clamp(64px, 22vw, 150px);
   --wx-tail-min: 58px;
   --wx-fcst-gap: 3px;
+  /* The pinned column's line. */
+  --wx-pin-w: 2px;
 }
 .weather-tail { padding-left: 6px; font-size: 11px; }
 .weather-axis-fcst { container: wx-fcst / inline-size; }
@@ -507,6 +509,7 @@ summary::marker {
     --wx-name: clamp(44px, 15vw, 150px);
     --wx-tail-min: 0px;
     --wx-fcst-gap: 0px;
+    --wx-pin-w: 1px;
   }
   .weather-tail { padding-left: 3px; font-size: 10px; }
   .weather-axis-min { display: none; }

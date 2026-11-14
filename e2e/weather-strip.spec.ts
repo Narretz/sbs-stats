@@ -93,6 +93,13 @@ test.describe("weather strip", () => {
     // The stepper walks the hours.
     await page.getByLabel("Next point").click();
     await expect(page.locator(".chart-sheet-label")).toHaveText(`${WEATHER_DAY} 0${h + 1}:00`);
+
+    // The pinned hour: a line through the centre of its column, top to bottom.
+    const pinned = await row(page, "Pokrovsk").getByRole("gridcell").nth(h + 1).boundingBox();
+    const lineBox = await strip(page).getByTestId("weather-pin-line").boundingBox();
+    expect(lineBox!.x + lineBox!.width / 2).toBeCloseTo(pinned!.x + pinned!.width / 2, 0);
+    const first = await strip(page).getByTestId("weather-count").nth(h + 1).boundingBox();
+    expect(lineBox!.y).toBeCloseTo(first!.y, 0);
   });
 
   test("hourly: today's hours still ahead are forecast, then tomorrow as one column", async ({ page }) => {

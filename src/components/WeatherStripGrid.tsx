@@ -120,8 +120,8 @@ export function StripGrid({ id, title, subtitle, columns, progress, rows, count,
   // (.weather-grid picks one by media query), and a cell's corners round
   // only with a gap to show them.
   const gaps = { "--wx-gap-wide": `${cellGap(lastPlain + 1, false)}px`, "--wx-gap-narrow": `${cellGap(lastPlain + 1, true)}px` };
-  const ring = (col: number): React.CSSProperties =>
-    col === pinnedCol ? { outline: `1.5px solid ${t.text}`, outlineOffset: -1 } : {};
+  // Grid rows: the progress bar's (if any), the header, Σ, then the directions.
+  const countRow = progress && progress.columns > 0 ? 3 : 2;
 
   const card = hover && !pin.isPinned ? (
     <FloatingCard x={hover.x} y={hover.y}>
@@ -143,7 +143,7 @@ export function StripGrid({ id, title, subtitle, columns, progress, rows, count,
         onPointerLeave={() => setHover(null)}
         onClick={onClick}
         style={{
-          display: "grid",
+          display: "grid", position: "relative",
           // The name column gives way on a phone (ellipsis, full name in the
           // tooltip) so the cells keep a usable width.
           gridTemplateColumns: `var(--wx-name) ${tracks} minmax(var(--wx-tail-min), max-content)`,
@@ -187,12 +187,25 @@ export function StripGrid({ id, title, subtitle, columns, progress, rows, count,
             opacity: k ? 0.25 + 0.75 * (k / rows.length) : 1,
             color: k ? "#fff" : t.textFaint,
             ...(columns[i].forecast && k ? { opacity: (0.25 + 0.75 * (k / rows.length)) * FORECAST_OPACITY } : null),
-            ...ring(i),
           }}><span className="weather-count-n">{k || "·"}</span></div>
           </Fragment>
         ))}
         <div />
 
+        {/* The pinned column: a vertical line through its centre, as the
+            charts' pinned cursor, from Σ to the last direction. Absolutely
+            positioned, so it takes no cell of its own from the grid. */}
+        {pinnedCol >= 0 && (
+          <div data-testid="weather-pin-line" aria-hidden style={{
+            position: "absolute", inset: 0, pointerEvents: "none",
+            gridColumn: `${line(pinnedCol)} / span 1`, gridRow: `${countRow} / ${countRow + 1 + rows.length}`,
+          }}>
+            {/* A border, not a 1.5px-wide background: a fractional width at a
+                fractional x snaps to 1 device pixel in one column, 2 in the
+                next; a border's width is rounded once, the same everywhere. */}
+            <div style={{ position: "absolute", top: 0, bottom: 0, left: "calc(50% - var(--wx-pin-w) / 2)", borderLeft: `var(--wx-pin-w) solid ${t.textMuted}`, opacity: 1 }} />
+          </div>
+        )}
         {rows.map((row, r) => (
           <div key={row.key} role="row" data-sector={row.key} style={{ display: "contents" }}>
             <div title={row.title} style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: t.text }}>
@@ -212,7 +225,6 @@ export function StripGrid({ id, title, subtitle, columns, progress, rows, count,
                   background: cell.level != null ? levelColor(cell.level) : "transparent",
                   border: cell.level != null ? "none" : `1px dashed ${t.chartGrid}`,
                   opacity: cell.faded ? FORECAST_OPACITY : 1,
-                  ...ring(i),
                 }}
               />
               </Fragment>
