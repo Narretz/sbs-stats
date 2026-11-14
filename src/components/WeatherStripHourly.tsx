@@ -17,16 +17,15 @@ export function WeatherStripHourly({ date, sbsHour }: { date: string; sbsHour?: 
   const { theme: t } = useTheme();
   const c = chartColors(t);
   const colors = useDescriptorColors();
-  const { loadState, error, queryRange } = useDatabaseWeather();
+  const { error, queryRange } = useDatabaseWeather();
   // Viewing today, one more column after hour 23: tomorrow as a whole day,
   // from the stored forecast — the same day rating as the daily strip's fcst
   // column. The DAY column stays today's.
   const extraDay = forecastDayAfter(date, getKyivDateString());
-  // queryRange is rebuilt when a background refresh swaps the DB in.
-  const data = useMemo(
-    () => (loadState === "ready" ? queryRange(date, extraDay ?? date) : null),
-    [loadState, queryRange, date, extraDay],
-  );
+  // Not gated on loadState: a background refresh keeps the old DB until the
+  // new one is in, so the grid stays up and updates in place. queryRange is
+  // rebuilt when the new DB swaps in, and is null until there is one.
+  const data = useMemo(() => queryRange(date, extraDay ?? date), [queryRange, date, extraDay]);
   const strip = useMemo(
     () => (data ? buildHourlyStrip(data.sectors, data.cells.filter((x) => x.date === date)) : null),
     [data, date],

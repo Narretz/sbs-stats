@@ -16,15 +16,14 @@ export function WeatherStripDaily({ startDate, endDate }: { startDate: string; e
   const c = chartColors(t);
   const colors = useDescriptorColors();
   const drillDown = useDrillDownLink();
-  const { loadState, error, queryRange } = useDatabaseWeather();
+  const { error, queryRange } = useDatabaseWeather();
   // A window ending today gets tomorrow as one extra column: the forecast the
   // hourly runs store to the end of tomorrow. Shown, never counted — the
   // severe-days column and the subtitle cover the window's own days.
   const extraDay = forecastDayAfter(endDate, getKyivDateString());
-  const data = useMemo(
-    () => (loadState === "ready" ? queryRange(startDate, extraDay ?? endDate) : null),
-    [loadState, queryRange, startDate, endDate, extraDay],
-  );
+  // Not gated on loadState, as on the hourly strip: a refresh updates the
+  // grid in place.
+  const data = useMemo(() => queryRange(startDate, extraDay ?? endDate), [queryRange, startDate, endDate, extraDay]);
   const windowDates = useMemo(() => datesBetween(startDate, endDate), [startDate, endDate]);
   const nWindow = windowDates.length;
   const strip = useMemo(() => {

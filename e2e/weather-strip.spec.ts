@@ -124,6 +124,29 @@ test.describe("weather strip", () => {
     await expect(page.locator(".chart-sheet-label")).toContainText(`${WEATHER_FORECAST_DAY} (forecast)`);
   });
 
+  test("a background refresh updates the grid in place", async ({ page }) => {
+    await page.clock.install();
+    await page.goto(`/?site=sbs&page=hourly&days=7&date=${WEATHER_DAY}`);
+    const grid = strip(page).getByRole("grid");
+    await expect(grid).toBeVisible();
+
+    // Hold the refresh's download open, so the check runs mid-refresh.
+    let release!: () => void;
+    const held = new Promise<void>((r) => { release = r; });
+    await page.route("**/weather.app.db*", async (route) => {
+      await held;
+      await route.continue();
+    });
+    const reload = page.waitForRequest("**/weather.app.db*");
+    await page.clock.fastForward("30:00");
+    await reload;
+
+    await expect(grid).toBeVisible();
+    await expect(strip(page)).not.toContainText("Loading weather");
+    release();
+    await expect(row(page, "Pokrovsk").getByTestId("weather-tail")).toHaveText("severe");
+  });
+
   test("hourly: a past day has no forecast column", async ({ page }) => {
     await page.goto(`/?site=sbs&page=hourly&days=7&date=${WEATHER_DAY}`);
     await expect(row(page, "Pokrovsk").getByRole("gridcell")).toHaveCount(24);
