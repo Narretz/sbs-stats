@@ -9,6 +9,9 @@ import { asOfText, LEGEND, STRIP_ANCHOR, STRIP_TITLE, stripStatus, useDescriptor
 import { buildDailyStrip, buildHourlyStrip, dayLevel, forecastDayAfter } from "@/utils/weatherStrip";
 import { dayCellDescriptor, dayColumnDescriptor, hourCellDescriptor, hourColumnDescriptor, weekdayDate } from "@/utils/weatherDescriptors";
 
+// The hours that get an axis label.
+const COLUMN_HEADERS = [0, 6, 12, 18, 23];
+
 /** The SBS hourly page's strip: one day, hour by hour. Mount it only while
  *  the reader has the strip switched on — mounting is what fetches the DB. */
 export function WeatherStripHourly({ date }: { date: string }) {
@@ -37,14 +40,12 @@ export function WeatherStripHourly({ date }: { date: string }) {
   }, [data, extraDay]);
   const status = stripStatus(error, !!strip, !!strip?.hasData, `No weather data for ${date}.`);
 
-  const columnHeaders = [0, 6, 12, 18, 23];
-
   const columns = useMemo(() => [
     ...Array.from({ length: 24 }, (_, h) => ({
-      key: h as string | number, axis: columnHeaders.includes(h) ? `${String(h).padStart(2, "0")}:00` : "",
+      key: h as string | number, axis: COLUMN_HEADERS.includes(h) ? `${String(h).padStart(2, "0")}:00` : "",
     })),
     ...(fc ? [{ key: fc.dates[0], axis: "fcst", forecast: true }] : []),
-  ], [fc, columnHeaders]);
+  ], [fc]);
 
   return (
     <StripCard status={status}>
