@@ -77,6 +77,9 @@ export function useRefreshableResource<T>({
     cache.promise
       .then((r) => {
         setResource(r);
+        // A refresh that failed earlier (a tab coming back before the
+        // network has) is over once one succeeds.
+        setError(null);
         setLoadState("ready");
         const now = new Date();
         setLastRefreshed(now);

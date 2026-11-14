@@ -147,6 +147,27 @@ test.describe("weather strip", () => {
     await expect(row(page, "Pokrovsk").getByTestId("weather-tail")).toHaveText("severe");
   });
 
+  test("a failed background refresh keeps the grid, and the next one recovers", async ({ page }) => {
+    await page.clock.install();
+    await page.goto(`/?site=sbs&page=hourly&days=7&date=${WEATHER_DAY}`);
+    const grid = strip(page).getByRole("grid");
+    await expect(grid).toBeVisible();
+
+    await page.route("**/weather.app.db*", (route) => route.abort());
+    let reload = page.waitForRequest("**/weather.app.db*");
+    await page.clock.fastForward("30:00");
+    await reload;
+    await expect(grid).toBeVisible();
+    await expect(strip(page)).not.toContainText("unavailable");
+
+    await page.unroute("**/weather.app.db*");
+    reload = page.waitForRequest("**/weather.app.db*");
+    await page.clock.fastForward("30:00");
+    await reload;
+    await expect(grid).toBeVisible();
+    await expect(row(page, "Pokrovsk").getByTestId("weather-tail")).toHaveText("severe");
+  });
+
   test("hourly: a past day has no forecast column", async ({ page }) => {
     await page.goto(`/?site=sbs&page=hourly&days=7&date=${WEATHER_DAY}`);
     await expect(row(page, "Pokrovsk").getByRole("gridcell")).toHaveCount(24);
