@@ -145,6 +145,7 @@ MUNITION_GROUPS: dict[str, str | None] = {
     "flamingo (fp-5)": "cruise",
     "unspecified cruise missiles": "cruise",
     "long-range cruise missile": "cruise",
+    "rusty dagger cruise missile": "cruise",
     "atacms": "ballistic",
     "tochka-u": "ballistic",
     "hrim-2 grom-2": "ballistic",
