@@ -7,7 +7,9 @@ import { FIXED_TODAY } from "./build-fixtures.mjs";
 // string), and the stacked direction chart carries one bar per direction. This
 // covers one chart of each family end to end, on a real page; the sheet's own
 // behaviour (stepping, keys, closing, one pin at a time, a pin surviving new
-// data) is src/components/ChartSheet.browser.test.tsx.
+// data) is src/components/ChartSheet.browser.test.tsx, and the hourly
+// overlay's tooltip — its date list, its stats in the sheet — is
+// HourlyLineChart.browser.test.tsx.
 
 const sheet = (p: Page) => p.locator(".chart-sheet[data-open]");
 const label = (p: Page) => p.locator(".chart-sheet-label");
@@ -77,37 +79,6 @@ test("the hourly overlay pins on its numeric x-axis", async ({ page }) => {
   expect(await label(page).textContent()).not.toBe(before);
 });
 
-test("the hourly sheet keeps the header's stats, which only the card had room for", async ({ page }) => {
-  // The sheet used to skip the descriptor's header on the grounds that its
-  // stepper already shows the x. That holds only while a header IS the x: the
-  // hourly one also carries the current day's value and projection, the hour's
-  // median across the window, and how far the day sits from it — all dropped
-  // the moment the chart was pinned. Matched loosely, on the shape of the
-  // stats rather than their wording, which is still being tuned.
-  await page.goto("/?site=sbs&page=hourly");
-  await page.waitForSelector(".hourly-card");
-  const card = page.locator(".hourly-card").first();
-
-  const svg = card.locator("svg.recharts-surface").first();
-  const box = (await svg.boundingBox())!;
-  // The fixture's days only have readings at a few hours; an hour nobody has
-  // a reading at has no stats to show, so sweep until the cursor lands on one.
-  const stats = /vs \d+ other days?[\s\S]*Median\s*vs med\s*Max [\d-]+\s*vs max/;
-  let hover = "";
-  let frac = 0.5;
-  for (; frac < 0.75 && !stats.test(hover); frac += 0.02) {
-    await svg.hover({ position: { x: box.width * frac, y: box.height * 0.5 } });
-    hover = (await page.locator(".recharts-tooltip-wrapper").first().textContent()) ?? "";
-  }
-  expect(hover).toMatch(/(?:00:00|\d{2}:00–\d{2}:59)/);
-  expect(hover).toMatch(stats);
-
-  await pin(page, card, frac - 0.02);
-  await expect(label(page)).toHaveText(/^(00:00|\d{2}:00–\d{2}:59)$/);
-  // The stats survive the pin — the stepper above carries only the hour.
-  await expect(sheet(page)).toContainText(stats);
-});
-
 test("the stacked direction chart pins and lists its directions", async ({ page }) => {
   await page.goto("/?site=ru-attacks-gsua&page=monthly");
   await page.waitForSelector(".chart-card");
@@ -124,56 +95,4 @@ test("the paired monthly chart pins", async ({ page }) => {
   await pin(page, card);
   await expect(sheet(page)).toContainText("Launched");
   expect(await hasCursor(card)).toBe(true);
-});
-
-test("the hourly tooltip's date list wraps instead of running off the screen", async ({ page }) => {
-  // One row per day in the window, so a 120-day window is a 120-row list. In
-  // the sheet it wraps against the sheet's own height; a floating tooltip is
-  // positioned rather than laid out, so nothing above it bounds anything — and
-  // an unbounded column-direction wrap never wraps. It ran off the bottom of
-  // the window as one very long column.
-  //
-  // The fixture is seven days, so the bound is brought to the list rather than
-  // the other way round: part of the cap is `vh`, so a short viewport shrinks
-  // it until seven rows no longer fit in a single column.
-  await page.setViewportSize({ width: 1280, height: 220 });
-  await page.goto("/?site=sbs&page=hourly");
-  await page.waitForSelector(".hourly-card");
-
-  const svg = page.locator(".hourly-card svg.recharts-surface").first();
-  await svg.scrollIntoViewIfNeeded();
-  const box = (await svg.boundingBox())!;
-  const list = page.getByTestId("hourly-tooltip-days");
-  const columns = list.locator("> div");
-  const rows = list.locator("> div > div");
-
-  // The fixture's days are sampled at a handful of checkpoint hours, and the
-  // hours in between are null for every series — where recharts raises an empty
-  // tooltip. So sweep for a band that has values rather than hard-coding an x
-  // fraction that would only be right for one axis width. (Two moves minimum
-  // anyway: the card admits the hover card only once it has seen a pointer that
-  // can genuinely hover — see usePinnedChart.)
-  for (const f of [0.6, 0.62, 0.58, 0.64, 0.56, 0.5, 0.44, 0.7, 0.76, 0.82, 0.9]) {
-    await svg.hover({ position: { x: box.width * f, y: box.height * 0.5 } });
-    if (await rows.count() > 0) break;
-  }
-
-  await expect(list).toBeVisible();
-  expect(await rows.count()).toBeGreaterThan(4);
-  expect(await columns.count()).toBeGreaterThan(1);
-
-  // Bounded by MAX_GRID_HEIGHT — 34vh of a 220px viewport — rather than by the
-  // window happening to be tall enough.
-  const listBox = (await list.boundingBox())!;
-  expect(listBox.height).toBeLessThanOrEqual(220 * 0.34 + 1);
-
-  // And the card is as wide as the columns it holds. This is the half of it
-  // that a wrapping flex box could not deliver: its max-content width measures
-  // one column in some engines, so the card was sized to its header line and
-  // the columns past the third hung outside the border.
-  const card = page.locator(".recharts-tooltip-wrapper > div").first();
-  const cardBox = (await card.boundingBox())!;
-  const rowsRight = await rows.evaluateAll((els) =>
-    Math.max(...els.map((el) => el.getBoundingClientRect().right)));
-  expect(rowsRight).toBeLessThanOrEqual(cardBox.x + cardBox.width);
 });
