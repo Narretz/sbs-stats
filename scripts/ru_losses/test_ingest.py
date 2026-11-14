@@ -93,6 +93,28 @@ class TestSuspectDropGuard:
 
 # ── _is_meaningful_change: no-regression rule ─────────────────────────────────
 
+class TestDuplicateDate:
+    def test_repeated_date_keeps_first_record(self):
+        # Mirrors 2026-11-13: Petro appended that day's totals labelled as a
+        # second 2026-11-12 / day 1723. Overwriting with the second record
+        # merged two days into loss-day 2026-11-11 (personnel 4740 for 2150).
+        equip = [
+            _equip_row("2026-11-11", 173526),
+            _equip_row("2026-11-12", 173838),
+            _equip_row("2026-11-12", 174307),
+        ]
+        personnel = [
+            _personnel_row("2026-11-11", 1_614_180),
+            _personnel_row("2026-11-12", 1_616_330),
+            _personnel_row("2026-11-12", 1_618_920),
+        ]
+        out = ig.parse_rows(equip, personnel)
+        assert out["2026-11-11"]["personnel"] == 2150
+        assert out["2026-11-11"]["vehicles"] == 312
+        # The dropped record isn't re-keyed to a day of its own.
+        assert "2026-11-12" not in out
+
+
 class TestNoRegression:
     def test_none_fetched_keeps_stored_real_value(self):
         # The suspect-drop guard turns the typo'd day's metric into None.
