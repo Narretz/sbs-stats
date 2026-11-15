@@ -258,3 +258,56 @@ class TestBuildPreservesManualFix:
         conn.close()
         # vehicles kept from stored (430), personnel updated to new computed delta.
         assert row == (430, 1500)
+
+
+# ── mod.gov.ua supplement: a fetch error degrades, never aborts ──────────────
+
+class TestModSupplementFetchErrors:
+    """mod.gov.ua answered 403 to the CI runner on 2026-11-13 and 2026-11-15
+    and the HTTPError propagated out of fetch_supplement, failing the whole
+    ingest — so the PetroIvaniuk update it had already fetched never shipped.
+    """
+
+    def _patch(self, monkeypatch, responses):
+        import urllib.error
+        from datetime import date as date_cls
+
+        import mod_gov_ua
+
+        def fake_fetch_day(url_date: date_cls):
+            r = responses[url_date.isoformat()]
+            if isinstance(r, BaseException):
+                raise r
+            return r
+
+        monkeypatch.setattr(mod_gov_ua, "fetch_day", fake_fetch_day)
+        return mod_gov_ua, urllib.error
+
+    def test_403_returns_empty_supplement(self, monkeypatch):
+        from datetime import date as date_cls
+        import urllib.error
+        mod, _ = self._patch(monkeypatch, {
+            "2026-11-15": urllib.error.HTTPError(
+                "https://mod.gov.ua/x", 403, "Forbidden", {}, None),
+        })
+        assert mod.fetch_supplement("2026-11-13", date_cls(2026, 11, 15)) == {}
+
+    def test_error_after_a_good_day_keeps_that_day(self, monkeypatch):
+        from datetime import date as date_cls
+        mod, _ = self._patch(monkeypatch, {
+            "2026-11-14": {"tanks": 3},
+            "2026-11-15": TimeoutError("timed out"),
+        })
+        got = mod.fetch_supplement("2026-11-12", date_cls(2026, 11, 15))
+        assert got == {"2026-11-13": {"reported_at": "2026-11-14", "tanks": 3}}
+
+    def test_unparseable_page_still_raises(self, monkeypatch):
+        # A page that fetched but yielded no bullets is a format change,
+        # not an outage — that stays loud.
+        from datetime import date as date_cls
+        import pytest
+        mod, _ = self._patch(monkeypatch, {
+            "2026-11-15": RuntimeError("no recognised bullets"),
+        })
+        with pytest.raises(RuntimeError):
+            mod.fetch_supplement("2026-11-13", date_cls(2026, 11, 15))
