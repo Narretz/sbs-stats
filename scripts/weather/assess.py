@@ -65,6 +65,11 @@ COLD_SEVERE = _D["cold_severe"]
 # Supercooled water on props/airframe: near-freezing air with something wet.
 ICING_TEMP = tuple(_D["icing_temp"])
 ICING_MIN_LIQUID = _D["icing_min_liquid"]  # mm/h of liquid (non-snow) precipitation
+# Fog only counts as the wet part this cold. Shallow ground fog just above
+# freezing is the radiation fog of a still dawn, when the air a drone flies
+# in is usually warmer than the 2 m reading, and its droplets are thinner
+# than drizzle's; freezing drizzle/rain codes still count at any temperature.
+ICING_FOG_MAX = _D["icing_fog_max"]  # °C
 
 FOG_CODES = set(_D["fog_codes"])
 FREEZING_CODES = set(_D["freezing_codes"])
@@ -151,8 +156,8 @@ def drone_hour(h: dict) -> tuple[int, list[tuple[int, str]]]:
             add(DEGRADED, "cold")
         # Only liquid water ices an airframe: drizzle, rain, fog droplets.
         # Dry snow at -3 °C does not, so the snow's share doesn't count.
-        wet = (rain >= ICING_MIN_LIQUID or code in FOG_CODES
-               or (vis is not None and vis < VIS_SEVERE))
+        foggy = code in FOG_CODES or (vis is not None and vis < VIS_SEVERE)
+        wet = rain >= ICING_MIN_LIQUID or (foggy and temp <= ICING_FOG_MAX)
         if code in FREEZING_CODES or (ICING_TEMP[0] <= temp <= ICING_TEMP[1] and wet):
             add(SEVERE, "icing")
 

@@ -15,6 +15,7 @@
     "cold_severe": -25.0,
     "icing_temp": [-6.0, 1.0],
     "icing_min_liquid": 0.1,
+    "icing_fog_max": -2.0,
     "fog_codes": [45, 48],
     "freezing_codes": [56, 57, 66, 67],
     "thunder_codes": [95, 96, 99],

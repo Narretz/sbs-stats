@@ -230,7 +230,7 @@
       ]
     },
     {
-      "name": "near-freezing fog: fog and icing",
+      "name": "fog just below freezing: fog, not icing",
       "hour": {
         "temperature_2m": -1.0,
         "visibility": 300.0
@@ -240,7 +240,35 @@
         [
           2,
           "fog"
+        ]
+      ]
+    },
+    {
+      "name": "fog at the icing line: fog and icing",
+      "hour": {
+        "temperature_2m": -2.0,
+        "visibility": 300.0
+      },
+      "level": 2,
+      "reasons": [
+        [
+          2,
+          "fog"
         ],
+        [
+          2,
+          "icing"
+        ]
+      ]
+    },
+    {
+      "name": "drizzle just above freezing still ices",
+      "hour": {
+        "temperature_2m": 0.8,
+        "precipitation": 0.2
+      },
+      "level": 2,
+      "reasons": [
         [
           2,
           "icing"

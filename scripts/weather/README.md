@@ -115,8 +115,9 @@ thumb and deliberately easy to change.
   - **One scale for hours and days: `ok` / `limited` / `severe`.** Each hour
     is graded on wind and gusts, rain, snow, fog or mist, thunderstorms, icing
     and deep cold.
-  - Icing needs liquid water: near-freezing drizzle, rain or fog, not dry
-    snow.
+  - Icing needs liquid water: near-freezing drizzle or rain, or fog at
+    −2 °C or colder, not dry snow. Shallow fog just above freezing doesn't
+    count (the air a drone flies in is usually warmer than the 2 m reading).
   - A day takes the same three words from counting its hours: **severe**
     with ≥6 severe hours, **limited** with ≥6 hours limited or worse, **ok**
     otherwise. The CLI prints them as OK / LIMITED / SEVERE.
