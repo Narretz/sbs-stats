@@ -109,6 +109,8 @@ describe("descriptors", () => {
     const col = dayColumnDescriptor(daily, 0, colors);
     expect(col.header).toBe("Sun 2026-10-11 · a severe day for drones at 1 of 2 directions");
     expect(col.rows.map((r) => [r.label, r.value])).toEqual([["Kupiansk", "ok"], ["Pokrovsk", "severe"]]);
+    const t = col.extraColumns!.indexOf("°C");
+    expect(col.rows[1].extra?.[t]).toBe(cell.rows.find((r) => r.label === "Temperature")?.value.replace(" °C", ""));
   });
 
   it("says when there is no data", () => {

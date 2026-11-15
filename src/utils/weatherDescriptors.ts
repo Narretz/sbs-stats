@@ -129,7 +129,7 @@ export function dayColumnDescriptor(strip: DailyStrip, index: number, c: Descrip
   return {
     header: `${weekdayDate(date)}${allForecast ? " (forecast)" : forecast ? " (partly forecast)" : ""} · a severe day for drones at ${strip.severeCount[index]} of ${strip.rows.length} directions`,
     valueLabel: "Drones",
-    extraColumns: ["Severe h", "Mainly", "Drone-denied", "mm", "Gust m/s", "Vis km"],
+    extraColumns: ["Severe h", "Mainly", "Drone-denied", "°C", "mm", "Gust m/s", "Vis km"],
     rows: strip.rows.map(({ sector, cells }) => {
       const s = cells[index].summary;
       if (!s) return { label: sector.key, color: c.muted, value: null };
@@ -142,6 +142,7 @@ export function dayColumnDescriptor(strip: DailyStrip, index: number, c: Descrip
           s.severeHours,
           s.reasons.slice(0, 2).join(", ") || EMPTY,
           windowsText(s.windows) || EMPTY,
+          `${fmt(s.tMin)}…${fmt(s.tMax)}`,
           fmt(s.precip, 1),
           fmt(s.gustMax),
           fmtVis(s.visMin),

@@ -50,8 +50,8 @@ const cellCard = (header: string): TooltipDescriptor => ({
 const columnSheet = (header: string): TooltipDescriptor => ({
   header,
   valueLabel: "Drones",
-  extraColumns: ["Severe h", "Mainly", "Drone-denied", "mm", "Gust m/s", "Vis km"],
-  rows: [{ label: "Bravo", color: "#000", value: "severe", extra: [9, "fog, low cloud", "01–09", "0.4", "12", "0.1"] }],
+  extraColumns: ["Severe h", "Mainly", "Drone-denied", "°C", "mm", "Gust m/s", "Vis km"],
+  rows: [{ label: "Bravo", color: "#000", value: "severe", extra: [9, "fog, low cloud", "01–09", "-2…4", "0.4", "12", "0.1"] }],
 });
 
 /** `days` window columns, then a forecast one if asked: the daily strip's
