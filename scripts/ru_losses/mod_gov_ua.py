@@ -20,10 +20,17 @@ Probe (scripts/ru_losses/probe_mod_gov_ua.py) verified MoD's deltas match
 PetroIvaniuk's per-day diffs byte-for-byte on overlapping loss-days.
 """
 import re
+import sys
 import urllib.error
 import urllib.request
 from datetime import date as date_cls, timedelta
 from html.parser import HTMLParser
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from ingest_log import ann, get_logger  # noqa: E402
+
+log = get_logger("ru-losses")
 
 
 URL_TEMPLATE = (
@@ -149,12 +156,29 @@ def fetch_supplement(
 
     Stops at the first 404 — once MoD also hasn't published a day, there's
     no point checking further.
+
+    Any other fetch error (mod.gov.ua answering 403 to the runner, a timeout,
+    DNS) also stops it, with a warning, and returns what it has so far. This
+    is a freshness nicety on top of PetroIvaniuk, the authoritative series:
+    letting it raise took the whole run down with it, so the Petro days it
+    had already fetched were never built or uploaded either.
     """
     out: dict[str, dict] = {}
     cursor = date_cls.fromisoformat(latest_loss_day) + timedelta(days=1)
     while cursor < today:
         url_date = cursor + timedelta(days=1)
-        deltas = fetch_day(url_date)
+        try:
+            deltas = fetch_day(url_date)
+        except (urllib.error.URLError, OSError) as e:
+            # HTTPError is a URLError; TimeoutError / ConnectionError are
+            # OSErrors. A page that fetched but didn't parse still raises.
+            log.warning(
+                f"mod.gov.ua unavailable for {build_url(url_date)} ({e}) — "
+                f"building from PetroIvaniuk alone, "
+                f"{len(out)} supplemented day(s) kept",
+                extra=ann(title="ru-losses: mod.gov.ua supplement unavailable"),
+            )
+            break
         if deltas is None:
             print(f"[mod] {url_date} not yet published — stopping supplement")
             break
