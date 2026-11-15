@@ -110,8 +110,8 @@ test.describe("Compare — SBS sub-units", () => {
     // pattern-matched: every cell but the first carries a "(-98.0%)" suffix.
     //
     // Polled, not read once: the table renders its rows before the DBs resolve
-    // — and sbs-units.db is fetched only once a unit column asks for it — so a
-    // single read can catch em dashes. It did, but only under parallel load,
+    // — sbs-units.db among them, a whole fetch of its own — so a single read
+    // can catch em dashes. It did, but only under parallel load,
     // where the wait is long enough to lose the race.
     const engaged = async () =>
       (await rowCells(page, "All targets engaged")).slice(1).map(
