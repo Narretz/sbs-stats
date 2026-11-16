@@ -45,11 +45,11 @@ export function WeatherStripHourly({ date, sbsHour }: { date: string; sbsHour?: 
     ...Array.from({ length: 24 }, (_, h) => ({
       key: h as string | number, 
       // The ":00" goes on a narrow screen, before the labels run together.
-      axis: labelled.includes(h) ? <>{String(h).padStart(2, "0")}<span className="weather-axis-min">:00</span></> : "",
+      axis: COLUMN_HEADERS.includes(h) ? <>{String(h).padStart(2, "0")}<span className="weather-axis-min">:00</span></> : "",
     })),
     ...(fc ? [{ key: fc.dates[0], axis: "fcst", forecast: true }] : []),
   ], [fc]);
-    
+
   return (
     <StripCard status={status}>
       {strip && (
