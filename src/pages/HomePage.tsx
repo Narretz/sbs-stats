@@ -26,7 +26,8 @@ import {
 import { DAY_OPTIONS, type DayOption, WINDOW_FLOOR, clampDays } from "@/utils/dayRange";
 import { resolvedEndDate } from "@/utils/padTrailing";
 import { MONTH_OPTIONS, type MonthOption } from "@/utils/monthRange";
-import { WEEK_OPTIONS, type WeekOption } from "@/utils/weekRange";
+import { WEEK_OPTIONS, type WeekOption, weeklyWindow } from "@/utils/weekRange";
+import { CORRELATION_HELP, correlationText, pairCorrelation, pairsOnChart, type Correlation } from "@/utils/correlation";
 import { useStatScope, type StatScope } from "@/hooks/useStatScope";
 import {
   DEFAULT_CUMULATIVE, DEFAULT_DAYS, DEFAULT_SCOPE, DEFAULT_Y_MODE,
@@ -209,6 +210,8 @@ export function HomePage({ onGoToSite }: Props) {
   // Per-chart series data — each chart has its own window so they can't share
   // a fetch. Keyed by chartUid → { metricId → points[] }.
   const [seriesByChart, setSeriesByChart] = useState<Record<string, Record<string, DailyDataPoint[]>>>({});
+  // SBS vs the rest of GSUA, per chart that holds a listed pair (utils/correlation).
+  const [correlationsByChart, setCorrelationsByChart] = useState<Record<string, Correlation[]>>({});
   const [globalStats, setGlobalStats] = useState<GlobalStatsBundle>({});
 
   // Holds the latest fetch-key string per chart so a stale promise can't write
@@ -258,7 +261,7 @@ export function HomePage({ onGoToSite }: Props) {
     const liveUids = new Set(charts.map((c) => c.uid));
 
     // Drop entries for charts that no longer exist so memory doesn't grow.
-    setSeriesByChart((prev) => {
+    const prune = <T,>(prev: Record<string, T>) => {
       const next: typeof prev = {};
       let changed = false;
       for (const uid of Object.keys(prev)) {
@@ -266,7 +269,9 @@ export function HomePage({ onGoToSite }: Props) {
         else changed = true;
       }
       return changed ? next : prev;
-    });
+    };
+    setSeriesByChart(prune);
+    setCorrelationsByChart(prune);
 
     for (const c of charts) {
       if (c.metricIds.length === 0) {
@@ -322,10 +327,23 @@ export function HomePage({ onGoToSite }: Props) {
             ruMod: needed.has("ru-airdef-mod") ? ruMod.queryDaily : undefined,
             ruAir: needed.has("ru-air-attacks") ? ruAir.queryDaily : undefined,
           });
-      promise.then((data) => {
+      // A listed SBS/GSUA pair on a weekly chart gets its r, from the pair's
+      // DAILY rows over the same window: a summed week no longer shows which
+      // of its days SBS has no figure for.
+      const pairs = c.granularity === "weekly" ? pairsOnChart(metrics.map((m) => m.id)) : [];
+      const corrPromise: Promise<Correlation[]> = pairs.length === 0
+        ? Promise.resolve([])
+        : fetchCombinedDaily(
+            [...new Set(pairs.flatMap((p) => [p.part, p.whole]))].map((id) => findMetric(id)!),
+            weeklyWindow(resolvedEndDate(selectedDate), c.window as WeekOption).days,
+            selectedDate || undefined,
+            { sbs: sbs.queryDaily, ruLosses: ruLosses.queryDaily },
+          ).then((daily) => pairs.map((p) => pairCorrelation(p, daily[p.part] ?? [], daily[p.whole] ?? [])));
+      Promise.all([promise, corrPromise]).then(([data, correlations]) => {
         if (cancelled) return;
         if (latestKeyRef.current[c.uid] !== key) return;
         setSeriesByChart((prev) => ({ ...prev, [c.uid]: data }));
+        setCorrelationsByChart((prev) => ({ ...prev, [c.uid]: correlations }));
       });
     }
     return () => { cancelled = true; };
@@ -602,6 +620,7 @@ export function HomePage({ onGoToSite }: Props) {
               yMode={yMode}
               cumulative={cumulative}
               seriesData={seriesByChart[c.uid] ?? {}}
+              correlations={correlationsByChart[c.uid] ?? []}
               globalStats={globalStats}
               sbsUnits={sbsUnitList}
               endDate={selectedDate || maxSelectableDate}
@@ -640,6 +659,7 @@ interface ChartCardProps {
   yMode: YAxisMode;
   cumulative: boolean;
   seriesData: Record<string, DailyDataPoint[]>;
+  correlations: Correlation[];
   globalStats: GlobalStatsBundle;
   sbsUnits: SbsUnit[];
   endDate: string;
@@ -672,7 +692,7 @@ function toCumulative(points: DailyDataPoint[]): DailyDataPoint[] {
 }
 
 function ChartCard({
-  config, isOnlyChart, indexLabel, yMode, cumulative, seriesData, globalStats, sbsUnits, endDate,
+  config, isOnlyChart, indexLabel, yMode, cumulative, seriesData, correlations, globalStats, sbsUnits, endDate,
   onPickerOpen,
   onRename, onMetricsChange, onGranularityChange, onWindowChange, onYModeChange, onStyleChange, onRemove,
 }: ChartCardProps) {
@@ -860,6 +880,16 @@ function ChartCard({
           style={config.style ?? "line"}
         />
       )}
+      {metrics.length > 0 && correlations.map((corr) => (
+        <div
+          key={corr.pair.part}
+          data-testid="pair-correlation"
+          title={CORRELATION_HELP}
+          style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, cursor: "help" }}
+        >
+          {correlationText(corr)}
+        </div>
+      ))}
     </div>
   );
 }

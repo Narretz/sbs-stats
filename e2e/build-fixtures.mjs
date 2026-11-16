@@ -15,6 +15,8 @@ import { fileURLToPath } from "node:url";
 //   - CIT       → scripts/cit_civilians/schema.sql (reports, casualties)
 //   - Weather   → scripts/weather/schema.sql, then app_db.sql — the same two
 //                 steps CI takes to build weather.app.db
+//   - RU losses → daily_losses as scripts/ru_losses/ingest.py creates it (it
+//                 has no schema file)
 //
 // Freshness matters only for the end-of-day projection, which keys off the real
 // "today": so we anchor the synthetic days to the current Kyiv date and stop
@@ -107,6 +109,9 @@ function buildSbs(SQL) {
   // so stat-scope.spec can assert "All data" surfaces it and "Window data" can't.
   ins.run(["2020-01-01", 23, ...SBS_COLS.map((c) => (c === "total_personnel_casualties" ? 999999 : 0))]);
   ins.free();
+  const insVeh = db.prepare("INSERT INTO daily_stats (date, hour, hit_7) VALUES (?, 23, ?)");
+  for (let i = 0; i < CORRELATION_DAYS; i++) insVeh.run([correlationDay(i), correlationSbs(i)]);
+  insVeh.free();
 
   // Monthly rows for the grouping, so the monthly page's default "all" option
   // has something to draw. Values are an order of magnitude above any unit's,
@@ -556,6 +561,43 @@ function buildWeather(SQL) {
   db.close();
 }
 
+// ── SBS / rest-of-GSUA correlation: a past window of its own ─────────────────
+// The homepage notes r between SBS and GSUA minus SBS for a listed pair
+// (src/utils/correlation.ts), which needs weeks of both — far more than the
+// SBS history above. So the vehicles pair gets the 13 weeks to Sunday
+// CORRELATION_END, before every day window and after the invasion floor:
+// SBS `hit_7` alone (no other SBS column, so no other chart's stats move), and
+// GSUA's vehicles at exactly 3× it. The rest is then 2× SBS and r is 1: the
+// spec checks that rows from both DBs reach the note, and the arithmetic (the
+// subtraction, gaps) is correlation.test.ts's.
+export const CORRELATION_END = "2023-04-30";
+export const CORRELATION_DAYS = 91;
+const correlationDay = (i) => {
+  const d = new Date(`${CORRELATION_END}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - (CORRELATION_DAYS - 1) + i);
+  return d.toISOString().slice(0, 10);
+};
+const correlationSbs = (i) => 40 + ((i * 37) % 23);
+
+// ── RU losses (GSUA national totals): append-only `daily_losses` ─────────────
+const RU_LOSSES_COLS = [
+  "personnel", "tanks", "apv", "artillery", "mlrs", "aaws", "aircraft", "helicopters",
+  "uav", "vehicles", "boats", "se", "missiles", "ugs", "captive",
+];
+
+function buildRuLosses(SQL) {
+  const db = new SQL.Database();
+  db.run(`CREATE TABLE daily_losses (date TEXT NOT NULL, scraped_at TEXT NOT NULL, reported_at TEXT,
+          ${RU_LOSSES_COLS.map((c) => `${c} INTEGER`).join(", ")}, PRIMARY KEY (date, scraped_at))`);
+  const ins = db.prepare("INSERT INTO daily_losses (date, scraped_at, vehicles) VALUES (?, ?, ?)");
+  for (let i = 0; i < CORRELATION_DAYS; i++) {
+    ins.run([correlationDay(i), `${FIXED_TODAY}T07:10:00Z`, 3 * correlationSbs(i)]);
+  }
+  ins.free();
+  fs.writeFileSync(path.join(FIX_DIR, "ru-losses-gsua-petroivaniuk.db"), Buffer.from(db.export()));
+  db.close();
+}
+
 export async function buildFixtures() {
   fs.mkdirSync(FIX_DIR, { recursive: true });
   const SQL = await initSqlJs({ locateFile: (f) => path.join(ROOT, "node_modules/sql.js/dist", f) });
@@ -567,6 +609,7 @@ export async function buildFixtures() {
   buildZelenskyWeekly(SQL);
   buildCitCivilians(SQL);
   buildWeather(SQL);
+  buildRuLosses(SQL);
 }
 
 // Run the build when invoked directly (`node e2e/build-fixtures.mjs`).
