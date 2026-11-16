@@ -9,6 +9,9 @@ import { asOfText, FCST_AXIS, LEGEND, STRIP_ANCHOR, STRIP_TITLE, stripStatus, us
 import { buildDailyStrip, buildHourlyStrip, dayLevel, forecastDayAfter } from "@/utils/weatherStrip";
 import { dayCellDescriptor, dayColumnDescriptor, hourCellDescriptor, hourColumnDescriptor, weekdayDate } from "@/utils/weatherDescriptors";
 
+// The hours that get an axis label.
+const COLUMN_HEADERS = [0, 6, 12, 18, 23];
+
 /** The SBS hourly page's strip: one day, hour by hour. Mount it only while
  *  the reader has the strip switched on — mounting is what fetches the DB. */
 /** `sbsHour`: the latest hour the SBS figures for `date` have reached — the
@@ -38,17 +41,14 @@ export function WeatherStripHourly({ date, sbsHour }: { date: string; sbsHour?: 
   }, [data, extraDay]);
   const status = stripStatus(error, !!strip, !!strip?.hasData, `No weather data for ${date}.`);
 
-  const columns = useMemo(() => {
-    const labelled = [0, 6, 12, 18, 23];
-    return [
-      ...Array.from({ length: 24 }, (_, h) => ({
-        key: h as string | number,
-        // The ":00" goes on a narrow screen, before the labels run together.
-        axis: labelled.includes(h) ? <>{String(h).padStart(2, "0")}<span className="weather-axis-min">:00</span></> : "",
-      })),
-      ...(fc ? [{ key: fc.dates[0], axis: FCST_AXIS, forecast: true }] : []),
-    ];
-  }, [fc]);
+  const columns = useMemo(() => [
+    ...Array.from({ length: 24 }, (_, h) => ({
+      key: h as string | number, 
+      // The ":00" goes on a narrow screen, before the labels run together.
+      axis: COLUMN_HEADERS.includes(h) ? <>{String(h).padStart(2, "0")}<span className="weather-axis-min">:00</span></> : "",
+    })),
+    ...(fc ? [{ key: fc.dates[0], axis: FCST_AXIS, forecast: true }] : []),
+  ], [fc]);
 
   return (
     <StripCard status={status}>
