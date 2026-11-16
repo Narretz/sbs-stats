@@ -10,11 +10,12 @@ name: Node tests
 # the Playwright e2e suite, which builds the app and the `.env.e2e` fixture DBs
 # and takes minutes per run; the pre-push hook is where that sweep belongs.
 #
-# Both triggers, for the reasons python-tests.yml spells out: `push` for the
-# earliest signal on any branch, `pull_request` so the PR's own checks reflect
-# the whole diff rather than whatever its last commit happened to touch.
+# Both triggers, split the way python-tests.yml spells out: `push` on main
+# only, `pull_request` for every other branch — so a PR runs once, with checks
+# that reflect the whole diff rather than whatever its last commit touched.
 on:
   push:
+    branches: [main]
     paths:
       - "src/**"
       - "package.json"

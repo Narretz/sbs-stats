@@ -134,18 +134,19 @@ ingest, no reparse, no dataset mutation, no PR for a step that flaked once.
 ## Tests and deploy
 
 - `python-tests.yml` — the ingest test suites (`scripts/test_python.sh`), when
-  a `.py` under `scripts/` changed. On push to any branch AND on
-  `pull_request`: a push matches its paths against that push alone, so a PR
-  whose last commit is docs-only would show no checks at all, while a
-  pull_request event matches the whole PR diff and runs against the merge
-  commit. Installs pytest and `requests` and nothing else — `sbs/ingest.py`
+  a `.py` under `scripts/` changed. On push to main and on `pull_request`
+  (any other branch only through its PR, so a PR runs once, not once per
+  trigger): a push matches its paths against that push alone, so a PR whose
+  last commit is docs-only would show no checks at all, while a pull_request
+  event matches the whole PR diff and runs against the merge commit. A branch
+  with no PR gets no run — open a draft PR or dispatch it by hand. Installs pytest and `requests` and nothing else — `sbs/ingest.py`
   imports requests at module level and several suites reach it transitively,
   so leaving it out fails collection; the rest of `scripts/requirements.txt`
   is imported lazily. The scheduled ingests are not a substitute: they
   exercise whatever the source published today and stay green while a fixture
   case breaks.
 - `node-tests.yml` — eslint plus both vitest tiers (unit, and the component
-  tests in Chromium), on push and `pull_request` (same reasoning) when `src/`
+  tests in Chromium), on push to main and `pull_request` (same split) when `src/`
   or the build config changed. Not the Playwright e2e tier, which builds the
   app and its fixtures and is minutes per run; `.githooks/pre-push` runs that.
 - `deploy.yml` — builds and publishes to GitHub Pages on a push to main

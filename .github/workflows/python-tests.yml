@@ -10,8 +10,9 @@ name: Python tests
 #
 # Both triggers, on purpose, because they answer different questions.
 #
-# `push` on ANY branch gives the earliest possible signal — before a PR exists,
-# and these suites take seconds.
+# `push` covers main: a direct commit there has no PR, and these suites are
+# the only check it gets. It is limited to main because on a PR branch every
+# push would run the suite twice — once for `push`, once for `pull_request`.
 #
 # `pull_request` is what makes the PR itself trustworthy. A push-only workflow
 # matches its paths against THAT PUSH, so a PR whose last commit is docs-only
@@ -22,11 +23,11 @@ name: Python tests
 # checked however its final commit happens to look. It also runs against the
 # merge commit, i.e. the code as it would land.
 #
-# The overlap costs a duplicate run of a ~40-second suite on a PR branch. Left
-# undeduplicated deliberately: two green checks read better than one green and
-# one cancelled.
+# The cost: a branch with no PR open gets no CI run. Open a (draft) PR, or
+# dispatch the workflow on the branch by hand.
 on:
   push:
+    branches: [main]
     paths:
       - "scripts/**/*.py"
       - "scripts/*.py"
