@@ -147,9 +147,8 @@ intraday periods that exist, so one day back is a hard ceiling. A unit's daily
 row can never absorb a later revision; its monthly row self-heals every run.
 **Monthly is authoritative. Daily is a shape with a known ~1–2.5% high bias.**
 
-And daily has **no backfill at all** — only today and yesterday are
-addressable, so the series starts the day the job is switched on and can never
-be filled in behind.
+And daily has **no backfill at all** — only today and yesterday are exposed,
+never a given date, so the series starts the day the job was switched on.
 
 ## Cadence
 
@@ -174,6 +173,22 @@ CI that can be urgent: the API keeps twelve monthly period slots per unit and
 re-points them yearly (see [the twelve-slot window](#the-twelve-slot-window--why-the-backfill-was-a-one-shot)),
 so a month nobody captured before it rolls out is gone for good —
 `check_db.py` reports exactly that.
+
+## In the frontend
+
+A unit's rows are `MonthlyRow`, so the frontend treats a unit as a refinement
+of `sbs`. That means an `sbs` column or metric reads the unit's data, not the
+grouping's: on the compare page `snapshotFor(column)` rather than
+`snapshots[entity]`, in the combined charts one query per unit, not per
+source. The homepage picker renders the units as one `<select>` plus the
+shared SBS metric list rather than 15 × 89 flattened rows — that list is in
+the DOM once per chart on the page, so the difference is ~90 rows versus
+1,335. When `sbs-units.db` loads:
+
+- **Homepage**: on first picker open, or at once when the URL already holds a
+  unit metric.
+- **SBS site**: only on the monthly page.
+- **Compare**: always, since any column can be a unit.
 
 ## Don't repeat these mistakes
 

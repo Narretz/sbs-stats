@@ -59,8 +59,6 @@ test.describe("Monthly — end month", () => {
     await expect(end).toHaveValue(first!);
     // …and the URL says so too.
     await expect(page).toHaveURL(new RegExp(`end-month=${first}`));
-    // …and the URL says so too.
-    await expect(page).toHaveURL(new RegExp(`end-month=${first}`));
     await expect.poll(() => axisMonths(page)).toEqual([first]);
   });
 

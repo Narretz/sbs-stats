@@ -7,10 +7,10 @@ import { test, expect, type Page } from "@playwright/test";
 // because it counts more things. The child adds up only the categories every
 // selected column can fill.
 //
-// "Shared" is a question about what each unit REPORTS AS A RULE, not about
-// what it happened to publish that month — so these assertions are about the
-// registry's mappings, not the fixture's values. SBS and «Рубикон» both carry
-// 13 of the 15 candidate categories; aircraft and watercraft are SBS-only.
+// Which categories are shared, what the caption names, and the sum are the
+// registry's (comparableSet and friends, registry.test.ts). These are the
+// row reaching the table: where it sits, the toggles it follows, and each
+// column reading its own unit's figures.
 const PARENT = "All targets engaged";
 const CHILD = "of which comparable";
 
@@ -38,7 +38,15 @@ test.describe("Compare — comparable subset", () => {
     await gotoCompare(page, `sbs:${m},rubikon:${m}`);
     expect((await rowCells(page, CHILD))[0]).not.toContain("categories every column");
     await gotoCompare(page, `sbs:${m},rubikon:${m}`, "&scope=1");
-    expect((await rowCells(page, CHILD))[0]).toContain("categories every column");
+    const cells = await rowCells(page, CHILD);
+    expect(cells[0]).toContain("categories every column");
+    expect(cells[0]).toContain("left out as unique to some: Aircraft");
+    // On the ROW, not repeated under every column. A per-column caption reads
+    // as a statement about that unit: "left out: Aircraft" under «Рубикон»
+    // would say «Рубикон» lost aircraft, when it is the one unit with no
+    // aircraft counter and it lost nothing.
+    expect(cells[1]).not.toContain("left out");
+    expect(cells[2]).not.toContain("left out");
   });
 
   test("is a child of the total, and follows the sub-category toggle", async ({ page }) => {
@@ -50,54 +58,23 @@ test.describe("Compare — comparable subset", () => {
     expect(parent).toBeGreaterThanOrEqual(0);
     // Directly beneath the row it qualifies.
     expect(child).toBe(parent + 1);
+    // Derived — no source publishes it — so marked like the other computed figures.
+    expect((await rowCells(page, CHILD))[1]).toContain("*");
 
     await gotoCompare(page, `sbs:${m},rubikon:${m}`, "&sub=0");
     await expect(page.locator("tbody tr").filter({ hasText: CHILD })).toHaveCount(0);
   });
 
   test("never exceeds the total it is a subset of", async ({ page }) => {
-    // The guard against double-counting. The row sums PARENT canonical rows
-    // only — the canonical children subdivide their parent's mapping, so
-    // including them would count the same counter twice and could push this
-    // above the total.
+    // That no counter is counted twice is registry.test.ts. This is each
+    // column reading its OWN snapshot: a sub-unit column summing the
+    // grouping's figures would come out far above its own total.
     const m = thisMonth();
     await gotoCompare(page, `sbs:${m},sbs:alpha-unit:${m},rubikon:${m}`);
     const total = (await rowCells(page, PARENT)).slice(1).map(num);
     const subset = (await rowCells(page, CHILD)).slice(1).map(num);
     expect(subset).toHaveLength(total.length);
     subset.forEach((v, i) => expect(v).toBeLessThanOrEqual(total[i]));
-  });
-
-  test("drops the categories unique to some units, and names them", async ({ page }) => {
-    const m = thisMonth();
-    await gotoCompare(page, `sbs:alpha-unit:${m},rubikon:${m}`, "&scope=1");
-    const cells = await rowCells(page, CHILD);
-
-    // «Рубикон» has no aircraft or watercraft counter at all — those are the
-    // genuinely incomparable ones.
-    expect(cells[0]).toContain("13 categories every column reports");
-    expect(cells[0]).toContain("left out as unique to some");
-    expect(cells[0]).toContain("Aircraft");
-    expect(cells[0]).toContain("Fleet");
-
-    // On the ROW, not repeated under every column. A per-column caption reads
-    // as a statement about that unit: "left out: Aircraft" under «Рубикон»
-    // would say «Рубикон» lost aircraft, when it is the one unit with no
-    // aircraft counter and it lost nothing.
-    expect(cells[1]).not.toContain("left out");
-    expect(cells[2]).not.toContain("left out");
-  });
-
-  test("a category a unit reports as a rule but not this month still counts", async ({ page }) => {
-    // The distinction that makes the set stable month to month. Air defence is
-    // in every one of these units' vocabularies, so it stays in the shared set
-    // even in a month where a column published nothing for it — silence means
-    // zero, not "incomparable". Keying off values instead made the set flicker
-    // and docked one unit for another unit's quiet month.
-    const m = thisMonth();
-    await gotoCompare(page, `sbs:alpha-unit:${m},rubikon:${m}`, "&scope=1");
-    const cells = await rowCells(page, CHILD);
-    expect(cells[0]).not.toContain("Air defense");
   });
 
   test("is not shown when every column is the same entity", async ({ page }) => {
@@ -107,14 +84,5 @@ test.describe("Compare — comparable subset", () => {
     await gotoCompare(page, `sbs:${m},sbs:alpha-unit:${m},sbs:bravo-unit:${m}`, "&scope=1");
     await page.locator("tbody tr").filter({ hasText: PARENT }).first().waitFor();
     await expect(page.locator("tbody tr").filter({ hasText: CHILD })).toHaveCount(0);
-  });
-
-  test("the subset is derived, and marked as such", async ({ page }) => {
-    // No source publishes it — this app added it up — so it carries the same
-    // "*" the other computed figures do.
-    const m = thisMonth();
-    await gotoCompare(page, `sbs:${m},rubikon:${m}`);
-    const cells = await rowCells(page, CHILD);
-    expect(cells[1]).toContain("*");
   });
 });

@@ -50,6 +50,19 @@ export function formatJetDrones(r: ZelenskyWeekRow): string | null {
   return null;
 }
 
+// A week's tooltip note on one weapon's chart, a line each: the figure as the
+// post hedged it — the bar height alone would present "понад 3170" as exactly
+// 3,170 — and, on the drones chart, how many were jet-powered, when the post
+// said. A week with no post says so rather than reading as a zero.
+export function weekNote(r: ZelenskyWeekRow | undefined, category: ZelenskyCategory): string[] {
+  if (!r) return ["no weekly tally posted"];
+  const jet = category === "drones" ? formatJetDrones(r) : null;
+  return [
+    `${r.period} · as posted: ${formatHedged(r[category], r[`${category}_bound`])}`,
+    ...(jet ? [`of which jet-powered: ${jet}`] : []),
+  ];
+}
+
 // The page's time window is the monthly pages' one (months + end month), laid
 // over weeks: a week is in it when its Monday falls in one of the window's
 // calendar months. Calendar months rather than a count of rows — the monthly

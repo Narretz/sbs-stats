@@ -219,9 +219,9 @@ export function usePinnedChart<T>({
             shape={(r: { x: number; y: number; width: number; height: number }) => (
               <line className="recharts-reference-line-line" x1={r.x + r.width / 2} x2={r.x + r.width / 2}
                     y1={r.y} y2={r.y + r.height}
-                    stroke={t.accent} strokeWidth={1.5} strokeOpacity={0.9} />
+                    stroke={chartColors(t).pinnedCursor} strokeWidth={1.5} />
             )} />
-        : <ReferenceLine x={xs[firstI]} stroke={t.accent} strokeWidth={1.5} strokeOpacity={0.9} {...cursorProps} />,
+        : <ReferenceLine x={xs[firstI]} stroke={chartColors(t).pinnedCursor} strokeWidth={1.5} {...cursorProps} />,
     sheet: pinnedRow != null ? (
       <ChartSheetContent
         title={title}

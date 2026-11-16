@@ -241,16 +241,28 @@ def parse_rows(equip: list[dict], personnel: list[dict]) -> dict[str, dict]:
     so the next day's delta is taken against pre-typo reality.
     """
     cum: dict[str, dict[str, int | None]] = {}
-    for rec in equip:
-        row = cum.setdefault(rec["date"], {})
-        for ours, theirs in EQUIP_MAP.items():
-            v = rec.get(theirs)
-            row[ours] = int(v) if v is not None else None
-    for rec in personnel:
-        row = cum.setdefault(rec["date"], {})
-        for ours, theirs in PERSONNEL_MAP.items():
-            v = rec.get(theirs)
-            row[ours] = int(v) if v is not None else None
+    for name, records, mapping in (
+        ("equipment", equip, EQUIP_MAP), ("personnel", personnel, PERSONNEL_MAP),
+    ):
+        seen: set[str] = set()
+        for rec in records:
+            # A repeated date is a mislabelled next-day record (2026-11-13's
+            # totals were appended as a second 2026-11-12 / day 1723). Letting
+            # it overwrite the first would diff two days into one; keep the
+            # first and drop it — the mod.gov.ua supplement covers the day.
+            if rec["date"] in seen:
+                log.warning(
+                    f"Petro {name} has a second record for {rec['date']} "
+                    f"(day {rec.get('day')}); keeping the first, dropping this one. "
+                    f"Likely a mislabelled next-day record — check upstream.",
+                    extra=ann(title="ru-losses: duplicate date"),
+                )
+                continue
+            seen.add(rec["date"])
+            row = cum.setdefault(rec["date"], {})
+            for ours, theirs in mapping.items():
+                v = rec.get(theirs)
+                row[ours] = int(v) if v is not None else None
 
     report_days = sorted(cum)
     if not report_days:

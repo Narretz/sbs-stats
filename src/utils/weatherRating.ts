@@ -70,7 +70,8 @@ export function droneHour(h: WeatherHour): HourRating {
   if (temp != null) {
     if (temp <= D.cold_severe) add(SEVERE, "cold");
     else if (temp <= D.cold_degraded) add(DEGRADED, "cold");
-    const wet = rain >= D.icing_min_liquid || isFog;
+    // Fog counts only well below freezing — the reasoning is in assess.py.
+    const wet = rain >= D.icing_min_liquid || (isFog && temp <= D.icing_fog_max);
     const [lo, hi] = D.icing_temp;
     if ((code != null && FREEZING.has(code)) || (lo <= temp && temp <= hi && wet)) add(SEVERE, "icing");
   }

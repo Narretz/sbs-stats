@@ -5,7 +5,7 @@ import { getKyivDateString } from "@/hooks/sqlLoader";
 import { chartColors } from "@/chartColors";
 import { StripCard } from "@/components/WeatherStripCard";
 import { StripGrid } from "@/components/WeatherStripGrid";
-import { asOfText, LEGEND, STRIP_ANCHOR, STRIP_TITLE, stripStatus, useDescriptorColors } from "@/components/weatherStripShared";
+import { asOfText, FCST_AXIS, LEGEND, STRIP_ANCHOR, STRIP_TITLE, stripStatus, useDescriptorColors } from "@/components/weatherStripShared";
 import { buildDailyStrip, buildHourlyStrip, dayLevel, forecastDayAfter } from "@/utils/weatherStrip";
 import { dayCellDescriptor, dayColumnDescriptor, hourCellDescriptor, hourColumnDescriptor, weekdayDate } from "@/utils/weatherDescriptors";
 
@@ -14,20 +14,21 @@ const COLUMN_HEADERS = [0, 6, 12, 18, 23];
 
 /** The SBS hourly page's strip: one day, hour by hour. Mount it only while
  *  the reader has the strip switched on — mounting is what fetches the DB. */
-export function WeatherStripHourly({ date }: { date: string }) {
+/** `sbsHour`: the latest hour the SBS figures for `date` have reached — the
+ *  strip marks it with a bar above the hours. */
+export function WeatherStripHourly({ date, sbsHour }: { date: string; sbsHour?: number | null }) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
   const colors = useDescriptorColors();
-  const { loadState, error, queryRange } = useDatabaseWeather();
+  const { error, queryRange } = useDatabaseWeather();
   // Viewing today, one more column after hour 23: tomorrow as a whole day,
   // from the stored forecast — the same day rating as the daily strip's fcst
   // column. The DAY column stays today's.
   const extraDay = forecastDayAfter(date, getKyivDateString());
-  // queryRange is rebuilt when a background refresh swaps the DB in.
-  const data = useMemo(
-    () => (loadState === "ready" ? queryRange(date, extraDay ?? date) : null),
-    [loadState, queryRange, date, extraDay],
-  );
+  // Not gated on loadState: a background refresh keeps the old DB until the
+  // new one is in, so the grid stays up and updates in place. queryRange is
+  // rebuilt when the new DB swaps in, and is null until there is one.
+  const data = useMemo(() => queryRange(date, extraDay ?? date), [queryRange, date, extraDay]);
   const strip = useMemo(
     () => (data ? buildHourlyStrip(data.sectors, data.cells.filter((x) => x.date === date)) : null),
     [data, date],
@@ -42,11 +43,13 @@ export function WeatherStripHourly({ date }: { date: string }) {
 
   const columns = useMemo(() => [
     ...Array.from({ length: 24 }, (_, h) => ({
-      key: h as string | number, axis: COLUMN_HEADERS.includes(h) ? `${String(h).padStart(2, "0")}:00` : "",
+      key: h as string | number, 
+      // The ":00" goes on a narrow screen, before the labels run together.
+      axis: labelled.includes(h) ? <>{String(h).padStart(2, "0")}<span className="weather-axis-min">:00</span></> : "",
     })),
     ...(fc ? [{ key: fc.dates[0], axis: "fcst", forecast: true }] : []),
   ], [fc]);
-
+    
   return (
     <StripCard status={status}>
       {strip && (
@@ -55,6 +58,10 @@ export function WeatherStripHourly({ date }: { date: string }) {
           title={STRIP_TITLE}
           subtitle={`${date} · a severe day for drones at ${strip.severeSectors} of ${strip.rows.length} directions${fc ? " · fcst = tomorrow's forecast" : ""}${asOfText(data!.asOf)}`}
           columns={columns}
+          progress={sbsHour != null ? {
+            columns: sbsHour + 1,
+            title: `SBS figures up to ${String(sbsHour).padStart(2, "0")}:00`,
+          } : undefined}
           rows={strip.rows.map((r, i) => {
             const tomorrow = fc?.rows[i].cells[0].summary;
             return {

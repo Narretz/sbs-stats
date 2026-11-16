@@ -80,6 +80,9 @@ export interface ChartColors {
   // The band behind the hovered bar (recharts' tooltip cursor on a bar chart),
   // which recharts otherwise paints a fixed #ccc in both themes.
   hoverBand: string;
+  // The vertical line at a pinned point (the open sheet's), on every chart
+  // and on the weather strip's pinned column.
+  pinnedCursor: string;
   barCurrent: string;       // last/current month highlight
   barCurrentProjected: string;
 
@@ -153,6 +156,7 @@ export function chartColors(t: Theme): ChartColors {
 
     barDefault: t.series1,
     hoverBand: t.surfaceBorder,
+    pinnedCursor: t.textMuted,
     barCurrent: t.series1Current,
     barCurrentProjected: withProjectedAlpha(t.series1),
 

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { createElement, Fragment, useMemo } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
 import { chartAnchor } from "@/utils/chartAnchor";
@@ -19,6 +19,11 @@ export const STRIP_ANCHOR = chartAnchor(STRIP_TITLE);
 export const LEGEND = (c: { weatherOk: string; weatherDegraded: string; weatherSevere: string }): [string, string][] =>
   [["ok", c.weatherOk], ["limited", c.weatherDegraded], ["severe", c.weatherSevere]];
 
+/** The forecast column's axis label: "fcst", cut to "f" when its column is
+ *  too narrow for the word (a container query on .weather-axis-fcst) — on a
+ *  phone, or a long window — where it would run into its neighbours. */
+export const FCST_AXIS = createElement(Fragment, null, "f", createElement("span", { className: "weather-fcst-rest" }, "cst"));
+
 export const asOfText = (asOf: string | null) =>
   (asOf ? ` · as of ${asOf.slice(0, 10)} ${asOf.slice(11, 16)} UTC` : "");
 
@@ -35,10 +40,12 @@ export function useDescriptorColors(): DescriptorColors {
 }
 
 /** The line a strip shows instead of its grid — loading, failed, or no data
- *  for the range — or null when there is a grid to show. */
+ *  for the range — or null when there is a grid to show. `ready`: the strip
+ *  has rows from some copy of the DB. During a background refresh that is
+ *  still the old copy, so the grid stays up, and a refresh that fails leaves
+ *  it showing that copy rather than the error. */
 export function stripStatus(error: string | null, ready: boolean, hasData: boolean, empty: string): string | null {
-  if (error) return "Weather data unavailable.";
-  if (!ready) return "Loading weather…";
+  if (!ready) return error ? "Weather data unavailable." : "Loading weather…";
   if (!hasData) return empty;
   return null;
 }

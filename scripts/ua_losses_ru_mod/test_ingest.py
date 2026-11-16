@@ -238,6 +238,15 @@ def test_munitions_are_grouped_by_kind():
     }
 
 
+def test_rusty_dagger_is_a_cruise_missile(caplog):
+    # Appeared in the sheet 2026-11; its header names its kind.
+    header = HEADER[:]
+    header.insert(header.index("ATACMS") + 1, "Rusty Dagger Cruise Missile")
+    cols = {c.label: c for c in ingest.map_columns(header) if c.section == "munitions"}
+    assert cols["Rusty Dagger Cruise Missile"].subgroup == "cruise"
+    assert "Rusty Dagger" not in caplog.text
+
+
 def test_a_new_munition_is_stored_but_flagged(caplog):
     header = HEADER[:]
     header.insert(header.index("ATACMS") + 1, "Taurus")

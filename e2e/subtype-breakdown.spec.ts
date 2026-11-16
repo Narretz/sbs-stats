@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { FIXED_TODAY, ROWED_SEPARATELY_DAY_OFFSET, SUBTYPE_DAY_OFFSET } from "./build-fixtures.mjs";
+import { FIXED_TODAY, SUBTYPE_DAY_OFFSET } from "./build-fixtures.mjs";
 
 // Regression guard for the weapon sub-type breakdown in the drones tooltip.
 //
@@ -15,16 +15,16 @@ import { FIXED_TODAY, ROWED_SEPARATELY_DAY_OFFSET, SUBTYPE_DAY_OFFSET } from "./
 // The second thing that has to hold is that an un-itemized intercept count
 // stays un-itemized: build-fixtures seeds one sub-type with `destroyed` and one
 // without, and the one without must not read as "9 launched, 0 intercepted".
+//
+// Which entries the queries produce — carved out, nested, not repeated — is
+// src/data/ruAirAttacksDb.test.ts; this one hover is the rows reaching the
+// screen in order, with the cells a nested row leaves empty.
 const dayISO = (offset: number) => {
   const d = new Date(`${FIXED_TODAY}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + offset);
   return d.toISOString().slice(0, 10);
 };
 const SUBTYPE_DAY = dayISO(-SUBTYPE_DAY_OFFSET);
-const PLAIN_DAY = dayISO(-3); // no itemization → no sub-type rows at all
-// Itemized *and* given a row of its own by the same report → already charted
-// under its own model, so it must not repeat inside the UAV row.
-const ROWED_SEPARATELY_DAY = dayISO(-ROWED_SEPARATELY_DAY_OFFSET);
 
 // Tooltip headers are the ISO date itself (utils/dateFormat).
 const fmt = (iso: string) => iso;
@@ -77,48 +77,17 @@ test.describe("RU air attacks — weapon sub-type breakdown", () => {
     return next < 0 ? rest : rest.slice(0, next);
   };
 
-  // Banderol is a cruise missile the Air Force counts inside the night's UAV
-  // headline, so its itemization arrives on a row categorised `drone`. It is
-  // carved out of that row and counted under its own weapon instead — the
-  // fixture's UAV row is seeded at 104/94 with 4/4 of it Banderol.
-  test("an itemization of another category is moved out of the UAV row", async ({ page }) => {
-    const drones = await tooltipAt(page, "Drones", SUBTYPE_DAY);
-    expect(drones).not.toContain("Banderol");
-    expect(cellsAfter(drones, "Shahed-136/131")).toEqual(["100", "100.0%", "90", "90.0%"]);
-  });
-
-  test("the moved counts are charted as their own weapon under cruise", async ({ page }) => {
-    const cruise = await tooltipAt(page, "Cruise Missiles", SUBTYPE_DAY);
-    // A share cell — i.e. a real sibling of the other cruise rows, adding to
-    // the category total (X-101 10 + Banderol 4 = 14), not an "of which".
-    expect(cellsAfter(cruise, "Banderol")).toEqual(["4", "28.6%", "4", "100.0%"]);
-    expect(cruise).not.toContain("of which");
-  });
-
   test("a sub-type of the parent's own kind stays nested, intercepts and all", async ({ page }) => {
     const tip = await tooltipAt(page, "Drones", SUBTYPE_DAY);
+    // Banderol, a cruise missile, was carved out of this row; the 104/94 seeded
+    // is what is left.
+    expect(tip).not.toContain("Banderol");
+    expect(cellsAfter(tip, "Shahed-136/131")).toEqual(["100", "100.0%", "90", "90.0%"]);
     // A jet-powered Geran is still a UAV, so it stays inside the row it was
     // itemized from. Launched, then an em dash standing in for the intercept
     // cell — and nothing after it, since a rate over a number nobody published
     // would be fiction and a 0 would invent an outcome.
     expect(tip.indexOf("Shahed-136/131")).toBeLessThan(tip.indexOf("of which jet-powered"));
     expect(cellsAfter(tip, "↳ of which jet-powered")).toEqual(["9", "—"]);
-  });
-
-  // Whether an itemization sits inside its parent row or alongside it depends on
-  // whether the same report also gave that weapon a row of its own, and piterfm
-  // has done it both ways (see installSubtypeTable). When it did, the weapon is
-  // already charted as its own model — repeating it under the UAV row would
-  // double-show it and misstate the parent's count.
-  test("a sub-type the same report also rowed separately is not repeated", async ({ page }) => {
-    const tip = await tooltipAt(page, "Drones", ROWED_SEPARATELY_DAY);
-    expect(tip).toContain("Shahed-136/131");
-    expect(tip).not.toContain("of which");
-  });
-
-  test("a day with no itemization carries no sub-type rows", async ({ page }) => {
-    const tip = await tooltipAt(page, "Drones", PLAIN_DAY);
-    expect(tip).toContain("Shahed-136/131");
-    expect(tip).not.toContain("of which");
   });
 });

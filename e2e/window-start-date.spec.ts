@@ -49,16 +49,8 @@ test.describe("Daily/hourly pages — window start date", () => {
     await expect(page.locator('[data-testid="day-range-custom"]')).toHaveValue("7");
   });
 
-  test("picking today as the end goes live — the only way back on a date input with no clear button", async ({ page }) => {
-    await page.goto(`/?site=sbs&page=daily&more=1&days=7&date=${dayISO(-3)}`);
-    const end = page.getByLabel("End", { exact: true });
-    await end.fill(dayISO(-2));
-    await page.waitForFunction((d) => location.search.includes(`date=${d}`), dayISO(-2));
-    await end.fill(FIXED_TODAY);
-    await page.waitForFunction(() => !/[?&]date=\d/.test(location.search));
-    await expect(end).toHaveValue("");
-    await expect(page.getByRole("button", { name: "End: next day" })).toBeDisabled();
-  });
+  // Picking the latest date going live: DayRangeSelect.browser.test.tsx
+  // (DateNav). That live means no date in the URL is the test above.
 
   test("on the hourly page too", async ({ page }) => {
     await page.goto(`/?site=sbs&page=hourly&more=1&days=7&date=${FIXED_TODAY}`);

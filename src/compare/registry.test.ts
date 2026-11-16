@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   CANONICAL_ROWS,
+  COMPARE_ENTITIES,
+  comparableCaption,
+  comparableSet,
+  comparableValue,
+  columnToken,
   fmtPct,
   fmtValue,
   keysFor,
   mapsIn,
+  parseColumns,
   pctChange,
   sumCompareValues,
   sumNatives,
@@ -193,5 +199,86 @@ describe("value formatting", () => {
     expect(fmtPct(pctChange(exact(100), exact(150))!)).toBe("+50.0%");
     expect(fmtPct(pctChange(exact(100), exact(50))!)).toBe("−50.0%");
     expect(fmtPct(pctChange(exact(100), exact(100))!)).toBe("±0.0%");
+  });
+});
+
+// The compare page's "of which comparable" row under "All targets engaged".
+describe("comparableSet", () => {
+  const M = "2026-08";
+  const col = (entity: (typeof COMPARE_ENTITIES)[number]) => ({ entity, month: M });
+
+  it("keeps what every column reports, and names what only some do", () => {
+    // SBS and «Рубикон» share 13 of the candidate categories; «Рубикон» has
+    // no aircraft or watercraft counter at all.
+    const set = comparableSet([col("sbs"), col("rubikon")]);
+    expect(set.shared).toHaveLength(13);
+    expect(set.dropped).toEqual(["Aircraft", "Fleet / watercraft"]);
+    expect(comparableCaption(set)).toBe(
+      `13 categories every column reports · left out as unique to some: ${set.dropped.join(", ")}`);
+  });
+
+  it("goes by vocabulary, not a month's values: air defence stays shared", () => {
+    // In every unit's vocabulary, so in the set even in a month a column
+    // published nothing for it — silence is zero, not "incomparable".
+    expect(comparableSet([col("sbs"), col("rubikon")]).shared.map((r) => r.label)).toContain("Air defense");
+  });
+
+  it("leaves nothing out between columns of one entity", () => {
+    const set = comparableSet([col("sbs"), { entity: "sbs", month: "2026-07" }]);
+    expect(set.dropped).toEqual([]);
+    expect(comparableCaption(set)).not.toContain("left out");
+  });
+
+  it("counts no counter twice", () => {
+    // Parents only: a canonical child subdivides its parent's mapping, so
+    // counting both would add one counter in twice — and could push the
+    // subset past the total above it, which is each source's own roll-up.
+    const { shared } = comparableSet(COMPARE_ENTITIES.map(col));
+    for (const entity of COMPARE_ENTITIES) {
+      const keys = shared.flatMap((r) => keysFor(r, entity, M));
+      expect(keys.length, entity).toBeGreaterThan(0);
+      expect(new Set(keys).size, entity).toBe(keys.length);
+    }
+  });
+
+  it("sums a column's shared categories, an unreported one as nothing, and marks the sum derived", () => {
+    const { shared } = comparableSet([col("sbs"), col("rubikon")]);
+    const [a, b] = shared.map((r) => keysFor(r, "sbs", M)[0]);
+    expect(comparableValue(shared, snap({ [a]: 5, [b]: 7 }), "sbs", M))
+      .toEqual({ value: 12, bound: "exact", derived: true, note: undefined });
+    expect(comparableValue(shared, snap({}), "sbs", M)).toBeNull();
+  });
+});
+
+// The compare page's `cols=` URL parameter.
+describe("parseColumns / columnToken", () => {
+  it("reads an entity, a sub-unit and a projection, and writes them back", () => {
+    const raw = "sbs:2026-08,sbs:alpha-unit:2026-09,sbs:alpha-unit:2026-09:proj,rubikon:2026-07";
+    const cols = parseColumns(raw);
+    expect(cols).toEqual([
+      { entity: "sbs", month: "2026-08" },
+      { entity: "sbs", unit: "alpha-unit", month: "2026-09" },
+      { entity: "sbs", unit: "alpha-unit", month: "2026-09", proj: true },
+      { entity: "rubikon", month: "2026-07" },
+    ]);
+    expect(cols.map(columnToken).join(",")).toBe(raw);
+  });
+
+  it("projects the grouping too: the marker is stripped before the month is read", () => {
+    expect(parseColumns("sbs:2026-09:proj")).toEqual([{ entity: "sbs", month: "2026-09", proj: true }]);
+  });
+
+  it("keeps a column whose unit slug or projection only SBS can have, without them", () => {
+    // A malformed link: dropping the token is friendlier than the column.
+    expect(parseColumns("rubikon:alpha-unit:2026-08,sbu-alfa:2026-08:proj")).toEqual([
+      { entity: "rubikon", month: "2026-08" },
+      { entity: "sbu-alfa", month: "2026-08" },
+    ]);
+  });
+
+  it("skips what it can't read", () => {
+    expect(parseColumns("nope:2026-08,sbs:August,sbs,,sbs:2026-08")).toEqual([{ entity: "sbs", month: "2026-08" }]);
+    expect(parseColumns(null)).toEqual([]);
+    expect(parseColumns("")).toEqual([]);
   });
 });

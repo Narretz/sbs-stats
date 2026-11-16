@@ -110,8 +110,8 @@ test.describe("Compare — SBS sub-units", () => {
     // pattern-matched: every cell but the first carries a "(-98.0%)" suffix.
     //
     // Polled, not read once: the table renders its rows before the DBs resolve
-    // — and sbs-units.db is fetched only once a unit column asks for it — so a
-    // single read can catch em dashes. It did, but only under parallel load,
+    // — sbs-units.db among them, a whole fetch of its own — so a single read
+    // can catch em dashes. It did, but only under parallel load,
     // where the wait is long enough to lose the race.
     const engaged = async () =>
       (await rowCells(page, "All targets engaged")).slice(1).map(
@@ -170,15 +170,8 @@ test.describe("Compare — SBS sub-units", () => {
     expect(cells[2]).toBe("—");
   });
 
-  test("a pre-sub-unit link still resolves", async ({ page }) => {
-    const month = thisMonth();
-    await gotoCompare(page, `sbs:${month}`);
-    await expect(columnUnit(page, 0)).toHaveText("UA SBS (USF)");
-    // Polled: the row renders before sbs.db resolves.
-    await expect
-      .poll(async () => (await rowCells(page, "All targets engaged"))[1])
-      .toMatch(/25,0\d\d/);
-  });
+  // A pre-sub-unit (two-token) link: parseColumns in registry.test.ts, and the
+  // grouping column of the figures test above is one.
 
   test("the 'Only in' section reads the unit, not the whole of SBS", async ({ page }) => {
     // Regression. Those rows were rendered from `snapshots[entity]` rather than
@@ -226,13 +219,5 @@ test.describe("Compare — SBS sub-units", () => {
           .map((o) => o.trim()),
       )
       .toEqual([`${thisMonth()} (no data)`, monthsBack(12), monthsBack(13)]);
-  });
-
-  test("a unit slug on a non-SBS entity is ignored, not fatal", async ({ page }) => {
-    const month = thisMonth();
-    // Malformed link: only SBS has sub-units. The column should survive as the
-    // plain entity rather than disappearing.
-    await gotoCompare(page, `rubikon:alpha-unit:${month}`);
-    await expect(columnUnit(page, 0)).toHaveText("RU «Рубикон»");
   });
 });

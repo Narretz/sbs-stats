@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ZelenskyWeekRow } from "@/types";
-import { UNDERCOUNT_NOTE, formatHedged, formatJetDrones, monthlySources, monthsBetween, mondaysBetween, monthsSpanned, toMonthlyDataset, toWeeklyDataset, weeklySources, weeksInMonthWindow, windowTicks } from "./zelenskyWeekly";
+import { UNDERCOUNT_NOTE, formatHedged, formatJetDrones, monthlySources, monthsBetween, mondaysBetween, monthsSpanned, toMonthlyDataset, toWeeklyDataset, weekNote, weeklySources, weeksInMonthWindow, windowTicks } from "./zelenskyWeekly";
 
 const row = (period_start: string, drones: number | null): ZelenskyWeekRow => ({
   period: "x", period_start, period_end: "x", post_id: 1, posted_at: "x", url: "x",
@@ -125,5 +125,22 @@ describe("formatJetDrones", () => {
   });
   it("is null for a week that gave no figure", () => {
     expect(formatJetDrones(row("2026-10-12", 2700))).toBeNull();
+  });
+});
+
+describe("weekNote", () => {
+  const full: ZelenskyWeekRow = {
+    ...row("2026-01-05", 1000), period: "2026-01-05/11",
+    bombs: 900, bombs_bound: "approx", jet_drones_pct: 60, jet_drones_pct_bound: "approx",
+  };
+  it("quotes the figure as the post hedged it, and the jet share on the drones chart only", () => {
+    expect(weekNote(full, "drones")).toEqual(["2026-01-05/11 · as posted: > 1,000", "of which jet-powered: ≈ 60%"]);
+    expect(weekNote(full, "bombs")).toEqual(["2026-01-05/11 · as posted: ≈ 900"]);
+  });
+  it("a weapon the post didn't name is 'not reported'", () => {
+    expect(weekNote(full, "missiles")).toEqual(["2026-01-05/11 · as posted: not reported"]);
+  });
+  it("a week with no post says so, rather than reading as zero", () => {
+    expect(weekNote(undefined, "drones")).toEqual(["no weekly tally posted"]);
   });
 });

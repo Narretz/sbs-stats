@@ -8,6 +8,7 @@ import { ChartSheetContent } from "@/components/ChartSheet";
 import { DescriptorBody, DescriptorCard, type TooltipDescriptor } from "@/components/TooltipTable";
 import { FloatingCard } from "@/components/FloatingCard";
 import { DEGRADED, SEVERE, type Level } from "@/utils/weatherRating";
+import { cellGap } from "@/utils/weatherStrip";
 
 // The grid both weather strips are drawn with: a row per direction, a cell per
 // column (hours or days) coloured by level, a count row above and a summary
@@ -45,7 +46,11 @@ export interface GridProps {
   subtitle: ReactNode;
   /** `forecast`: a column that is forecast through and through (the daily
    *  strip's tomorrow) — set a little apart from the ones before it. */
-  columns: { key: string | number; axis: string; forecast?: boolean }[];
+  columns: { key: string | number; axis: ReactNode; forecast?: boolean; thinAxis?: boolean }[];
+  /** A bar above the header over the first `progress` columns, in the
+   *  charts' main-series blue — how far the page's own data has got (the
+   *  SBS hourly page: up to its latest hour). */
+  progress?: { columns: number; title: string };
   rows: GridRow[];
   count: { label: string; title: string; values: number[] };
   /** Header of the column at the row ends. */
@@ -59,7 +64,7 @@ export interface GridProps {
   link?: (col: number) => SheetLink | null;
 }
 
-export function StripGrid({ id, title, subtitle, columns, rows, count, tailHeader, legend, legendNote, cellDescriptor, columnDescriptor, columnLabel, link }: GridProps) {
+export function StripGrid({ id, title, subtitle, columns, progress, rows, count, tailHeader, legend, legendNote, cellDescriptor, columnDescriptor, columnLabel, link }: GridProps) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
   const keys = useMemo(() => columns.map((x) => x.key), [columns]);
@@ -67,9 +72,6 @@ export function StripGrid({ id, title, subtitle, columns, rows, count, tailHeade
   const [hover, setHover] = useState<{ row: number | null; col: number; x: number; y: number } | null>(null);
 
   const levelColor = (l: Level) => (l === SEVERE ? c.weatherSevere : l === DEGRADED ? c.weatherDegraded : c.weatherOk);
-  const n = columns.length;
-  // A long window squeezes the cells; drop the gaps before the cells vanish.
-  const gap = n > 60 ? 0 : n > 31 ? 1 : 2;
   const mono: React.CSSProperties = { fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted };
 
   // The hover card is for a pointer that can hover — a mouse or a pen — as on
@@ -105,9 +107,21 @@ export function StripGrid({ id, title, subtitle, columns, rows, count, tailHeade
   // the cells — that is taken out of the column's own track, and the forecast
   // cells came out narrower than the rest.
   const spacer = (col: number) => (columns[col].forecast ? <div data-gap="" aria-hidden /> : null);
-  const tracks = columns.map((col) => `${col.forecast ? "3px " : ""}minmax(0, 1fr)`).join(" ");
-  const ring = (col: number): React.CSSProperties =>
-    col === pinnedCol ? { outline: `1.5px solid ${t.text}`, outlineOffset: -1 } : {};
+  // The widths that give way on a narrow screen are CSS variables, set on
+  // .weather-grid in theme.css.
+  const tracks = columns.map((col) => `${col.forecast ? "var(--wx-fcst-gap) " : ""}minmax(0, 1fr)`).join(" ");
+  // Grid line a column starts at: after the name column and every forecast
+  // spacer up to and including its own.
+  const line = (col: number) => 2 + col + columns.slice(0, col + 1).filter((x) => x.forecast).length;
+  // Forecast columns come last.
+  const lastPlain = columns.filter((x) => !x.forecast).length - 1;
+  // A long window squeezes the cells — sooner on a narrow screen; drop the
+  // gaps before the cells vanish. Both widths' gaps go to CSS
+  // (.weather-grid picks one by media query), and a cell's corners round
+  // only with a gap to show them.
+  const gaps = { "--wx-gap-wide": `${cellGap(lastPlain + 1, false)}px`, "--wx-gap-narrow": `${cellGap(lastPlain + 1, true)}px` };
+  // Grid rows: the progress bar's (if any), the header, Σ, then the directions.
+  const countRow = progress && progress.columns > 0 ? 3 : 2;
 
   const card = hover && !pin.isPinned ? (
     <FloatingCard x={hover.x} y={hover.y}>
@@ -123,47 +137,75 @@ export function StripGrid({ id, title, subtitle, columns, rows, count, tailHeade
       <div {...pin.cardProps}>
       <div
         role="grid"
+        className="weather-grid"
         aria-label={title}
         onPointerMove={onPointerMove}
         onPointerLeave={() => setHover(null)}
         onClick={onClick}
         style={{
-          display: "grid",
+          display: "grid", position: "relative",
           // The name column gives way on a phone (ellipsis, full name in the
           // tooltip) so the cells keep a usable width.
-          gridTemplateColumns: `clamp(64px, 22vw, 150px) ${tracks} 58px`,
-          columnGap: gap, rowGap: 2, alignItems: "center", ...mono,
+          gridTemplateColumns: `var(--wx-name) ${tracks} minmax(var(--wx-tail-min), max-content)`,
+          rowGap: 2, alignItems: "center", ...mono, ...gaps,
         }}
       >
-        <div />
+        {/* A row of its own above the header, on explicit columns. */}
+        {progress && progress.columns > 0 && (
+          <div data-testid="weather-progress" title={progress.title} style={{
+            gridColumn: `2 / ${line(progress.columns - 1) + 1}`, alignSelf: "end",
+            height: 3, borderRadius: 1, marginBottom: 2, background: c.hourlyToday,
+          }} />
+        )}
+        <div style={{ gridColumn: 1 }} />
         {columns.map((col, i) => (
           <Fragment key={i}>
             {spacer(i)}
             {/* Left-aligned on its column and free to overflow into the next. */}
-            <div style={{ whiteSpace: "nowrap", fontSize: 10, overflow: "visible", color: i === pinnedCol ? t.text : undefined }}>
-              {col.axis}
+            <div
+              className={[col.thinAxis && "weather-axis-thin", col.forecast && "weather-axis-fcst", i === lastPlain && "weather-axis-last"].filter(Boolean).join(" ") || undefined}
+              style={{ whiteSpace: "nowrap", fontSize: 10, overflow: "visible", color: i === pinnedCol ? t.text : undefined }}
+            >
+              {/* The last label ends at its column, where it is wider than that
+                  (a container query): spilling on, it would run into "fcst". */}
+              {i === lastPlain ? <div className="weather-axis-end">{col.axis}</div> : col.axis}
             </div>
           </Fragment>
         ))}
-        <div style={{ paddingLeft: 6, fontSize: 10 }}>{tailHeader}</div>
+        <div className="weather-tail" style={{ fontSize: 10 }}>{tailHeader}</div>
 
         <div title={count.title}>{count.label}</div>
         {count.values.map((k, i) => (
           <Fragment key={i}>
           {spacer(i)}
-          <div data-col={i} data-row="" data-testid="weather-count" style={{
+          {/* The number shows only while the cell is wide enough for two
+              digits (a container query on .weather-count). */}
+          <div data-col={i} data-row="" data-testid="weather-count" className="weather-count" style={{
             textAlign: "center", borderRadius: 2, height: 14, lineHeight: "14px", cursor: "pointer",
             overflow: "hidden",
             background: k ? c.weatherSevere : "transparent",
             opacity: k ? 0.25 + 0.75 * (k / rows.length) : 1,
             color: k ? "#fff" : t.textFaint,
             ...(columns[i].forecast && k ? { opacity: (0.25 + 0.75 * (k / rows.length)) * FORECAST_OPACITY } : null),
-            ...ring(i),
-          }}>{n <= 31 ? (k || "·") : ""}</div>
+          }}><span className="weather-count-n">{k || "·"}</span></div>
           </Fragment>
         ))}
         <div />
 
+        {/* The pinned column: a vertical line through its centre, as the
+            charts' pinned cursor, from Σ to the last direction. Absolutely
+            positioned, so it takes no cell of its own from the grid. */}
+        {pinnedCol >= 0 && (
+          <div data-testid="weather-pin-line" aria-hidden style={{
+            position: "absolute", inset: 0, pointerEvents: "none",
+            gridColumn: `${line(pinnedCol)} / span 1`, gridRow: `${countRow} / ${countRow + 1 + rows.length}`,
+          }}>
+            {/* A border, not a 1.5px-wide background: a fractional width at a
+                fractional x snaps to 1 device pixel in one column, 2 in the
+                next; a border's width is rounded once, the same everywhere. */}
+            <div style={{ position: "absolute", top: 0, bottom: 0, left: "calc(50% - var(--wx-pin-w) / 2)", borderLeft: `var(--wx-pin-w) solid ${c.pinnedCursor}` }} />
+          </div>
+        )}
         {rows.map((row, r) => (
           <div key={row.key} role="row" data-sector={row.key} style={{ display: "contents" }}>
             <div title={row.title} style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: t.text }}>
@@ -179,17 +221,16 @@ export function StripGrid({ id, title, subtitle, columns, rows, count, tailHeade
                 data-level={cell.level ?? ""}
                 data-forecast={cell.faded ? "1" : undefined}
                 style={{
-                  height: 14, borderRadius: gap ? 2 : 0, cursor: "pointer",
+                  height: 14, borderRadius: "min(var(--wx-gap) * 2, 2px)", cursor: "pointer",
                   background: cell.level != null ? levelColor(cell.level) : "transparent",
                   border: cell.level != null ? "none" : `1px dashed ${t.chartGrid}`,
                   opacity: cell.faded ? FORECAST_OPACITY : 1,
-                  ...ring(i),
                 }}
               />
               </Fragment>
             ))}
-            <div data-testid="weather-tail" title={row.tailTitle} style={{
-              paddingLeft: 6, whiteSpace: "nowrap", color: t.textMuted, fontSize: 11
+            <div data-testid="weather-tail" className="weather-tail" title={row.tailTitle} style={{
+              whiteSpace: "nowrap", color: t.textMuted,
             }}>
               <span style={row.tailStrong ? { color: c.weatherSevere, fontWeight: 700 } : undefined}>{row.tail}</span>
               {row.tailSuffix}

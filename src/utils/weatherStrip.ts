@@ -181,3 +181,36 @@ export function forecastDayAfter(endDate: string, today: string): string | null 
   d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString().slice(0, 10);
 }
+
+/** Which of a daily strip's `n` date columns carry a label: about seven across
+ *  (one every `ceil(n / 7)` days from the first), plus the last. `thin` marks
+ *  the ones a narrow screen drops: every second label — never the first or
+ *  the last — and the one before the last when it sits less than a stride
+ *  from it. */
+export function dateAxisLabels(n: number): ("" | "label" | "thin")[] {
+  const every = Math.max(1, Math.ceil(n / 7));
+  const out: ("" | "label" | "thin")[] = Array.from({ length: n }, (_, i) =>
+    i % every === 0 || i === n - 1 ? "label" : "");
+  const labelled = out.flatMap((x, i) => (x ? [i] : []));
+  labelled.forEach((i, j) => {
+    if (j === 0 || j === labelled.length - 1) return;
+    if (j % 2 === 1 || n - 1 - i < every) out[i] = "thin";
+  });
+  return out;
+}
+
+/** The gap between a strip's cells, in px, for a window of `days` columns
+ *  (forecast ones not counted): 2 while the cells are roomy, 1, then none once
+ *  a gap would eat most of a cell — at 41 days on a narrow screen, 61 on a
+ *  wide one. */
+export function cellGap(days: number, narrow: boolean): number {
+  return days > (narrow ? 40 : 60) ? 0 : days > 31 ? 1 : 2;
+}
+
+/** Severe days in a daily strip's window — its first `days` columns, so a
+ *  forecast day after the window is shown but never counted: per direction
+ *  (the strip's summary column) and in all (its subtitle). */
+export function windowSevereDays(strip: DailyStrip, days: number): { perRow: number[]; total: number } {
+  const perRow = strip.rows.map((r) => r.cells.slice(0, days).filter((x) => x.summary?.rating === "severe").length);
+  return { perRow, total: strip.severeCount.slice(0, days).reduce((a, b) => a + b, 0) };
+}

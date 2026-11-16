@@ -50,26 +50,7 @@ test.describe("Homepage weekly grain", () => {
     await expect(page.getByText(AIR).first()).toBeVisible();
   });
 
-  test("the tally is pickable in the metric picker on a weekly chart, not a daily one", async ({ page }) => {
-    // Through the picker itself, not a URL: the tally was once in the metric
-    // registry but missing from the picker's group list, which a URL-built
-    // chart can't notice.
-    await page.goto(`/?charts=${encodeURIComponent("A:w26:")}`);
-    await page.locator('button:has-text("metric")').first().click();
-    const popover = page.locator("[popover]").first();
-    await popover.waitFor({ state: "visible" });
-    const tally = popover.locator("label", { hasText: "Strike Drones Launched (rounded)" });
-    await expect(tally).toBeVisible();
-    await tally.locator('input[type="checkbox"]').check();
-    await page.keyboard.press("Escape");
-    await page.waitForFunction(() => decodeURIComponent(location.search).includes("zelensky.drones"));
-
-    // The tally has no daily figure, so a daily chart doesn't offer it.
-    await page.goto(`/?charts=${encodeURIComponent("B:d30:")}`);
-    await page.locator('button:has-text("metric")').first().click();
-    await page.locator("[popover]").first().waitFor({ state: "visible" });
-    await expect(page.locator("[popover]").first().locator("label", { hasText: "Strike Drones Launched (rounded)" })).toHaveCount(0);
-  });
+  // Which grains the picker offers the tally on: MetricPicker.browser.test.tsx.
 
   test("a chart switched to Bars draws bars and keeps the choice in the URL", async ({ page }) => {
     const charts = `W:w4:zelensky.drones`;
@@ -91,14 +72,9 @@ test.describe("Homepage weekly grain", () => {
   // The tally on the monthly grain: months built from its weeks (the
   // arithmetic is combinedQuery.test.ts). The fixture's tallies both fall in
   // January, so of a window to February only January has a bar.
-  test("the tally is offered on a monthly chart and draws its months", async ({ page }) => {
+  test("the tally draws its months on a monthly chart", async ({ page }) => {
     await page.goto(`/?charts=${encodeURIComponent("M:m3b:zelensky.drones")}&date=2026-02-10`);
     await expect(page.getByText(TALLY).first()).toBeVisible();
     await expect(card(page).locator("svg.recharts-surface").first().locator(".recharts-bar-rectangle path")).toHaveCount(1);
-
-    await page.goto(`/?charts=${encodeURIComponent("N:m12:")}`);
-    await page.locator('button:has-text("metric")').first().click();
-    await page.locator("[popover]").first().waitFor({ state: "visible" });
-    await expect(page.locator("[popover]").first().locator("label", { hasText: "Strike Drones Launched (rounded)" })).toHaveCount(1);
   });
 });

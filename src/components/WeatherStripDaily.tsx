@@ -6,8 +6,8 @@ import { getKyivDateString } from "@/hooks/sqlLoader";
 import { chartColors } from "@/chartColors";
 import { StripCard } from "@/components/WeatherStripCard";
 import { StripGrid } from "@/components/WeatherStripGrid";
-import { asOfText, LEGEND, STRIP_ANCHOR, STRIP_TITLE, stripStatus, useDescriptorColors } from "@/components/weatherStripShared";
-import { buildDailyStrip, datesBetween, dayLevel, forecastDayAfter } from "@/utils/weatherStrip";
+import { asOfText, FCST_AXIS, LEGEND, STRIP_ANCHOR, STRIP_TITLE, stripStatus, useDescriptorColors } from "@/components/weatherStripShared";
+import { buildDailyStrip, dateAxisLabels, datesBetween, windowSevereDays, dayLevel, forecastDayAfter } from "@/utils/weatherStrip";
 import { dayCellDescriptor, dayColumnDescriptor, weekdayDate } from "@/utils/weatherDescriptors";
 
 /** The daily pages' strip: the window's days. Mount only while switched on. */
@@ -16,15 +16,14 @@ export function WeatherStripDaily({ startDate, endDate }: { startDate: string; e
   const c = chartColors(t);
   const colors = useDescriptorColors();
   const drillDown = useDrillDownLink();
-  const { loadState, error, queryRange } = useDatabaseWeather();
+  const { error, queryRange } = useDatabaseWeather();
   // A window ending today gets tomorrow as one extra column: the forecast the
   // hourly runs store to the end of tomorrow. Shown, never counted — the
   // severe-days column and the subtitle cover the window's own days.
   const extraDay = forecastDayAfter(endDate, getKyivDateString());
-  const data = useMemo(
-    () => (loadState === "ready" ? queryRange(startDate, extraDay ?? endDate) : null),
-    [loadState, queryRange, startDate, endDate, extraDay],
-  );
+  // Not gated on loadState, as on the hourly strip: a refresh updates the
+  // grid in place.
+  const data = useMemo(() => queryRange(startDate, extraDay ?? endDate), [queryRange, startDate, endDate, extraDay]);
   const windowDates = useMemo(() => datesBetween(startDate, endDate), [startDate, endDate]);
   const nWindow = windowDates.length;
   const strip = useMemo(() => {
@@ -41,12 +40,14 @@ export function WeatherStripDaily({ startDate, endDate }: { startDate: string; e
       severeCount: s.severeCount.slice(0, nWindow),
     };
   }, [data, windowDates, extraDay, nWindow]);
+  const severe = useMemo(() => (strip ? windowSevereDays(strip, nWindow) : null), [strip, nWindow]);
   const status = stripStatus(error, !!strip, !!strip?.hasData, `No weather data for ${startDate} – ${endDate}.`);
-  // About seven labels across, whatever the window.
-  const every = Math.max(1, Math.ceil(nWindow / 7));
-  const columns = useMemo(() => (strip?.dates ?? []).map((d, i, arr) => i < nWindow
-    ? { key: d, axis: i % every === 0 || i === arr.length - 1 ? d.slice(5) : "" }
-    : { key: d, axis: "fcst", forecast: true }), [strip, nWindow, every]);
+  const columns = useMemo(() => {
+    const labels = dateAxisLabels(nWindow);
+    return (strip?.dates ?? []).map((d, i) => i < nWindow
+      ? { key: d, axis: labels[i] ? d.slice(5) : "", thinAxis: labels[i] === "thin" }
+      : { key: d, axis: FCST_AXIS, forecast: true });
+  }, [strip, nWindow]);
 
   return (
     <StripCard status={status}>
@@ -54,10 +55,10 @@ export function WeatherStripDaily({ startDate, endDate }: { startDate: string; e
         <StripGrid
           id={STRIP_ANCHOR}
           title={STRIP_TITLE}
-          subtitle={`${startDate} – ${endDate} · ${strip.severeCount.slice(0, nWindow).reduce((a, b) => a + b, 0)} severe direction-days for drones${strip.dates.length > nWindow ? " · fcst = tomorrow's forecast, not counted" : ""}${asOfText(data!.asOf)}`}
+          subtitle={`${startDate} – ${endDate} · ${severe!.total} severe direction-days for drones${strip.dates.length > nWindow ? " · fcst = tomorrow's forecast, not counted" : ""}${asOfText(data!.asOf)}`}
           columns={columns}
-          rows={strip.rows.map((r) => {
-            const severe = r.cells.slice(0, nWindow).filter((x) => x.summary?.rating === "severe").length;
+          rows={strip.rows.map((r, i) => {
+            const n = severe!.perRow[i];
             return {
               key: r.sector.key, label: r.sector.key, title: r.sector.near,
               cells: r.cells.map((x) => ({
@@ -65,8 +66,8 @@ export function WeatherStripDaily({ startDate, endDate }: { startDate: string; e
                 faded: (x.summary?.forecastHours ?? 0) > 0,
               })),
               // Severe days out of the window's days — the forecast day left out.
-              tail: String(severe), tailSuffix: `/${nWindow}`, tailStrong: severe > 0,
-              tailTitle: `${severe} of ${nWindow} days severe for drones`,
+              tail: String(n), tailSuffix: `/${nWindow}`, tailStrong: n > 0,
+              tailTitle: `${n} of ${nWindow} days severe for drones`,
             };
           })}
           count={{ label: "Σ severe", title: "How many directions had a severe day for drones", values: strip.severeCount }}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDailyStrip, buildHourlyStrip, datesBetween, forecastDayAfter, summariseDay } from "@/utils/weatherStrip";
+import { buildDailyStrip, buildHourlyStrip, cellGap, dateAxisLabels, datesBetween, forecastDayAfter, summariseDay, windowSevereDays } from "@/utils/weatherStrip";
 import {
   dayCellDescriptor, dayColumnDescriptor, hourCellDescriptor, hourColumnDescriptor, type DescriptorColors,
 } from "@/utils/weatherDescriptors";
@@ -109,11 +109,54 @@ describe("descriptors", () => {
     const col = dayColumnDescriptor(daily, 0, colors);
     expect(col.header).toBe("Sun 2026-10-11 · a severe day for drones at 1 of 2 directions");
     expect(col.rows.map((r) => [r.label, r.value])).toEqual([["Kupiansk", "ok"], ["Pokrovsk", "severe"]]);
+    const t = col.extraColumns!.indexOf("°C");
+    expect(col.rows[1].extra?.[t]).toBe(cell.rows.find((r) => r.label === "Temperature")?.value.replace(" °C", ""));
   });
 
   it("says when there is no data", () => {
     const empty = buildDailyStrip(sectors, [], ["2026-10-11"]);
     expect(dayCellDescriptor("Kupiansk", empty.rows[0].cells[0], colors).footer).toBe("No weather data for this day.");
     expect(dayColumnDescriptor(empty, 0, colors).rows.every((r) => r.value === null)).toBe(true);
+  });
+});
+
+describe("dateAxisLabels", () => {
+  const shown = (xs: string[], keep: string[]) => xs.flatMap((x, i) => (keep.includes(x) ? [i] : []));
+  it("labels every day of a week, every second on a narrow screen", () => {
+    const l = dateAxisLabels(7);
+    expect(shown(l, ["label", "thin"])).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(shown(l, ["label"])).toEqual([0, 2, 4, 6]);
+  });
+  it("keeps the last, and drops the label crowding it", () => {
+    // every 5: 0 5 10 15 20 25 29 — 25 sits 4 from the last.
+    const l = dateAxisLabels(30);
+    expect(shown(l, ["label", "thin"])).toEqual([0, 5, 10, 15, 20, 25, 29]);
+    expect(shown(l, ["label"])).toEqual([0, 10, 20, 29]);
+    // every 4: 0 … 16 20 24 25 — 24 is on an even step but crowds 25.
+    expect(shown(dateAxisLabels(26), ["label"])).toEqual([0, 8, 16, 25]);
+  });
+  it("never thins a one- or two-label axis", () => {
+    expect(dateAxisLabels(1)).toEqual(["label"]);
+    expect(dateAxisLabels(2)).toEqual(["label", "label"]);
+  });
+});
+
+describe("cellGap", () => {
+  it("drops the gaps at 61 days, or 41 on a narrow screen", () => {
+    expect([31, 32, 60, 61].map((d) => cellGap(d, false))).toEqual([2, 1, 1, 0]);
+    expect([31, 32, 40, 41].map((d) => cellGap(d, true))).toEqual([2, 1, 1, 0]);
+  });
+});
+
+describe("windowSevereDays", () => {
+  // Pokrovsk fogged in on the window's one day, and all of tomorrow's forecast.
+  const strip = buildDailyStrip(sectors, [
+    ...day(1, "2026-10-11"), ...day(2, "2026-10-11", fog),
+    ...day(1, "2026-10-12", () => ({}), 0), ...day(2, "2026-10-12", () => ({ visibility: 40, weather_code: 45 }), 0),
+  ], ["2026-10-11", "2026-10-12"]);
+  it("counts the window's days, not the forecast day after it", () => {
+    expect(strip.rows[1].cells[1].summary?.rating).toBe("severe");   // the forecast is severe…
+    expect(windowSevereDays(strip, 1)).toEqual({ perRow: [0, 1], total: 1 });   // …and not counted
+    expect(windowSevereDays(strip, 2)).toEqual({ perRow: [0, 2], total: 2 });
   });
 });

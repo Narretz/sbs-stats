@@ -10,21 +10,23 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { FONTS } from "@/theme";
 import {
-  CANONICAL_ROWS,
   COMPARE_ENTITIES,
   SBS_COLUMNS,
   ENTITY_LABELS,
   GROUP_LABELS,
   NATIVE_NOTES,
   UNMAPPED_NATIVES,
+  comparableCaption,
+  comparableSet,
+  comparableValue,
+  columnToken,
+  parseColumns,
+  PROJ_TOKEN,
   fmtPct,
   fmtValue,
   keysFor,
-  mapsIn,
   pctChange,
-  sourceKey,
   sourceLabel,
-  sumCompareValues,
   sumNatives,
   visibleRowsFor,
   type ColumnSource,
@@ -72,12 +74,9 @@ interface SnapshotPair {
 // themes; not a semantic "success" — it just marks the biggest number.
 const HIGHLIGHT_BG = "rgba(34, 197, 94, 0.15)";
 
-const MONTH_RE = /^\d{4}-\d{2}$/;
-
-// Marks a column as reading the month-end projection rather than the figure
-// reported so far. One constant for the URL token and the <select> value, so a
+// The month picker's value marks a projection with the URL's own token, so a
 // shared link and the control that produced it can't drift apart.
-const PROJ = ":proj";
+const PROJ = PROJ_TOKEN;
 
 // Percentages compare either against the leftmost column (a fixed baseline,
 // good for "how does everyone stack up against X") or against the column
@@ -89,36 +88,9 @@ function readParam(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name);
 }
 
-// `sbs:2026-08` for an entity, `sbs:fenix:2026-08` for one of its sub-units,
-// either with a trailing `:proj`. The two-token form is the original and still
-// parses, so links shared before sub-units existed keep working.
+// The `cols=` codec is the registry's (parseColumns / columnToken).
 function readColumnsFromUrl(): Column[] {
-  const raw = new URLSearchParams(window.location.search).get("cols");
-  if (!raw) return [];
-  const out: Column[] = [];
-  for (const part of raw.split(",")) {
-    const bits = part.split(":");
-    // Stripped before the positional tokens are read, so the month stays last
-    // whether or not the marker is there.
-    const proj = bits.length > 2 && bits[bits.length - 1] === "proj";
-    if (proj) bits.pop();
-    const entity = bits[0];
-    const unit = bits.length >= 3 ? bits[1] : undefined;
-    const month = bits[bits.length - 1];
-    if (!(COMPARE_ENTITIES as readonly string[]).includes(entity)) continue;
-    if (!MONTH_RE.test(month ?? "")) continue;
-    // A unit slug is only meaningful on SBS; anywhere else it is a malformed
-    // link, and dropping the token is friendlier than dropping the column.
-    // Same for `:proj` — only SBS derives one.
-    out.push({
-      id: out.length,
-      entity: entity as CompareEntityId,
-      ...(unit && entity === "sbs" ? { unit } : {}),
-      ...(proj && entity === "sbs" ? { proj: true } : {}),
-      month,
-    });
-  }
-  return out;
+  return parseColumns(readParam("cols")).map((c, id) => ({ id, ...c }));
 }
 
 // Column set lives in the URL so a comparison is linkable. Tweaking columns is
@@ -129,7 +101,7 @@ function writeViewToUrl(
 ) {
   const p = new URLSearchParams(window.location.search);
   if (columns.length) {
-    p.set("cols", columns.map((c) => `${sourceKey(c)}:${c.month}${c.proj ? PROJ : ""}`).join(","));
+    p.set("cols", columns.map(columnToken).join(","));
   }
   else p.delete("cols");
   // Only non-default settings are written, so a plain comparison keeps a clean
@@ -545,69 +517,17 @@ export function ComparePage({ preset }: Props) {
     );
   }, [columns, snapshotFor]);
 
-  // ─── Comparable subset ────────────────────────────────────────────────────
-  // "All targets engaged" is each unit's WHOLE reported output, which is the
-  // honest headline but not a like-for-like: SBS counts target classes nobody
-  // else publishes, «Альфа» and «Рубикон» each report lines the others don't.
-  // Two columns can differ because one unit did more, or merely because it
-  // counts more things.
-  //
-  // This child answers the narrower question: add up only the categories EVERY
-  // selected column can actually fill. It is the comparable part of the row
-  // above, and the gap between the two is how much of each total is
-  // incommensurable.
-  //
-  // Parents only — the canonical children are subdivisions of their parent's
-  // mapping, so including them would double-count. Groups: `struck` plus
-  // `personnel`, because all three entities fold personnel INTO their targets
-  // total (see the targets_all comment in the registry), so leaving it out
-  // would compare against a different bucket than the parent does.
-  const COMPARABLE_GROUPS: CompareGroup[] = ["personnel", "struck"];
-
-  // Shared is a question about VOCABULARY, not about this month's values: a
-  // category counts unless it is unique to some of the selected units.
-  //
-  // The distinction is not academic. In 2026-08, «Рубикон» reported no air
-  // defence — but it does report air defence as a rule, so the category IS
-  // comparable and its silence means zero, not "incomparable". Keying off
-  // values instead dropped the whole row, took 17 off «Альфа» for a reason
-  // that had nothing to do with «Альфа», and made the shared set flicker from
-  // month to month. Aircraft and watercraft, which «Рубикон» has no counter
-  // for at all, stay out under either reading — those really are unique.
-  const comparable = useMemo(() => {
-    if (!columns.length) return { shared: [], dropped: [] as string[] };
-    const candidates = CANONICAL_ROWS.filter(
-      (r) => COMPARABLE_GROUPS.includes(r.group) && !r.resolve,
-    );
-    const shared: typeof candidates = [];
-    const dropped: string[] = [];
-    for (const r of candidates) {
-      const owners = columns.map((c) => mapsIn(r, c.entity, c.month));
-      if (owners.every(Boolean)) shared.push(r);
-      else if (owners.some(Boolean)) dropped.push(r.label);
-    }
-    return { shared, dropped };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- COMPARABLE_GROUPS is a literal
-  }, [columns, snapshotFor]);
-  const comparableRows = comparable.shared;
+  // ─── Comparable subset (registry comparableSet) ───────────────────────────
+  const comparable = useMemo(() => comparableSet(columns), [columns]);
 
   const comparableRow = useMemo<FlatRow | null>(() => {
-    if (!comparableRows.length) return null;
+    if (!comparable.shared.length) return null;
     // One entity throughout (a unit against itself in another month, or SBS
     // against its own sub-units) counts the same things in every column, so
     // the total above is already like-for-like and this would only restate
     // part of it. Unless a counter that exists in one month is missing in
     // another — then what dropped out still needs saying.
     if (soloEntity && !comparable.dropped.length) return null;
-    // Say what was LEFT OUT, not what went in: the rows that went in are
-    // visible further down the table, while the difference between this figure
-    // and the total above it is otherwise unexplained — the question this
-    // caption exists to answer.
-    const scope =
-      `${comparableRows.length} categories every column reports` +
-      (comparable.dropped.length
-        ? ` · left out as unique to some: ${comparable.dropped.join(", ")}`
-        : "");
     return {
       group: "activity",
       key: "targets_shared",
@@ -615,22 +535,14 @@ export function ComparePage({ preset }: Props) {
       label: "of which comparable",
       indent: true,
       map: {},
-      rowNote: scope,
+      rowNote: comparableCaption(comparable),
       resolve: (src, month) => {
-        // A shared category this column reported nothing for counts as zero.
-        // These sources enumerate what they hit, so an absent line is none —
-        // and the column's entity does carry the counter, or the row would not
-        // be in `shared` at all.
-        const parts = comparableRows
-          .map((r) => sumNatives(snapshotFor(src), month, keysFor(r, src.entity, month)))
-          .filter((v): v is CompareValue => v != null);
-        const value = sumCompareValues(parts);
-        // Derived: this app added it up, no source publishes it. No per-column
-        // scope — the caption is on the row (see rowNote).
-        return value ? { value: { ...value, derived: true }, scope: "" } : null;
+        const value = comparableValue(comparable.shared, snapshotFor(src), src.entity, month);
+        // No per-column scope — the caption is on the row (see rowNote).
+        return value ? { value, scope: "" } : null;
       },
     };
-  }, [comparableRows, comparable.dropped, soloEntity, snapshotFor]);
+  }, [comparable, soloEntity, snapshotFor]);
 
   const visibleRows = useMemo(() => {
     // Children are the only indented rows, so dropping them is the whole

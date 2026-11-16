@@ -128,6 +128,58 @@ describe("DayRangeSelect — the custom input", () => {
   });
 });
 
+// Regression: the custom input once committed through a native listener
+// bound with deps [value], so it called the onChange of the render where
+// `value` last changed. The homepage's onChange rebuilds its `charts` array
+// from its own render's closure, so a metric added since — a change that
+// leaves `value` alone — was written back out by the next window commit.
+// This parent updates the same way: from its closure, not a functional update.
+function ClosureParent() {
+  const [state, setState] = useState({ days: 60, metrics: 2 });
+  return (
+    <>
+      <button onClick={() => setState({ ...state, metrics: state.metrics + 1 })}>Add metric</button>
+      <output data-testid="metrics">{state.metrics}</output>
+      <output data-testid="days">{state.days}</output>
+      <DayRangeSelect options={DAY_OPTIONS} value={state.days} endDate={END}
+        onChange={(d) => setState({ ...state, days: d })} />
+    </>
+  );
+}
+
+describe("DayRangeSelect — commits through the latest onChange", () => {
+  const addMetric = async () => {
+    await page.getByRole("button", { name: "Add metric" }).click();
+    await expect.element(page.getByTestId("metrics")).toHaveTextContent("3");
+  };
+
+  it("a typed length, committed with Enter, keeps a change made since", async () => {
+    await render(<ClosureParent />);
+    await addMetric();
+    await custom().fill("45");
+    await userEvent.keyboard("{Enter}");
+    await expect.element(page.getByTestId("days")).toHaveTextContent("45");
+    await expect.element(page.getByTestId("metrics")).toHaveTextContent("3");
+  });
+
+  it("a spinner step does too", async () => {
+    await render(<ClosureParent />);
+    await addMetric();
+    await custom().click();
+    await userEvent.keyboard("{ArrowUp}");
+    await expect.element(page.getByTestId("days")).toHaveTextContent("61");
+    await expect.element(page.getByTestId("metrics")).toHaveTextContent("3");
+  });
+
+  it("and so does a preset", async () => {
+    await render(<ClosureParent />);
+    await addMetric();
+    await userEvent.selectOptions(page.getByTestId("day-range"), "30");
+    await expect.element(page.getByTestId("days")).toHaveTextContent("30");
+    await expect.element(page.getByTestId("metrics")).toHaveTextContent("3");
+  });
+});
+
 describe("DateNav — live at the latest date", () => {
   function End({ initial, liveAtMax, onChange }: { initial: string; liveAtMax?: boolean; onChange: (d: string) => void }) {
     const [value, setValue] = useState(initial);
