@@ -47,7 +47,7 @@ export function WeatherStripHourly({ date, sbsHour }: { date: string; sbsHour?: 
       // The ":00" goes on a narrow screen, before the labels run together.
       axis: COLUMN_HEADERS.includes(h) ? <>{String(h).padStart(2, "0")}<span className="weather-axis-min">:00</span></> : "",
     })),
-    ...(fc ? [{ key: fc.dates[0], axis: "fcst", forecast: true }] : []),
+    ...(fc ? [{ key: fc.dates[0], axis: FCST_AXIS, forecast: true }] : []),
   ], [fc]);
 
   return (
