@@ -94,7 +94,7 @@ def _reparse_one(conn: sqlite3.Connection, row, dry_run: bool) -> str:
     if not diffs:
         return f"{tag}: no changes (date={report.report_date})"
     if dry_run:
-        return f"{tag}: {', '.join(diffs)}"
+        return f"{tag}: would update (date={report.report_date}) [{', '.join(diffs)}]"
 
     # Update the ad_reports row in place. _select_rows only returns the latest
     # edit-version per post_id, so this scraped_at is the correct target.
@@ -230,7 +230,11 @@ def main() -> int:
     n_changed = 0
     for row in rows:
         msg = _reparse_one(conn, row, args.dry_run)
-        if "updated" in msg or "deleted" in msg or (args.dry_run and "would" in msg) or (args.dry_run and "→" in msg):
+        # Every status but "no changes" and a skip is a change; a dry run says
+        # "would update" / "would DELETE" where the real run says "updated" /
+        # "deleted". (It used to match "→" instead, which a post that only
+        # gained region rows doesn't print: 116 counted of 1,317.)
+        if any(w in msg for w in ("updated", "deleted", "would ")):
             n_changed += 1
         print(msg)
 

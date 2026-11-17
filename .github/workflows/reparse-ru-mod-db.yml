@@ -96,7 +96,7 @@ jobs:
             echo ""
             echo "| outcome | rows |"
             echo "| --- | --- |"
-            echo "| changed | $(grep '→' output/reparse.log | grep -vc 'gate rejects' || true) |"
+            echo "| changed | $(grep -cE ': (would update|updated) ' output/reparse.log || true) |"
             echo "| unchanged | $(grep -c 'no changes' output/reparse.log || true) |"
             echo "| deleted | $(grep -c 'gate rejects' output/reparse.log || true) |"
           } >> "$GITHUB_STEP_SUMMARY"
