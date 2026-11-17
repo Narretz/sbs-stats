@@ -108,7 +108,7 @@ export interface RegionList {
   heading: string;
   /** Counted ones first by count ("≥ 14" when only a floor), then the rest by
    *  name with no value. */
-  items: { name: string; value: string | null }[];
+  items: { name: string; value: string | null; days?: string }[];
 }
 
 /** A day's (or window's) regions for the tooltip; null when none were named. */
@@ -122,6 +122,35 @@ export function regionList(mentions: readonly RegionMention[]): RegionList | nul
     items: merged.map((m) => ({
       name: m.name,
       value: m.drones == null ? null : `${m.lowerBound ? "≥ " : ""}${m.drones.toLocaleString()}`,
+    })),
+  };
+}
+
+/** A region over a month (or one window series of it). */
+export interface RegionMonth {
+  region: string;
+  /** Summed over the reports that counted it; null when none did. */
+  drones: number | null;
+  /** Reports that named it without a count: with `drones` set, a floor. */
+  uncounted: number;
+  /** Days any report named it. */
+  days: number;
+}
+
+/** A month's regions for the monthly tooltip: by the days each was named,
+ *  then by count, then by name. Days first: in a month where most reports
+ *  gave no per-region counts, the few that did would rank a region named on
+ *  13 days above one named on all 31. Null when no report named a region. */
+export function monthRegionList(regions: readonly RegionMonth[]): RegionList | null {
+  if (!regions.length) return null;
+  const items = regions.map((r) => ({ ...r, name: regionName(r.region) }))
+    .sort((a, b) => b.days - a.days || (b.drones ?? -1) - (a.drones ?? -1) || a.name.localeCompare(b.name));
+  return {
+    heading: `${items.length} Regions`,
+    items: items.map((r) => ({
+      name: r.name,
+      value: r.drones == null ? null : `${r.uncounted ? "≥ " : ""}${r.drones.toLocaleString()}`,
+      days: `${r.days}d`,
     })),
   };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeMentions, regionName, regionList } from "@/utils/ruModRegions";
+import { mergeMentions, monthRegionList, regionName, regionList } from "@/utils/ruModRegions";
 
 describe("RU MoD regions", () => {
   it("names a region in English, or as stored when it isn't listed", () => {
@@ -39,5 +39,23 @@ describe("RU MoD regions", () => {
 
   it("is null for a day that named none", () => {
     expect(regionList([])).toBeNull();
+  });
+
+  it("lists a month's regions by the days they were named, then by count", () => {
+    expect(monthRegionList([
+      { region: "Черного моря", drones: null, uncounted: 9, days: 9 },
+      { region: "Курской области", drones: 120, uncounted: 0, days: 20 },
+      { region: "Брянской области", drones: 300, uncounted: 4, days: 25 },
+      { region: "Белгородской области", drones: null, uncounted: 28, days: 28 },
+    ])).toEqual({
+      heading: "4 Regions",
+      items: [
+        { name: "Belgorod", value: null, days: "28d" },
+        { name: "Bryansk", value: "≥ 300", days: "25d" },
+        { name: "Kursk", value: "120", days: "20d" },
+        { name: "Black Sea", value: null, days: "9d" },
+      ],
+    });
+    expect(monthRegionList([])).toBeNull();
   });
 });

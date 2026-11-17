@@ -8,7 +8,7 @@ import { projectNightDay } from "@/utils/monthProjection";
 import { attachDailyMedians, attachDayCounts, dailyMediansByMonth, dayCountsByMonth } from "@/utils/dailyMedian";
 import { ruModSourcesByDate, type RuModReportSource } from "@/utils/sources";
 import type { SheetSource } from "@/components/TooltipTable";
-import type { RegionMention } from "@/utils/ruModRegions";
+import type { RegionMention, RegionMonth } from "@/utils/ruModRegions";
 
 // Tiny DB → fetch whole via sql.js, like the SBS / RU-losses loaders (no httpvfs).
 // Dev default is the `.app.db` copy for the same reason as GSUA — see
@@ -250,6 +250,43 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
     [db],
   );
 
+  // Each month's regions, per series of the monthly page: the drones over each
+  // from the reports that counted it, how many named it without a count, and
+  // on how many days it was named at all.
+  const queryMonthlyRegions = useCallback((): Map<string, Record<"total" | "night" | "day", RegionMonth[]>> => {
+    const out = new Map<string, Record<"total" | "night" | "day", RegionMonth[]>>();
+    if (!db) return out;
+    const series = { total: "1", night: "latest.window_kind = 'night'", day: "latest.window_kind != 'night'" };
+    const cols = Object.entries(series).map(([k, cond]) => `
+      SUM(CASE WHEN ${cond} THEN g.drones END) AS ${k}_drones,
+      SUM(CASE WHEN ${cond} AND g.drones IS NULL THEN 1 ELSE 0 END) AS ${k}_uncounted,
+      COUNT(DISTINCT CASE WHEN ${cond} THEN latest.report_date END) AS ${k}_days`).join(",");
+    const rows = queryRows<Record<string, string | number | null>>(
+      db,
+      `SELECT substr(latest.report_date, 1, 7) AS month, g.region AS region, ${cols}
+       FROM ${LATEST_PER_POST}
+       JOIN ad_regions g ON g.post_id = latest.post_id AND g.scraped_at = latest.scraped_at
+       GROUP BY month, g.region`,
+    );
+    for (const r of rows) {
+      const month = String(r.month);
+      const m = out.get(month) ?? { total: [], night: [], day: [] };
+      for (const k of ["total", "night", "day"] as const) {
+        const days = Number(r[`${k}_days`]);
+        if (!days) continue;
+        const drones = r[`${k}_drones`];
+        m[k].push({
+          region: String(r.region),
+          drones: typeof drones === "number" ? drones : null,
+          uncounted: Number(r[`${k}_uncounted`]),
+          days,
+        });
+      }
+      out.set(month, m);
+    }
+    return out;
+  }, [db]);
+
   // The regions each report day's posts named, split like the daily series
   // ('other' windows fold into day), for the charts' tooltips. `drones` is
   // null where a post named the region without a count.
@@ -290,7 +327,7 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
 
   return {
     loadState, error,
-    queryDaily, queryGlobalStats, queryMonthly, queryDataWindow, querySources, queryRegions,
+    queryDaily, queryGlobalStats, queryMonthly, queryDataWindow, querySources, queryRegions, queryMonthlyRegions,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs,
   };

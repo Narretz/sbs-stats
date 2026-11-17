@@ -56,6 +56,11 @@ interface Props {
    *  recap's post covers the month); the whole date for a weekly chart, whose
    *  bars are keyed by Monday. */
   sourceKey?: (date: string) => string;
+  /** More about a bar, under the table and above any note, keyed like
+   *  `sourcesByDate` — the RU MoD regions. Unlike `formatFooter` it is
+   *  rendered as given, with no wrapper, so a node that fills the sheet's
+   *  height (components/ColumnGrid) can take part in its flex column. */
+  detailByDate?: Map<string, ReactNode>;
   /** The anchor the sheet's "By day →" link lands on, when the daily page
    *  titles this chart differently. Defaults to this chart's own anchor; ""
    *  opens the daily page at the top, for a chart it doesn't have. */
@@ -70,7 +75,7 @@ const MAX_BAR_SIZE = 70;
 export function MonthlyBarChart({
   title, data, wfull, breakdownByMonth,
   globalMax, globalMedian, globalTotal, subsetLabel, formatTick, xTicks, formatHeader, formatFooter, explainGaps, sourcesByDate, sourceKey = monthKey,
-  drillAnchor,
+  drillAnchor, detailByDate,
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
@@ -132,9 +137,11 @@ export function MonthlyBarChart({
       }),
     ];
     const detail = formatFooter?.(d);
-    const footer = detail || d.note ? (
+    const fill = detailByDate?.get(sourceKey(d.date));
+    const footer = detail || fill || d.note ? (
       <>
         {detail && <div style={{ color: t.textMuted, marginTop: 6, fontSize: "0.917em" }}>{detail}</div>}
+        {fill}
         {d.note && (
           <div className="tooltip-note" style={{ color: t.textImportant, marginTop: 6 }}>
             ⚠ {d.note}
