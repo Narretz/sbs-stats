@@ -71,10 +71,24 @@ an edit inserts a **new version row**, never overwrites. Reads resolve the lates
 - **`ad_reports`** — one drone-intercept report. PK `(post_id, scraped_at)`.
   View **`ad_latest`** = latest version per post; **`daily_ad`** = per-date totals
   (what the frontend reads).
-- **`ad_regions`** — itemized per-region counts when the post lists them
-  (the MoD's format **changed over time**: 2025 reports were often itemized
-  per-region, 2026 reports tend to give a single total). PK
-  `(post_id, scraped_at, region)`. View **`region_totals`**.
+- **`ad_regions`** — one row per region a post names. `drones` is the region's
+  count when the post itemizes them, and **NULL** when it only lists the
+  regions after a single total. The MoD's format **changed over time**: 2025
+  reports were often itemized, and since April 2026 none are, so from then on
+  every row is NULL — which regions were hit, not how many over each. The
+  uncounted list is split by `split_region_list` into the same canonical names
+  ("Брянской области", "Республики Татарстан") the itemized rows use; a list
+  with a count left in it (an itemized post the breakdown missed) gives no
+  rows rather than names without their counts. Every name, itemized or
+  listed, goes through `canonical_region`, which gives each region one
+  spelling (a bullet says "над территорией Белгородской", "Московским
+  регионом", "республики Крым"; the row says "Белгородской области",
+  "Московского региона", "Республики Крым"). A name not listed in
+  `src/utils/ruModRegions.ts` shows untranslated in the daily charts'
+  tooltips, where the frontend lists each day's regions. PK
+  `(post_id, scraped_at, region)`. View **`region_totals`**: `drones` summed
+  over the counted rows, `reports` that counted the region, `mentions` that
+  named it.
 - **`summaries`** — the daily **Сводка** posts, stored **raw** (header + full
   text) even though we don't parse their body yet. The MoD largely **stopped
   reporting Ukrainian losses** at the end of February 2026; capturing the raw text now means

@@ -42,7 +42,7 @@ def _fmt(v) -> str:
     return "∅" if v is None else str(v)
 
 
-def _existing_breakdown(conn: sqlite3.Connection, post_id: int, scraped_at: str) -> list[tuple[str, int]]:
+def _existing_breakdown(conn: sqlite3.Connection, post_id: int, scraped_at: str) -> list[tuple[str, int | None]]:
     return [(r[0], r[1]) for r in conn.execute(
         "SELECT region, drones FROM ad_regions "
         "WHERE post_id = ? AND scraped_at = ? ORDER BY region",
@@ -79,7 +79,7 @@ def _reparse_one(conn: sqlite3.Connection, row, dry_run: bool) -> str:
             diffs.append(f"{col}={_fmt(old)} → {_fmt(new)}")
 
     old_bd = dict(_existing_breakdown(conn, pid, row["scraped_at"]))
-    new_bd = dict(report.breakdown)
+    new_bd = dict(report.region_rows)
     region_changes = []
     for region in sorted(set(old_bd) | set(new_bd)):
         if region not in new_bd:
@@ -115,12 +115,12 @@ def _reparse_one(conn: sqlite3.Connection, row, dry_run: bool) -> str:
         "DELETE FROM ad_regions WHERE post_id = ? AND scraped_at = ?",
         (pid, row["scraped_at"]),
     )
-    if report.breakdown:
+    if report.region_rows:
         conn.executemany(
             "INSERT INTO ad_regions (post_id, scraped_at, report_date, region, drones) "
             "VALUES (?, ?, ?, ?, ?)",
             [(pid, row["scraped_at"], report.report_date, region, count)
-             for region, count in report.breakdown],
+             for region, count in report.region_rows],
         )
     return f"{tag}: updated (date={report.report_date}) [{', '.join(diffs)}]"
 

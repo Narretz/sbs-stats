@@ -10,6 +10,8 @@ Run with: pytest -v test_ingest.py   (from scripts/ru_mod/)
 import logging
 from datetime import datetime
 
+import pytest
+
 import ingest as ig
 
 
@@ -358,6 +360,108 @@ class TestRegions:
         assert r.region_count == 0
 
 
+# ── region lists without counts (all the MoD gives since spring 2026) ─────────
+OCT31_NIGHT = (
+    "⚡️ В течение прошедшей ночи дежурными силами ПВО перехвачены и уничтожены 433 "
+    "украинских беспилотных летательных аппарата самолетного типа над территориями "
+    "Белгородской, Брянской, Курской областей и республик Татарстан и Башкортостан. "
+    "🔹 Канал Минобороны России в MAКС – боевая работа 24/7"
+)
+
+
+class TestRegionList:
+    def test_a_shared_plural_noun_and_noun_first_republics(self):
+        # msg 2026-10-31 night, shortened
+        r = _parse(OCT31_NIGHT)
+        assert r.breakdown == []
+        assert r.listed == [
+            "Белгородской области", "Брянской области", "Курской области",
+            "Республики Татарстан", "Республики Башкортостан",
+        ]
+        assert r.region_count == 5
+        assert r.region_rows == [(n, None) for n in r.listed]
+
+    def test_seas_after_the_republics_are_seas(self):
+        # msg 67567: "республиками Крым, Башкортостан, Татарстан, над акваториями
+        # Азовского и Черного морей" — the seas are not republics.
+        assert ig.split_region_list(
+            "Ростовской областей, Краснодарского края, республиками Крым, Башкортостан, "
+            "над акваториями Азовского и Черного морей"
+        ) == ["Ростовской области", "Краснодарского края", "Республики Крым",
+              "Республики Башкортостан", "Азовского моря", "Черного моря"]
+
+    def test_instrumental_forms_and_a_trailing_aside(self):
+        # msg 61195: "в том числе 15, летевших на Москву" is not a region.
+        assert ig.split_region_list(
+            "Брянской, Калужской областей, Ставропольским краем и Московским регионом, "
+            "в том числе 15, летевших на Москву"
+        ) == ["Брянской области", "Калужской области", "Ставропольского края", "Московского региона"]
+
+    def test_a_list_with_counts_left_in_it_gives_no_names(self):
+        # msg 44119 — itemized, but missed by parse_breakdown: names without
+        # their counts would be worse than none.
+        assert ig.split_region_list("Курской области и один – над территорией Белгородской области") == []
+        assert ig.split_region_list("") == []
+
+    def test_an_itemized_post_keeps_its_counts(self):
+        r = _parse(ITEMIZED_DEC7)
+        assert r.listed == []
+        assert ("Саратовской области", 42) in r.region_rows
+
+
+class TestCanonicalRegion:
+    def test_itemized_bullets_sharing_a_trailing_plural_get_the_full_name(self):
+        # msg 44064: the noun comes once, after the last bullet.
+        r = _parse(
+            "Дежурными средствами ПВО перехвачено и уничтожено 113 украинских беспилотных "
+            "летательных аппаратов: 73 БпЛА – над территорией Белгородской, 25 БпЛА – над "
+            "территорией Воронежской, 14 БпЛА – над территорией Курской и один над территорией "
+            "Брянской областей. 🔹 Минобороны России"
+        )
+        assert r.breakdown == [
+            ("Белгородской области", 73), ("Воронежской области", 25),
+            ("Курской области", 14), ("Брянской области", 1),
+        ]
+
+    @pytest.mark.parametrize("raw, canonical", [
+        ("Белгородской", "Белгородской области"),
+        ("Белгородской области и", "Белгородской области"),
+        ("Белгородской областью", "Белгородской области"),
+        ("Ростовская области", "Ростовской области"),
+        ("над территорией Орловской области", "Орловской области"),
+        ("уничтожены над территорией Калужской области", "Калужской области"),
+        ("– над территорией Курской области", "Курской области"),
+        ("Московским регионом", "Московского региона"),
+        ("Краснодарским краем", "Краснодарского края"),
+        ("Краснодарском крае", "Краснодарского края"),
+        ("Краснодарского Края", "Краснодарского края"),
+        ("Краснодарского края;", "Краснодарского края"),
+        ("Ленинградской области ( с", "Ленинградской области"),
+        ("Ростовской области 🔹 Подписаться на канал 🔹 Мы в МАХ", "Ростовской области"),
+        ("северо-западной частью акватории Черного моря", "Черного моря"),
+        ("Черного моря у побережья Республики Крым", "Черного моря"),
+        ("республики Крым", "Республики Крым"),
+        ("Республикой Татарстан", "Республики Татарстан"),
+        ("Республики Северная Осетия – Алания", "Республики Северная Осетия-Алания"),
+        ("Республики Удмуртия", "Удмуртской Республики"),
+        ("Пермской области", "Пермского края"),
+        ("Ханты-Мансийского автономного округа", "Ханты-Мансийского автономного округа"),
+        ("Санкт-Петербурга", "Санкт-Петербурга"),
+    ])
+    def test_one_spelling_per_region(self, raw, canonical):
+        assert ig.canonical_region(raw) == canonical
+
+    def test_a_count_for_two_areas_keeps_both(self):
+        # One count over both: splitting it would double it.
+        assert ig.canonical_region("Азовского и Черного морей") == "Азовского и Черного морей"
+        assert ig.canonical_region("Черного моря и над территорией Республики Крым") == "Черного моря и Республики Крым"
+
+    def test_a_region_named_twice_is_one_row(self):
+        assert ig.canonical_regions([("Белгородской", 1), ("Курской области", 5), ("Белгородской области", 2)]) == [
+            ("Белгородской области", 3), ("Курской области", 5),
+        ]
+
+
 # ── itemized per-region breakdown (the format that gives per-region counts) ───
 ITEMIZED_DEC7 = (
     "В течение прошедшей ночи дежурными средствами ПВО перехвачены и уничтожены 77 "
@@ -424,7 +528,7 @@ class TestBreakdown:
         assert r.drones == 60
         bd = dict(r.breakdown)
         assert bd["Брянской области"] == 34
-        assert bd["Московским регионом"] == 13      # "регионом", no "территорией"
+        assert bd["Московского региона"] == 13      # "Московским регионом", no "территорией"
         assert bd["Краснодарского края"] == 9       # "над" dropped
         assert bd["Азовского моря"] == 4
         assert "Москву" not in " ".join(bd)         # sub-clause not a region
@@ -814,7 +918,7 @@ class TestBreakdown:
         assert bd["Белгородской области"] == 5
         assert bd["Курской области"] == 2
         assert bd["Ростовской области"] == 2
-        assert bd["Краснодарском крае"] == 1
+        assert bd["Краснодарского края"] == 1   # "в Краснодарском крае"
         assert bd["Азовского моря"] == 13
 
     def test_greedy_count_fallback_does_not_swallow_next_item(self):
@@ -1226,6 +1330,34 @@ class TestStorage:
         conn.close()
         assert n_regions == 7
         assert saratov == 42
+
+    def test_an_uncounted_list_is_stored_with_null_counts(self, tmp_path):
+        import sqlite3
+        db = tmp_path / "ad.db"
+        ig.store(db, [_parse(OCT31_NIGHT, mid=7), _parse(ITEMIZED_DEC7, mid=99, posted_utc="2025-12-07T06:00:00+00:00")])
+        conn = sqlite3.connect(db)
+        rows = conn.execute("SELECT region, drones FROM ad_regions WHERE post_id=7").fetchall()
+        tot = conn.execute(
+            "SELECT drones, reports, mentions FROM region_totals WHERE region='Белгородской области'").fetchone()
+        mismatches = ig._breakdown_mismatches(conn)
+        conn.close()
+        assert len(rows) == 5 and all(d is None for _, d in rows)
+        assert tot == (2, 1, 2)   # counted once (Dec 7), named twice
+        assert mismatches == []
+
+    def test_migrates_a_not_null_ad_regions(self, tmp_path):
+        import sqlite3
+        db = tmp_path / "ad.db"
+        conn = sqlite3.connect(db)
+        conn.execute("CREATE TABLE ad_regions (post_id INTEGER NOT NULL, scraped_at TEXT NOT NULL, "
+                     "report_date TEXT NOT NULL, region TEXT NOT NULL, drones INTEGER NOT NULL, "
+                     "PRIMARY KEY (post_id, scraped_at, region))")
+        conn.execute("INSERT INTO ad_regions VALUES (1, 's', '2025-01-01', 'Курской области', 3)")
+        conn.commit()
+        ig._apply_schema(conn)
+        conn.execute("INSERT INTO ad_regions VALUES (2, 's', '2026-10-31', 'Курской области', NULL)")
+        assert conn.execute("SELECT post_id, drones FROM ad_regions ORDER BY post_id").fetchall() == [(1, 3), (2, None)]
+        conn.close()
 
     def test_overlap_detection(self, tmp_path):
         # Two windows that overlap (08:00–23:00 vs next night 20:00→07:00).

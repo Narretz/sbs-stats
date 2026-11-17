@@ -549,6 +549,14 @@ class Report:
     unit: str = "uav"
     # Per-region (name, count) pairs when the post itemizes them; else empty.
     breakdown: list[tuple[str, int]] = dc_field(default_factory=list)
+    # The regions a post names without counting them (split_region_list).
+    listed: list[str] = dc_field(default_factory=list)
+
+    @property
+    def region_rows(self) -> list[tuple[str, int | None]]:
+        """ad_regions' rows: the itemized counts, else each named region with
+        a NULL count — named, but the post doesn't say how many."""
+        return self.breakdown or [(name, None) for name in self.listed]
 
 
 @dataclass
@@ -661,12 +669,16 @@ def _parse_window(text: str, posted_msk: datetime):
     return start, end, kind
 
 
-def _parse_regions(text: str):
+def _region_clause(text: str) -> str:
+    """The post's "над территориями …" list, uncapped; "" if it has none."""
     m = REGION_RE.search(text)
-    if not m:
+    return re.sub(r"\s+", " ", m.group(1).split(".")[0].strip()) if m else ""
+
+
+def _parse_regions(text: str):
+    clause = _region_clause(text)
+    if not clause:
         return 0, ""
-    clause = m.group(1).split(".")[0].strip()
-    clause = re.sub(r"\s+", " ", clause)
     # rough region count: comma-separated items plus trailing " и X"
     parts = [p for p in re.split(r",|\s+и\s+", clause) if p.strip()]
     return len(parts), clause[:300]
@@ -707,6 +719,128 @@ def _split_po_regions(phrase: str) -> list[str]:
                     parts[i] = parts[i] + " " + singular
             break
     return parts
+
+
+# A region list without counts ("над территориями Брянской, Курской областей,
+# Московского региона и республик Татарстан и Башкортостан") — what every
+# report gives since the MoD stopped itemizing in spring 2026. Read only when
+# parse_breakdown found nothing, and only from a list with no count left in it:
+# a digit, a spelled-out number or a bullet means an itemized post the
+# breakdown missed, whose names we'd store without the counts that go with them.
+_LIST_HAS_COUNT_RE = re.compile(
+    r"\d|[–▫▪]|\b(?:по|один|одного|одна|два|две|три|четыре|пять|шесть|семь|восемь|"
+    r"девять|десять|\w+надцать|двадцать|тридцать|сорок|БПЛА|БпЛА|уничтож\w*|перехвач\w*)\b",
+    re.I,
+)
+# Where a list ends: "…, в том числе три, летевших на Москву".
+_LIST_TAIL_RE = re.compile(r",?\s*в\s+том\s+числе\b.*$", re.I)
+_LIST_PREFIX_RE = re.compile(r"^(?:а\s+)?(?:также\s+)?(?:над\s+)?(?:территори\w+|акватори\w+)?\s*", re.I)
+# "республик Татарстан и Башкортостан": the noun first, shared by the names after it.
+_REPUBLICS_RE = re.compile(r"^[Рр]еспублик(?:и|ами|ой)?$")
+_LIST_SINGULAR = {**_PLURAL_TO_SINGULAR, "областями": "области", "краями": "края", "морями": "моря",
+                  "краем": "края", "областью": "области", "регионом": "региона",
+                  **{n: n for n in ("области", "края", "моря", "региона")}}
+_ADJ_RE = re.compile(r"(?:ск|цк|н|ж)(?:ой|ого|им)$")
+
+
+def split_region_list(clause: str) -> list[str]:
+    """The region names of an uncounted list, in the canonical "<adj> области" /
+    "Республики X" forms the itemized rows use; [] if the list carries counts."""
+    clause = _LIST_TAIL_RE.sub("", clause)
+    if _LIST_HAS_COUNT_RE.search(clause):
+        return []
+    out: list[str] = []
+    pending: list[str] = []   # bare adjectives waiting for their plural noun
+    republics = False
+    for part in re.split(r",\s*(?:и\s+)?|\s+и\s+", clause):
+        stripped = _LIST_PREFIX_RE.sub("", part.strip(" .,;"))
+        if stripped != part.strip(" .,;"):
+            republics = False
+        words = stripped.split()
+        if not words:
+            continue
+        if _REPUBLICS_RE.match(words[0]) and len(words) > 1 and words[0] not in ("Республики",):
+            republics = True
+            out.append("Республики " + " ".join(words[1:]))
+            continue
+        if words[-1].lower() in _LIST_SINGULAR:
+            noun = _LIST_SINGULAR[words[-1].lower()]
+            out += [f"{adj} {noun}" for adj in pending]
+            pending = []
+            if len(words) > 1:
+                # An instrumental "над Московским регионом" / "Ставропольским краем".
+                out.append(re.sub(r"им$", "ого", " ".join(words[:-1])) + " " + noun)
+            republics = False
+            continue
+        if republics and stripped[0].isupper() and not _ADJ_RE.search(words[0]):
+            out.append("Республики " + stripped)
+            continue
+        if len(words) == 1 and _ADJ_RE.search(stripped):
+            pending.append(stripped)
+            continue
+        republics = False
+        out.append(stripped)
+    # A bare adjective nothing followed is an oblast: "…Курской и Ростовской".
+    out += [f"{adj} области" for adj in pending]
+    return list(dict.fromkeys(out))
+
+
+# What a bullet's capture can still carry around the name: its dash, the verb,
+# "над территорией", a "северо-западной частью акватории".
+_CANON_PREFIX_RE = re.compile(
+    r"^(?:[–—-]\s*)?(?:(?:уничтожен|сбит|перехвач)\w*\s+)?(?:над\s+)?"
+    r"(?:[\w-]+\s+част\w+\s+)?(?:территори\w+|акватори\w+)?\s*",
+    re.I,
+)
+_CANON_SINGULAR = {**_LIST_SINGULAR, "крае": "края", "регионе": "региона"}
+# One region, two names: the official one wins.
+_REGION_ALIASES = {
+    "Республики Удмуртия": "Удмуртской Республики",
+    "Республики Чечня": "Чеченской Республики",
+    "Республики Чувашия": "Чувашской Республики",
+    "Республики Северная Осетия": "Республики Северная Осетия-Алания",
+    "Пермской области": "Пермского края",  # merged into the krai in 2005
+    "Москвой": "Москвы",
+}
+
+
+def canonical_region(name: str) -> str:
+    """One spelling per region, genitive as in "над территорией …": "Курской
+    области", "Московского региона", "Республики Крым". The breakdown's
+    bullets capture names in whatever case and with whatever wording the post
+    used ("Белгородской", "Московским регионом", "республики Крым", a trailing
+    "и"); a name for two areas at once ("Азовского и Черного морей", one count
+    for both) keeps both."""
+    s = re.sub(r"\s+", " ", name)
+    s = re.split(r"🔹|\(", s)[0]
+    s = _CANON_PREFIX_RE.sub("", s.strip(" .,;"))
+    s = re.sub(r"\s+у\s+побережья\b.*$", "", s)
+    s = re.sub(r"\s+и\s+над\s+(?:территори\w+|акватори\w+)\s+", " и ", s)
+    s = re.sub(r"\s+и$", "", s).strip(" .,;–-")
+    if not s or " и " in s:
+        return s
+    if m := re.match(r"[Рр]еспублик\w*\s+(.+)$", s):
+        s = "Республики " + re.sub(r"\s*[–—-]\s*", "-", m.group(1))
+    words = s.split()
+    noun = _CANON_SINGULAR.get(words[-1].lower())
+    if noun and len(words) > 1:
+        adj = " ".join(words[:-1])
+        # Instrumental, prepositional, nominative → genitive.
+        adj = re.sub(r"(?:им|ом)$", "ого", re.sub(r"ая$", "ой", adj))
+        s = f"{adj} {noun}"
+    elif len(words) == 1 and _ADJ_RE.search(s):
+        s = f"{s} области"
+    return _REGION_ALIASES.get(s, s)
+
+
+def canonical_regions(items: list[tuple[str, int]]) -> list[tuple[str, int]]:
+    """The breakdown under canonical names, a region the post named twice
+    ("Белгородской" and "Белгородской области") summed into one row."""
+    merged: dict[str, int] = {}
+    for name, count in items:
+        key = canonical_region(name) or name
+        merged[key] = merged.get(key, 0) + count
+    return list(merged.items())
 
 
 def parse_breakdown(text: str) -> list[tuple[str, int]]:
@@ -894,7 +1028,7 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
     report_date = (end or posted_msk).date().isoformat()
 
     # Prefer the itemized per-region counts when present; else the loose clause.
-    breakdown = region_list or parse_breakdown(flat)
+    breakdown = canonical_regions(region_list or parse_breakdown(flat))
     # When the headline form was noun-first or singular (no separate verb-first
     # total), the "headline" count may actually be the first bullet of a
     # bullet-less list — e.g. "N украинских БПЛА уничтожены над X, M – над Y,
@@ -903,11 +1037,14 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
     # noun-first headline (max() keeps verb-first headlines authoritative).
     if drones_form != "verb_first" and breakdown:
         drones = max(drones, sum(c for _, c in breakdown))
+    listed: list[str] = []
     if breakdown:
         region_count = len(breakdown)
         regions = ", ".join(name for name, _ in breakdown)[:300]
     else:
         region_count, regions = _parse_regions(flat)
+        listed = list(dict.fromkeys(canonical_region(n) for n in split_region_list(_region_clause(flat))))
+        region_count = len(listed) or region_count
 
     return Report(
         post_id=post_id,
@@ -924,6 +1061,7 @@ def parse_report(text: str, post_id: int, posted_at_utc: datetime) -> Report | N
                         # place from stored rows, like the GSUA scraper — the DB
                         # is tiny and AD posts are short.
         breakdown=breakdown,
+        listed=listed,
     )
 
 
@@ -1117,14 +1255,15 @@ CREATE VIEW IF NOT EXISTS ad_latest AS
   SELECT r.* FROM ad_reports r
   JOIN (SELECT post_id, MAX(scraped_at) AS ms FROM ad_reports GROUP BY post_id) l
     ON r.post_id = l.post_id AND r.scraped_at = l.ms;
--- Per-region counts, populated only for posts that itemize them; versioned with
--- their post via scraped_at.
+-- One row per region a post names, versioned with its post via scraped_at.
+-- `drones` is the region's count when the post itemizes them, and NULL when it
+-- only lists the regions — all the MoD gives since spring 2026.
 CREATE TABLE IF NOT EXISTS ad_regions (
   post_id     INTEGER NOT NULL,
   scraped_at  TEXT NOT NULL,
   report_date TEXT NOT NULL,
   region      TEXT NOT NULL,
-  drones      INTEGER NOT NULL,
+  drones      INTEGER,
   PRIMARY KEY (post_id, scraped_at, region)
 );
 CREATE INDEX IF NOT EXISTS ix_adr_region ON ad_regions(region);
@@ -1156,7 +1295,9 @@ CREATE VIEW IF NOT EXISTS daily_ad AS
 CREATE VIEW IF NOT EXISTS region_totals AS
   SELECT g.region,
          SUM(g.drones)           AS drones,
-         COUNT(DISTINCT g.post_id) AS reports
+         -- Reports that counted the region, and all that named it.
+         COUNT(DISTINCT CASE WHEN g.drones IS NOT NULL THEN g.post_id END) AS reports,
+         COUNT(DISTINCT g.post_id) AS mentions
   FROM ad_regions g
   JOIN (SELECT post_id, MAX(scraped_at) AS ms FROM ad_reports GROUP BY post_id) l
     ON g.post_id = l.post_id AND g.scraped_at = l.ms
@@ -1184,8 +1325,18 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     definitions, so drop the views first and ALTER the columns in if
     missing. The added columns carry NOT NULL DEFAULTs, so pre-existing
     rows backfill to the historical behaviour ('uav' / 'all').
+    ad_regions.drones losing its NOT NULL is a table rebuild.
     """
     conn.execute("DROP VIEW IF EXISTS daily_ad")
+    conn.execute("DROP VIEW IF EXISTS region_totals")
+    # ad_regions.drones was NOT NULL until uncounted region lists were stored;
+    # SQLite can't drop a constraint in place, so the table is rebuilt.
+    if any(r[1] == "drones" and r[3] for r in conn.execute("PRAGMA table_info(ad_regions)")):
+        conn.execute("ALTER TABLE ad_regions RENAME TO ad_regions_old")
+        conn.execute("DROP INDEX IF EXISTS ix_adr_region")
+        conn.executescript(SCHEMA)
+        conn.execute("INSERT INTO ad_regions SELECT * FROM ad_regions_old")
+        conn.execute("DROP TABLE ad_regions_old")
     conn.executescript(SCHEMA)
     ad_cols = {r[1] for r in conn.execute("PRAGMA table_info(ad_reports)")}
     if "notes" not in ad_cols:
@@ -1248,7 +1399,7 @@ def store(db_path: Path, reports: list[Report], summaries: list[Summary] = []) -
                 (r.post_id, scraped, r.posted_at, r.window_start, r.window_end, r.window_kind,
                  r.report_date, r.drones, r.region_count, r.regions, r.unit, r.raw_text),
             )
-            for region, n in r.breakdown:
+            for region, n in r.region_rows:
                 conn.execute(
                     "INSERT INTO ad_regions (post_id,scraped_at,report_date,region,drones) "
                     "VALUES (?,?,?,?,?)",
@@ -1371,7 +1522,8 @@ def _breakdown_mismatches(conn) -> list[tuple[int, str, int, int]]:
     REGION_ITEM_RE doesn't cover) — the same kind of drift we want surfaced at
     scrape time rather than discovered later. Returns (post_id, scraped_at,
     total, breakdown_sum). Total-only reports (no ad_regions rows) are excluded
-    by the join, so they don't count as mismatches."""
+    by the join, and a list without counts sums to NULL, so neither counts as a
+    mismatch."""
     return conn.execute(
         "SELECT a.post_id, a.scraped_at, a.drones, SUM(g.drones) "
         "FROM ad_latest a JOIN ad_regions g "
