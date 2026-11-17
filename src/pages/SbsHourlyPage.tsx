@@ -20,6 +20,7 @@ import { DAY_OPTIONS, type DayOption, parseDaysParam, clampDays, WINDOW_FLOOR, f
 import { resolvedEndDate } from "@/utils/padTrailing";
 import { buildMetrics } from "@/utils/metrics";
 import type { DailyRow, DailyDaySeries, Stat, StatKey, Metric, EodEstimate } from "@/types";
+import { siteTitle } from "@/types";
 import { maxMedian } from "@/utils/windowStats";
 import { lastReadingsByDay } from "@/utils/hourlyDayTotal";
 
@@ -196,7 +197,7 @@ export function SbsHourlyPage({ refreshKey }: HourlyPageProps) {
   return (
     <PageScaffold
       headerVariant="block"
-      title="UA SBS Hourly Statistics"
+      title={siteTitle("sbs", "Hourly")}
       description={<>
         Syly bezpilotnykh system / Unmannend System Force (SBS/USF) · Each line = one day · X-axis = hour · From <a href="noreferer nofollow">https://sbs-group.army/</a>
                     <br/>

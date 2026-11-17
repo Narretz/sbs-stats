@@ -13,6 +13,7 @@ import {
   type MonthlyDataPoint,
   type ZelenskyCategory,
   type ZelenskyWeekRow,
+  siteTitle,
 } from "@/types";
 import {
   formatWeekRange, formatWeekTick, mondaysBetween, monthsSpanned, toWeeklyDataset,
@@ -84,7 +85,7 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
 
   return (
     <PageScaffold
-      title="Weekly Russian Strikes — President of Ukraine"
+      title={siteTitle("zelensky-weekly", "Weekly")}
       descriptionStyle={{ maxWidth: 900, lineHeight: 1.55 }}
       description={<>
         Russian strike drones, guided aerial bombs (KAB) and missiles launched at Ukraine each

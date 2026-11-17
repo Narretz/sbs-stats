@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useRoute } from "@/hooks/RouteContext";
 import { FONTS } from "@/theme";
-import type { Site, SiteTier } from "@/types";
+import { siteMenuLabel, type Site, type SiteTier } from "@/types";
 import { LISTED_SITES } from "@/sites/listed";
 
 // The pieces every app header is built from. They live here rather than in
@@ -103,7 +103,7 @@ export function SitePicker({
       {SITE_GROUPS.map(([tier, label]) => (
         <optgroup key={tier} label={label}>
           {LISTED_SITES.filter((s) => s.tier === tier).map((s) => (
-            <option key={s.key} value={s.key}>{s.label}</option>
+            <option key={s.key} value={s.key}>{siteMenuLabel(s)}</option>
           ))}
         </optgroup>
       ))}

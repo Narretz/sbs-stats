@@ -15,7 +15,7 @@ import { buildMetrics, targetPairLabel } from "@/utils/metrics";
 import { chartAnchor } from "@/utils/chartAnchor";
 import { padTrailingMonthly } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
-import { SBS_UNIT_ALL, TARGET_IDS, TARGET_LABELS, sbsUnitLabel } from "@/types";
+import { SBS_UNIT_ALL, TARGET_IDS, TARGET_LABELS, sbsUnitLabel, siteTitle } from "@/types";
 import type { MonthlyDataPoint, MonthlyRow, StatKey, Metric } from "@/types";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
@@ -211,7 +211,7 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
 
   return (
     <PageScaffold
-      title={selected ? `UA SBS Monthly — ${sbsUnitLabel(selected)}` : "UA SBS Monthly Statistics"}
+      title={siteTitle("sbs", "Monthly", selected ? sbsUnitLabel(selected) : undefined)}
       description={selected ? (
         <>
           {selected.title_uk ? `${selected.title_uk} · ` : ""}One sub-unit of the SBS grouping ·

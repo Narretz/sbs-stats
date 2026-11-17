@@ -33,6 +33,7 @@ import {
   type RuAirAttacksDailyRow,
   type RuAirAttacksGlobalStats,
   type RuAirAttacksModelDailyRow,
+  siteTitle,
 } from "@/types";
 
 
@@ -214,7 +215,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   return (
     <PageScaffold
       headerVariant="block"
-      title="Daily Russian Missile & UAV Attacks"
+      title={siteTitle("ru-air-attacks-gsua", "Daily")}
       description={<>Launched vs intercepted, per Ukrainian Air Force reports, and — since May 2025 — how many locations the strikes hit or showered with debris · source: piterfm / Kaggle <a target="_blank" href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week</>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-air-attacks" />}
       controls={<>

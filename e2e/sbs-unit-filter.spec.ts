@@ -73,7 +73,7 @@ test.describe("SBS monthly — unit filter", () => {
     await gotoMonthly(page, "&unit=alpha-unit");
     await page.getByTestId(SELECT).selectOption("all");
     await expect(page).not.toHaveURL(/unit=/);
-    await expect(page.locator("h1, h2").first()).toContainText("UA SBS Monthly Statistics");
+    await expect(page.locator("h1, h2").first()).toContainText("Monthly RU Losses & UA Combat Stats - SBS");
   });
 
   test("an unknown unit falls back to the grouping instead of an empty page", async ({ page }) => {

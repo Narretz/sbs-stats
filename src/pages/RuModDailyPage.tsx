@@ -20,7 +20,7 @@ import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
 import type { RuAdDailyRow, RuAdGlobalStats } from "@/types";
 import { chartColors } from "@/chartColors";
-import { RU_MOD_DAILY_TOTAL_TITLE, RU_MOD_DAILY_WINDOWS_TITLE } from "@/types";
+import { RU_MOD_DAILY_TOTAL_TITLE, RU_MOD_DAILY_WINDOWS_TITLE, siteTitle } from "@/types";
 
 
 function parseWeekdays(raw: string | null): number[] {
@@ -150,7 +150,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
   return (
     <PageScaffold
       headerVariant="block"
-      title="Ukrainian UAVs Downed - RU MoD"
+      title={siteTitle("ru-airdef-mod", "Daily")}
       description={<>
         Russian MoD air-defense intercept claims · source: @mod_russia (Telegram) · per drone-day (MSK)
         <br />

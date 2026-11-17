@@ -20,6 +20,7 @@ import {
   type CitMonthlyRow,
   type CitReconciliation,
   type CitTerritoryRow,
+  siteTitle,
 } from "@/types";
 
 interface Props {
@@ -108,7 +109,7 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
 
   return (
     <PageScaffold
-      title="Monthly civilian casualties - CIT"
+      title={siteTitle("cit-civilians", "Monthly")}
       description={<>Monthly sums of civilians killed and injured in Ukraine and Russia, compiled daily by the Conflict Intelligence Team from official statements · source: <a href="https://t.me/CIT_shellings" rel="nofollow external" target="_blank">@CIT_shellings</a>. Months are keyed by each report's window end date.</>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="cit" />}
       controls={yr.hidden ? undefined : (

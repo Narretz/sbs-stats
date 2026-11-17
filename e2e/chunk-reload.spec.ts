@@ -5,7 +5,7 @@ import { test, expect } from "@playwright/test";
 // that (Vite's `vite:preloadError`), and only once. The POW exchanges page
 // stands in for any page: its data is bundled, so no fixture DB is involved.
 const CHUNK = /\/assets\/PowExchangesPage-[\w-]+\.js$/;
-const HEADING = { name: "Prisoner Exchanges between Russia and Ukraine" };
+const HEADING = { name: "UA+RU POW Exchanges - Koord. HQ / RU MoD" };
 
 test("a page chunk that fails to load is fetched again after one reload", async ({ page }) => {
   let hits = 0;

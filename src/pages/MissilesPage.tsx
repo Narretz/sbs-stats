@@ -15,6 +15,7 @@ import {
 } from "@/components/missilePalette";
 import { FONTS } from "@/theme";
 import { fmtAsOfDate } from "@/components/missileFormat";
+import { siteTitle } from "@/types";
 
 type View = "production" | "stockpile" | "combined";
 const VIEWS: View[] = ["production", "stockpile", "combined"];
@@ -55,7 +56,8 @@ const LEGEND: Array<{ g: string; label: string }> = [
 
 export function MissilesPage() {
   const { theme: t } = useTheme();
-  useDocumentTitle("RU Missile Stockpiles & Production");
+  const pageTitle = siteTitle("ru-missiles-hur");
+  useDocumentTitle(pageTitle);
   const initial = useMemo(() => getUrlParams(), []);
   const [view, setViewState] = useState<View>(initial.view);
   const setView = (v: View) => { setViewState(v); setUrlParams({ [VIEW_PARAM]: v }); };
@@ -191,7 +193,7 @@ export function MissilesPage() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-            RU Missile Stockpiles & Production
+            {pageTitle}
           </h1>
           <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
             Ukrainian military intelligence (HUR) estimates · irregular disclosures

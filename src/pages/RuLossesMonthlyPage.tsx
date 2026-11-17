@@ -15,6 +15,7 @@ import {
   RU_LOSSES_METRIC_LABELS,
   type RuLossesMetricKey,
   type MonthlyDataPoint,
+  siteTitle,
 } from "@/types";
 
 interface Props {
@@ -91,7 +92,7 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
 
   return (
     <PageScaffold
-      title="Monthly Russian Losses - GSUA reports"
+      title={siteTitle("ru-losses-gsua", "Monthly")}
       description={<>Monthly sums of daily Russian losses reported by the Ukrainian General Staff · source: <a href="https://github.com/PetroIvaniuk/2022-Ukraine-Russia-War-Dataset" rel="nofollow external" target="_blank">PetroIvaniuk dataset</a></>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-losses" />}
       // No window picker → no scope toggle either; see StatScopeToggle.

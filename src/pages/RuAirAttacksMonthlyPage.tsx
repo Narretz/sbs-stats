@@ -26,6 +26,7 @@ import {
   type RuAirAttacksMonthlyRow,
   type RuAirAttacksModelMonthlyRow,
   type MonthlyDataPoint,
+  siteTitle,
 } from "@/types";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
@@ -200,7 +201,7 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
 
   return (
     <PageScaffold
-      title="Monthly Russian Missile & UAV Attacks"
+      title={siteTitle("ru-air-attacks-gsua", "Monthly")}
       description={<>Monthly launched vs intercepted totals by weapon category, per Ukrainian Air Force reports, and — since May 2025 — the locations hit or showered with debris. Current month shows an end-of-month projection · source: piterfm / Kaggle <a target="_blank" href="https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine" rel="nofollow external">"Massive Missile Attacks on Ukraine"</a> · Updated approximately once per week</>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-air-attacks" />}
       headerExtra={

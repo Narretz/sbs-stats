@@ -13,6 +13,7 @@ import {
   ZELENSKY_CATEGORY_LABELS,
   type ZelenskyCategory,
   type ZelenskyWeekRow,
+  siteTitle,
 } from "@/types";
 import { monthlySources, monthsBetween, toMonthlyDataset } from "@/utils/zelenskyWeekly";
 
@@ -54,7 +55,7 @@ export function ZelenskyMonthlyPage({ refreshKey }: Props) {
 
   return (
     <PageScaffold
-      title="Monthly Russian Strikes — President of Ukraine"
+      title={siteTitle("zelensky-weekly", "Monthly")}
       descriptionStyle={{ maxWidth: 900, lineHeight: 1.55 }}
       description={<>
         Russian strike drones, guided aerial bombs (KAB) and missiles launched at Ukraine each

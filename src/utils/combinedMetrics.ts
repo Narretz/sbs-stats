@@ -25,6 +25,8 @@ import {
   TARGET_IDS,
   ZELENSKY_CATEGORIES,
   TARGET_LABELS,
+  siteInfo,
+  type Site,
 } from "@/types";
 import { uaLossesRuModMetrics } from "@/sites/uaLossesRuMod";
 
@@ -113,21 +115,34 @@ export interface CombinedMetric {
   views: MetricView[];
 }
 
-export const SOURCE_LABELS: Record<MetricSource, string> = {
-  "sbs": "SBS",
-  "sbs-unit": "SBS Unit",
-  "gsua": "GSUA",
-  "ru-losses": "RU Losses",
-  "ua-losses": "UA Personnel Losses",
-  "ua-losses-ru-mod": "UA Losses (RU MoD claims)",
-  "ru-airdef-mod": "RU MoD AD",
-  "ru-air-attacks": "RU Strikes",
-  "sbu-alfa": "SBU Alfa",
-  "rubikon": "Rubikon",
-  "mediazona-roles": "Mediazona — Roles",
-  "mediazona-estimate": "Mediazona — Estimate",
-  "zelensky": "President UA",
+// Each source is a site's data (types/index.ts SITES), named after it:
+// "RU Losses & UA Combat Stats (SBS)". A site with more than one source names
+// which one after the reporter.
+const SOURCE_SITES: Record<MetricSource, { site: Site; part?: string }> = {
+  "sbs": { site: "sbs" },
+  "sbs-unit": { site: "sbs", part: "Sub-unit" },
+  "gsua": { site: "ru-attacks-gsua" },
+  "ru-losses": { site: "ru-losses-gsua" },
+  "ua-losses": { site: "ua-losses" },
+  "ua-losses-ru-mod": { site: "ua-losses-ru-mod-john-felix" },
+  "ru-airdef-mod": { site: "ru-airdef-mod" },
+  "ru-air-attacks": { site: "ru-air-attacks-gsua" },
+  "sbu-alfa": { site: "sbu-alfa" },
+  "rubikon": { site: "rubikon" },
+  "mediazona-roles": { site: "mediazona", part: "Roles" },
+  "mediazona-estimate": { site: "mediazona", part: "Estimate" },
+  "zelensky": { site: "zelensky-weekly" },
 };
+
+function sourceLabel(source: MetricSource): string {
+  const { site, part } = SOURCE_SITES[source];
+  const s = siteInfo(site);
+  return `${s.topic} (${s.reporter}${part ? ` — ${part}` : ""})`;
+}
+
+export const SOURCE_LABELS = Object.fromEntries(
+  (Object.keys(SOURCE_SITES) as MetricSource[]).map((k) => [k, sourceLabel(k)]),
+) as Record<MetricSource, string>;
 
 function make(
   source: MetricSource,

@@ -6,7 +6,7 @@ import { test, expect } from "@playwright/test";
 // a pinned exchange links its sources.
 test("pow exchanges — the charts render and a pinned exchange lists its sources", async ({ page }) => {
   await page.goto("/?site=pow-exchanges");
-  await expect(page.getByRole("heading", { name: "Prisoner Exchanges between Russia and Ukraine" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "UA+RU POW Exchanges - Koord. HQ / RU MoD" })).toBeVisible();
   await expect(page.locator(".chart-card")).toHaveCount(3);
   await expect(page.locator(".chart-card").first()).toContainText(/Σ TO UKRAINE [\d,]+/);
 

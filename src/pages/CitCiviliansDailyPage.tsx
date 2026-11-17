@@ -23,6 +23,7 @@ import {
   type CitGlobalStats,
   type CitTerritoryDailyRow,
   type Stat,
+  siteTitle,
 } from "@/types";
 
 function parseDate(raw: string | null): string {
@@ -134,7 +135,7 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
   return (
     <PageScaffold
       headerVariant="block"
-      title="Daily civilian casualties - CIT"
+      title={siteTitle("cit-civilians", "Daily")}
       description={<>Civilians killed and injured in Ukraine and Russia, compiled daily by the Conflict Intelligence Team from official statements · source: <a href="https://t.me/CIT_shellings" rel="nofollow external" target="_blank">@CIT_shellings</a></>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="cit" />}
       controls={<>

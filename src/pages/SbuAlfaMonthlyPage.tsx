@@ -17,6 +17,7 @@ import {
   type MonthlyDataPoint,
   type SbuAlfaCategoryKey,
   type SbuAlfaCounterRow,
+  siteTitle,
 } from "@/types";
 import { FONTS } from "@/theme";
 
@@ -160,7 +161,7 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
 
   return (
     <PageScaffold
-      title="SBU «Альфа» — Monthly Recap"
+      title={siteTitle("sbu-alfa", "Monthly")}
       descriptionStyle={{ maxWidth: 900, lineHeight: 1.55 }}
       description={<>
         Targets the Centre of Special Operations «А» (SBU «Альфа») reports having struck each month, from

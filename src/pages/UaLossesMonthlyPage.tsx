@@ -13,6 +13,7 @@ import {
   UA_LOSSES_METRIC_LABELS,
   type UaLossesMetricKey,
   type MonthlyDataPoint,
+  siteTitle,
 } from "@/types";
 
 interface Props {
@@ -50,7 +51,7 @@ export function UaLossesMonthlyPage({ refreshKey }: Props) {
 
   return (
     <PageScaffold
-      title="Monthly Ukrainian Losses - ualosses.org"
+      title={siteTitle("ua-losses", "Monthly")}
       description={<>Monthly sums of confirmed Ukrainian military personnel losses, by status · source: <a href="https://ualosses.org" rel="nofollow external" target="_blank">ualosses.org</a> (via <a href="https://www.kaggle.com/datasets/ol4ubert/confirmed-ukrainian-military-personnel-losses" rel="nofollow external" target="_blank">Kaggle</a>). Days are keyed by the reported loss date; past days are revised as records are added or reclassified.</>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ua-losses" />}
       // No window picker → no scope toggle either; see StatScopeToggle.

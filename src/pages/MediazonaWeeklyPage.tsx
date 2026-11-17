@@ -7,6 +7,7 @@ import { RoleCompositionChart } from "@/components/RoleCompositionChart";
 import { DocumentedVsEstimatedChart } from "@/components/DocumentedVsEstimatedChart";
 import { LoadingScreen, ErrorScreen } from "@/components/Layout";
 import type { MediazonaRolesRow, MediazonaEstimateRow } from "@/types";
+import { siteTitle } from "@/types";
 import { FONTS, type Theme } from "@/theme";
 import { formatMonth } from "@/utils/dateFormat";
 
@@ -32,7 +33,8 @@ function fmtApproxK(n: number): string {
 
 export function MediazonaWeeklyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  useDocumentTitle("Weekly Russian war dead — Mediazona & Meduza");
+  const title = siteTitle("mediazona", "Weekly");
+  useDocumentTitle(title);
   const { loadState, error, queryRoles, queryEstimate, queryDataWindow } = useMediazonaDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
   const [roles, setRoles] = useState<MediazonaRolesRow[]>([]);
@@ -60,7 +62,7 @@ export function MediazonaWeeklyPage({ refreshKey }: Props) {
     <div>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 24, color: t.text }}>
-          Weekly Russian war dead — Mediazona &amp; Meduza
+          {title}
         </h1>
         <p style={{ fontFamily: FONTS.mono, fontSize: 11, color: t.textMuted, marginTop: 3 }}>
           Confirmed deaths with <b>name and date of death</b> only, and the probate-registry statistical estimate · source: Mediazona / Meduza{" "}

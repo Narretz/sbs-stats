@@ -10,6 +10,7 @@ import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { mediazonaWindow, unionSpan } from "@/utils/mediazonaWindow";
 import type { MediazonaRolesRow, MediazonaEstimateRow } from "@/types";
+import { siteTitle } from "@/types";
 import { FONTS, type Theme } from "@/theme";
 
 // Must match PROVISIONAL_MONTHS in DocumentedVsEstimatedChart.
@@ -58,7 +59,7 @@ export function MediazonaMonthlyPage({ refreshKey }: Props) {
   return (
     <PageScaffold
       headerVariant="block"
-      title="Monthly Russian war dead (aggregated) — Mediazona & Meduza"
+      title={siteTitle("mediazona", "Monthly")}
       description={<>
         Weekly Mediazona/Meduza data re-bucketed to calendar months (each week summed into the month its start date
         falls in). Same series as the weekly view — confirmed individually-named deaths and the probate-registry

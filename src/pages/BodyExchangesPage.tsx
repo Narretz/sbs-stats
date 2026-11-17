@@ -7,6 +7,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
 import { BODY_EXCHANGES, bodyExchangeSources } from "@/data/bodyExchanges";
 import { exchangesInWindow } from "@/data/exchanges";
+import { siteTitle } from "@/types";
 
 const first = BODY_EXCHANGES[0]?.date ?? "";
 const last = BODY_EXCHANGES[BODY_EXCHANGES.length - 1]?.date ?? "";
@@ -27,7 +28,7 @@ export function BodyExchangesPage() {
   const chart = { colors: { ukraine: c.bodiesToUkraine, russia: c.bodiesToRussia }, sources: bodyExchangeSources };
   return (
     <PageScaffold
-      title="Body Exchanges between Russia and Ukraine"
+      title={siteTitle("body-exchanges")}
       description={<>
         Repatriations of fallen soldiers' bodies, each side's count as that side reported it · sources:{" "}
         <a href="https://t.me/Koord_shtab" rel="nofollow external" target="_blank">Ukraine's Coordination HQ for POWs</a>

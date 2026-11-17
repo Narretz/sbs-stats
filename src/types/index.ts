@@ -222,33 +222,58 @@ export interface Metric {
 export type Page = "daily" | "hourly" | "monthly" | "weekly";
 // Every site, in picker order. `tier` groups the picker: the primary datasets
 // are the ones the dashboard is built around, the secondary ones follow below.
+//
+// A site is named by two parts, and every name of it is built from them —
+// the picker (siteMenuLabel), the page title (siteTitle) and the combined
+// charts' metric labels (utils/combinedMetrics sourceLabel):
+//   topic     what is reported, on which side: "RU Losses & UA Combat Stats".
+//             Upper-cased in the picker.
+//   reporter  who reports it, written exactly as shown everywhere: "RU MoD",
+//             "ualosses.org" — never re-cased.
+// The cadence is the page's, not the site's, so siteTitle takes it.
 export type SiteTier = "primary" | "secondary";
 export interface SiteInfo {
   key: string;
-  label: string;
+  topic: string;
+  reporter: string;
   tier: SiteTier;
   // A site only some builds include (a dataset we back up but may not
   // redistribute): listed only where its build flag put it in SITE_REGISTRY.
   gated?: boolean;
 }
 export const SITES = [
-  { key: "sbs", label: "UA SBS STATISTICS - SBS", tier: "primary" },
-  { key: "ru-attacks-gsua", label: "COMBAT STATS - GSUA", tier: "primary" },
-  { key: "ru-losses-gsua", label: "RU LOSSES - GSUA", tier: "primary" },
-  { key: "ua-losses-ru-mod-john-felix", label: "UA LOSSES - RU MoD", tier: "primary", gated: true },
-  { key: "ru-air-attacks-gsua", label: "RU MISSILE & UAV ATTACKS - GSUA", tier: "primary" },
-  { key: "ru-airdef-mod", label: "UA UAV ATTACKS - RU MoD", tier: "primary" },
-  { key: "sbu-alfa", label: "UA SBU ALFA MONTHLY RECAP - SBU", tier: "primary" },
-  { key: "rubikon", label: "RU RUBIKON MONTHLY RECAP - RUBIKON", tier: "primary" },
-  { key: "mediazona", label: "RU DEATHS - MEDIAZONA", tier: "primary" },
-  { key: "cit-civilians", label: "CIVILIAN CASUALTIES - CIT", tier: "primary" },
-  { key: "ru-missiles-hur", label: "RU MISSILE STOCKS - HUR", tier: "secondary" },
-  { key: "ua-losses", label: "UA PERSONNEL LOSSES - UALOSSES.ORG", tier: "secondary" },
-  { key: "zelensky-weekly", label: "RU WEEKLY STRIKES - PRESIDENT UA", tier: "secondary" },
-  { key: "body-exchanges", label: "UA+RU BODY EXCHANGES - KOORD. HQ / RBC", tier: "secondary" },
-  { key: "pow-exchanges", label: "UA+RU POW EXCHANGES - KOORD. HQ / RU MoD", tier: "secondary" },
+  { key: "sbs", topic: "RU Losses & UA Combat Stats", reporter: "SBS", tier: "primary" },
+  { key: "ru-attacks-gsua", topic: "RU Attacks & UA Combat Stats", reporter: "GSUA", tier: "primary" },
+  { key: "ru-losses-gsua", topic: "RU Losses", reporter: "GSUA", tier: "primary" },
+  { key: "ua-losses-ru-mod-john-felix", topic: "UA Losses", reporter: "RU MoD", tier: "primary", gated: true },
+  { key: "ru-air-attacks-gsua", topic: "RU Missile & UAV Attacks", reporter: "GSUA / UA Air Command", tier: "primary" },
+  { key: "ru-airdef-mod", topic: "UA UAV Attacks AD Reports", reporter: "RU MoD", tier: "primary" },
+  { key: "sbu-alfa", topic: "RU Losses", reporter: "SBU Alfa", tier: "primary" },
+  { key: "rubikon", topic: "UA Losses & RU Combat Stats", reporter: "Rubikon", tier: "primary" },
+  { key: "mediazona", topic: "RU Personnel Losses", reporter: "Mediazona", tier: "primary" },
+  { key: "cit-civilians", topic: "CIV Casualties", reporter: "CIT", tier: "primary" },
+  { key: "ru-missiles-hur", topic: "RU Missile Stocks", reporter: "HUR", tier: "secondary" },
+  { key: "ua-losses", topic: "UA Personnel Losses", reporter: "ualosses.org", tier: "secondary" },
+  { key: "zelensky-weekly", topic: "RU Missile & UAV Attacks", reporter: "President UA", tier: "secondary" },
+  { key: "body-exchanges", topic: "UA+RU Body Exchanges", reporter: "Koord. HQ / RBC", tier: "secondary" },
+  { key: "pow-exchanges", topic: "UA+RU POW Exchanges", reporter: "Koord. HQ / RU MoD", tier: "secondary" },
 ] as const satisfies readonly SiteInfo[];
 export type Site = (typeof SITES)[number]["key"];
+
+export const siteInfo = (site: Site): SiteInfo => SITES.find((s) => s.key === site)!;
+
+/** The page picker's name: "RU LOSSES & UA COMBAT STATS - SBS". */
+export const siteMenuLabel = (s: SiteInfo) => `${s.topic.toUpperCase()} - ${s.reporter}`;
+
+export type Cadence = "Hourly" | "Daily" | "Weekly" | "Monthly";
+
+/** A page's title: "Daily RU Losses & UA Combat Stats - SBS", plus what the
+ *  page is narrowed to (a sub-unit, directions) after " — ". A page without a
+ *  cadence of its own (per exchange, per disclosure) passes none. */
+export function siteTitle(site: Site, cadence?: Cadence, narrowedTo?: string): string {
+  const s = siteInfo(site);
+  return `${cadence ? `${cadence} ` : ""}${s.topic} - ${s.reporter}${narrowedTo ? ` — ${narrowedTo}` : ""}`;
+}
 export type LoadState = "idle" | "loading" | "ready" | "error";
 
 // ─── Global stats (max + median + total across all data) ─────────────────────
@@ -472,7 +497,7 @@ export const UA_LOSSES_RU_MOD_TARGET_KEYS = UA_LOSSES_RU_MOD_METRIC_KEYS.filter(
 export type UaLossesRuModMetricKey = (typeof UA_LOSSES_RU_MOD_METRIC_KEYS)[number];
 
 export const UA_LOSSES_RU_MOD_METRIC_LABELS: Record<UaLossesRuModMetricKey, string> = {
-  personnel: "Personnel (Killed & Wounded)",
+  personnel: "Personnel",
   armour: "Tanks & Armoured Vehicles",
   artillery: "Artillery & Mortars",
   mlrs: "MLRS",

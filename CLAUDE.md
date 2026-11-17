@@ -8,24 +8,24 @@ via sql.js / sql.js-httpvfs.
 
 ## Datasets (views)
 
-| View | Site key | Source | Pipeline |
+| View (picker name, from `SITES` in `src/types/index.ts`) | Site key | Source | Pipeline |
 |---|---|---|---|
-| SBS STATISTICS | `sbs` | sbs-group.army public API | [`scripts/sbs/`](scripts/sbs/README.md) → `sbs.db` |
+| RU LOSSES & UA COMBAT STATS - SBS | `sbs` | sbs-group.army public API | [`scripts/sbs/`](scripts/sbs/README.md) → `sbs.db` |
 | SBS SUB-UNITS | (SBS monthly filter · compare column · `sbs-unit.*` metrics) | sbs-group.army public API, per subdivision | [`scripts/sbs_units/`](scripts/sbs_units/README.md) → `sbs-units.db` |
-| RU ATTACKS — GSUA | `ru-attacks-gsua` | Ukrainian General Staff operational reports (Telegram) | [`scripts/gsua/`](scripts/gsua/README.md) → `ru-attacks-gsua.db` |
-| RU LOSSES — GSUA | `ru-losses-gsua` | Ukrainian General Staff national totals (PetroIvaniuk dataset) | [`scripts/ru_losses/`](scripts/ru_losses/README.md) → `ru-losses-gsua-petroivaniuk.db` |
-| UA LOSSES — RU MoD (**not in production**) | `ua-losses-ru-mod-john-felix` | RU MoD claimed Ukrainian losses, John Felix's hand-compiled Google Sheet | [`scripts/ua_losses_ru_mod/`](scripts/ua_losses_ru_mod/README.md) → `ua-losses-ru-mod-john-felix.db` |
-| RU AIR DEFENSE — RU MoD | `ru-airdef-mod` | Russian MoD air-defense claims (Telegram) | [`scripts/ru_mod/`](scripts/ru_mod/README.md) → `ru-mod-ad.db` |
-| RU MISSILE & UAV ATTACKS — GSUA | `ru-air-attacks-gsua` | UA Air Force Command + General Staff strike reports (piterfm / Kaggle) | [`scripts/missile_attacks/`](scripts/missile_attacks/README.md) → `ru-air-attacks-gsua.db` |
-| UA SBU ALFA — MONTHLY RECAP | `sbu-alfa` | SBU's monthly recap of Centre of Special Operations «А» (Telegram post or ssu.gov.ua press release) | [`scripts/sbu_alfa/`](scripts/sbu_alfa/README.md) → `sbu-alfa.db` |
-| RU RUBIKON — MONTHLY RECAP | `rubikon` | Центр «Рубикон» (RU UAV unit) monthly Telegram recap | [`scripts/rubikon/`](scripts/rubikon/README.md) → `rubikon.db` |
-| RU DEATHS — MEDIAZONA | `mediazona` | Mediazona + Meduza confirmed named deaths + probate-registry estimate (CSV exports) | [`scripts/mediazona/`](scripts/mediazona/README.md) → `mediazona.db` |
-| UA+RU CIVILIAN CASUALTIES — CIT | `cit-civilians` | Conflict Intelligence Team daily 20:00–20:00 MSK casualty summaries (Telegram) | [`scripts/cit_civilians/`](scripts/cit_civilians/README.md) → `cit-civilians.db` |
-| RU WEEKLY STRIKES — PRESIDENT UA | `zelensky-weekly` | President of Ukraine's weekly strike tally (Telegram): drones / guided bombs (KAB) / missiles | [`scripts/zelensky_weekly/`](scripts/zelensky_weekly/README.md) → `zelensky-weekly.db` |
-| UA+RU BODY EXCHANGES | `body-exchanges` | Ukraine's Coordination HQ for POWs (Telegram) + Russian officials via RBC, hand-curated | [`scripts/body_exchanges/`](scripts/body_exchanges/README.md) → `exchanges.json`, bundled at build time (no DB) |
-| UA+RU POW EXCHANGES | `pow-exchanges` | Ukraine's Coordination HQ for POWs + Russian MoD (Telegram), hand-curated | [`scripts/pow_exchanges/`](scripts/pow_exchanges/README.md) → `exchanges.json`, bundled at build time (no DB) |
+| RU ATTACKS & UA COMBAT STATS - GSUA | `ru-attacks-gsua` | Ukrainian General Staff operational reports (Telegram) | [`scripts/gsua/`](scripts/gsua/README.md) → `ru-attacks-gsua.db` |
+| RU LOSSES - GSUA | `ru-losses-gsua` | Ukrainian General Staff national totals (PetroIvaniuk dataset) | [`scripts/ru_losses/`](scripts/ru_losses/README.md) → `ru-losses-gsua-petroivaniuk.db` |
+| UA LOSSES - RU MoD (**not in production**) | `ua-losses-ru-mod-john-felix` | RU MoD claimed Ukrainian losses, John Felix's hand-compiled Google Sheet | [`scripts/ua_losses_ru_mod/`](scripts/ua_losses_ru_mod/README.md) → `ua-losses-ru-mod-john-felix.db` |
+| UA UAV ATTACKS AD REPORTS - RU MoD | `ru-airdef-mod` | Russian MoD air-defense claims (Telegram) | [`scripts/ru_mod/`](scripts/ru_mod/README.md) → `ru-mod-ad.db` |
+| RU MISSILE & UAV ATTACKS - GSUA / UA Air Command | `ru-air-attacks-gsua` | UA Air Force Command + General Staff strike reports (piterfm / Kaggle) | [`scripts/missile_attacks/`](scripts/missile_attacks/README.md) → `ru-air-attacks-gsua.db` |
+| RU LOSSES - SBU Alfa | `sbu-alfa` | SBU's monthly recap of Centre of Special Operations «А» (Telegram post or ssu.gov.ua press release) | [`scripts/sbu_alfa/`](scripts/sbu_alfa/README.md) → `sbu-alfa.db` |
+| UA LOSSES & RU COMBAT STATS - Rubikon | `rubikon` | Центр «Рубикон» (RU UAV unit) monthly Telegram recap | [`scripts/rubikon/`](scripts/rubikon/README.md) → `rubikon.db` |
+| RU PERSONNEL LOSSES - Mediazona | `mediazona` | Mediazona + Meduza confirmed named deaths + probate-registry estimate (CSV exports) | [`scripts/mediazona/`](scripts/mediazona/README.md) → `mediazona.db` |
+| CIV CASUALTIES - CIT | `cit-civilians` | Conflict Intelligence Team daily 20:00–20:00 MSK casualty summaries (Telegram) | [`scripts/cit_civilians/`](scripts/cit_civilians/README.md) → `cit-civilians.db` |
+| RU MISSILE & UAV ATTACKS - President UA | `zelensky-weekly` | President of Ukraine's weekly strike tally (Telegram): drones / guided bombs (KAB) / missiles | [`scripts/zelensky_weekly/`](scripts/zelensky_weekly/README.md) → `zelensky-weekly.db` |
+| UA+RU BODY EXCHANGES - Koord. HQ / RBC | `body-exchanges` | Ukraine's Coordination HQ for POWs (Telegram) + Russian officials via RBC, hand-curated | [`scripts/body_exchanges/`](scripts/body_exchanges/README.md) → `exchanges.json`, bundled at build time (no DB) |
+| UA+RU POW EXCHANGES - Koord. HQ / RU MoD | `pow-exchanges` | Ukraine's Coordination HQ for POWs + Russian MoD (Telegram), hand-curated | [`scripts/pow_exchanges/`](scripts/pow_exchanges/README.md) → `exchanges.json`, bundled at build time (no DB) |
 
-The sheet behind UA LOSSES — RU MoD has no licence. CI backs it up to R2, but
+The sheet behind UA LOSSES - RU MoD has no licence. CI backs it up to R2, but
 displaying it is a build-time switch, `SHOW_UA_LOSSES_RU_MOD` (on in
 `.env.development`, off in production and e2e): without it the dataset's one
 import, `@/sites/uaLossesRuMod`, resolves to an empty stub and its code is not

@@ -4,6 +4,7 @@ import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
 import { MetricPicker } from "@/components/MetricPicker";
 import type { SbsUnit } from "@/types";
+import { SOURCE_LABELS } from "@/utils/combinedMetrics";
 
 // The metric picker on its own. It repeats what is on the chart at the top,
 // each with its group inline, since the ticked ones are otherwise scattered
@@ -29,8 +30,8 @@ describe("MetricPicker — the selected section", () => {
     await expect.element(section()).toMatchTextContent("Selected · 2");
     const rows = [...section().element().querySelectorAll("label")].map((l) => l.textContent ?? "");
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatch(/^RU MoD AD · .+/);
-    expect(rows[1]).toMatch(/^RU Strikes · .+/);
+    expect(rows[0]).toMatch(/^UA UAV Attacks AD Reports \(RU MoD\) · .+/);
+    expect(rows[1]).toMatch(/^RU Missile & UAV Attacks \(GSUA \/ UA Air Command\) · .+/);
   });
 
   it("unticking one there takes it off the chart, like unticking it in its group", async () => {
@@ -133,12 +134,12 @@ describe("MetricPicker — SBS sub-units", () => {
     const headers = [...document.querySelectorAll("[popover] div")]
       .filter((e) => e.children.length === 0 && (e.textContent ?? "").trim())
       .map((e) => (e.textContent ?? "").trim());
-    const sbs = headers.indexOf("SBS");
+    const sbs = headers.indexOf(SOURCE_LABELS.sbs);
     const units = headers.indexOf("SBS sub-unit");
     expect(sbs).toBeGreaterThanOrEqual(0);
     expect(units).toBeGreaterThan(sbs);
     // Nothing between them — no other source's group.
-    expect(headers.slice(sbs + 1, units)).not.toContain("GSUA");
+    expect(headers.slice(sbs + 1, units)).not.toContain(SOURCE_LABELS.gsua);
   });
 
   // The group filters within one unit, so without this a search for "Fenix"

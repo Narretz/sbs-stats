@@ -32,6 +32,7 @@ import {
   type GsuaGlobalStats,
   type GsuaMetricKey,
   type EodEstimate,
+  siteTitle,
 } from "@/types";
 
 
@@ -247,7 +248,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   return (
     <PageScaffold
       headerVariant="block"
-      title={`Daily Combat Stats ${selectedDirections.length ? `— ${directionTitle}` : ""} - GSUA`}
+      title={siteTitle("ru-attacks-gsua", "Daily", selectedDirections.length ? directionTitle : undefined)}
       description={<>
         Last snapshot per day · Parsed deterministically from Telegram <a href="https://t.me/GeneralStaffZSU" rel="nofollow external" target="_blank">@GeneralStaffZSU</a>. May be incomplete or incorrect.
         <br/>

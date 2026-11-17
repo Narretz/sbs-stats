@@ -19,6 +19,7 @@ import {
   type MonthlyDataPoint,
   type RubikonCategoryKey,
   type RubikonCounterRow,
+  siteTitle,
 } from "@/types";
 import { FONTS } from "@/theme";
 
@@ -161,7 +162,7 @@ export function RubikonMonthlyPage({ refreshKey }: Props) {
 
   return (
     <PageScaffold
-      title="«Рубикон» — Monthly Recap"
+      title={siteTitle("rubikon", "Monthly")}
       descriptionStyle={{ maxWidth: 900, lineHeight: 1.55 }}
       description={<>
         Targets the Russian UAV unit Центр «Рубикон» reports having engaged each month, from its

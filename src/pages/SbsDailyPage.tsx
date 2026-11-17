@@ -19,6 +19,7 @@ import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
 import { buildMetrics, unpairedLabel } from "@/utils/metrics";
 import { chartAnchor } from "@/utils/chartAnchor";
 import type { DailyRow, DailyDataPoint, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
+import { siteTitle } from "@/types";
 
 
 function parseWeekdays(raw: string | null): number[] {
@@ -141,7 +142,7 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
   return (
     <PageScaffold
       headerVariant="block"
-      title="UA SBS Daily Statistics"
+      title={siteTitle("sbs", "Daily")}
       description={<>
         Syly bezpilotnykh system / Unmannend System Force (SBS/USF) · Latest reported value per day · From <a href="noreferer nofollow">https://sbs-group.army/</a>
         <br/>

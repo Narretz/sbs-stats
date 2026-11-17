@@ -5,8 +5,8 @@ import { test, expect, type Page } from "@playwright/test";
 // arithmetic (sums, gaps, partial weeks) is unit-tested in weekRange /
 // combinedQuery; what this checks is that the grain reaches the screen and
 // the URL.
-const TALLY = "President UA · Strike Drones Launched (rounded)";
-const AIR = "RU Strikes · Drones — Launched";
+const TALLY = "RU Missile & UAV Attacks (President UA) · Strike Drones Launched (rounded)";
+const AIR = "RU Missile & UAV Attacks (GSUA / UA Air Command) · Drones — Launched";
 
 function card(page: Page) {
   return page.locator("div").filter({ has: page.locator("svg.recharts-surface") }).filter({ hasText: TALLY }).last();

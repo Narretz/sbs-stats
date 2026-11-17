@@ -10,7 +10,7 @@ import { PageScaffold } from "@/components/PageScaffold";
 import { noDaysMonth, padTrailingMonthly } from "@/utils/padTrailing";
 import type { MonthlyDataPoint } from "@/types";
 import { chartAnchor } from "@/utils/chartAnchor";
-import { RU_MOD_DAILY_TOTAL_TITLE, RU_MOD_DAILY_WINDOWS_TITLE } from "@/types";
+import { RU_MOD_DAILY_TOTAL_TITLE, RU_MOD_DAILY_WINDOWS_TITLE, siteTitle } from "@/types";
 
 interface Props {
   refreshKey?: number;
@@ -59,7 +59,7 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
 
   return (
     <PageScaffold
-      title="Monthly Ukrainian UAVs Downed - RU MoD"
+      title={siteTitle("ru-airdef-mod", "Monthly")}
       description="Monthly sums of Russian MoD air-defense intercept claims (MSK drone-days). Current month shows an end-of-month projection. A dashed outline marks months containing a caveated report — a window that may overlap a neighbor (possible double-count), or one the MoD counted as air targets rather than UAVs — see tooltip."
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ru-mod" />}
       // No window picker → no scope toggle either; see StatScopeToggle.

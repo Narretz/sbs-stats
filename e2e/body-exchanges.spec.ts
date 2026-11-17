@@ -6,7 +6,7 @@ import { test, expect } from "@playwright/test";
 // only that the page reaches the screen and a pinned exchange links its sources.
 test("body exchanges — the charts render and a pinned exchange lists its sources", async ({ page }) => {
   await page.goto("/?site=body-exchanges");
-  await expect(page.getByRole("heading", { name: "Body Exchanges between Russia and Ukraine" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "UA+RU Body Exchanges - Koord. HQ / RBC" })).toBeVisible();
   await expect(page.locator(".chart-card")).toHaveCount(3);
   await expect(page.locator(".chart-card").first()).toContainText(/Σ TO UKRAINE [\d,]+/);
 

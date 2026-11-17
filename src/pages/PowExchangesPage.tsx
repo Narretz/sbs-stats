@@ -8,6 +8,7 @@ import { chartColors } from "@/chartColors";
 import { POW_EXCHANGES, breakdownRatios, powExchangeContext, powExchangeSources, sideBreakdown } from "@/data/powExchanges";
 import { exchangesInWindow } from "@/data/exchanges";
 import type { PowExchange } from "@/types";
+import { siteTitle } from "@/types";
 
 const first = POW_EXCHANGES[0]?.date ?? "";
 const last = POW_EXCHANGES[POW_EXCHANGES.length - 1]?.date ?? "";
@@ -42,7 +43,7 @@ export function PowExchangesPage() {
   };
   return (
     <PageScaffold
-      title="Prisoner Exchanges between Russia and Ukraine"
+      title={siteTitle("pow-exchanges")}
       description={<>
         People returned from captivity, soldiers and civilians, each side's count as that side reported it · sources:{" "}
         <a href="https://t.me/Koord_shtab" rel="nofollow external" target="_blank">Ukraine's Coordination HQ for POWs</a>

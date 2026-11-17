@@ -17,6 +17,7 @@ import {
   type ModelBreakdownEntry,
   type UaLossesRuModMetricKey,
   type MonthlyDataPoint,
+  siteTitle,
 } from "@/types";
 
 interface Props {
@@ -99,7 +100,7 @@ export function UaLossesRuModMonthlyPage({ refreshKey }: Props) {
 
   return (
     <PageScaffold
-      title="Monthly Ukrainian Losses - RU MoD claims"
+      title={siteTitle("ua-losses-ru-mod-john-felix", "Monthly")}
       description={<>Monthly sums of the Ukrainian losses claimed by the Russian Ministry of Defence · compiled by John Felix (<a href="https://x.com/NedSnow2019" rel="nofollow external" target="_blank">@NedSnow2019</a>) from the MoD's reports · Russian claims, unverified</>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ua-losses-ru-mod" />}
       // No window picker → no scope toggle either; see StatScopeToggle.
@@ -114,7 +115,7 @@ export function UaLossesRuModMonthlyPage({ refreshKey }: Props) {
       loadState={loadState}
       error={error}
       hasData={hasData}
-      loadingMessage="Loading RU MoD claims database…"
+      loadingMessage="Loading RU MoD reports database …"
       gridChildren={<>
         {UA_LOSSES_RU_MOD_METRIC_KEYS.map((k) => (
           <MonthlyBarChart

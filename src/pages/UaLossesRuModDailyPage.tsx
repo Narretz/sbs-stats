@@ -23,6 +23,7 @@ import {
   type UaLossesRuModDailyRow,
   type UaLossesRuModGlobalStats,
   type UaLossesRuModMetricKey,
+  siteTitle,
 } from "@/types";
 
 
@@ -150,7 +151,7 @@ export function UaLossesRuModDailyPage({ refreshKey }: Props) {
   return (
     <PageScaffold
       headerVariant="block"
-      title="Daily Ukrainian Losses - RU MoD claims"
+      title={siteTitle("ua-losses-ru-mod-john-felix", "Daily")}
       description={<>Ukrainian losses claimed by the Russian Ministry of Defence · the MoD's own running totals, diffed, each report dated to the day before (it covers the 24 hours to its morning) · compiled by John Felix (<a href="https://x.com/NedSnow2019" rel="nofollow external" target="_blank">@NedSnow2019</a>) from the MoD's reports · Russian claims, unverified</>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="ua-losses-ru-mod" />}
       controls={<>
@@ -166,7 +167,7 @@ export function UaLossesRuModDailyPage({ refreshKey }: Props) {
       loadState={loadState}
       error={error}
       hasData={hasData}
-      loadingMessage="Loading RU MoD claims database…"
+      loadingMessage="Loading RU MoD reports database …"
       gridChildren={[
         ...(showWeather ? [<WeatherStripDaily key="weather" startDate={startDate} endDate={endDate} />] : []),
         ...UA_LOSSES_RU_MOD_METRIC_KEYS.map((k) => (

@@ -21,6 +21,7 @@ import {
   type GsuaMonthlyRow,
   type GsuaDirectionCoverageRow,
   type MonthlyDataPoint,
+  siteTitle,
 } from "@/types";
 
 interface Props {
@@ -145,7 +146,7 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
 
   return (
     <PageScaffold
-      title={`Monthly Combat Stats ${selectedDirections.length ? `— ${directionsTitle(selectedDirections)} ` : ""}- GSUA`}
+      title={siteTitle("ru-attacks-gsua", "Monthly", selectedDirections.length ? directionsTitle(selectedDirections) : undefined)}
       description={<>Monthly sums of daily totals from Ukrainian General Staff reports. Current month shows end-of-month projection. Parsed deterministically from Telegram <a href="https://t.me/GeneralStaffZSU" rel="nofollow external" target="_blank">@GeneralStaffZSU</a>. May be incomplete or incorrect.</>}
       dataWindow={<DataWindow minDate={dataWindow.minDate} maxDate={dataWindow.maxDate} mode="gsua" latestSnapshotAt={dataWindow.latestSnapshotAt} />}
       // No window picker → no scope toggle either; see StatScopeToggle.
