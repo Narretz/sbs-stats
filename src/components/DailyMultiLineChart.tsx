@@ -2,7 +2,7 @@ import {
   ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, type DotProps,
 } from "recharts";
 import { noteOutline, styledBar } from "@/components/barShape";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { DailyDataPoint } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { useStatScope } from "@/hooks/useStatScope";
@@ -62,6 +62,8 @@ interface Props {
   // The primary sources behind each date (daily grain), linked in the pinned
   // sheet only — see TooltipDescriptor.sources.
   sourcesByDate?: Map<string, SheetSource[]>;
+  // More about a date (daily grain), below the tooltip's table and notes.
+  detailByDate?: Map<string, ReactNode>;
 }
 
 // Cap so a short window (3 months, 4 weeks) doesn't draw slabs.
@@ -162,7 +164,7 @@ function describeMulti({
 }
 
 export function DailyMultiLineChart({
-  title, series, wfull = false, yMode = "linear", cumulative = false, granularity = "daily", style = "line", sourcesByDate,
+  title, series, wfull = false, yMode = "linear", cumulative = false, granularity = "daily", style = "line", sourcesByDate, detailByDate,
 }: Props) {
   const { theme: t } = useTheme();
   const anchor = chartAnchor(title);
@@ -236,7 +238,15 @@ export function DailyMultiLineChart({
     title,
     data: rows,
     xOf: (r) => r.date,
-    describe: (row) => ({ ...describeMulti({ row, prev: previousOf(rows, row), t, series, granularity }), sources: sourcesByDate?.get(row.date) }),
+    describe: (row) => {
+      const desc = describeMulti({ row, prev: previousOf(rows, row), t, series, granularity });
+      const detail = detailByDate?.get(row.date);
+      return {
+        ...desc,
+        footer: detail ? <>{desc.footer}{detail}</> : desc.footer,
+        sources: sourcesByDate?.get(row.date),
+      };
+    },
     formatLabel: (r) => formatX(granularity, r.date),
     cursor: { stroke: t.textMuted, strokeWidth: 1 },
   });

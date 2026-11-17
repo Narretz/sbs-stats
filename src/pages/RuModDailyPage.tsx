@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { Temporal } from "temporal-polyfill";
 import { useRuModDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
@@ -20,6 +20,8 @@ import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
 import type { RuAdDailyRow, RuAdGlobalStats } from "@/types";
 import { chartColors } from "@/chartColors";
+import { regionList, type RegionMention } from "@/utils/ruModRegions";
+import { RuModRegionList } from "@/components/RuModRegionList";
 import { RU_MOD_DAILY_TOTAL_TITLE, RU_MOD_DAILY_WINDOWS_TITLE, siteTitle } from "@/types";
 
 
@@ -57,7 +59,7 @@ interface Props {
 
 export function RuModDailyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
-  const { loadState, error, queryDaily, querySources, queryGlobalStats, queryDataWindow } = useRuModDatabaseContext();
+  const { loadState, error, queryDaily, querySources, queryRegions, queryGlobalStats, queryDataWindow } = useRuModDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
 
   const initial = useMemo(() => getUrlParams(), []);
@@ -69,6 +71,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
 
   const [rows, setRows] = useState<RuAdDailyRow[]>([]);
   const [sources, setSources] = useState<Map<string, SheetSource[]>>(new Map());
+  const [regions, setRegions] = useState<Map<string, Record<"night" | "day", RegionMention[]>>>(new Map());
   const [globalStats, setGlobalStats] = useState<RuAdGlobalStats>(() => {
     const zero = { max: 0, median: 0, total: 0 };
     return { total: zero, night: zero, day: zero };
@@ -102,9 +105,10 @@ export function RuModDailyPage({ refreshKey }: Props) {
     if (loadState === "ready") {
       setRows(queryDaily(days, selectedDate || undefined));
       setSources(querySources(days, selectedDate || undefined));
+      setRegions(queryRegions(days, selectedDate || undefined));
       setHasData(true);
     }
-  }, [loadState, days, selectedDate, queryDaily, querySources, refreshKey]);
+  }, [loadState, days, selectedDate, queryDaily, querySources, queryRegions, refreshKey]);
 
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" }) + "T12:00:00").getDay();
   const maxSelectableDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
@@ -134,6 +138,20 @@ export function RuModDailyPage({ refreshKey }: Props) {
     const note = key === "total" ? d.caveat_note_total : key === "night" ? d.caveat_note_night : d.caveat_note_day;
     return note ?? undefined;
   };
+  // The regions the day's reports named: all of them under the total, each
+  // window's under its own line.
+  const { totalRegions, windowRegions } = useMemo(() => {
+    const totalRegions = new Map<string, ReactNode>();
+    const windowRegions = new Map<string, ReactNode>();
+    for (const [date, { night, day }] of regions) {
+      const all = regionList([...night, ...day]);
+      if (all) totalRegions.set(date, <RuModRegionList list={all} />);
+      const windows = ([["Overnight", regionList(night)], ["Daytime", regionList(day)]] as const)
+        .flatMap(([label, list]) => (list ? [<RuModRegionList key={label} label={label} list={list} />] : []));
+      if (windows.length) windowRegions.set(date, <>{windows}</>);
+    }
+    return { totalRegions, windowRegions };
+  }, [regions]);
   const makeDataset = (key: "total" | "night" | "day") =>
     fillDailyRange(
       filteredRows.map((d) => ({
@@ -183,6 +201,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
           globalTotal={globalStats.total.total}
           wfull
           sourcesByDate={sources}
+          detailByDate={totalRegions}
         />
         <DailyMultiLineChart
           title={RU_MOD_DAILY_WINDOWS_TITLE}
@@ -194,6 +213,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
           ]}
           wfull
           sourcesByDate={sources}
+          detailByDate={windowRegions}
         />
       </>}
     />

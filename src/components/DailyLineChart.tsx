@@ -60,6 +60,9 @@ interface Props {
   // The primary sources behind each date (the posts its figures were read
   // from), linked in the pinned sheet only — see TooltipDescriptor.sources.
   sourcesByDate?: Map<string, SheetSource[]>;
+  // More about a date, below the tooltip's table and notes (the regions an RU
+  // MoD day's reports named).
+  detailByDate?: Map<string, ReactNode>;
 }
 
 function CustomDot(props: DotProps & {
@@ -282,7 +285,7 @@ function describePaired(ctx: DescribeCtx, d: PairedRow): TooltipDescriptor {
 export function DailyLineChart({
   title, data, globalMax, globalMedian, globalTotal, wfull,
   data2, primaryLabel, label2, globalMax2, globalMedian2, globalTotal2, pairMode = "subset",
-  eod, eod2, breakdownByDate, primaryIsDiff = false, subsetLabel, drillAnchor, sourcesByDate,
+  eod, eod2, breakdownByDate, primaryIsDiff = false, subsetLabel, drillAnchor, sourcesByDate, detailByDate,
 }: Props) {
   const { theme: t } = useTheme();
   const anchor = chartAnchor(title);
@@ -383,10 +386,15 @@ export function DailyLineChart({
     };
     const allNull = row.value == null && (!hasPair || row.value2 == null);
     const desc = allNull ? describeGap(ctx, row.date) : hasPair ? describePaired(ctx, row) : describeSingle(ctx, row);
-    return { ...desc, sources: sourcesByDate?.get(row.date) };
+    const detail = detailByDate?.get(row.date);
+    return {
+      ...desc,
+      footer: detail ? <>{desc.footer}{detail}</> : desc.footer,
+      sources: sourcesByDate?.get(row.date),
+    };
   }, [
     t, primaryColor, resolvedPrimaryLabel, resolvedSecondaryLabel, pairMode,
-    primaryIsDiff, breakdownByDate, subsetLabel, noteByDate, hasPair, sourcesByDate,
+    primaryIsDiff, breakdownByDate, subsetLabel, noteByDate, hasPair, sourcesByDate, detailByDate,
   ]);
 
   const pin = usePinnedChart({

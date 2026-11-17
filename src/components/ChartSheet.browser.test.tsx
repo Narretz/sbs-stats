@@ -8,6 +8,7 @@ import { RouteProvider } from "@/hooks/RouteContext";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { ChartSheet } from "@/components/ChartSheet";
 import { DailyLineChart } from "@/components/DailyLineChart";
+import { DailyMultiLineChart } from "@/components/DailyMultiLineChart";
 import type { DailyDataPoint } from "@/types";
 
 // The pinned-detail sheet with real charts above it, minus the page: click or
@@ -228,6 +229,22 @@ describe("Chart pin sheet", () => {
     await page.getByRole("button", { name: "Previous point" }).click();
     expect(doc.querySelector(".chart-sheet-sources")).toBeNull();
     try { localStorage.removeItem("chart-sheet-sources-open"); } catch { /* none */ }
+  });
+
+  it("shows a date's detail in the hover card and in the sheet, on both daily charts", async () => {
+    const detail = new Map(rows(1, 7).map((r) => [r.date, `Regions (1): region of ${r.date}`]));
+    await mount(
+      <Shell>
+        <DailyLineChart title={FIRST} data={rows(1, 7)} globalMax={0} globalMedian={0} wfull detailByDate={detail} />
+        <DailyMultiLineChart title={SECOND} series={[{ key: "a", label: "A", color: "#00f", data: rows(1, 7) }]} wfull detailByDate={detail} />
+      </Shell>,
+    );
+    for (const title of [FIRST, SECOND]) {
+      await hover(title);
+      await expect.poll(() => tooltipText(title)).toMatch(/Regions \(1\): region of 2026-10-0\d/);
+    }
+    await pinAt(FIRST, 0.95);
+    await expect.element(sheet()).toMatchTextContent(/Regions \(1\): region of 2026-10-07/);
   });
 
   it("steps between dates without piling up links, even where two sources share a post", async () => {

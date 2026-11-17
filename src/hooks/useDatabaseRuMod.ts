@@ -8,6 +8,7 @@ import { projectNightDay } from "@/utils/monthProjection";
 import { attachDailyMedians, attachDayCounts, dailyMediansByMonth, dayCountsByMonth } from "@/utils/dailyMedian";
 import { ruModSourcesByDate, type RuModReportSource } from "@/utils/sources";
 import type { SheetSource } from "@/components/TooltipTable";
+import type { RegionMention } from "@/utils/ruModRegions";
 
 // Tiny DB → fetch whole via sql.js, like the SBS / RU-losses loaders (no httpvfs).
 // Dev default is the `.app.db` copy for the same reason as GSUA — see
@@ -249,6 +250,33 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
     [db],
   );
 
+  // The regions each report day's posts named, split like the daily series
+  // ('other' windows fold into day), for the charts' tooltips. `drones` is
+  // null where a post named the region without a count.
+  const queryRegions = useCallback(
+    (days: number, endDate?: string): Map<string, Record<"night" | "day", RegionMention[]>> => {
+      const out = new Map<string, Record<"night" | "day", RegionMention[]>>();
+      if (!db) return out;
+      const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : getMskDateString();
+      const rows = queryRows<{ date: string; night: number; region: string; drones: number | null }>(
+        db,
+        `SELECT latest.report_date AS date, latest.window_kind = 'night' AS night, g.region, g.drones
+         FROM ${LATEST_PER_POST}
+         JOIN ad_regions g ON g.post_id = latest.post_id AND g.scraped_at = latest.scraped_at
+         WHERE latest.report_date >= ${windowStartSql(endDateSql, days)}
+           AND latest.report_date <= date('${endDateSql}')
+         ORDER BY latest.window_end, g.rowid`,
+      );
+      for (const r of rows) {
+        const day = out.get(r.date) ?? { night: [], day: [] };
+        day[r.night ? "night" : "day"].push({ region: r.region, drones: r.drones });
+        out.set(r.date, day);
+      }
+      return out;
+    },
+    [db],
+  );
+
   // Full covered date range (first/last report day, MSK), for the "Data … – …"
   // freshness note in the page header.
   const queryDataWindow = useCallback((): { minDate: string | null; maxDate: string | null } => {
@@ -262,7 +290,7 @@ export function useDatabaseRuMod({ enabled = true }: { enabled?: boolean } = {})
 
   return {
     loadState, error,
-    queryDaily, queryGlobalStats, queryMonthly, queryDataWindow, querySources,
+    queryDaily, queryGlobalStats, queryMonthly, queryDataWindow, querySources, queryRegions,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs,
   };

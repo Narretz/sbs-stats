@@ -2,7 +2,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   ReferenceLine,
 } from "recharts";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import type { DailyDaySeries, EodEstimate } from "@/types";
 import { getKyivDateString } from "@/hooks/sqlLoader";
 import { baselineOf, eodAtHour, hourBaseline, type HourHistory } from "@/utils/hourlyTooltip";
@@ -17,6 +17,7 @@ import { chartAnchor } from "@/utils/chartAnchor";
 import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { ChartPlaceholder, useNearViewport } from "@/components/LazyChartArea";
 import { usePinnedChart } from "@/components/usePinnedChart";
+import { ColumnGrid, LINE_H, type GridHeight } from "@/components/ColumnGrid";
 import { TooltipTable, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
 export type TooltipSortMode = "date" | "value";
 
@@ -76,88 +77,18 @@ function formatHour(hour: number | null | undefined): string {
   return `${h}:00–${h}:59`;
 }
 
-// The date grid: one row per day in the window, in as many columns as the
-// available height allows.
-//
-// The columns are real sibling elements, chunked here, rather than a
-// column-direction `flex-wrap`. The wrap reads better and needs no arithmetic,
-// but a wrapping flex box reports its max-content width as a SINGLE column in
-// Firefox (Chrome sums the lines), and the card is sized by exactly that
-// measurement — so the card came out as wide as its header line, about three
-// columns, and every column past the third hung outside its border. As a row
-// of siblings the width is the sum by construction, in every engine.
-//
-// How many rows per column is a question about height, and neither renderer
-// answers it on its own: the sheet hands the grid a definite height (it is a
-// flex child of `.chart-sheet-body`) but more of it than the grid should take,
-// while a floating tooltip is positioned rather than laid out and bounds
-// nothing at all. So MAX_GRID_HEIGHT bounds both, and the grid re-chunks to
-// the height it actually got — which converges in one layout pass, and follows
-// a window resize or a rotation.
-const LINE_H = 15;
-const ROW_GAP = 4;
-// The grid's shape, in one knob. Rows fill a column before a new one starts,
-// so this is the height at which it gives up and goes wider: lower is shorter
-// and wider, higher is taller and narrower. It binds in BOTH renderers — the
-// sheet has more height to offer than the grid should take, and a grid that
-// filled it left a column of narrow columns and a needlessly tall sheet.
+// The date grid's shape (components/ColumnGrid), in one knob. Rows fill a
+// column before a new one starts, so this is the height at which it gives up
+// and goes wider: lower is shorter and wider, higher is taller and narrower.
+// It binds in BOTH renderers — the sheet has more height to offer than the
+// grid should take, and a grid that filled it left a column of narrow columns
+// and a needlessly tall sheet.
 //
 // At 1440x900, for a 120-day window: 46vh/420 is 6 columns of 22 (576px wide),
 // 34vh/300 is 8 of 16 (772px), 28vh/240 is 10 of 12 (968px), 22vh/190 is 12 of
 // 10 and 1164px — past which the card is wider than most of the window it
 // floats over.
-const MAX_GRID_HEIGHT = "min(34vh, 300px)";
-const MAX_GRID_HEIGHT_PX = (vh: number) => Math.min(vh * 0.34, 300);
-// Rows that fit in `h` pixels: n lines plus the gaps BETWEEN them, so the
-// inverse is (h + gap) / (line + gap) — not h / row, which reads one row short
-// of what it just laid out and walks the column count down a row per pass.
-const rowsIn = (h: number) => Math.max(1, Math.floor((h + ROW_GAP) / (LINE_H + ROW_GAP)));
-
-function DateGrid({ children }: { children: React.ReactNode[] }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [perColumn, setPerColumn] = useState(() =>
-    rowsIn(MAX_GRID_HEIGHT_PX(window.innerHeight)));
-
-  // Observed rather than measured once: the height this grid is given changes
-  // under it — the window resizes, the sheet opens, a phone rotates.
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () => {
-      const h = el.clientHeight;
-      if (h > 0) setPerColumn((prev) => (prev === rowsIn(h) ? prev : rowsIn(h)));
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const columns: React.ReactNode[][] = [];
-  for (let i = 0; i < children.length; i += perColumn) {
-    columns.push(children.slice(i, i + perColumn));
-  }
-  return (
-    <div
-      ref={ref}
-      data-testid="hourly-tooltip-days"
-      style={{
-        display: "flex",
-        gap: 12,
-        alignItems: "flex-start",
-        // Claims the sheet body's leftover height; inert in the card, where the
-        // parent is an ordinary block and the cap is the only bound.
-        flex: "1 1 auto",
-        minHeight: 0,
-        maxHeight: MAX_GRID_HEIGHT,
-      }}
-    >
-      {columns.map((col, ci) => (
-        <div key={ci} style={{ display: "flex", flexDirection: "column", gap: ROW_GAP }}>{col}</div>
-      ))}
-    </div>
-  );
-}
+const GRID_HEIGHT: GridHeight = { css: "min(34vh, 300px)", px: (vh) => Math.min(vh * 0.34, 300) };
 
 // This tooltip is a grid of dates, not a table of series, so it goes through
 // the descriptor's `content` escape hatch: as a single column it would be one
@@ -266,7 +197,7 @@ function describeHour({
           <div style={{ color: t.textMuted, marginTop: 2 }}>No other day has a value at this hour</div>
         )}
       </div>
-      <DateGrid>
+      <ColumnGrid maxHeight={GRID_HEIGHT} testId="hourly-tooltip-days">
         {sorted.map((p) => {
           // Show MM-DD for past days to save space — with the year in front of
           // it only when the window spans more than one, where MM-DD alone
@@ -295,7 +226,7 @@ function describeHour({
             </div>
           );
         })}
-      </DateGrid>
+      </ColumnGrid>
     </>
   );
   return { header, rows: [], content, minWidth: 200 };
