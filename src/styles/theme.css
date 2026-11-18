@@ -169,6 +169,19 @@ body {
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
+/* A label wrapping a select with long options (the SBS unit picker): shrinks
+   to the row, and lets the select shrink inside it, instead of running past
+   the viewport on a narrow screen. */
+.ctl-label-shrink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5ch;
+  min-width: 0;
+  max-width: 100%;
+}
+.ctl-label-shrink select {
+  min-width: 0;
+}
 
 /* ── App header ──────────────────────────────────────────────────────────────
    Layout lives here rather than inline because inline styles beat media
@@ -185,6 +198,11 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  /* A flex item's default min-width is its content, so without these the
+     group grows to the site picker's longest option and the picker's own
+     max-width: 100% runs off a narrow screen with it. */
+  min-width: 0;
+  max-width: 100%;
 }
 .app-header-brand {
   min-width: 140px;

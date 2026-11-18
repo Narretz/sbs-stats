@@ -27,8 +27,8 @@ export function UnitSelect({ units, value, onChange }: Props) {
   const retired = units.filter((u) => !u.active);
 
   return (
-    <label className="ctl-label">
-      Unit:{" "}
+    <label className="ctl-label ctl-label-shrink">
+      Unit:
       <select
         className="ctl"
         data-testid="sbs-unit-select"
