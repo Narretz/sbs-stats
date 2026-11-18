@@ -32,6 +32,18 @@ export function weekendFirstDay(d: SpannedDay): string {
   return shiftDay(d.report_date ?? d.date, -(d.window_days - 1));
 }
 
+// The day row that carries a report — a one-day report's day, or a weekend
+// report's own date, its last day; not a day no report covers. A ranking
+// (CitStackedChart) draws one bar per report: this row.
+export function isReportRow(d: SpannedDay): boolean {
+  return d.report_date != null && d.date === d.report_date;
+}
+
+// "2026-11-14/15" for a weekend report, the date for a one-day one.
+export function reportSpan(d: SpannedDay): string {
+  return d.report_date != null && d.window_days > 1 ? formatSpan(weekendFirstDay(d), d.report_date) : d.date;
+}
+
 // A recharts `shape` that draws a multi-day report as ONE bar across its days.
 // The first day draws nothing and leaves its x behind; the report's own date —
 // its last day — draws one bar from there to its own right edge. recharts

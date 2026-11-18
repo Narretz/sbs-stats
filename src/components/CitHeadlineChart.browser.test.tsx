@@ -7,6 +7,7 @@ import { ChartPinProvider } from "@/hooks/ChartPinProvider";
 import { RouteProvider } from "@/hooks/RouteContext";
 import { useAppRoute } from "@/hooks/useAppRoute";
 import { ChartSheet } from "@/components/ChartSheet";
+import { RankingContext } from "@/hooks/useRanking";
 import { CitHeadlineChart, type CitDailyBarRow } from "@/components/CitHeadlineChart";
 
 // CIT's headline chart on its own, on the week e2e/cit-civilians uses: 5–11
@@ -117,5 +118,30 @@ describe("CitHeadlineChart — the weekend report", () => {
     await expect.element(page.getByRole("button", { name: "Next point" })).toBeDisabled();
     await page.getByRole("button", { name: "Previous point" }).click();
     expect(sheetLabel()).toBe("2026-01-09");
+  });
+});
+
+// Ranked (utils/barOrder), the bars are reports, not days: the weekend's is
+// ONE bar at its daily average — 3 + 20 = 23 a day, so it leads Friday's 18 —
+// labelled with both its days; Wednesday, which no report covers, isn't one.
+describe("CitHeadlineChart — ranked", () => {
+  const ticks = () =>
+    [...doc.querySelectorAll(".recharts-cartesian-axis-tick-value")]
+      .map((e) => e.textContent ?? "").filter((t) => /^\d{4}-/.test(t));
+
+  it("ranks the reports by their daily total, a weekend report one bar", async () => {
+    const r = await render(
+      <Shell>
+        <RankingContext.Provider value={{ order: "max", limit: 10 }}>
+          <CitHeadlineChart title="All civilian casualties" data={WEEK} granularity="daily" globalStats={{}} wfull />
+        </RankingContext.Provider>
+      </Shell>,
+    );
+    doc = r.container.ownerDocument;
+    await expect.poll(ticks).toEqual(["2026-01-10/11", "2026-01-09", "2026-01-06", "2026-01-05", "2026-01-08"]);
+    // Two bands × five reports, all one day wide.
+    const widths = (await bars()).map((b) => Math.round(b.getBBox().width));
+    expect(widths).toHaveLength(10);
+    expect(new Set(widths).size).toBe(1);
   });
 });

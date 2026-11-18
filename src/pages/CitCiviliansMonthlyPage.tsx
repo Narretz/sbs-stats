@@ -8,6 +8,8 @@ import { DataWindow } from "@/components/DataWindow";
 import { MoreControls } from "@/components/MoreControls";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
 import { PageScaffold } from "@/components/PageScaffold";
 import { ChartGrid } from "@/components/Layout";
 import { padTrailingMonthly } from "@/utils/padTrailing";
@@ -32,8 +34,9 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
   const { loadState, error, queryMonthly, queryTerritory,
           queryReconciliation, queryDataWindow } = useCitCiviliansDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
-  const { allRows, rows, hasData, yr, allStats } = useMonthlyMetricGrid<CitMonthlyRow, CitMetricKey>({
-    loadState, queryMonthly, refreshKey, keys: CIT_METRIC_KEYS, tz: "Europe/Moscow",
+  const [order, setOrder] = useBarOrder();
+  const { allRows, rows, hasData, yr, allStats, ranking } = useMonthlyMetricGrid<CitMonthlyRow, CitMetricKey>({
+    loadState, queryMonthly, refreshKey, keys: CIT_METRIC_KEYS, tz: "Europe/Moscow", order,
   });
 
   const [territory, setTerritory] = useState<CitTerritoryRow[]>([]);
@@ -93,7 +96,7 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
   // The territory chart projects both bands together, on the same basis.
   const territoryRows = useMemo(() => {
     const covered = new Map(allRows.filter((r) => r.is_current_month).map((r) => [r.date, r.covered_days]));
-    return yr.slice(territory).map((r) => {
+    return yr.view(territory, order).map((r) => {
       const p = projectCitMonth(r.date, r.uaControlled + r.ruControlled, covered.get(r.date) ?? 0);
       if (!p) return r;
       return {
@@ -102,7 +105,7 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
         projectedGap: p.projected - (r.uaControlled + r.ruControlled),
       };
     });
-  }, [allRows, territory, yr]);
+  }, [allRows, territory, yr, order]);
 
   const pct = (n: number) => Math.round((100 * n) / recon.reports);
   const drift = (v: number) => `${v >= 0 ? "+" : "\u2212"}${Math.abs(v).toFixed(1)}%`;
@@ -115,11 +118,13 @@ export function CitCiviliansMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
+          <BarOrderSelect value={order} onChange={setOrder} />
           <MoreControls>
             <StatScopeToggle />
           </MoreControls>
         </>
       )}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}

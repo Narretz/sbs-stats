@@ -72,3 +72,15 @@ test("GSUA ranked: combat engagements gets an unattributed chart, and a picked d
   await expect(card.locator(".recharts-bar-rectangle")).toHaveCount(7);
   await expect(card.locator(".recharts-line")).toHaveCount(0);
 });
+
+test("CIT ranked daily: one bar per report, the weekend report labelled with both its days", async ({ page }) => {
+  // The fixture's 5–11 Jan 2026: no report on Wed 7, one for Sat 10 + Sun 11.
+  await page.goto("/?site=cit-civilians&page=daily&days=7&date=2026-01-11&order=max");
+  const card = page.locator("#all-civilian-casualties");
+  await card.locator(".recharts-bar-rectangle").first().waitFor();
+  const ticks = (await card.locator(".recharts-cartesian-axis-tick-value").allTextContents())
+    .filter((t) => /^\d{4}-/.test(t));
+  // Five reports in the window: four days and the weekend.
+  expect(ticks).toHaveLength(5);
+  expect(ticks).toContain("2026-01-10/11");
+});

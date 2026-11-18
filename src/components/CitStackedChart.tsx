@@ -11,12 +11,14 @@ import { monthHeader } from "@/components/monthHeader";
 import { getKyivDateString } from "@/hooks/sqlLoader";
 import { MonthlyChartCard } from "@/components/MonthlyChartCard";
 import {
-  dayTick, entryOfDay, fmtCount, formatEntry, spanBarShape, type SpannedDay,
+  dayTick, entryOfDay, fmtCount, formatEntry, isReportRow, reportSpan, spanBarShape, type SpannedDay,
 } from "@/components/spanBarShape";
 import { SpanCursor } from "@/components/SpanCursor";
 import type { SheetSource, TooltipDescriptor } from "@/components/TooltipTable";
 import type { Stat } from "@/types";
 import { formatMonth } from "@/utils/dateFormat";
+import { useRanking, useRankedBars } from "@/hooks/useRanking";
+import { livePeriod, rankedAxisProps } from "@/utils/barOrder";
 
 // The CIT pages' one chart shape: a stack of series over days or months, with
 // the median of the stack's total as the reference line. Its two uses —
@@ -28,6 +30,12 @@ import { formatMonth } from "@/utils/dateFormat";
 // average height (spanBarShape), so its area is the report's real total, and
 // both days hover, pin and step as that one report. Monthly, the month still
 // being reported carries its projection as one translucent segment on top.
+//
+// On a ranking page (hooks/useRanking) the bars are the stack's totals ranked,
+// one per REPORT: a weekend report is one bar at its daily average — the basis
+// the stats already use — rather than two half days that were never reported
+// apart, or its 48 hours against other reports' 24. The month in progress is
+// left out, as everywhere.
 
 const MAX_BAR_SIZE = 70;
 
@@ -81,15 +89,33 @@ export function CitStackedChart<K extends string, Row extends CitStackRowBase & 
   const c = chartColors(t);
   const daily = granularity === "daily";
 
+  // Ranked, a day row stands for its report: its last day carries it (the
+  // report's own date), a day no report covers is a gap.
+  const ranking = useRanking();
+  const entries = useMemo(
+    () => (ranking && daily ? data.filter((d) => isReportRow(d as unknown as SpannedDay)) : data),
+    [ranking, daily, data],
+  );
+  const today = getKyivDateString();
+  const ranked = useRankedBars(
+    entries,
+    (d) => !daily && (d.projection != null || livePeriod(today)(d.date)),
+    (d) => stackTotal(d, series.map((s) => s.key)),
+  );
+  const bars = ranked?.bars ?? data;
+  // A day bar with the weekend logic: spanned across its days in date order,
+  // one report a bar when ranked.
+  const spanned = daily && !ranked;
+
   const windowStats = useMemo(() => {
     const out = {} as Record<K | "all", Stat>;
-    for (const s of series) out[s.key] = maxMedian(data.map((d) => d[s.key]));
-    out.all = maxMedian(data.map((d) => stackTotal(d, series.map((s) => s.key))));
+    for (const s of series) out[s.key] = maxMedian(bars.map((d) => d[s.key]));
+    out.all = maxMedian(bars.map((d) => stackTotal(d, series.map((s) => s.key))));
     return out;
-  }, [data, series]);
+  }, [bars, series]);
   const stat = (k: K | "all"): Stat =>
     scope === "window" ? windowStats[k] : (globalStats?.[k] ?? windowStats[k]);
-  const hasProjection = data.some((d) => d.projectedGap != null);
+  const hasProjection = bars.some((d) => d.projectedGap != null);
 
   const label = (d: Row): string =>
     daily ? formatEntry(d as unknown as SpannedDay) : formatMonth(d.date);
@@ -101,8 +127,17 @@ export function CitStackedChart<K extends string, Row extends CitStackRowBase & 
     const head = monthHeader(label(d), d.daysAvailable != null
       ? monthCoverage(d.date, getKyivDateString(), d.daysAvailable)
       : p ? projectionBasis(p.coveredDays, p.daysInMonth) : undefined);
-    return { header: head, formatValue: fmtCount, sources: sourcesByDate?.get(d.date), ...describe(d, label(d)) };
+    return {
+      header: ranked ? <>#{bars.indexOf(d) + 1} · {head}</> : head,
+      formatValue: fmtCount, sources: sourcesByDate?.get(d.date), ...describe(d, label(d)),
+    };
   };
+  // A ranked day bar names its report's days with the year: they are no
+  // longer next to their neighbours on the calendar.
+  const rankedTick = useMemo(() => {
+    const byDate = new Map(bars.map((d) => [d.date, reportSpan(d as unknown as SpannedDay)]));
+    return (date: string) => byDate.get(date) ?? date;
+  }, [bars]);
 
   const top = [...series].reverse();
   const headerRow = (
@@ -128,22 +163,26 @@ export function CitStackedChart<K extends string, Row extends CitStackRowBase & 
           <span style={{ color: c.stackProjected }}>■</span> Projected (month in progress)
         </span>
       )}
+      {ranked && ranked.excluded > 0 && (
+        <span style={{ color: t.textMuted, marginLeft: header === "stats" ? 8 : 0 }}>excl. month in progress</span>
+      )}
     </div>
   );
 
   return (
     <MonthlyChartCard<Row>
       title={title}
-      data={data}
-      wfull={wfull}
+      data={bars}
+      wfull={wfull || !!ranked}
       describe={describeRow}
       // The hover card formats the date, so the sheet's stepper must too.
       formatLabel={label}
-      tickFormatter={daily ? dayTick : undefined}
+      tickFormatter={daily ? (ranked ? rankedTick : dayTick) : undefined}
+      axis={ranked ? rankedAxisProps(bars.length) : undefined}
       // A day no report covers says so on hover; see the callers' describe.
-      showEmptyWrapper={daily}
-      entryOf={daily ? (d) => entryOfDay(d as unknown as SpannedDay) : undefined}
-      cursor={daily ? <SpanCursor rows={data as unknown as SpannedDay[]} bandFill={c.hoverBand} /> : undefined}
+      showEmptyWrapper={spanned}
+      entryOf={spanned ? (d) => entryOfDay(d as unknown as SpannedDay) : undefined}
+      cursor={spanned ? <SpanCursor rows={data as unknown as SpannedDay[]} bandFill={c.hoverBand} /> : undefined}
       subheader={<>
         {headerRow}
         {caveat && (
@@ -153,7 +192,7 @@ export function CitStackedChart<K extends string, Row extends CitStackRowBase & 
     >
       {series.map((s) => (
         <Bar key={s.key} dataKey={s.key} stackId="a" name={s.label} maxBarSize={MAX_BAR_SIZE}
-             fill={s.color} shape={daily ? spanBarShape(s.color) : undefined} />
+             fill={s.color} shape={spanned ? spanBarShape(s.color) : undefined} />
       ))}
       {hasProjection && (
         <Bar dataKey="projectedGap" stackId="a" name="Projected" maxBarSize={MAX_BAR_SIZE} fill={c.stackProjected} />

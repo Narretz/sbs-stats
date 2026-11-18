@@ -12,10 +12,15 @@ import { WeatherStripDaily } from "@/components/WeatherStripDaily";
 import { WeatherToggle } from "@/components/WeatherToggle";
 import { useWeatherStripPref } from "@/hooks/useWeatherStripPref";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
+import { isReportRow } from "@/components/spanBarShape";
+import { rankingOf, rankQueryDays } from "@/utils/barOrder";
 import {
   DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR,
 } from "@/utils/dayRange";
 import { maxMedian } from "@/utils/windowStats";
+import { daysBetween } from "@/utils/padTrailing";
 import { stackTotal } from "@/utils/citTerritory";
 import type { SheetSource } from "@/components/TooltipTable";
 import {
@@ -94,16 +99,21 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
     setTerritoryStats({ all: maxMedian(all.map((r) => stackTotal(r, ["uaControlled", "ruControlled"] as const))) });
   }, [loadState, dataWindow.minDate, queryTerritoryDaily, refreshKey]);
 
+  // Ranked, every day from the first up to the window's end (utils/barOrder).
+  const [order, setOrder] = useBarOrder();
+  const maxSelectableDate = mskToday();
+  const endDate = selectedDate || maxSelectableDate;
+  const queryDays = rankQueryDays(order, days, endDate, dataWindow.minDate);
+
   useEffect(() => {
     if (loadState === "ready") {
-      setRows(queryDaily(days, selectedDate || undefined));
-      setTerritory(queryTerritoryDaily(days, selectedDate || undefined));
-      setSources(querySources(days, selectedDate || undefined));
+      setRows(queryDaily(queryDays, selectedDate || undefined));
+      setTerritory(queryTerritoryDaily(queryDays, selectedDate || undefined));
+      setSources(querySources(queryDays, selectedDate || undefined));
       setHasData(true);
     }
-  }, [loadState, days, selectedDate, queryDaily, queryTerritoryDaily, querySources, refreshKey]);
+  }, [loadState, queryDays, selectedDate, queryDaily, queryTerritoryDaily, querySources, refreshKey]);
 
-  const maxSelectableDate = mskToday();
   const shiftSelectedDate = (delta: number) => {
     const base = selectedDate || Temporal.Now.plainDateISO("Europe/Moscow").toString();
     const next = Temporal.PlainDate.from(base).add({ days: delta }).toString();
@@ -114,23 +124,25 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
   // "live" sits at today, so there is always a day behind it.
   const canGoPrev = selectedDate === "" || selectedDate > WINDOW_FLOOR;
 
-  const endDate = selectedDate || maxSelectableDate;
   const startDate = windowStartDate(endDate, days);
+  const dataStart = windowStartDate(endDate, queryDays);
+  // As many bars as the window has reports: ranked, a weekend report is one.
+  const ranking = rankingOf(order, rows.filter((r) => r.date >= startDate && isReportRow(r)).length);
 
   // One row per day of the window. queryDaily has already spread a weekend
   // report over its two days; a day no report covers becomes a gap, not a 0.
   const bars = useMemo((): CitDailyBarRow[] => {
     const byDate = new Map(rows.map((r) => [r.date, r]));
     const out: CitDailyBarRow[] = [];
-    for (let d = Temporal.PlainDate.from(startDate); d.toString() <= endDate; d = d.add({ days: 1 })) {
-      const r = byDate.get(d.toString());
+    for (const d of daysBetween(dataStart, endDate)) {
+      const r = byDate.get(d);
       out.push(r
         ? { date: r.date, report_date: r.report_date, window_days: r.window_days,
             killed: r.killed, injured: r.injured }
-        : { date: d.toString(), report_date: null, window_days: 1, killed: null, injured: null });
+        : { date: d, report_date: null, window_days: 1, killed: null, injured: null });
     }
     return out;
-  }, [rows, startDate, endDate]);
+  }, [rows, dataStart, endDate]);
 
   return (
     <PageScaffold
@@ -143,11 +155,13 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
         <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate}
                  onChange={updateDate} onShift={shiftSelectedDate}
                  canGoNext={canGoNext} canGoPrev={canGoPrev} />
+        <BarOrderSelect value={order} onChange={setOrder} />
         <MoreControls>
           <StatScopeToggle />
           <WeatherToggle checked={showWeather} onChange={setShowWeather} />
         </MoreControls>
       </>}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}
