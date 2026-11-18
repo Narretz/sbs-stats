@@ -20,6 +20,9 @@ import {
   weeklySources, weeksInMonthWindow, windowTicks,
   weekNote,
 } from "@/utils/zelenskyWeekly";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
+import { rankingOf } from "@/utils/barOrder";
 
 interface Props {
   refreshKey?: number;
@@ -60,10 +63,17 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
     count: first && last ? monthsSpanned(first, last) : 0,
     first: first ?? "",
   });
-  const mondays = useMemo(
+  const [order, setOrder] = useBarOrder();
+  const windowMondays = useMemo(
     () => (yr.hidden ? allMondays : weeksInMonthWindow(allMondays, yr.months, yr.endMonth)),
     [allMondays, yr.hidden, yr.months, yr.endMonth],
   );
+  // Ranked, every week up to the window's end month, as many as it has weeks.
+  const mondays = useMemo(
+    () => (order === "date" || yr.hidden ? windowMondays : weeksInMonthWindow(allMondays, "all", yr.endMonth)),
+    [order, windowMondays, allMondays, yr.hidden, yr.endMonth],
+  );
+  const ranking = rankingOf(order, windowMondays.length);
   const ticks = useMemo(() => windowTicks(mondays), [mondays]);
   const byMonday = useMemo(() => new Map(rows.map((r) => [r.period_start, r])), [rows]);
   // The post behind each week, linked from a pinned bar's sheet.
@@ -112,11 +122,13 @@ export function ZelenskyWeeklyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={first ?? ""} />
+          <BarOrderSelect value={order} onChange={setOrder} />
           <MoreControls>
             <StatScopeToggle />
           </MoreControls>
         </>
       )}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}

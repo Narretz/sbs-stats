@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMetrics, targetPairLabel, unpairedLabel } from "@/utils/metrics";
+import { buildMetrics, SECOND_HALVES, targetPairLabel, unpairedLabel, withSecondHalves } from "@/utils/metrics";
 import { chartAnchor } from "@/utils/chartAnchor";
 import { TARGET_IDS } from "@/types";
 
@@ -72,5 +72,33 @@ describe("targetPairLabel", () => {
     const dailyAnchors = new Set(buildMetrics({ paired: true }).map((m) => chartAnchor(m.label)));
     const missing = TARGET_IDS.filter((id) => !dailyAnchors.has(chartAnchor(targetPairLabel(id))));
     expect(missing).toEqual([]);
+  });
+});
+
+// Ranked, the daily page keeps each pair and adds its second half's own chart,
+// drawn red.
+describe("SECOND_HALVES", () => {
+  it("is each pair's second series, not its first", () => {
+    expect(SECOND_HALVES.has("destroyed_1")).toBe(true);
+    expect(SECOND_HALVES.has("total_targets_destroyed")).toBe(true);
+    expect(SECOND_HALVES.has("personnel_killed")).toBe(true);
+    expect(SECOND_HALVES.has("hit_1")).toBe(false);
+    expect(SECOND_HALVES.has("total_personnel_casualties")).toBe(false);
+  });
+
+});
+
+describe("withSecondHalves", () => {
+  const ranked = withSecondHalves(buildMetrics({ paired: true }));
+
+  it("follows each pair with its second half's own chart", () => {
+    const i = ranked.findIndex((m) => m.id === "hit_1~destroyed_1");
+    expect(ranked[i + 1]).toMatchObject({ id: "destroyed_1", label: "Tanks — Destroyed" });
+    expect(ranked.find((m) => m.id === "total_targets_destroyed")?.label).toBe("Targets Destroyed");
+  });
+
+  it("charts every second half once, and nothing twice", () => {
+    for (const k of SECOND_HALVES) expect(ranked.filter((m) => m.id === k), k).toHaveLength(1);
+    expect(dupes(ranked.map((m) => m.label))).toEqual([]);
   });
 });

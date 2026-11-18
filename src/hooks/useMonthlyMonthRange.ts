@@ -9,6 +9,7 @@ import {
   type MonthOption,
 } from "@/utils/monthRange";
 import { resolvedEndMonth } from "@/utils/padTrailing";
+import type { BarOrder } from "@/utils/barOrder";
 
 // Shared state + URL sync for the monthly time-window picker. Pages call this
 // hook to get the picker props plus a `slice` helper, and render
@@ -43,6 +44,10 @@ export interface MonthlyMonthRange {
   /** Keeps the last `months` rows up to `end`, or all of them up to it when
    *  "all" or the dataset is shorter than the window. */
   slice: <T>(rows: T[]) => T[];
+  /** The rows a chart is drawn from: the window in date order; ranked
+   *  (utils/barOrder), every row up to `end`, of which the ranking keeps as
+   *  many as the window has. */
+  view: <T>(rows: T[], order: BarOrder) => T[];
 }
 
 /**
@@ -95,7 +100,8 @@ export function useMonthlyMonthRange(
     setParam("end-month", month);
   };
   const slice = <T,>(rows: T[]): T[] => sliceMonthWindow(rows, hidden ? "all" : months, end);
-  return { months, monthOptions, setMonths, end, setEnd, liveMonth, endMonth: end || liveMonth, hidden, slice };
+  const view = <T,>(rows: T[], order: BarOrder): T[] => sliceMonthWindow(rows, order === "date" && !hidden ? months : "all", end);
+  return { months, monthOptions, setMonths, end, setEnd, liveMonth, endMonth: end || liveMonth, hidden, slice, view };
 }
 
 // Re-export the default so callers that need it don't have to reach into

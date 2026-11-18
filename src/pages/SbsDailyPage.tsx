@@ -16,10 +16,13 @@ import { useWeatherStripPref } from "@/hooks/useWeatherStripPref";
 import { DayRangeSelect } from "@/components/DayRangeSelect";
 import { DAY_OPTIONS, type DayOption, windowStartDate, parseDaysParam, clampDays, WINDOW_FLOOR, filterDailyRows, weekdayPredicate } from "@/utils/dayRange";
 import { fillDailyRange, resolvedEndDate } from "@/utils/padTrailing";
-import { buildMetrics, unpairedLabel } from "@/utils/metrics";
+import { buildMetrics, SECOND_HALVES, unpairedLabel, withSecondHalves } from "@/utils/metrics";
 import { chartAnchor } from "@/utils/chartAnchor";
 import type { DailyRow, DailyDataPoint, GlobalStats, StatKey, Metric, EodEstimate } from "@/types";
 import { siteTitle } from "@/types";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
+import { rankingOf, rankQueryDays, windowDayCount } from "@/utils/barOrder";
 
 
 function parseWeekdays(raw: string | null): number[] {
@@ -96,14 +99,23 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
     }
   }, [loadState, queryGlobalStats, queryEodProjection, refreshKey]);
 
+  // Ranked, every day from the first up to the window's end (utils/barOrder).
+  const [order, setOrder] = useBarOrder();
+  const queryDays = rankQueryDays(order, days, resolvedEndDate(selectedDate), dataWindow.minDate);
+
   useEffect(() => {
     if (loadState === "ready") {
-      setRows(queryDaily(days, selectedDate || undefined));
+      setRows(queryDaily(queryDays, selectedDate || undefined));
       setHasData(true);
     }
-  }, [loadState, days, selectedDate, queryDaily, refreshKey]);
+  }, [loadState, queryDays, selectedDate, queryDaily, refreshKey]);
 
-  const metrics = useMemo<Metric[]>(() => buildMetrics({ paired: true }), []);
+  // Ranked, each pair is followed by its second half's own chart.
+  const ranks = order !== "date";
+  const metrics = useMemo<Metric[]>(() => {
+    const paired = buildMetrics({ paired: true });
+    return ranks ? withSecondHalves(paired) : paired;
+  }, [ranks]);
 
   const todayDow = new Date(
     new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00"
@@ -121,12 +133,14 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
   // "live" sits at today, so there is always a day behind it.
   const canGoPrev = selectedDate === "" || selectedDate > WINDOW_FLOOR;
 
-  const filteredRows = useMemo(() => filterDailyRows(rows, { selectedDate, days, weekdays: selectedWeekdays }), [rows, selectedWeekdays, selectedDate, days]);
+  const filteredRows = useMemo(() => filterDailyRows(rows, { selectedDate, days: queryDays, weekdays: selectedWeekdays }), [rows, selectedWeekdays, selectedDate, queryDays]);
 
   const endDate = resolvedEndDate(selectedDate);
   const startDate = windowStartDate(endDate, days);
   // Weekday filter is intentional — don't pad dates that the user filtered out.
   const keepDate = weekdayPredicate(selectedWeekdays);
+  const dataStart = windowStartDate(endDate, queryDays);
+  const ranking = rankingOf(order, windowDayCount(endDate, days, keepDate));
   const makeDataset = (key: StatKey): DailyDataPoint[] =>
     fillDailyRange(
       filteredRows.map((d) => ({
@@ -134,7 +148,7 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
         value: typeof d[key] === "number" ? (d[key] as number) : null,
         is_today: d.is_today,
       })),
-      startDate,
+      dataStart,
       endDate,
       { keepDate },
     );
@@ -152,6 +166,7 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
       controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} />
         <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} canGoPrev={canGoPrev} />
+        <BarOrderSelect value={order} onChange={setOrder} />
         <MoreControls>
           <WindowStartNav value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
           <WeekdayMultiSelect
@@ -163,6 +178,7 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
           <WeatherToggle checked={showWeather} onChange={setShowWeather} />
         </MoreControls>
       </>}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}
@@ -188,6 +204,7 @@ export function SbsDailyPage({ refreshKey }: DailyPageProps) {
           eod={eod[m.key] ?? null}
           eod2={m.pairedKey ? (eod[m.pairedKey] ?? null) : undefined}
           drillAnchor={m.pairedKey ? chartAnchor(unpairedLabel(m.key) ?? m.label) : undefined}
+          secondary={ranks && SECOND_HALVES.has(m.key)}
         />
       ))]}
     />

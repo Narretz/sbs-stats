@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { axesOf, axisSeries, directionOptions, parseDirectionsParam, projectCoverageMonth } from "@/utils/gsuaDirections";
+import { axesOf, axisSeries, directionOptions, parseDirectionsParam, projectCoverageMonth, sinceFirstReport } from "@/utils/gsuaDirections";
 import type { GsuaDirectionCoverageRow } from "@/types";
 
 const row = (date: string, total: number | null, byDirection: Record<string, number>): GsuaDirectionCoverageRow =>
@@ -32,6 +32,16 @@ describe("axisSeries", () => {
       row("2026-09-03", null, {}),
     ];
     expect(axisSeries(rows, "Pokrovsk").map((p) => p.value)).toEqual([40.5, 0, null]);
+  });
+});
+
+describe("sinceFirstReport", () => {
+  const pts = (...values: (number | null)[]) => values.map((value, i) => ({ date: `2026-09-0${i + 1}`, value, is_today: false }));
+  it("leaves no figure before the first day that named the direction, and the 0s after it", () => {
+    expect(sinceFirstReport(pts(0, null, 0, 5, 0, null)).map((p) => p.value)).toEqual([null, null, null, 5, 0, null]);
+  });
+  it("leaves none at all for a direction never named", () => {
+    expect(sinceFirstReport(pts(0, 0)).map((p) => p.value)).toEqual([null, null]);
   });
 });
 

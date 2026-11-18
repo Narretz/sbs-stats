@@ -16,6 +16,8 @@ import { chartAnchor } from "@/utils/chartAnchor";
 import { AREA_FILL_OPACITY, chartColors } from "@/chartColors";
 import { breakdownToRows, type SheetSource, type TooltipDescriptor, type TooltipTableRow } from "@/components/TooltipTable";
 import { formatDay as formatDate } from "@/utils/dateFormat";
+import { useRanking } from "@/hooks/useRanking";
+import { DailyRankedChart } from "@/components/DailyRankedChart";
 
 interface Props {
   title: string;
@@ -63,6 +65,8 @@ interface Props {
   // More about a date, below the tooltip's table and notes (the regions an RU
   // MoD day's reports named).
   detailByDate?: Map<string, ReactNode>;
+  /** Ranked only (see DailyRankedChart): drawn in the second series' red. */
+  secondary?: boolean;
 }
 
 function CustomDot(props: DotProps & {
@@ -282,7 +286,28 @@ function describePaired(ctx: DescribeCtx, d: PairedRow): TooltipDescriptor {
 
 // Elevate the hovered card so a tooltip overflowing its bottom edge isn't
 // painted over by the next chart card (a later sibling in the grid).
-export function DailyLineChart({
+// On a ranking page (hooks/useRanking) the series is ranked instead, as bars:
+// a line through days out of date order joins nothing.
+export function DailyLineChart(props: Props) {
+  const ranking = useRanking();
+  if (!ranking) return <DatedLineChart {...props} />;
+  const { data2, primaryLabel, label2 } = props;
+  return (
+    <DailyRankedChart
+      title={props.title} data={props.data}
+      // A diff's label names its band, not the day's figure the pair ranks by.
+      label={props.primaryIsDiff ? "Total" : primaryLabel ?? (data2 ? "Hit" : undefined)}
+      globalMax={props.globalMax} globalMedian={props.globalMedian} globalTotal={props.globalTotal}
+      data2={data2} label2={data2 ? (label2 ?? "Destroyed") : undefined}
+      globalMax2={props.globalMax2} globalMedian2={props.globalMedian2} globalTotal2={props.globalTotal2}
+      subsetLabel={props.pairMode === "sum" ? undefined : props.subsetLabel}
+      breakdownByDate={props.breakdownByDate} sourcesByDate={props.sourcesByDate} detailByDate={props.detailByDate}
+      secondary={props.secondary}
+    />
+  );
+}
+
+function DatedLineChart({
   title, data, globalMax, globalMedian, globalTotal, wfull,
   data2, primaryLabel, label2, globalMax2, globalMedian2, globalTotal2, pairMode = "subset",
   eod, eod2, breakdownByDate, primaryIsDiff = false, subsetLabel, drillAnchor, sourcesByDate, detailByDate,

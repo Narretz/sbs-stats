@@ -68,6 +68,15 @@ export function axisSeries(
   }));
 }
 
+// A ranking's view of a direction (utils/barOrder): no figure before the first
+// report that named it. Its 0 there is a direction not yet on the map, not a
+// quiet day, and lowest first would be nothing but those.
+export function sinceFirstReport(points: DailyDataPoint[]): DailyDataPoint[] {
+  const first = points.findIndex((p) => (p.value ?? 0) > 0);
+  if (first < 0) return points.map((p) => ({ ...p, value: null }));
+  return points.map((p, i) => (i < first ? { ...p, value: null } : p));
+}
+
 // The composition stack's end-of-month projection, from the month's DAILY
 // coverage rows: every direction, the total and the unattributed gap each
 // extrapolated by projectFromDays — the same rule as the page's metric charts,

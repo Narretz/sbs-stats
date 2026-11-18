@@ -18,6 +18,8 @@ import type { ModelBreakdownEntry } from "@/types";
 import { projectionBasis } from "@/utils/monthProjection";
 import { getKyivDateString } from "@/hooks/sqlLoader";
 import { partialMonth, periodChange, previousOf } from "@/utils/periodChange";
+import { useRankedBars } from "@/hooks/useRanking";
+import { livePeriod, rankedAxisProps } from "@/utils/barOrder";
 
 export interface MonthlyTargetPairDataPoint {
   date: string;
@@ -168,7 +170,7 @@ function describeMonth({
 
 export function MonthlyTargetPairChart({
   title,
-  data,
+  data: history,
   wfull = false,
   primaryLabel = "Hit",
   secondaryLabel = "Destroyed",
@@ -183,10 +185,17 @@ export function MonthlyTargetPairChart({
   const anchor = chartAnchor(title);
   const { scope } = useStatScope();
   const c = chartColors(t);
+  // On a ranking page (hooks/useRanking) the bars are `history` ranked by the
+  // primary series, the second drawn beside it; "vs prev" still reads the
+  // month before from `history`.
+  const today = getKyivDateString();
+  const ranked = useRankedBars(history, (d) => d.hit_projected != null || livePeriod(today)(d.date), (d) => d.hit_value);
+  const data = ranked?.bars ?? history;
   const lastIdx = data.length - 1;
   // The month in progress: the last bar, or — for a source that lags into a
   // new month (monthProjection reportingMonth) — the one with the projection.
-  const inProgress = (d: MonthlyTargetPairDataPoint, i: number) => i === lastIdx || d.hit_projected != null;
+  // A ranking leaves it out, so its last bar is just the last-ranked one.
+  const inProgress = (d: MonthlyTargetPairDataPoint, i: number) => (!ranked && i === lastIdx) || d.hit_projected != null;
 
   const win = scope === "window";
   const primaryWin = useMemo(() => maxMedian(data.map((d) => d.hit_value)), [data]);
@@ -217,9 +226,12 @@ export function MonthlyTargetPairChart({
     title,
     data,
     xOf: (d) => d.date,
-    describe: (d) => describeMonth({
-      d, prev: previousOf(data, d), t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth, subsetLabel,
-    }),
+    describe: (d) => {
+      const desc = describeMonth({
+        d, prev: previousOf(history, d), t, c, primaryLabel, secondaryLabel, showRatio, breakdownByMonth, subsetLabel,
+      });
+      return ranked ? { ...desc, header: <>#{data.indexOf(d) + 1} · {desc.header}</> } : desc;
+    },
     periodOf: (d) => d.date.slice(0, 7),
     drillAnchor,
   });
@@ -230,7 +242,7 @@ export function MonthlyTargetPairChart({
       border: `1px solid ${t.surfaceBorder}`,
       borderRadius: 8,
       padding: "18px 16px 12px",
-      gridColumn: wfull ? "1 / -1" : undefined,
+      gridColumn: wfull || ranked ? "1 / -1" : undefined,
       animation: "fadeIn 0.3s ease both",
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
     }}>
@@ -249,6 +261,7 @@ export function MonthlyTargetPairChart({
             ⌀ {subsetLabel!.toUpperCase()} {avgRate.toFixed(1)}%
           </span>
         )}
+        {ranked && ranked.excluded > 0 && <span style={{ color: t.textMuted }}>excl. month in progress</span>}
       </div>
       <LazyChartArea height={220}>
         <BarChart responsive style={{ width: "100%", height: 220 }}
@@ -264,6 +277,7 @@ export function MonthlyTargetPairChart({
             tickLine={false}
             axisLine={false}
             tickFormatter={(v: string) => v.slice(0, 7).replace("-", "/")}
+            {...(ranked ? rankedAxisProps(data.length) : {})}
           />
           <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
           <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}

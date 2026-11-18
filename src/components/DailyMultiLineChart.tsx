@@ -17,6 +17,8 @@ import { formatWeekRange } from "@/utils/weekRange";
 import { formatDay, formatMonth } from "@/utils/dateFormat";
 import { getKyivDateString } from "@/hooks/sqlLoader";
 import { partialMonth, periodChange, previousOf } from "@/utils/periodChange";
+import { useRanking } from "@/hooks/useRanking";
+import { DailyRankedChart } from "@/components/DailyRankedChart";
 
 export interface LineSeries {
   key: string;
@@ -64,6 +66,14 @@ interface Props {
   sourcesByDate?: Map<string, SheetSource[]>;
   // More about a date (daily grain), below the tooltip's table and notes.
   detailByDate?: Map<string, ReactNode>;
+  // On a ranking page (hooks/useRanking), one ranked chart per series — each
+  // titled `rankedTitles[key]`, or "<title> · <label>" — in place of this one.
+  // Opt-in: a dozen directions would be a dozen charts, and a series' per-
+  // series detail would have to come apart from the shared `detailByDate`.
+  rankable?: boolean;
+  rankedTitles?: Record<string, string>;
+  // Each series' own detail in a ranked chart, keyed by series.
+  rankedDetail?: Record<string, Map<string, ReactNode>>;
 }
 
 // Cap so a short window (3 months, 4 weeks) doesn't draw slabs.
@@ -163,7 +173,23 @@ function describeMulti({
   };
 }
 
-export function DailyMultiLineChart({
+export function DailyMultiLineChart(props: Props) {
+  const ranking = useRanking();
+  if (!ranking || !props.rankable || (props.granularity ?? "daily") !== "daily") return <DatedMultiLineChart {...props} />;
+  return <>
+    {props.series.map((s) => (
+      <DailyRankedChart
+        key={s.key}
+        title={props.rankedTitles?.[s.key] ?? `${props.title} · ${s.label}`}
+        data={s.data}
+        globalMax={s.globalMax} globalMedian={s.globalMedian} globalTotal={s.globalTotal}
+        sourcesByDate={props.sourcesByDate} detailByDate={props.rankedDetail?.[s.key] ?? props.detailByDate}
+      />
+    ))}
+  </>;
+}
+
+function DatedMultiLineChart({
   title, series, wfull = false, yMode = "linear", cumulative = false, granularity = "daily", style = "line", sourcesByDate, detailByDate,
 }: Props) {
   const { theme: t } = useTheme();

@@ -9,9 +9,15 @@ import { StripGrid } from "@/components/WeatherStripGrid";
 import { asOfText, FCST_AXIS, LEGEND, STRIP_ANCHOR, STRIP_TITLE, stripStatus, useDescriptorColors } from "@/components/weatherStripShared";
 import { buildDailyStrip, dateAxisLabels, datesBetween, windowSevereDays, dayLevel, forecastDayAfter } from "@/utils/weatherStrip";
 import { dayCellDescriptor, dayColumnDescriptor, weekdayDate } from "@/utils/weatherDescriptors";
+import { useRanking } from "@/hooks/useRanking";
 
 /** The daily pages' strip: the window's days. Mount only while switched on. */
-export function WeatherStripDaily({ startDate, endDate }: { startDate: string; endDate: string }) {
+// Lined up with a date axis, so not shown over a ranked one (hooks/useRanking).
+export function WeatherStripDaily(props: { startDate: string; endDate: string }) {
+  return useRanking() ? null : <DatedWeatherStrip {...props} />;
+}
+
+function DatedWeatherStrip({ startDate, endDate }: { startDate: string; endDate: string }) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
   const colors = useDescriptorColors();

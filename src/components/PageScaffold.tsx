@@ -5,6 +5,8 @@ import { useChartHashScroll } from "@/hooks/useChartHashScroll";
 import { ChartGrid, LoadingScreen, ErrorScreen } from "@/components/Layout";
 import { FONTS } from "@/theme";
 import type { LoadState } from "@/types";
+import { RankingContext } from "@/hooks/useRanking";
+import type { Ranking } from "@/utils/barOrder";
 
 interface PageScaffoldProps {
   // Header
@@ -37,6 +39,10 @@ interface PageScaffoldProps {
   // pages with several grids or bespoke layout).
   gridChildren?: ReactNode;
   children?: ReactNode;
+
+  // The page's ranking (utils/barOrder), handed to its charts — null or
+  // omitted in date order.
+  ranking?: Ranking | null;
 }
 
 const HEADER_STACK: React.CSSProperties = { display: "flex", gap: 8, flexDirection: "column", marginBottom: 16 };
@@ -51,7 +57,7 @@ const CONTROLS_ROW: React.CSSProperties = { display: "flex", alignItems: "center
 export function PageScaffold({
   title, description, descriptionStyle, dataWindow, headerExtra, headerVariant = "stack",
   controls, filters, loadState, error, hasData, loadingMessage,
-  gridChildren, children,
+  gridChildren, children, ranking = null,
 }: PageScaffoldProps) {
   const { theme: t } = useTheme();
   useDocumentTitle(title);
@@ -91,8 +97,10 @@ export function PageScaffold({
 
       {loading && <LoadingScreen message={loadingMessage} />}
       {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
-      {ready && gridChildren !== undefined && <ChartGrid>{gridChildren}</ChartGrid>}
-      {ready && children}
+      <RankingContext.Provider value={ranking}>
+        {ready && gridChildren !== undefined && <ChartGrid>{gridChildren}</ChartGrid>}
+        {ready && children}
+      </RankingContext.Provider>
     </div>
   );
 }

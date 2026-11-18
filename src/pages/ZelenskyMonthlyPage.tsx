@@ -16,6 +16,9 @@ import {
   siteTitle,
 } from "@/types";
 import { monthlySources, monthsBetween, toMonthlyDataset } from "@/utils/zelenskyWeekly";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
+import { rankingOf } from "@/utils/barOrder";
 
 interface Props {
   refreshKey?: number;
@@ -42,9 +45,11 @@ export function ZelenskyMonthlyPage({ refreshKey }: Props) {
   const allMonths = useMemo(() => (first && last ? monthsBetween(first, last) : []), [first, last]);
 
   const yr = useMonthlyMonthRange({ count: allMonths.length, first: allMonths[0] ?? "" });
+  const [order, setOrder] = useBarOrder();
+  const ranking = rankingOf(order, extendMonthsTo(yr.slice(allMonths), yr.endMonth).length);
   // Up to the window's end, the months since the last tally included: a month
   // with no weekly post yet shows as such rather than being left off.
-  const months = useMemo(() => extendMonthsTo(yr.slice(allMonths), yr.endMonth), [allMonths, yr]);
+  const months = useMemo(() => extendMonthsTo(yr.view(allMonths, order), yr.endMonth), [allMonths, yr, order]);
 
   const sources = useMemo(() => monthlySources(rows), [rows]);
   const allStats = useMemo(
@@ -79,11 +84,13 @@ export function ZelenskyMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allMonths[0] ?? ""} />
+          <BarOrderSelect value={order} onChange={setOrder} />
           <MoreControls>
             <StatScopeToggle />
           </MoreControls>
         </>
       )}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}

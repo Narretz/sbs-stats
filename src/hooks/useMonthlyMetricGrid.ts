@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { LoadState, Stat } from "@/types";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { maxMedian } from "@/utils/windowStats";
+import { rankingOf, type BarOrder, type Ranking } from "@/utils/barOrder";
 
 // Shared monthly-page data plumbing. Nearly every monthly dataset page repeats
 // the same steps: load all rows once the DB is ready, expose a `hasData` flag,
@@ -16,19 +17,23 @@ import { maxMedian } from "@/utils/windowStats";
 // reference (a module-level const) so `allStats` doesn't recompute each render.
 //
 export function useMonthlyMetricGrid<Row extends { date: string }, K extends string = never>({
-  loadState, queryMonthly, refreshKey, keys, tz,
+  loadState, queryMonthly, refreshKey, keys, tz, order = "date",
 }: {
   loadState: LoadState;
   queryMonthly: () => Row[];
   refreshKey?: number;
   keys?: readonly K[];
   tz?: string; // see useMonthlyMonthRange
+  /** Ranked (utils/barOrder), `rows` is every month up to the window's end
+   *  and `ranking` keeps as many as the window has. */
+  order?: BarOrder;
 }): {
   allRows: Row[];
   rows: Row[];
   hasData: boolean;
   yr: ReturnType<typeof useMonthlyMonthRange>;
   allStats: Record<K, Stat>;
+  ranking: Ranking | null;
 } {
   const [allRows, setAllRows] = useState<Row[]>([]);
   const [hasData, setHasData] = useState(false);
@@ -41,7 +46,8 @@ export function useMonthlyMetricGrid<Row extends { date: string }, K extends str
   }, [loadState, queryMonthly, refreshKey]);
 
   const yr = useMonthlyMonthRange({ count: allRows.length, first: allRows[0]?.date ?? "" }, undefined, tz);
-  const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
+  const rows = useMemo(() => yr.view(allRows, order), [allRows, yr, order]);
+  const ranking = rankingOf(order, yr.slice(allRows).length);
 
   const allStats = useMemo(() => {
     const out = {} as Record<K, Stat>;
@@ -56,5 +62,5 @@ export function useMonthlyMetricGrid<Row extends { date: string }, K extends str
     return out;
   }, [allRows, keys]);
 
-  return { allRows, rows, hasData, yr, allStats };
+  return { allRows, rows, hasData, yr, allStats, ranking };
 }

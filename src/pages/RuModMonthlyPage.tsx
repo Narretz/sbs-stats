@@ -13,6 +13,8 @@ import { chartAnchor } from "@/utils/chartAnchor";
 import { RU_MOD_DAILY_TOTAL_TITLE, RU_MOD_DAILY_WINDOWS_TITLE, siteTitle } from "@/types";
 import { monthRegionList, type RegionMonth } from "@/utils/ruModRegions";
 import { RuModRegionList } from "@/components/RuModRegionList";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
 
 interface Props {
   refreshKey?: number;
@@ -24,8 +26,9 @@ type MetricKey = (typeof RU_MOD_KEYS)[number];
 export function RuModMonthlyPage({ refreshKey }: Props) {
   const { loadState, error, queryMonthly, queryMonthlyRegions, queryDataWindow } = useRuModDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
-  const { allRows, rows, hasData, yr, allStats } = useMonthlyMetricGrid({
-    loadState, queryMonthly, refreshKey, keys: RU_MOD_KEYS, tz: "Europe/Moscow",
+  const [order, setOrder] = useBarOrder();
+  const { allRows, rows, hasData, yr, allStats, ranking } = useMonthlyMetricGrid({
+    loadState, queryMonthly, refreshKey, keys: RU_MOD_KEYS, tz: "Europe/Moscow", order,
   });
 
   const [regions, setRegions] = useState<Map<string, Record<MetricKey, RegionMonth[]>>>(new Map());
@@ -84,11 +87,13 @@ export function RuModMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
+          <BarOrderSelect value={order} onChange={setOrder} />
           <MoreControls>
             <StatScopeToggle />
           </MoreControls>
         </>
       )}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}

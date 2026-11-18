@@ -15,6 +15,8 @@ import {
   type MonthlyDataPoint,
   siteTitle,
 } from "@/types";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
 
 interface Props {
   refreshKey?: number;
@@ -23,8 +25,9 @@ interface Props {
 export function UaLossesMonthlyPage({ refreshKey }: Props) {
   const { loadState, error, queryMonthly, queryDataWindow } = useUaLossesDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
-  const { allRows, rows, hasData, yr, allStats } = useMonthlyMetricGrid({
-    loadState, queryMonthly, refreshKey, keys: UA_LOSSES_METRIC_KEYS,
+  const [order, setOrder] = useBarOrder();
+  const { allRows, rows, hasData, yr, allStats, ranking } = useMonthlyMetricGrid({
+    loadState, queryMonthly, refreshKey, keys: UA_LOSSES_METRIC_KEYS, order,
   });
 
   const endMonth = yr.endMonth;
@@ -58,11 +61,13 @@ export function UaLossesMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
+          <BarOrderSelect value={order} onChange={setOrder} />
           <MoreControls>
             <StatScopeToggle />
           </MoreControls>
         </>
       )}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}

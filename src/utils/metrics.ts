@@ -81,3 +81,22 @@ export function targetPairLabel(id: (typeof TARGET_IDS)[number]): string {
 export function unpairedLabel(key: Metric["key"]): string | undefined {
   return buildMetrics().find((m) => m.key === key)?.label;
 }
+
+// The second half of each pair: destroyed, killed. A pair ranks by its hit,
+// so the destroyed bars beside it are in no order of their own; a ranking
+// page adds the half's own chart after the pair, drawn in its red.
+export const SECOND_HALVES: ReadonlySet<Metric["key"]> = new Set(
+  buildMetrics({ paired: true }).flatMap((m) => (m.pairedKey ? [m.pairedKey] : [])),
+);
+
+// The daily paired list as a ranking page draws it: each pair followed by its
+// second half's own chart, titled as the hourly page's is — unless the list
+// already has one (personnel killed).
+export function withSecondHalves(metrics: Metric[]): Metric[] {
+  const own = new Set(metrics.filter((m) => !m.pairedKey).map((m) => m.key));
+  const unpaired = buildMetrics();
+  return metrics.flatMap((m) => {
+    const half = m.pairedKey && !own.has(m.pairedKey) ? unpaired.find((u) => u.key === m.pairedKey) : undefined;
+    return half ? [m, half] : [m];
+  });
+}

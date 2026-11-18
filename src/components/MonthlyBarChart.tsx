@@ -13,6 +13,8 @@ import { monthCoverage, projectionBasis } from "@/utils/monthProjection";
 import { monthHeader } from "@/components/monthHeader";
 import { getKyivDateString } from "@/hooks/sqlLoader";
 import { partialMonth, periodChange, previousOf } from "@/utils/periodChange";
+import { useRankedBars } from "@/hooks/useRanking";
+import { livePeriod, rankedAxisProps } from "@/utils/barOrder";
 
 const monthKey = (date: string) => date.slice(0, 7);
 
@@ -65,6 +67,9 @@ interface Props {
    *  titles this chart differently. Defaults to this chart's own anchor; ""
    *  opens the daily page at the top, for a chart it doesn't have. */
   drillAnchor?: string;
+  /** Drawn in the second series' red: the destroyed half of a pair, charted
+   *  on its own on a ranking page. */
+  secondary?: boolean;
 }
 
 // Cap bar width so a chart with few data points (e.g. SBU Alfa's 3 months)
@@ -73,21 +78,30 @@ interface Props {
 const MAX_BAR_SIZE = 70;
 
 export function MonthlyBarChart({
-  title, data, wfull, breakdownByMonth,
+  title, data: history, wfull, breakdownByMonth,
   globalMax, globalMedian, globalTotal, subsetLabel, formatTick, xTicks, formatHeader, formatFooter, explainGaps, sourcesByDate, sourceKey = monthKey,
-  drillAnchor, detailByDate,
+  drillAnchor, detailByDate, secondary,
 }: Props) {
   const { theme: t } = useTheme();
   const { scope } = useStatScope();
   const c = chartColors(t);
+  const today = getKyivDateString();
+  // On a ranking page (hooks/useRanking) the bars are `history` ranked, and
+  // "vs prev" still reads the month before from `history`.
+  const ranked = useRankedBars(history, (d) => d.projected != null || livePeriod(today)(d.date));
+  const data = ranked?.bars ?? history;
   const lastIdx = data.length - 1;
   // The month in progress: the last bar, or — for a source that lags into a
   // new month (monthProjection reportingMonth) — the one with the projection.
-  const inProgress = (d: MonthlyDataPoint, i: number) => i === lastIdx || d.projected != null;
+  // A ranking leaves the month in progress out, so its last bar is just the
+  // lowest- (or highest-) ranked one.
+  const inProgress = (d: MonthlyDataPoint, i: number) => (!ranked && i === lastIdx) || d.projected != null;
 
   // Projected segment (current month's forecast) uses the alpha-suffixed
   // current-bar color — see chartColors.ts.
-  const projectedFill = c.barCurrentProjected;
+  const barFill = secondary ? c.destroyed : c.barDefault;
+  const currentFill = secondary ? c.destroyedCurrent : c.barCurrent;
+  const projectedFill = secondary ? c.destroyedProjected : c.barCurrentProjected;
 
   // Mirror DailyLineChart: "window" scope reads MAX/MED/TOTAL off the visible
   // data; "all" uses the whole-dataset values passed in as props (falls back
@@ -98,7 +112,6 @@ export function MonthlyBarChart({
   const median = win ? windowStats.median : (globalMedian ?? windowStats.median);
   const total = win ? windowStats.total : (globalTotal ?? windowStats.total);
 
-  const today = getKyivDateString();
   // A source summed from days says how many of the month's it covers — the
   // current month's included, projected or not. One whose month is its own
   // figure (SBS) names its projection's basis.
@@ -121,12 +134,13 @@ export function MonthlyBarChart({
 
   const describe = (d: MonthlyDataPoint): TooltipDescriptor => {
     const entries = breakdownByMonth?.get(d.date.slice(0, 7)) ?? [];
-    const prev = previousOf(data, d);
+    const prev = previousOf(history, d);
     // How many days the figure covers — see basisOf.
-    const header = monthHeader(formatHeader ? formatHeader(d) : d.date, basisOf(d));
+    const label = formatHeader ? formatHeader(d) : d.date;
+    const header = monthHeader(ranked ? <>#{data.indexOf(d) + 1} · {label}</> : label, basisOf(d));
     const rows: TooltipTableRow[] = [
       {
-        label: "Actual", color: c.barDefault, value: d.value ?? null,
+        label: "Actual", color: barFill, value: d.value ?? null,
         projected: d.projected ?? null, dailyMedian: d.daily_median ?? null,
         vsPrev: periodChange(figure(d), prev && figure(prev)),
       },
@@ -157,20 +171,23 @@ export function MonthlyBarChart({
       <span style={{ color: c.maxReference }}>▲ MAX {max.toLocaleString()}</span>
       <span style={{ color: c.medReference }}>~ MED {median.toLocaleString()}</span>
       <span style={{ color: t.textMuted }}>Σ TOTAL {total.toLocaleString()}</span>
+      {ranked && ranked.excluded > 0 && (
+        <span style={{ color: t.textMuted }}>excl. {data[0]?.date.length === 10 ? "week" : "month"} in progress</span>
+      )}
     </div>
   );
 
   return (
     <MonthlyChartCard
-      title={title} data={data} wfull={wfull} describe={describe} subheader={statsHeader}
-      tickFormatter={formatTick} ticks={xTicks} formatLabel={formatHeader} showEmptyWrapper={explainEmpty}
-      drillAnchor={drillAnchor}
+      title={title} data={data} wfull={wfull || !!ranked} describe={describe} subheader={statsHeader}
+      tickFormatter={ranked && data[0]?.date.length === 10 ? (date) => date : formatTick} ticks={ranked ? undefined : xTicks} formatLabel={formatHeader} showEmptyWrapper={explainEmpty}
+      drillAnchor={drillAnchor} axis={ranked ? rankedAxisProps(data.length) : undefined}
     >
       <ReferenceLine y={median} stroke={c.medReference} strokeDasharray="4 4" strokeOpacity={0.5}
         label={{ value: "MED", position: "insideTopRight", fontSize: 9, fill: c.medReference, fontFamily: FONTS.mono }} />
       <Bar dataKey="value" stackId="a" name="Actual" maxBarSize={MAX_BAR_SIZE}
         shape={styledBar<MonthlyDataPoint>((d, i) => ({
-          fill: inProgress(d, i) ? c.barCurrent : c.barDefault, ...noteOutline(d.note, c.noteText),
+          fill: inProgress(d, i) ? currentFill : barFill, ...noteOutline(d.note, c.noteText),
         }))} />
       <Bar dataKey="gap" stackId="a" name="Projected" maxBarSize={MAX_BAR_SIZE}
         shape={styledBar<MonthlyDataPoint>((d, i) => ({ fill: inProgress(d, i) ? projectedFill : "transparent" }))} />

@@ -25,6 +25,9 @@ import {
   type UaLossesRuModMetricKey,
   siteTitle,
 } from "@/types";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
+import { rankingOf, rankQueryDays, windowDayCount } from "@/utils/barOrder";
 
 
 function parseWeekdays(raw: string | null): number[] {
@@ -100,12 +103,16 @@ export function UaLossesRuModDailyPage({ refreshKey }: Props) {
     if (loadState === "ready") setGlobalStats(queryGlobalStats());
   }, [loadState, queryGlobalStats, refreshKey]);
 
+  // Ranked, every day from the first up to the window's end (utils/barOrder).
+  const [order, setOrder] = useBarOrder();
+  const queryDays = rankQueryDays(order, days, resolvedEndDate(selectedDate), dataWindow.minDate);
+
   useEffect(() => {
     if (loadState === "ready") {
-      setRows(queryDaily(days, selectedDate || undefined));
+      setRows(queryDaily(queryDays, selectedDate || undefined));
       setHasData(true);
     }
-  }, [loadState, days, selectedDate, queryDaily, refreshKey]);
+  }, [loadState, queryDays, selectedDate, queryDaily, refreshKey]);
 
   // The MoD's day is Moscow's.
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" }) + "T12:00:00").getDay();
@@ -121,12 +128,14 @@ export function UaLossesRuModDailyPage({ refreshKey }: Props) {
   // "live" sits at today, so there is always a day behind it.
   const canGoPrev = selectedDate === "" || selectedDate > WINDOW_FLOOR;
 
-  const filteredRows = useMemo(() => filterDailyRows(rows, { selectedDate, days, weekdays: selectedWeekdays }), [rows, selectedWeekdays, selectedDate, days]);
+  const filteredRows = useMemo(() => filterDailyRows(rows, { selectedDate, days: queryDays, weekdays: selectedWeekdays }), [rows, selectedWeekdays, selectedDate, queryDays]);
 
   const endDate = resolvedEndDate(selectedDate);
   const startDate = windowStartDate(endDate, days);
   // Weekday filter is intentional — don't pad dates that the user filtered out.
   const keepDate = weekdayPredicate(selectedWeekdays);
+  const dataStart = windowStartDate(endDate, queryDays);
+  const ranking = rankingOf(order, windowDayCount(endDate, days, keepDate));
   const makeDataset = (key: UaLossesRuModMetricKey) =>
     fillDailyRange(
       filteredRows.map((d) => ({
@@ -136,7 +145,7 @@ export function UaLossesRuModDailyPage({ refreshKey }: Props) {
         // A correction to this metric, or a note on the whole day.
         note: [d.notes?.[key], d.notes?.["*"]].filter(Boolean).join(" ") || undefined,
       })),
-      startDate,
+      dataStart,
       endDate,
       { keepDate },
     );
@@ -157,6 +166,7 @@ export function UaLossesRuModDailyPage({ refreshKey }: Props) {
       controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} />
         <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} canGoPrev={canGoPrev} />
+        <BarOrderSelect value={order} onChange={setOrder} />
         <MoreControls>
           <WindowStartNav value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
           <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
@@ -164,6 +174,7 @@ export function UaLossesRuModDailyPage({ refreshKey }: Props) {
           <WeatherToggle checked={showWeather} onChange={setShowWeather} />
         </MoreControls>
       </>}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}

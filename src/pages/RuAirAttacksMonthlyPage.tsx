@@ -30,6 +30,9 @@ import {
 } from "@/types";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
+import { rankingOf } from "@/utils/barOrder";
 
 interface Props {
   refreshKey?: number;
@@ -61,13 +64,16 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
   }, [loadState, queryMonthly, queryMonthlyByModel, queryMonthlyBreakdownByCategory, queryMonthlyAggBreakdown, refreshKey]);
 
   // Slice to the last N*12 months (including the current/projected month at
-  // the tail). The query returns the full history sorted ascending.
-  const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
+  // the tail) — or, ranked, every month up to the end (utils/barOrder). The
+  // query returns the full history sorted ascending.
+  const [order, setOrder] = useBarOrder();
+  const rows = useMemo(() => yr.view(allRows, order), [allRows, yr, order]);
+  const ranking = rankingOf(order, yr.slice(allRows).length);
   const modelRows = useMemo(() => {
     const out: Record<string, RuAirAttacksModelMonthlyRow[]> = {};
-    for (const m of FEATURED_MODELS) out[m] = yr.slice(allModelRows[m] ?? []);
+    for (const m of FEATURED_MODELS) out[m] = yr.view(allModelRows[m] ?? [], order);
     return out;
-  }, [allModelRows, yr]);
+  }, [allModelRows, yr, order]);
 
   // Whole-dataset (cat | model) stats for the "all" stat scope. Computed off
   // the un-sliced rows so the labels don't shrink when the user narrows the
@@ -215,11 +221,13 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
+          <BarOrderSelect value={order} onChange={setOrder} />
           <MoreControls>
             <StatScopeToggle />
           </MoreControls>
         </>
       )}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}

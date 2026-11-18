@@ -23,6 +23,9 @@ import { chartColors } from "@/chartColors";
 import { regionList, type RegionMention } from "@/utils/ruModRegions";
 import { RuModRegionList } from "@/components/RuModRegionList";
 import { RU_MOD_DAILY_TOTAL_TITLE, RU_MOD_DAILY_WINDOWS_TITLE, siteTitle } from "@/types";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
+import { rankingOf, rankQueryDays, windowDayCount } from "@/utils/barOrder";
 
 
 function parseWeekdays(raw: string | null): number[] {
@@ -77,6 +80,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
     return { total: zero, night: zero, day: zero };
   });
   const [hasData, setHasData] = useState(false);
+  const [order, setOrder] = useBarOrder();
 
   const updateDays = (d: DayOption) => {
     const capped = clampDays(d, endDate);
@@ -101,14 +105,18 @@ export function RuModDailyPage({ refreshKey }: Props) {
     if (loadState === "ready") setGlobalStats(queryGlobalStats());
   }, [loadState, queryGlobalStats, refreshKey]);
 
+  // Ranked, every day from the first up to the window's end (utils/barOrder).
+  const endDate = resolvedEndDate(selectedDate, "Europe/Moscow");
+  const queryDays = rankQueryDays(order, days, endDate, dataWindow.minDate);
+
   useEffect(() => {
     if (loadState === "ready") {
-      setRows(queryDaily(days, selectedDate || undefined));
-      setSources(querySources(days, selectedDate || undefined));
-      setRegions(queryRegions(days, selectedDate || undefined));
+      setRows(queryDaily(queryDays, selectedDate || undefined));
+      setSources(querySources(queryDays, selectedDate || undefined));
+      setRegions(queryRegions(queryDays, selectedDate || undefined));
       setHasData(true);
     }
-  }, [loadState, days, selectedDate, queryDaily, querySources, queryRegions, refreshKey]);
+  }, [loadState, queryDays, selectedDate, queryDaily, querySources, queryRegions, refreshKey]);
 
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" }) + "T12:00:00").getDay();
   const maxSelectableDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
@@ -123,10 +131,10 @@ export function RuModDailyPage({ refreshKey }: Props) {
   // "live" sits at today, so there is always a day behind it.
   const canGoPrev = selectedDate === "" || selectedDate > WINDOW_FLOOR;
 
-  const filteredRows = useMemo(() => filterDailyRows(rows, { selectedDate, days, weekdays: selectedWeekdays }), [rows, selectedWeekdays, selectedDate, days]);
+  const filteredRows = useMemo(() => filterDailyRows(rows, { selectedDate, days: queryDays, weekdays: selectedWeekdays }), [rows, selectedWeekdays, selectedDate, queryDays]);
 
-  const endDate = resolvedEndDate(selectedDate, "Europe/Moscow");
   const startDate = windowStartDate(endDate, days);
+  const dataStart = windowStartDate(endDate, queryDays);
   // When a weekday filter is on, the chart deliberately drops other weekdays;
   // the fill must respect that so padding doesn't reintroduce them as gap rows.
   const keepDate = weekdayPredicate(selectedWeekdays);
@@ -139,18 +147,24 @@ export function RuModDailyPage({ refreshKey }: Props) {
     return note ?? undefined;
   };
   // The regions the day's reports named: all of them under the total, each
-  // window's under its own line.
-  const { totalRegions, windowRegions } = useMemo(() => {
+  // window's under its own line — or, ranked, under its own chart.
+  const { totalRegions, windowRegions, nightRegions, dayRegions } = useMemo(() => {
     const totalRegions = new Map<string, ReactNode>();
     const windowRegions = new Map<string, ReactNode>();
+    const nightRegions = new Map<string, ReactNode>();
+    const dayRegions = new Map<string, ReactNode>();
     for (const [date, { night, day }] of regions) {
       const all = regionList([...night, ...day]);
       if (all) totalRegions.set(date, <RuModRegionList list={all} />);
-      const windows = ([["Overnight", regionList(night)], ["Daytime", regionList(day)]] as const)
+      const nightList = regionList(night);
+      const dayList = regionList(day);
+      if (nightList) nightRegions.set(date, <RuModRegionList list={nightList} />);
+      if (dayList) dayRegions.set(date, <RuModRegionList list={dayList} />);
+      const windows = ([["Overnight", nightList], ["Daytime", dayList]] as const)
         .flatMap(([label, list]) => (list ? [<RuModRegionList key={label} label={label} list={list} />] : []));
       if (windows.length) windowRegions.set(date, <>{windows}</>);
     }
-    return { totalRegions, windowRegions };
+    return { totalRegions, windowRegions, nightRegions, dayRegions };
   }, [regions]);
   const makeDataset = (key: "total" | "night" | "day") =>
     fillDailyRange(
@@ -160,10 +174,12 @@ export function RuModDailyPage({ refreshKey }: Props) {
         is_today: d.is_today,
         note: caveatForKey(d, key),
       })),
-      startDate,
+      dataStart,
       endDate,
       { keepDate },
     );
+
+  const ranking = rankingOf(order, windowDayCount(endDate, days, keepDate));
 
   return (
     <PageScaffold
@@ -180,6 +196,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
       controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} />
         <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} canGoPrev={canGoPrev} />
+        <BarOrderSelect value={order} onChange={setOrder} />
         <MoreControls>
           <WindowStartNav value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
           <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
@@ -187,6 +204,7 @@ export function RuModDailyPage({ refreshKey }: Props) {
           <WeatherToggle checked={showWeather} onChange={setShowWeather} />
         </MoreControls>
       </>}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}
@@ -214,6 +232,9 @@ export function RuModDailyPage({ refreshKey }: Props) {
           wfull
           sourcesByDate={sources}
           detailByDate={windowRegions}
+          rankable
+          rankedTitles={{ night: "Overnight Reports", day: "Daytime Reports" }}
+          rankedDetail={{ night: nightRegions, day: dayRegions }}
         />
       </>}
     />

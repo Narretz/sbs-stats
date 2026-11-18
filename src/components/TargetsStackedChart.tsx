@@ -5,6 +5,8 @@ import { chartColors } from "@/chartColors";
 import { MonthlyChartCard } from "@/components/MonthlyChartCard";
 import { getKyivDateString } from "@/hooks/sqlLoader";
 import { partialMonth, periodChange, previousOf } from "@/utils/periodChange";
+import { useRankedBars } from "@/hooks/useRanking";
+import { livePeriod, rankedAxisProps } from "@/utils/barOrder";
 import type { SheetSource, TooltipDescriptor, TooltipTableRow } from "@/components/TooltipTable";
 
 // `total` is included so the tooltip can show it explicitly, even though
@@ -28,16 +30,21 @@ interface Props {
 // Same cap as MonthlyBarChart — keeps few-bar charts from rendering absurdly fat.
 const MAX_BAR_SIZE = 70;
 
-export function TargetsStackedChart({ title, data, wfull, sourcesByDate }: Props) {
+export function TargetsStackedChart({ title, data: history, wfull, sourcesByDate }: Props) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
-  const lastIdx = data.length - 1;
+  // On a ranking page (hooks/useRanking) the bars are `history` ranked by the
+  // total; "vs prev" still reads the month before from `history`.
+  const ranked = useRankedBars(history, (d) => livePeriod(getKyivDateString())(d.date), (d) => d.total);
+  const data = ranked?.bars ?? history;
+  // The month in progress — none in a ranking, which leaves it out.
+  const lastIdx = ranked ? -1 : data.length - 1;
 
   const describe = (d: TargetsStackPoint): TooltipDescriptor => {
     const totalN = d.total ?? 0;
     const pctOf = (v: number | null): number | null =>
       v != null && totalN > 0 ? (v / totalN) * 100 : null;
-    const prev = previousOf(data, d);
+    const prev = previousOf(history, d);
     const today = getKyivDateString();
     const change = (k: "total" | "destroyed" | "damaged") => periodChange(
       { value: d[k], partial: partialMonth(d.date, today) },
@@ -51,7 +58,7 @@ export function TargetsStackedChart({ title, data, wfull, sourcesByDate }: Props
       { label: "Destroyed", color: c.destroyed, value: d.destroyed, share: pctOf(d.destroyed), vsPrev: change("destroyed"), separatorAbove: true },
       { label: "Damaged", color: c.damaged, value: d.damaged, share: pctOf(d.damaged), vsPrev: change("damaged") },
     ];
-    return { header: d.date, rows, minWidth: 220, sources: sourcesByDate?.get(d.date.slice(0, 7)) };
+    return { header: ranked ? <>#{data.indexOf(d) + 1} · {d.date}</> : d.date, rows, minWidth: 220, sources: sourcesByDate?.get(d.date.slice(0, 7)) };
   };
 
   // `destroyed` on the bottom (the "permanent" half), `damaged` on top —
@@ -60,8 +67,9 @@ export function TargetsStackedChart({ title, data, wfull, sourcesByDate }: Props
     <MonthlyChartCard
       title={title}
       data={data}
-      wfull={wfull}
+      wfull={wfull || !!ranked}
       describe={describe}
+      axis={ranked ? rankedAxisProps(data.length) : undefined}
       legend={[
         { label: "Destroyed", color: c.destroyed },
         { label: "Damaged", color: c.damaged },

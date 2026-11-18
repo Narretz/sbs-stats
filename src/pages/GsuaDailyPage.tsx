@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { Fragment, useState, useMemo, useEffect } from "react";
 import { Temporal } from "temporal-polyfill";
 import { useGsuaDatabaseContext } from "@/context/databases";
 import { useTheme } from "@/hooks/useTheme";
@@ -6,7 +6,7 @@ import { useStatScope } from "@/hooks/useStatScope";
 import { DailyLineChart } from "@/components/DailyLineChart";
 import { DailyMultiLineChart, type LineSeries } from "@/components/DailyMultiLineChart";
 import { CheckboxMultiSelect } from "@/components/CheckboxMultiSelect";
-import { axisLabel, axisSeries, directionColor, directionOptions, directionsTitle, parseDirectionsParam } from "@/utils/gsuaDirections";
+import { axisLabel, axisSeries, directionColor, directionOptions, directionsTitle, parseDirectionsParam, sinceFirstReport } from "@/utils/gsuaDirections";
 import { DirectionCoverageChart } from "@/components/DirectionCoverageChart";
 import type { SheetSource } from "@/components/TooltipTable";
 import { DataWindow } from "@/components/DataWindow";
@@ -32,8 +32,12 @@ import {
   type GsuaGlobalStats,
   type GsuaMetricKey,
   type EodEstimate,
+  directionAxis,
   siteTitle,
 } from "@/types";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
+import { rankingOf, rankQueryDays, windowDayCount } from "@/utils/barOrder";
 
 
 function parseWeekdays(raw: string | null): number[] {
@@ -76,7 +80,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   const { theme: t } = useTheme();
   const {
     loadState, error, queryDaily, queryGlobalStats, queryEodProjection,
-    queryDirectionList, queryDirectionCoverage, querySources, queryDataWindow,
+    queryDirectionList, queryDirectionCoverage, queryDirectionCoverageSpan, querySources, queryDataWindow,
   } = useGsuaDatabaseContext();
   const [dataWindow, setDataWindow] = useState<{ minDate: string | null; maxDate: string | null; latestSnapshotAt: string | null }>({ minDate: null, maxDate: null, latestSnapshotAt: null });
   useEffect(() => { queryDataWindow().then(setDataWindow); }, [queryDataWindow]);
@@ -143,27 +147,40 @@ export function GsuaDailyPage({ refreshKey }: Props) {
     return () => { cancelled = true; };
   }, [loadState, scope, queryGlobalStats, refreshKey]);
 
+  // Ranked, every day from the first up to the window's end (utils/barOrder).
+  const [order, setOrder] = useBarOrder();
+  const ranks = order !== "date";
+  // A ranking reads a picked direction's settled days by its raw names
+  // (queryDirectionCoverageSpan): every name folded into the axis.
+  const rawDirections = useMemo(
+    () => (ranks ? directionList.filter((r) => selectedDirections.includes(directionAxis(r))) : []),
+    [ranks, directionList, selectedDirections],
+  );
+  const queryDays = ranks ? rankQueryDays(order, days, resolvedEndDate(selectedDate), dataWindow.minDate) : days;
+
   useEffect(() => {
     if (loadState !== "ready") return;
     let cancelled = false;
     (async () => {
-      const daily = await queryDaily(days, selectedDate || undefined);
+      const daily = await queryDaily(queryDays, selectedDate || undefined);
       if (cancelled) return;
       setRows(daily);
       // The coverage rows serve both views: the stack in the overview, and a
       // picked direction's own figure, which is its share of the same stack.
-      const cov = await queryDirectionCoverage(days, selectedDate || undefined);
+      const cov = ranks
+        ? await queryDirectionCoverageSpan(queryDays, selectedDate || undefined, rawDirections)
+        : await queryDirectionCoverage(days, selectedDate || undefined);
       if (cancelled) return;
       setCoverageRows(cov);
       setHasData(true);
       // The posts behind each day, for the pinned sheet's links — after the
       // charts' own data, which the page can draw without.
-      const src = await querySources(days, selectedDate || undefined);
+      const src = await querySources(queryDays, selectedDate || undefined);
       if (cancelled) return;
       setSources(src);
     })();
     return () => { cancelled = true; };
-  }, [loadState, days, selectedDate, queryDaily, queryDirectionCoverage, querySources, refreshKey]);
+  }, [loadState, days, queryDays, ranks, rawDirections, selectedDate, queryDaily, queryDirectionCoverage, queryDirectionCoverageSpan, querySources, refreshKey]);
 
   const todayDow = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" }) + "T12:00:00").getDay();
   const maxSelectableDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
@@ -178,15 +195,17 @@ export function GsuaDailyPage({ refreshKey }: Props) {
   // "live" sits at today, so there is always a day behind it.
   const canGoPrev = selectedDate === "" || selectedDate > WINDOW_FLOOR;
 
-  const filteredRows = useMemo(() => filterDailyRows(rows, { selectedDate, days, weekdays: selectedWeekdays }), [rows, selectedDate, selectedWeekdays, days]);
+  const filteredRows = useMemo(() => filterDailyRows(rows, { selectedDate, days: queryDays, weekdays: selectedWeekdays }), [rows, selectedDate, selectedWeekdays, queryDays]);
 
-  const filteredCoverageRows = useMemo(() => filterDailyRows(coverageRows, { selectedDate, days, weekdays: selectedWeekdays }), [coverageRows, selectedDate, selectedWeekdays, days]);
+  const filteredCoverageRows = useMemo(() => filterDailyRows(coverageRows, { selectedDate, days: queryDays, weekdays: selectedWeekdays }), [coverageRows, selectedDate, selectedWeekdays, queryDays]);
 
 
   const endDate = resolvedEndDate(selectedDate);
   const startDate = windowStartDate(endDate, days);
   // Weekday filter is intentional — don't pad dates that the user filtered out.
   const keepDate = weekdayPredicate(selectedWeekdays);
+  const dataStart = windowStartDate(endDate, queryDays);
+  const ranking = rankingOf(order, windowDayCount(endDate, days, keepDate));
   const makeDataset = (key: GsuaMetricKey) =>
     fillDailyRange(
       filteredRows.map((d) => ({
@@ -195,7 +214,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
         is_today: d.is_today,
         note: interimNote(d.date, d.snapshot_at),
       })),
-      startDate,
+      dataStart,
       endDate,
       { keepDate },
     );
@@ -214,20 +233,36 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       value: d.attributed,
       is_today: d.is_today,
     })),
-    startDate,
+    dataStart,
+    endDate,
+    { keepDate },
+  );
+  // Ranked, the unattributed band — the top of the stack in date order — gets
+  // a chart of its own: the pair ranks by the day's total.
+  const unattributedDataset = fillDailyRange(
+    filteredCoverageRows.map((d) => ({
+      date: d.date,
+      value: d.total == null ? null : d.unattributed,
+      is_today: d.is_today,
+      note: interimNote(d.date, d.snapshot_at ?? null),
+    })),
+    dataStart,
     endDate,
     { keepDate },
   );
 
   // A picked direction's attacks: its share of the coverage stack (see
-  // utils/gsuaDirections.ts), filtered and padded like the overview's.
-  const directionDataset = (axis: string) =>
-    fillDailyRange(
+  // utils/gsuaDirections.ts), filtered and padded like the overview's —
+  // ranked, from the first report that named it.
+  const directionDataset = (axis: string) => {
+    const points = fillDailyRange(
       axisSeries(filteredCoverageRows, axis, (r) => interimNote(r.date, r.snapshot_at)),
-      startDate,
+      dataStart,
       endDate,
       { keepDate },
     );
+    return ranking ? sinceFirstReport(points) : points;
+  };
   // Window MAX / MED / TOTAL for the one-direction charts, which have no
   // whole-dataset stats of their own.
   const windowStats = (data: { value: number | null }[]) => {
@@ -260,6 +295,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} />
         <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} canGoPrev={canGoPrev} />
+        <BarOrderSelect value={order} onChange={setOrder} />
         <CheckboxMultiSelect
           label="Direction"
           testId="direction-picker"
@@ -275,12 +311,13 @@ export function GsuaDailyPage({ refreshKey }: Props) {
           <WeatherToggle checked={showWeather} onChange={setShowWeather} />
         </MoreControls>
       </>}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}
       loadingMessage="Loading GSUA database…"
     >
-      {showWeather && <ChartGrid><WeatherStripDaily key="weather" startDate={startDate} endDate={endDate} /></ChartGrid>}
+      {showWeather && !ranking && <ChartGrid><WeatherStripDaily key="weather" startDate={startDate} endDate={endDate} /></ChartGrid>}
       {selectedDirections.length === 0 && (
         <ChartGrid>
           {GSUA_METRIC_KEYS.map((k) => {
@@ -290,29 +327,43 @@ export function GsuaDailyPage({ refreshKey }: Props) {
             const isCombat = k === "combat_engagements";
             const pair = isCombat && filteredCoverageRows.length > 0;
             return (
-              <DailyLineChart
-                key={k}
-                title={GSUA_METRIC_LABELS[k]}
-                data={makeDataset(k)}
-                globalMax={globalStats[k]?.max ?? 0}
-                globalMedian={globalStats[k]?.median ?? 0}
-                globalTotal={globalStats[k]?.total ?? 0}
-                wfull={isCombat}
-                eod={eod[k] ?? null}
-                data2={pair ? attributedDataset : undefined}
-                primaryLabel={pair ? "Unattributed" : undefined}
-                label2={pair ? "With direction" : undefined}
-                pairMode={pair ? "subset" : undefined}
-                // The top area labelled "Unattributed" is the diff between
-                // combat_engagements (data) and attributed (data2), NOT the
-                // raw `data` value. Tell the tooltip to show that explicitly:
-                // Total, With direction, Unattributed as three separate rows.
-                primaryIsDiff={pair ? true : undefined}
-                sourcesByDate={sources}
-              />
+              <Fragment key={k}>
+                <DailyLineChart
+                  key={k}
+                  title={GSUA_METRIC_LABELS[k]}
+                  data={makeDataset(k)}
+                  globalMax={globalStats[k]?.max ?? 0}
+                  globalMedian={globalStats[k]?.median ?? 0}
+                  globalTotal={globalStats[k]?.total ?? 0}
+                  wfull={isCombat}
+                  eod={eod[k] ?? null}
+                  data2={pair ? attributedDataset : undefined}
+                  primaryLabel={pair ? "Unattributed" : undefined}
+                  label2={pair ? "With direction" : undefined}
+                  pairMode={pair ? "subset" : undefined}
+                  // The top area labelled "Unattributed" is the diff between
+                  // combat_engagements (data) and attributed (data2), NOT the
+                  // raw `data` value. Tell the tooltip to show that explicitly:
+                  // Total, With direction, Unattributed as three separate rows.
+                  primaryIsDiff={pair ? true : undefined}
+                  sourcesByDate={sources}
+                />
+                {pair && ranking && (
+                  <DailyLineChart
+                    title={`${GSUA_METRIC_LABELS[k]} — Unattributed`}
+                    data={unattributedDataset}
+                    globalMax={0}
+                    globalMedian={0}
+                    wfull
+                    sourcesByDate={sources}
+                  />
+                )}
+              </Fragment>
             );
           })}
-          {filteredCoverageRows.length > 0 && (
+          {/* A composition, not a figure to rank; ranked, its settled days
+              carry no directions either (queryDirectionCoverageSpan). */}
+          {!ranking && filteredCoverageRows.length > 0 && (
             <DirectionCoverageChart data={filteredCoverageRows} wfull sourcesByDate={sources} />
           )}
         </ChartGrid>
@@ -337,7 +388,10 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       {/* Several directions: overlaid, one line each, to compare them. */}
       {selectedDirections.length > 1 && (
         <ChartGrid>
-          <DailyMultiLineChart title="Attacks by direction" series={directionSeries()} wfull sourcesByDate={sources} />
+          <DailyMultiLineChart
+            title="Attacks by direction" series={directionSeries()} wfull sourcesByDate={sources}
+            rankable rankedTitles={Object.fromEntries(selectedDirections.map((a) => [a, `Attacks · ${axisLabel(a)}`]))}
+          />
         </ChartGrid>
       )}
     </PageScaffold>

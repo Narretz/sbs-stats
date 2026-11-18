@@ -10,6 +10,7 @@ import { ChartCardTitle } from "@/components/ChartCardTitle";
 import { chartAnchor } from "@/utils/chartAnchor";
 import { usePinnedChart } from "@/components/usePinnedChart";
 import type { TooltipDescriptor } from "@/components/TooltipTable";
+import type { rankedAxisProps } from "@/utils/barOrder";
 
 // Shared chrome for monthly bar charts: card wrapper, title, optional legend,
 // A responsive BarChart + axes + grid + tooltip. Consumers pass in the
@@ -57,6 +58,11 @@ interface Props<TData extends { date: string }> {
   // Used to show MAX/MED/TOTAL stat labels in the same row-style as
   // DailyLineChart, kept opt-in so consumers without window stats don't pay.
   subheader?: ReactNode;
+  // The period a bar covers, for the sheet's link to the next finer view —
+  // its month by default (see usePinnedChart).
+  periodOf?: (row: TData) => string;
+  // Extra XAxis props — a ranked chart's (utils/barOrder rankedAxisProps).
+  axis?: ReturnType<typeof rankedAxisProps>;
   // Rows that are one entry across several bars — see usePinnedChart.
   entryOf?: (row: TData) => string | number;
   // recharts hover `cursor`, for a chart whose entries span several bands.
@@ -69,7 +75,7 @@ const monthTick = (v: string) => v.slice(0, 7).replace("-", "/");
 
 export function MonthlyChartCard<TData extends { date: string }>({
   title, drillAnchor, data, legend, wfull, describe, formatLabel, tickFormatter = monthTick, ticks, showEmptyWrapper, subheader,
-  entryOf, cursor, children,
+  periodOf = (d) => d.date.slice(0, 7), axis, entryOf, cursor, children,
 }: Props<TData>) {
   const { theme: t } = useTheme();
   const c = chartColors(t);
@@ -81,7 +87,7 @@ export function MonthlyChartCard<TData extends { date: string }>({
     xOf: (d) => d.date,
     describe: describe ?? (() => null),
     formatLabel,
-    periodOf: (d) => d.date.slice(0, 7),
+    periodOf,
     drillAnchor,
     showEmptyWrapper,
     entryOf,
@@ -119,6 +125,7 @@ export function MonthlyChartCard<TData extends { date: string }>({
             tickFormatter={tickFormatter}
             ticks={ticks}
             interval={ticks ? 0 : undefined}
+            {...axis}
           />
           <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: t.textMuted, fontFamily: FONTS.mono }} tickLine={false} axisLine={false} />
           {describe && pin.tooltip}

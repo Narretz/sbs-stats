@@ -23,6 +23,9 @@ import {
   type MonthlyDataPoint,
   siteTitle,
 } from "@/types";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
+import { rankingOf } from "@/utils/barOrder";
 
 interface Props {
   refreshKey?: number;
@@ -54,7 +57,9 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
     setDirectionParam(dirs);
   };
   const yr = useMonthlyMonthRange({ count: allRows.length, first: allRows[0]?.date ?? "" });
-  const rows = useMemo(() => yr.slice(allRows), [allRows, yr]);
+  const [order, setOrder] = useBarOrder();
+  const rows = useMemo(() => yr.view(allRows, order), [allRows, yr, order]);
+  const ranking = rankingOf(order, yr.slice(allRows).length);
 
   useEffect(() => {
     if (loadState !== "ready") return;
@@ -153,6 +158,7 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
+          <BarOrderSelect value={order} onChange={setOrder} />
           <MoreControls>
             <StatScopeToggle />
           </MoreControls>
@@ -168,6 +174,7 @@ export function GsuaMonthlyPage({ refreshKey }: Props) {
           onChange={updateDirections}
         />
       }
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}

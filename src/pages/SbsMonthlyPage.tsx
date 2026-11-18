@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { SUBSET_LABEL } from "@/tooltipLabels";
 import { useSbsDatabaseContext, useSbsUnitsDatabaseContext } from "@/context/databases";
 import { UnitSelect } from "@/components/UnitSelect";
@@ -11,7 +11,7 @@ import { MoreControls } from "@/components/MoreControls";
 import { StatScopeToggle } from "@/components/StatScopeToggle";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { PageScaffold } from "@/components/PageScaffold";
-import { buildMetrics, targetPairLabel } from "@/utils/metrics";
+import { buildMetrics, SECOND_HALVES, targetPairLabel } from "@/utils/metrics";
 import { chartAnchor } from "@/utils/chartAnchor";
 import { padTrailingMonthly } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
@@ -19,6 +19,8 @@ import { SBS_UNIT_ALL, TARGET_IDS, TARGET_LABELS, sbsUnitLabel, siteTitle } from
 import type { MonthlyDataPoint, MonthlyRow, StatKey, Metric } from "@/types";
 import { FONTS } from "@/theme";
 import { chartColors } from "@/chartColors";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
 
 interface MonthlyPageProps {
   refreshKey?: number;
@@ -84,8 +86,9 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
     [isAll, grouping, units, unit],
   );
 
-  const { allRows, rows, hasData, yr } = useMonthlyMetricGrid({
-    loadState, queryMonthly, refreshKey,
+  const [order, setOrder] = useBarOrder();
+  const { allRows, rows, hasData, yr, ranking } = useMonthlyMetricGrid({
+    loadState, queryMonthly, refreshKey, order,
   });
 
   const metrics = useMemo<Metric[]>(() => buildMetrics(), []);
@@ -209,6 +212,26 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
       };
     });
 
+  const barChart = (m: Metric) => (
+    <MonthlyBarChart
+      key={m.id}
+      title={m.label}
+      data={makeDataset(m.key)}
+      wfull={m.wfull ?? false}
+      globalMax={allStats[m.key]?.max ?? 0}
+      globalMedian={allStats[m.key]?.median ?? 0}
+      globalTotal={allStats[m.key]?.total ?? 0}
+      secondary={SECOND_HALVES.has(m.key)}
+    />
+  );
+  // Ranked, a pair ranks by its hit, so its destroyed (killed) half gets a
+  // chart of its own after it, titled as the daily page's is — a drill-down
+  // lands on it there.
+  const secondHalf = (key: StatKey) => {
+    const m = ranking && metrics.find((u) => u.key === key);
+    return m ? barChart(m) : null;
+  };
+
   return (
     <PageScaffold
       title={siteTitle("sbs", "Monthly", selected ? sbsUnitLabel(selected) : undefined)}
@@ -235,6 +258,7 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
+          <BarOrderSelect value={order} onChange={setOrder} />
           <MoreControls>
             <StatScopeToggle />
           </MoreControls>
@@ -244,21 +268,12 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
       // only a handful of months hides them (see useMonthlyMonthRange), and
       // hiding the control that got you there would strand you on that unit.
       filters={<UnitSelect units={unitList} value={unit} onChange={setUnit} />}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}
       gridChildren={<>
-          {baseMetrics.map((m: Metric) => (
-            <MonthlyBarChart
-              key={m.id}
-              title={m.label}
-              data={makeDataset(m.key)}
-              wfull={m.wfull ?? false}
-              globalMax={allStats[m.key]?.max ?? 0}
-              globalMedian={allStats[m.key]?.median ?? 0}
-              globalTotal={allStats[m.key]?.total ?? 0}
-            />
-          ))}
+          {baseMetrics.map(barChart)}
           <MonthlyTargetPairChart
             key="personnel-killed-wounded"
             title="Personnel Hit / Killed"
@@ -274,6 +289,7 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
             globalMedian2={allStats["personnel_killed"]?.median ?? 0}
             globalTotal2={allStats["personnel_killed"]?.total ?? 0}
           />
+          {secondHalf("personnel_killed")}
           <MonthlyTargetPairChart
             key="targets-hit-destroyed"
             title="Targets Hit / Destroyed"
@@ -286,21 +302,24 @@ export function SbsMonthlyPage({ refreshKey }: MonthlyPageProps) {
             globalMedian2={allStats["total_targets_destroyed"]?.median ?? 0}
             globalTotal2={allStats["total_targets_destroyed"]?.total ?? 0}
           />
+          {secondHalf("total_targets_destroyed")}
           {TARGET_IDS.map((targetId) => (
-            <MonthlyTargetPairChart
-              key={`target-pair-${targetId}`}
-              title={TARGET_LABELS[targetId]}
-              // The daily page calls it "Tanks — Hit / Destroyed".
-              drillAnchor={chartAnchor(targetPairLabel(targetId))}
-              data={makeTargetPairDataset(targetId)}
-              subsetLabel={SUBSET_LABEL.destroyed}
-              globalMax={allStats[`hit_${targetId}`]?.max ?? 0}
-              globalMedian={allStats[`hit_${targetId}`]?.median ?? 0}
-              globalTotal={allStats[`hit_${targetId}`]?.total ?? 0}
-              globalMax2={allStats[`destroyed_${targetId}`]?.max ?? 0}
-              globalMedian2={allStats[`destroyed_${targetId}`]?.median ?? 0}
-              globalTotal2={allStats[`destroyed_${targetId}`]?.total ?? 0}
-            />
+            <Fragment key={`target-pair-${targetId}`}>
+              <MonthlyTargetPairChart
+                title={TARGET_LABELS[targetId]}
+                // The daily page calls it "Tanks — Hit / Destroyed".
+                drillAnchor={chartAnchor(targetPairLabel(targetId))}
+                data={makeTargetPairDataset(targetId)}
+                subsetLabel={SUBSET_LABEL.destroyed}
+                globalMax={allStats[`hit_${targetId}`]?.max ?? 0}
+                globalMedian={allStats[`hit_${targetId}`]?.median ?? 0}
+                globalTotal={allStats[`hit_${targetId}`]?.total ?? 0}
+                globalMax2={allStats[`destroyed_${targetId}`]?.max ?? 0}
+                globalMedian2={allStats[`destroyed_${targetId}`]?.median ?? 0}
+                globalTotal2={allStats[`destroyed_${targetId}`]?.total ?? 0}
+              />
+              {secondHalf(`destroyed_${targetId}` as StatKey)}
+            </Fragment>
           ))}
       </>}
     />

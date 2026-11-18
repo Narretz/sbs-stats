@@ -22,6 +22,9 @@ import {
   siteTitle,
 } from "@/types";
 import { FONTS } from "@/theme";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
+import { rankingOf } from "@/utils/barOrder";
 
 interface Props {
   refreshKey?: number;
@@ -92,9 +95,11 @@ export function RubikonMonthlyPage({ refreshKey }: Props) {
   // Time-window picker; the hook hides itself at ≤12 periods, so it stays out
   // of the way until the series is over a year long.
   const yr = useMonthlyMonthRange({ count: allPeriods.length, first: allPeriods[0] ?? "" }, "all");
+  const [order, setOrder] = useBarOrder();
+  const ranking = rankingOf(order, extendMonthsTo(yr.slice(allPeriods), yr.endMonth).length);
   const periods = useMemo(
-    () => extendMonthsTo(yr.slice(allPeriods), yr.endMonth),
-    [allPeriods, yr],
+    () => extendMonthsTo(yr.view(allPeriods, order), yr.endMonth),
+    [allPeriods, yr, order],
   );
   const visibleRows = useMemo(() => {
     if (yr.hidden) return rows;
@@ -208,11 +213,13 @@ export function RubikonMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allPeriods[0] ?? ""} />
+          <BarOrderSelect value={order} onChange={setOrder} />
           <MoreControls>
             <StatScopeToggle />
           </MoreControls>
         </>
       )}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}

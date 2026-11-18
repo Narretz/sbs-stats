@@ -17,6 +17,8 @@ import {
   type MonthlyDataPoint,
   siteTitle,
 } from "@/types";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
 
 interface Props {
   refreshKey?: number;
@@ -33,8 +35,9 @@ const sumTargets = (r: Partial<Record<RuLossesMetricKey, number | null>>): numbe
 export function RuLossesMonthlyPage({ refreshKey }: Props) {
   const { loadState, error, queryMonthly, queryDataWindow } = useRuLossesDatabaseContext();
   const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
-  const { allRows, rows, hasData, yr, allStats } = useMonthlyMetricGrid({
-    loadState, queryMonthly, refreshKey, keys: RU_LOSSES_METRIC_KEYS,
+  const [order, setOrder] = useBarOrder();
+  const { allRows, rows, hasData, yr, allStats, ranking } = useMonthlyMetricGrid({
+    loadState, queryMonthly, refreshKey, keys: RU_LOSSES_METRIC_KEYS, order,
   });
 
   const endMonth = yr.endMonth;
@@ -99,11 +102,13 @@ export function RuLossesMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
+          <BarOrderSelect value={order} onChange={setOrder} />
           <MoreControls>
             <StatScopeToggle />
           </MoreControls>
         </>
       )}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}

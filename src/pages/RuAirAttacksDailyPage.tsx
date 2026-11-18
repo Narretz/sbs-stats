@@ -35,6 +35,9 @@ import {
   type RuAirAttacksModelDailyRow,
   siteTitle,
 } from "@/types";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
+import { rankingOf, rankQueryDays, windowDayCount } from "@/utils/barOrder";
 
 
 function parseWeekdays(raw: string | null): number[] {
@@ -114,24 +117,28 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
     if (loadState === "ready") setGlobalStats(queryGlobalStats());
   }, [loadState, queryGlobalStats, refreshKey]);
 
+  // Ranked, every day from the first up to the window's end (utils/barOrder).
+  const [order, setOrder] = useBarOrder();
+  const queryDays = rankQueryDays(order, days, resolvedEndDate(selectedDate), dataWindow.minDate);
+
   useEffect(() => {
     if (loadState === "ready") {
-      setRows(queryDaily(days, selectedDate || undefined));
+      setRows(queryDaily(queryDays, selectedDate || undefined));
       const m: Record<string, RuAirAttacksModelDailyRow[]> = {};
       for (const model of FEATURED_MODELS) {
-        m[model] = queryDailyByModel(model, days, selectedDate || undefined);
+        m[model] = queryDailyByModel(model, queryDays, selectedDate || undefined);
       }
       setModelRows(m);
       const b = {} as Record<AttackDbCategory, Map<string, ModelBreakdownEntry[]>>;
       for (const cat of ATTACK_DB_CATEGORIES) {
-        b[cat] = queryDailyBreakdownByCategory(cat, days, selectedDate || undefined);
+        b[cat] = queryDailyBreakdownByCategory(cat, queryDays, selectedDate || undefined);
       }
       setBreakdowns(b);
-      setAllBreakdown(queryDailyAggBreakdown(days, selectedDate || undefined));
-      setSourceRows(querySourceRows(days, selectedDate || undefined));
+      setAllBreakdown(queryDailyAggBreakdown(queryDays, selectedDate || undefined));
+      setSourceRows(querySourceRows(queryDays, selectedDate || undefined));
       setHasData(true);
     }
-  }, [loadState, days, selectedDate, queryDaily, queryDailyByModel, queryDailyBreakdownByCategory, queryDailyAggBreakdown, querySourceRows, refreshKey]);
+  }, [loadState, queryDays, selectedDate, queryDaily, queryDailyByModel, queryDailyBreakdownByCategory, queryDailyAggBreakdown, querySourceRows, refreshKey]);
 
   // The posts behind each chart's figures: all of them, a category's, a model's
   // (exact match, as its series counts).
@@ -156,12 +163,14 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   // "live" sits at today, so there is always a day behind it.
   const canGoPrev = selectedDate === "" || selectedDate > WINDOW_FLOOR;
 
-  const filteredRows = useMemo(() => filterDailyRows(rows, { selectedDate, days, weekdays: selectedWeekdays }), [rows, selectedWeekdays, selectedDate, days]);
+  const filteredRows = useMemo(() => filterDailyRows(rows, { selectedDate, days: queryDays, weekdays: selectedWeekdays }), [rows, selectedWeekdays, selectedDate, queryDays]);
 
   const endDate = resolvedEndDate(selectedDate);
   const startDate = windowStartDate(endDate, days);
   // Weekday filter is intentional — don't pad dates that the user filtered out.
   const keepDate = weekdayPredicate(selectedWeekdays);
+  const dataStart = windowStartDate(endDate, queryDays);
+  const ranking = rankingOf(order, windowDayCount(endDate, days, keepDate));
   // A category UA withheld outright arrives as null and charts as a gap; one
   // whose withheld report still gave the intercepts, and "all", chart the sum
   // of what *was* disclosed. Either way the point carries the caveat, so the
@@ -182,7 +191,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
         is_today: d.is_today,
         note: undisclosedNote(d, key),
       })),
-      startDate,
+      dataStart,
       endDate,
       { keepDate },
     );
@@ -191,7 +200,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   const impactSeries = (key: AirImpactKey) =>
     fillDailyRange(
       filteredRows.map((d) => ({ date: d.date, value: d[key], is_today: d.is_today })),
-      startDate,
+      dataStart,
       endDate,
       { keepDate },
     );
@@ -199,7 +208,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
   const hasImpacts = filteredRows.some((d) => d.impact_hit != null || d.impact_debris != null);
 
   const filterModelRows = (mrows: RuAirAttacksModelDailyRow[]) =>
-    filterDailyRows(mrows, { selectedDate, days, weekdays: selectedWeekdays });
+    filterDailyRows(mrows, { selectedDate, days: queryDays, weekdays: selectedWeekdays });
   const modelSeries = (model: string, metric: "launched" | "intercepted") =>
     fillDailyRange(
       filterModelRows(modelRows[model] ?? []).map((r) => ({
@@ -207,7 +216,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
         value: r[metric],
         is_today: r.is_today,
       })),
-      startDate,
+      dataStart,
       endDate,
       { keepDate },
     );
@@ -221,6 +230,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
       controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} />
         <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} canGoPrev={canGoPrev} />
+        <BarOrderSelect value={order} onChange={setOrder} />
         <MoreControls>
           <WindowStartNav value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
           <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
@@ -228,6 +238,7 @@ export function RuAirAttacksDailyPage({ refreshKey }: Props) {
           <WeatherToggle checked={showWeather} onChange={setShowWeather} />
         </MoreControls>
       </>}
+      ranking={ranking}
       loadState={loadState}
       error={error}
       hasData={hasData}
