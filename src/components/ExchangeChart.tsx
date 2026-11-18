@@ -7,6 +7,8 @@ import { chartColors } from "@/chartColors";
 import { FONTS } from "@/theme";
 import { exchangeRatio, exchangeTotals, formatRatio } from "@/data/exchanges";
 import type { ExchangeRecord } from "@/types";
+import { useRankedBars } from "@/hooks/useRanking";
+import { rankedAxisProps } from "@/utils/barOrder";
 
 interface Props<T extends ExchangeRecord> {
   title: string;
@@ -31,6 +33,10 @@ interface Props<T extends ExchangeRecord> {
 // One pair of bars per exchange on a categorical axis: the exchanges are
 // irregular, and on a time axis a run of stages on consecutive days (June
 // 2025) would collapse into one stripe.
+//
+// On a ranking page (hooks/useRanking) the exchanges are ranked by what the
+// chart draws: one side's figure, or both sides' together. An exchange with
+// no figure for it is left out, as a gap is anywhere. None is in progress.
 export function ExchangeChart<T extends ExchangeRecord>({
   title, data, series = "both", colors, sources, columns, context,
 }: Props<T>) {
@@ -39,8 +45,12 @@ export function ExchangeChart<T extends ExchangeRecord>({
   const showRu = series !== "ukraine";
   const { theme: t } = useTheme();
   const c = chartColors(t);
-  const totals = exchangeTotals(data);
-  const rows = data as T[];
+  const ranked = useRankedBars(data as T[], () => false, (e) =>
+    series === "ukraine" ? e.ua_received
+    : series === "russia" ? e.ru_received
+    : e.ua_received == null && e.ru_received == null ? null : (e.ua_received ?? 0) + (e.ru_received ?? 0));
+  const rows = ranked?.bars ?? (data as T[]);
+  const totals = exchangeTotals(rows);
 
   const describe = (e: T): TooltipDescriptor => {
     const caveat =
@@ -67,7 +77,7 @@ export function ExchangeChart<T extends ExchangeRecord>({
       rows.push({ label: "Ratio", color: t.textMuted, value: formatRatio(ratio), extra: ratioCells, separatorAbove: true });
     }
     return {
-      header: e.date,
+      header: ranked ? <>#{ranked.bars.indexOf(e) + 1} · {e.date}</> : e.date,
       rows,
       // A header only says something once there are columns to tell apart.
       extraColumns: columns?.headers,
@@ -109,6 +119,7 @@ export function ExchangeChart<T extends ExchangeRecord>({
       // The full date: a month can hold several exchanges, which "YYYY/MM"
       // would label alike.
       tickFormatter={(d) => d.replace(/-/g, "/")}
+      axis={ranked ? rankedAxisProps(rows.length) : undefined}
       legend={both ? [
         { label: "To Ukraine", color: colors.ukraine },
         { label: "To Russia", color: colors.russia },

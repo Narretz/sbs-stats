@@ -2,6 +2,9 @@ import { useMemo } from "react";
 import { PageScaffold } from "@/components/PageScaffold";
 import { ExchangeChart } from "@/components/ExchangeChart";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
+import { rankingOf } from "@/utils/barOrder";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
@@ -18,10 +21,17 @@ const monthsWithExchanges = new Set(POW_EXCHANGES.map((e) => e.date.slice(0, 7))
 // default, one chart of both sides and one per side.
 export function PowExchangesPage() {
   const yr = useMonthlyMonthRange({ count: monthsWithExchanges, first }, "all");
-  const rows = useMemo(
+  const [order, setOrder] = useBarOrder();
+  const windowRows = useMemo(
     () => exchangesInWindow(POW_EXCHANGES, yr.months, yr.endMonth),
     [yr.months, yr.endMonth],
   );
+  // Ranked, every exchange up to the window's end, as many as the window has.
+  const rows = useMemo(
+    () => (order === "date" ? windowRows : exchangesInWindow(POW_EXCHANGES, "all", yr.endMonth)),
+    [order, windowRows, yr.endMonth],
+  );
+  const ranking = rankingOf(order, windowRows.length);
   const c = chartColors(useTheme().theme);
   const chart = {
     colors: { ukraine: c.prisonersToUkraine, russia: c.prisonersToRussia },
@@ -50,7 +60,11 @@ export function PowExchangesPage() {
         {" "}(returned to Ukraine) / <a href="https://t.me/mod_russia" rel="nofollow external" target="_blank">Russian MoD</a>
         {" "}(returned to Russia) · {first} – {last}
       </>}
-      controls={yr.hidden ? undefined : <MonthWindowControls yr={yr} min={first} />}
+      controls={<>
+        {!yr.hidden && <MonthWindowControls yr={yr} min={first} />}
+        <BarOrderSelect value={order} onChange={setOrder} />
+      </>}
+      ranking={ranking}
       loadState="ready"
       error={null}
       hasData={POW_EXCHANGES.length > 0}

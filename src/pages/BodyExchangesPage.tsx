@@ -2,6 +2,9 @@ import { useMemo } from "react";
 import { PageScaffold } from "@/components/PageScaffold";
 import { ExchangeChart } from "@/components/ExchangeChart";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
+import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { useBarOrder } from "@/hooks/useBarOrder";
+import { rankingOf } from "@/utils/barOrder";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { useTheme } from "@/hooks/useTheme";
 import { chartColors } from "@/chartColors";
@@ -20,10 +23,17 @@ const monthsWithExchanges = new Set(BODY_EXCHANGES.map((e) => e.date.slice(0, 7)
 // 12-month default would hide most of it.
 export function BodyExchangesPage() {
   const yr = useMonthlyMonthRange({ count: monthsWithExchanges, first }, "all");
-  const rows = useMemo(
+  const [order, setOrder] = useBarOrder();
+  const windowRows = useMemo(
     () => exchangesInWindow(BODY_EXCHANGES, yr.months, yr.endMonth),
     [yr.months, yr.endMonth],
   );
+  // Ranked, every exchange up to the window's end, as many as the window has.
+  const rows = useMemo(
+    () => (order === "date" ? windowRows : exchangesInWindow(BODY_EXCHANGES, "all", yr.endMonth)),
+    [order, windowRows, yr.endMonth],
+  );
+  const ranking = rankingOf(order, windowRows.length);
   const c = chartColors(useTheme().theme);
   const chart = { colors: { ukraine: c.bodiesToUkraine, russia: c.bodiesToRussia }, sources: bodyExchangeSources };
   return (
@@ -35,7 +45,11 @@ export function BodyExchangesPage() {
         {" "}(bodies received by Ukraine) / <a href="https://www.rbc.ru" rel="nofollow external" target="_blank">RBC</a>
         {" "}(Russian officials' figures) · {first} – {last}
       </>}
-      controls={yr.hidden ? undefined : <MonthWindowControls yr={yr} min={first} />}
+      controls={<>
+        {!yr.hidden && <MonthWindowControls yr={yr} min={first} />}
+        <BarOrderSelect value={order} onChange={setOrder} />
+      </>}
+      ranking={ranking}
       loadState="ready"
       error={null}
       hasData={BODY_EXCHANGES.length > 0}

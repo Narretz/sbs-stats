@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { FIXED_TODAY } from "./build-fixtures.mjs";
 
 // The bar order (utils/barOrder): ranked, a page's charts draw every period
@@ -83,4 +84,16 @@ test("CIT ranked daily: one bar per report, the weekend report labelled with bot
   // Five reports in the window: four days and the weekend.
   expect(ticks).toHaveLength(5);
   expect(ticks).toContain("2026-01-10/11");
+});
+
+test("exchanges ranked: the biggest exchange of the whole record leads", async ({ page }) => {
+  // The bundled record itself — this page has no fixture.
+  const records: { date: string; ua_received: number | null; ru_received: number | null }[] =
+    JSON.parse(readFileSync("scripts/pow_exchanges/exchanges.json", "utf8")).exchanges;
+  const total = (e: (typeof records)[number]) => (e.ua_received ?? 0) + (e.ru_received ?? 0);
+  const biggest = [...records].sort((a, b) => total(b) - total(a) || a.date.localeCompare(b.date))[0];
+
+  await page.goto("/?site=pow-exchanges&order=max");
+  await expect(page.getByTestId("bar-order-select")).toHaveValue("max");
+  expect((await firstChartTicks(page))[0]).toBe(biggest.date.replace(/-/g, "/"));
 });
