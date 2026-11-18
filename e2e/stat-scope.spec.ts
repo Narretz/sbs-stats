@@ -122,3 +122,28 @@ test.describe("Homepage — whole-dataset stats are fetched when they're shown",
     await expect(page.locator(".chart-card").first()).toContainText(`MAX ${SENTINEL}`);
   });
 });
+
+test.describe("The MAX/MED base is in the URL", () => {
+  // So a shared link shows the same figures: `base=all` opens on "All data",
+  // follows the reader to the site's other pages, and Back restores the base
+  // the entry had.
+  test("base=all opens on All data, is carried to the next page, and leaves the URL on Window data", async ({ page }) => {
+    await page.goto("/?site=sbs&page=daily&more=1&base=all");
+    await page.waitForSelector(".recharts-surface");
+    await expect(page.getByTestId("stat-scope-select")).toHaveValue("all");
+    await expect.poll(() => maxLabels(page)).toContain(SENTINEL);
+
+    await page.getByTestId("nav-hourly").click();
+    await expect(page).toHaveURL(/[?&]page=hourly\b/);
+    await expect(page).toHaveURL(/[?&]base=all\b/);
+    await expect(page.getByTestId("stat-scope-select")).toHaveValue("all");
+
+    await page.getByTestId("stat-scope-select").selectOption("window");
+    await expect(page).not.toHaveURL(/[?&]base=/);
+
+    // The daily entry still says all.
+    await page.goBack();
+    await expect(page).toHaveURL(/[?&]page=daily\b/);
+    await expect(page.getByTestId("stat-scope-select")).toHaveValue("all");
+  });
+});

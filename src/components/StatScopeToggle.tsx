@@ -2,7 +2,7 @@ import { useStatScope, type StatScope } from "@/hooks/useStatScope";
 
 // Global MAX/MED scope control. Rendered among the per-page chart controls (day
 // range / weekday / date) because it shapes the same view, even though the
-// preference itself is global (persisted, shared across all views).
+// setting itself is global (in the URL as `base=`, kept across views).
 //
 // Callers must NOT render this when the page has no time-window control. On the
 // monthly pages that's `yr.hidden` — the dataset is shorter than the smallest

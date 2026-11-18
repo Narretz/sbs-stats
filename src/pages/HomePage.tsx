@@ -28,7 +28,7 @@ import { resolvedEndDate } from "@/utils/padTrailing";
 import { MONTH_OPTIONS, type MonthOption } from "@/utils/monthRange";
 import { WEEK_OPTIONS, type WeekOption, weeklyWindow } from "@/utils/weekRange";
 import { CORRELATION_HELP, correlationText, pairCorrelation, pairsOnChart, type Correlation } from "@/utils/correlation";
-import { useStatScope, type StatScope } from "@/hooks/useStatScope";
+import { STAT_SCOPE_PARAM, useStatScope } from "@/hooks/useStatScope";
 import {
   DEFAULT_CUMULATIVE, DEFAULT_DAYS, DEFAULT_SCOPE, DEFAULT_Y_MODE,
   defaultChartName, defaultWindowFor, isDefaultCharts, newChartUid,
@@ -104,26 +104,21 @@ export function HomePage({ onGoToSite }: Props) {
   const [cumulative, setCumulative] = useState<boolean>(initial.cumulative);
   const [charts, setCharts] = useState<ChartConfig[]>(initial.charts);
 
-  // StatScope lives in a global localStorage-backed context so it can be
-  // shared with per-site pages. On homepage mount, apply the JSON-default
-  // scope unless the URL carries an explicit `?scope=` override. Later
-  // toggles flow through the existing StatScopeToggle as usual.
+  // StatScope lives in a global URL-backed context (`base=`) so it is shared
+  // with per-site pages. On homepage mount, apply the JSON-default scope unless
+  // the URL names one. Later toggles flow through StatScopeToggle as usual.
   const { scope, setScope } = useStatScope();
   useEffect(() => {
-    const urlScope = new URLSearchParams(window.location.search).get("scope");
-    const desired: StatScope = urlScope === "all" || urlScope === "window"
-      ? urlScope
-      : DEFAULT_SCOPE;
-    if (desired !== scope) setScope(desired);
+    const p = new URLSearchParams(window.location.search);
+    const named = p.has(STAT_SCOPE_PARAM) || p.get("scope") === "all" || p.get("scope") === "window";
+    if (!named && DEFAULT_SCOPE !== scope) setScope(DEFAULT_SCOPE);
     // intentionally on mount only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Are all global settings + the chart list at their JSON defaults? Used by
-  // the homepage's "showing curated defaults" notice. `scope` is included
-  // because it's part of the JSON spec even though it doesn't roundtrip
-  // through the URL. Per-chart granularity + window are folded into
-  // isDefaultCharts.
+  // the homepage's "showing curated defaults" notice. Per-chart granularity +
+  // window are folded into isDefaultCharts.
   const showingDefaults =
     scope === DEFAULT_SCOPE &&
     yMode === DEFAULT_Y_MODE &&

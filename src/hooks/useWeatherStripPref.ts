@@ -1,8 +1,8 @@
 import { useCallback, useState } from "react";
 
 // Whether the front-line weather strip is shown above the charts — a reader's
-// display preference across the hourly and daily pages, like the MAX/MED base,
-// kept in localStorage. Off by default: the strip costs a ~4 MB download, and
+// display preference across the hourly and daily pages, like the theme, kept
+// in localStorage. Off by default: the strip costs a ~4 MB download, and
 // a page that doesn't show it must not fetch it, so the pages mount the strip
 // (and with it its DB hook) only while this is on.
 const KEY = "weatherStrip";
