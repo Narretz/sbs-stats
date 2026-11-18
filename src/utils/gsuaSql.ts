@@ -207,3 +207,152 @@ export function pivotCoverageMonthly(rows: Record<string, unknown>[]): GsuaDirec
   }
   return [...byMonth.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
 }
+
+// Per day: the canonical report's combat engagements and each direction's
+// fair share of it. Rows are (date, snapshot_at, total, direction, attacks),
+// one per direction a day has (one with a null direction for a day with
+// none). `start` / `end` are SQL date expressions; without them, all history —
+// what app_db.sql's gsua_coverage_daily / gsua_direction_daily hold.
+export function coverageDailySql(start?: string, end?: string): string {
+  return `
+    WITH latest_posts AS (
+      -- The date window is applied HERE, not in per_date_source_snap below.
+      -- latest_posts is referenced twice (here + the final join), so SQLite
+      -- MATERIALISES it; without the window it would SCAN all of posts (all
+      -- history) to resolve every post's latest version, then filter. With
+      -- the window it SEARCHes idx_posts_date for just the window's rows —
+      -- ~75 for 30 days vs ~2600 total — a big cut in httpvfs range fetches.
+      -- Safe: 'date' is invariant across a post's edit-versions, so the
+      -- filter never splits a (source, source_id) version chain.
+      SELECT p.* FROM posts p
+      WHERE ${start ? `p.date >= ${start}` : "1"}
+        AND ${end ? `p.date <= ${end}` : "1"}
+        AND NOT EXISTS (
+          SELECT 1 FROM posts n
+          WHERE n.source = p.source AND n.source_id = p.source_id
+            AND n.scraped_at > p.scraped_at
+        )
+    ),
+    per_date_source_snap AS (
+      -- One row per (date, source, snapshot_at), collapsing multipart posts;
+      -- MAX(combat_engagements) mirrors the daily_combined view's merge.
+      SELECT date, source, snapshot_at,
+             MAX(combat_engagements) AS combat_engagements
+      FROM latest_posts
+      WHERE snapshot_at IS NOT NULL
+      GROUP BY date, source, snapshot_at
+    ),
+    best_per_date AS (
+      -- Pick the canonical row per date: prefer telegram, then latest snapshot.
+      SELECT date, source, snapshot_at, combat_engagements
+      FROM (
+        SELECT *,
+               ROW_NUMBER() OVER (
+                 PARTITION BY date
+                 ORDER BY CASE source WHEN 'telegram' THEN 0 ELSE 1 END,
+                          snapshot_at DESC
+               ) AS rn
+        FROM per_date_source_snap
+      ) t
+      WHERE rn = 1
+    )
+    SELECT
+      b.date,
+      b.snapshot_at       AS snapshot_at,
+      b.combat_engagements AS total,
+      d.direction         AS direction,
+      -- Fair-share: paired-anchor sentences ("На X і Y напрямках N ...")
+      -- store the raw N on each row with attacks_group_size = k; the
+      -- honest per-direction contribution is N/k, so k=2 halves the
+      -- credit each direction takes. Solo entries have group_size=1
+      -- and pass through unchanged.
+      -- MAX (not SUM) over the joined posts: best_per_date collapses a
+      -- (date, source, snapshot_at) to one group, but the join to
+      -- latest_posts re-expands it to every source_id sharing that key.
+      -- When the GS channel double-posts the SAME report (two message
+      -- ids, identical directions — e.g. 2026-07-11 msgs 41031/41041),
+      -- SUM would count each direction twice and inflate 'attributed'
+      -- past the day total. A given direction is written once per report, so
+      -- MAX yields its single value — and still merges multipart posts,
+      -- where each direction lives in exactly one part.
+      MAX(d.attacks * 1.0 / d.attacks_group_size) AS attacks
+    FROM best_per_date b
+    LEFT JOIN latest_posts p
+      ON p.source = b.source AND p.date = b.date AND p.snapshot_at = b.snapshot_at
+    LEFT JOIN directions d
+      ON d.source = p.source AND d.source_id = p.source_id AND d.scraped_at = p.scraped_at
+    -- b.snapshot_at is functionally dependent on b.date (best_per_date is
+    -- one row per date), so grouping by it splits nothing; it's listed to
+    -- carry the value out rather than rely on a bare column.
+    GROUP BY b.date, b.snapshot_at, d.direction
+    ORDER BY b.date ASC
+  `;
+}
+
+// Coverage rows → one chart row per day.
+export function pivotCoverageDaily(rows: Record<string, unknown>[], today: string): GsuaDirectionCoverageRow[] {
+  // Pivot to one row per date.
+  const byDate = new Map<string, GsuaDirectionCoverageRow>();
+  for (const r of rows) {
+    const date = String(r.date);
+    const total = typeof r.total === "number" ? r.total : null;
+    let row = byDate.get(date);
+    if (!row) {
+      row = {
+        date, total, attributed: 0, unattributed: 0,
+        byDirection: {},
+        snapshot_at: typeof r.snapshot_at === "string" ? r.snapshot_at : null,
+        is_today: date === today,
+      };
+      byDate.set(date, row);
+    }
+    // Key by AXIS, not raw direction: the two halves of a jointly-reported
+    // pair land on the same key and re-add to the figure the report gave
+    // (0.5 + 0.5 = 1). `attributed` is unaffected — folding two rows into
+    // one changes which bucket the credit lands in, not how much there is.
+    const raw = r.direction == null ? null : String(r.direction);
+    const dir = raw == null ? null : directionAxis(raw);
+    const attacks = typeof r.attacks === "number" ? r.attacks : 0;
+    if (dir && attacks > 0) {
+      row.byDirection[dir] = (row.byDirection[dir] ?? 0) + attacks;
+      row.attributed += attacks;
+      // The fold happened on this date, so the line was joint here. Only
+      // the folded-away member trips this, so it records once per axis.
+      if (raw !== dir) (row.mergedAxes ??= []).push(dir);
+    }
+  }
+  for (const row of byDate.values()) {
+    row.unattributed = row.total == null ? 0 : Math.max(0, row.total - row.attributed);
+  }
+  return [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+
+// The settled days' chart rows from the app copy's tables: each day's total
+// and attributed from gsua_coverage_daily, and from gsua_direction_daily only
+// the directions read (a ranking of a picked direction reads its own rows,
+// not every direction's). Folded to axes as pivotCoverageDaily folds them. No
+// snapshot: a settled day's report is its wrap-up.
+export function coverageFromTables(
+  totals: Record<string, unknown>[],
+  directions: Record<string, unknown>[],
+): GsuaDirectionCoverageRow[] {
+  const byDate = new Map<string, GsuaDirectionCoverageRow>();
+  for (const r of totals) {
+    const total = typeof r.total === "number" ? r.total : null;
+    const attributed = Number(r.attributed);
+    byDate.set(String(r.date), {
+      date: String(r.date), total, attributed,
+      unattributed: total == null ? 0 : Math.max(0, total - attributed),
+      byDirection: {}, snapshot_at: null, is_today: false,
+    });
+  }
+  for (const r of directions) {
+    const row = byDate.get(String(r.date));
+    if (!row) continue;
+    const raw = String(r.direction);
+    const dir = directionAxis(raw);
+    row.byDirection[dir] = (row.byDirection[dir] ?? 0) + Number(r.attacks);
+    if (raw !== dir) (row.mergedAxes ??= []).push(dir);
+  }
+  return [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+}

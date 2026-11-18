@@ -12,7 +12,8 @@ import { join } from "node:path";
 import initSqlJs, { type Database } from "sql.js";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
-  canonicalDailySql, coverageMonthlySql, pickCanonicalDaily, recentFloor, sumMetricsByMonth,
+  canonicalDailySql, coverageDailySql, coverageFromTables, coverageMonthlySql, pickCanonicalDaily,
+  pivotCoverageDaily, recentFloor, sumMetricsByMonth,
 } from "@/utils/gsuaSql";
 import { GSUA_METRIC_KEYS } from "@/types";
 
@@ -126,6 +127,38 @@ describe("gsua_direction_monthly", () => {
     expect(aug).toEqual({ Pokrovsk: 50, Lyman: 12, Kurakhove: 4 });
     // A month without direction lines still has its total.
     expect(rows(db, "SELECT total, direction FROM gsua_direction_monthly WHERE date = '2026-09'")).toEqual([{ total: 15, direction: null }]);
+  });
+});
+
+describe("gsua_coverage_daily + gsua_direction_daily", () => {
+  const TODAY = "2026-10-01";
+  // Snapshot and today aside, which a settled day doesn't carry.
+  const settled = (r: ReturnType<typeof pivotCoverageDaily>[number]) => ({ ...r, snapshot_at: null, is_today: false });
+  const tables = (directions: string) => coverageFromTables(
+    rows(db, "SELECT date, total, attributed FROM gsua_coverage_daily"),
+    rows(db, `SELECT direction, date, attacks FROM gsua_direction_daily WHERE direction IN (${directions})`),
+  );
+
+  it("are the live daily coverage, day for day", () => {
+    const live = pivotCoverageDaily(rows(db, coverageDailySql()), TODAY).map(settled);
+    expect(tables("SELECT direction FROM gsua_direction_daily")).toEqual(live);
+  });
+
+  it("read the cases the way they're meant", () => {
+    const day = Object.fromEntries(tables("'Pokrovsk', 'Kurakhove', 'Lyman'").map((r) => [r.date, r]));
+    // The wrap-up, not the interim; the multipart's two parts; the double
+    // post once; half of each joint line.
+    expect(day["2026-08-01"]).toMatchObject({ total: 25, attributed: 6, unattributed: 19 });
+    expect(day["2026-08-02"].byDirection).toEqual({ Pokrovsk: 10, Lyman: 12 });
+    expect(day["2026-08-03"]).toMatchObject({ attributed: 30, unattributed: 30 });
+    expect(day["2026-08-04"].byDirection).toEqual({ Pokrovsk: 4, Kurakhove: 4 });
+    // A day with no direction lines still has its total.
+    expect(day["2026-09-01"]).toMatchObject({ total: 15, attributed: 0, byDirection: {} });
+  });
+
+  it("read only the directions asked for, the day's attributed whole", () => {
+    const day = Object.fromEntries(tables("'Lyman'").map((r) => [r.date, r]));
+    expect(day["2026-08-02"]).toMatchObject({ attributed: 22, byDirection: { Lyman: 12 } });
   });
 });
 

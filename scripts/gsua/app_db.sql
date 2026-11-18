@@ -132,3 +132,68 @@ CREATE TABLE gsua_direction_monthly AS
   SELECT m.month AS date, m.total, a.direction, a.attacks
   FROM month_totals m
   LEFT JOIN month_direction_attacks a ON a.month = m.month;
+
+-- Per day, for a ranking (src/utils/barOrder.ts), which reads every day there
+-- is: the canonical report's combat engagements and how much of it the
+-- directions account for, and each direction's fair share. The twin of
+-- coverageDailySql + pivotCoverageDaily (src/utils/gsuaSql.ts), unwindowed;
+-- gsuaSql.test.ts holds them to the same rows. Live, a ranked direction walked
+-- the directions table and its indexes, most of the file; keyed by direction,
+-- its days here are ~8 pages.
+CREATE TEMP TABLE coverage_day AS
+  WITH latest_posts AS (
+    SELECT p.* FROM posts p
+    WHERE NOT EXISTS (
+      SELECT 1 FROM posts n
+      WHERE n.source = p.source AND n.source_id = p.source_id
+        AND n.scraped_at > p.scraped_at
+    )
+  ),
+  per_date_source_snap AS (
+    SELECT date, source, snapshot_at,
+           MAX(combat_engagements) AS combat_engagements
+    FROM latest_posts
+    WHERE snapshot_at IS NOT NULL
+    GROUP BY date, source, snapshot_at
+  ),
+  best_per_date AS (
+    SELECT date, source, snapshot_at, combat_engagements
+    FROM (
+      SELECT *,
+             ROW_NUMBER() OVER (
+               PARTITION BY date
+               ORDER BY CASE source WHEN 'telegram' THEN 0 ELSE 1 END,
+                        snapshot_at DESC
+             ) AS rn
+      FROM per_date_source_snap
+    ) t
+    WHERE rn = 1
+  )
+  SELECT
+    b.date,
+    b.snapshot_at       AS snapshot_at,
+    b.combat_engagements AS total,
+    d.direction         AS direction,
+    MAX(d.attacks * 1.0 / d.attacks_group_size) AS attacks
+  FROM best_per_date b
+  LEFT JOIN latest_posts p
+    ON p.source = b.source AND p.date = b.date AND p.snapshot_at = b.snapshot_at
+  LEFT JOIN directions d
+    ON d.source = p.source AND d.source_id = p.source_id AND d.scraped_at = p.scraped_at
+  GROUP BY b.date, b.snapshot_at, d.direction
+  ORDER BY b.date ASC;
+DROP TABLE IF EXISTS gsua_coverage_daily;
+CREATE TABLE gsua_coverage_daily (
+  date TEXT PRIMARY KEY, total INTEGER, attributed REAL NOT NULL
+) WITHOUT ROWID;
+INSERT INTO gsua_coverage_daily
+  SELECT date, MAX(total), COALESCE(SUM(CASE WHEN direction IS NOT NULL AND attacks > 0 THEN attacks END), 0)
+  FROM coverage_day GROUP BY date;
+DROP TABLE IF EXISTS gsua_direction_daily;
+CREATE TABLE gsua_direction_daily (
+  direction TEXT NOT NULL, date TEXT NOT NULL, attacks REAL NOT NULL,
+  PRIMARY KEY (direction, date)
+) WITHOUT ROWID;
+INSERT INTO gsua_direction_daily
+  SELECT direction, date, attacks FROM coverage_day WHERE direction IS NOT NULL AND attacks > 0;
+DROP TABLE coverage_day;

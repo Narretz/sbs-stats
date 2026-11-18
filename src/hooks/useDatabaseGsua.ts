@@ -8,7 +8,7 @@ import type {
   GsuaMonthlyRow,
   EodEstimate,
 } from "@/types";
-import { GSUA_METRIC_KEYS, directionAxis } from "@/types";
+import { GSUA_METRIC_KEYS } from "@/types";
 import { computeEodProjection, type EodReading } from "@/utils/eodProjection";
 import { projectFromDays } from "@/utils/monthProjection";
 import { attachDailyMedians, attachDayCounts, dailyMediansByMonth, dayCountsByMonth } from "@/utils/dailyMedian";
@@ -16,11 +16,11 @@ import { gsuaSourcesByDate, type GsuaPostSource } from "@/utils/sources";
 import type { SheetSource } from "@/components/TooltipTable";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { getKyivDateString } from "@/hooks/sqlLoader";
-import { windowStartSql } from "@/utils/dayRange";
+import { daysBetweenInclusive, windowStartDate, windowStartSql } from "@/utils/dayRange";
 import { projectCoverageMonth } from "@/utils/gsuaDirections";
 import {
-  LATEST_POSTS, METRIC_COLS, canonicalDailySql, coverageMonthlySql, pickCanonicalDaily,
-  pivotCoverageMonthly, recentFloor, sumMetricsByMonth,
+  LATEST_POSTS, METRIC_COLS, canonicalDailySql, coverageDailySql, coverageFromTables, coverageMonthlySql,
+  pickCanonicalDaily, pivotCoverageDaily, pivotCoverageMonthly, recentFloor, sumMetricsByMonth,
 } from "@/utils/gsuaSql";
 
 // Dev default is the `.app.db` copy, the same object production reads: same
@@ -98,18 +98,40 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
   // Each query is async: the worker reads SQLite pages over HTTP range
   // requests rather than the whole DB up-front.
 
+  // Does the app copy carry this precomputed table (scripts/gsua/app_db.sql)?
+  // The schema is on page 1, which every query has already read.
+  const hasTable = useCallback(async (name: string): Promise<boolean> => {
+    if (!worker) return false;
+    const rows = (await worker.db.query(
+      `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '${name}'`,
+    )) as unknown[];
+    return rows.length > 0;
+  }, [worker]);
+
   const queryDaily = useCallback(
     async (days: number, endDate?: string): Promise<GsuaDailyRow[]> => {
       if (!worker) return [];
       const todayStr = getKyivDateString();
       const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
       const startDateSql = windowStartSql(endDateSql, days);
+      // Days before the recent floor come from gsua_daily when the app copy
+      // has it — one small row per day, where reading them live walks the
+      // posts' indexes: what makes a ranking (utils/barOrder), which reads
+      // every day there is, cheap. The recent days, which a scrape can still
+      // change and which carry the interim snapshot, stay live.
+      const floor = recentFloor(todayStr);
+      const settled = await hasTable("gsua_daily")
+        ? (await worker.db.query(
+            `SELECT * FROM gsua_daily WHERE date >= ${startDateSql} AND date < '${floor}' AND date <= '${endDateSql}' ORDER BY date`,
+          )) as Record<string, unknown>[]
+        : null;
+      const liveFrom = settled ? `MAX(${startDateSql}, '${floor}')` : startDateSql;
 
       const sql = `
         WITH per_date_source AS (
           SELECT date, source, MAX(snapshot_at) AS latest_snapshot, ${METRIC_COLS}
           FROM ${LATEST_POSTS} posts
-          WHERE date >= ${startDateSql} AND date <= '${endDateSql}'
+          WHERE date >= ${liveFrom} AND date <= '${endDateSql}'
           GROUP BY date, source, snapshot_at
         ),
         last_snapshot_per_date_source AS (
@@ -124,7 +146,7 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
         ORDER BY p.date ASC,
                  CASE p.source WHEN 'telegram' THEN 0 ELSE 1 END ASC
       `;
-      const rows = (await worker.db.query(sql)) as Record<string, unknown>[];
+      const rows = [...(settled ?? []), ...(await worker.db.query(sql)) as Record<string, unknown>[]];
       const seen = new Set<string>();
       const result: GsuaDailyRow[] = [];
       for (const row of rows) {
@@ -144,7 +166,7 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
       }
       return result;
     },
-    [worker]
+    [worker, hasTable]
   );
 
   const queryGlobalStats = useCallback(
@@ -165,16 +187,6 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
     },
     [worker]
   );
-
-  // Does the app copy carry this precomputed table (scripts/gsua/app_db.sql)?
-  // The schema is on page 1, which every query has already read.
-  const hasTable = useCallback(async (name: string): Promise<boolean> => {
-    if (!worker) return false;
-    const rows = (await worker.db.query(
-      `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '${name}'`,
-    )) as unknown[];
-    return rows.length > 0;
-  }, [worker]);
 
   // Completed months from `gsua_monthly` when the app copy has it; the recent
   // months — which a scrape can still change, and whose days the projection
@@ -321,118 +333,41 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
       if (!worker) return [];
       const todayStr = getKyivDateString();
       const endDateSql = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
-
-      const sql = `
-        WITH latest_posts AS (
-          -- The date window is applied HERE, not in per_date_source_snap below.
-          -- latest_posts is referenced twice (here + the final join), so SQLite
-          -- MATERIALISES it; without the window it would SCAN all of posts (all
-          -- history) to resolve every post's latest version, then filter. With
-          -- the window it SEARCHes idx_posts_date for just the window's rows —
-          -- ~75 for 30 days vs ~2600 total — a big cut in httpvfs range fetches.
-          -- Safe: 'date' is invariant across a post's edit-versions, so the
-          -- filter never splits a (source, source_id) version chain.
-          SELECT p.* FROM posts p
-          WHERE p.date >= ${windowStartSql(endDateSql, days)}
-            AND p.date <= '${endDateSql}'
-            AND NOT EXISTS (
-              SELECT 1 FROM posts n
-              WHERE n.source = p.source AND n.source_id = p.source_id
-                AND n.scraped_at > p.scraped_at
-            )
-        ),
-        per_date_source_snap AS (
-          -- One row per (date, source, snapshot_at), collapsing multipart posts;
-          -- MAX(combat_engagements) mirrors the daily_combined view's merge.
-          SELECT date, source, snapshot_at,
-                 MAX(combat_engagements) AS combat_engagements
-          FROM latest_posts
-          WHERE snapshot_at IS NOT NULL
-          GROUP BY date, source, snapshot_at
-        ),
-        best_per_date AS (
-          -- Pick the canonical row per date: prefer telegram, then latest snapshot.
-          SELECT date, source, snapshot_at, combat_engagements
-          FROM (
-            SELECT *,
-                   ROW_NUMBER() OVER (
-                     PARTITION BY date
-                     ORDER BY CASE source WHEN 'telegram' THEN 0 ELSE 1 END,
-                              snapshot_at DESC
-                   ) AS rn
-            FROM per_date_source_snap
-          ) t
-          WHERE rn = 1
-        )
-        SELECT
-          b.date,
-          b.snapshot_at       AS snapshot_at,
-          b.combat_engagements AS total,
-          d.direction         AS direction,
-          -- Fair-share: paired-anchor sentences ("На X і Y напрямках N ...")
-          -- store the raw N on each row with attacks_group_size = k; the
-          -- honest per-direction contribution is N/k, so k=2 halves the
-          -- credit each direction takes. Solo entries have group_size=1
-          -- and pass through unchanged.
-          -- MAX (not SUM) over the joined posts: best_per_date collapses a
-          -- (date, source, snapshot_at) to one group, but the join to
-          -- latest_posts re-expands it to every source_id sharing that key.
-          -- When the GS channel double-posts the SAME report (two message
-          -- ids, identical directions — e.g. 2026-07-11 msgs 41031/41041),
-          -- SUM would count each direction twice and inflate 'attributed'
-          -- past the day total. A given direction is written once per report, so
-          -- MAX yields its single value — and still merges multipart posts,
-          -- where each direction lives in exactly one part.
-          MAX(d.attacks * 1.0 / d.attacks_group_size) AS attacks
-        FROM best_per_date b
-        LEFT JOIN latest_posts p
-          ON p.source = b.source AND p.date = b.date AND p.snapshot_at = b.snapshot_at
-        LEFT JOIN directions d
-          ON d.source = p.source AND d.source_id = p.source_id AND d.scraped_at = p.scraped_at
-        -- b.snapshot_at is functionally dependent on b.date (best_per_date is
-        -- one row per date), so grouping by it splits nothing; it's listed to
-        -- carry the value out rather than rely on a bare column.
-        GROUP BY b.date, b.snapshot_at, d.direction
-        ORDER BY b.date ASC
-      `;
-      const rows = (await worker.db.query(sql)) as Record<string, unknown>[];
-
-      // Pivot to one row per date.
-      const byDate = new Map<string, GsuaDirectionCoverageRow>();
-      for (const r of rows) {
-        const date = String(r.date);
-        const total = typeof r.total === "number" ? r.total : null;
-        let row = byDate.get(date);
-        if (!row) {
-          row = {
-            date, total, attributed: 0, unattributed: 0,
-            byDirection: {},
-            snapshot_at: typeof r.snapshot_at === "string" ? r.snapshot_at : null,
-            is_today: date === todayStr,
-          };
-          byDate.set(date, row);
-        }
-        // Key by AXIS, not raw direction: the two halves of a jointly-reported
-        // pair land on the same key and re-add to the figure the report gave
-        // (0.5 + 0.5 = 1). `attributed` is unaffected — folding two rows into
-        // one changes which bucket the credit lands in, not how much there is.
-        const raw = r.direction == null ? null : String(r.direction);
-        const dir = raw == null ? null : directionAxis(raw);
-        const attacks = typeof r.attacks === "number" ? r.attacks : 0;
-        if (dir && attacks > 0) {
-          row.byDirection[dir] = (row.byDirection[dir] ?? 0) + attacks;
-          row.attributed += attacks;
-          // The fold happened on this date, so the line was joint here. Only
-          // the folded-away member trips this, so it records once per axis.
-          if (raw !== dir) (row.mergedAxes ??= []).push(dir);
-        }
-      }
-      for (const row of byDate.values()) {
-        row.unattributed = row.total == null ? 0 : Math.max(0, row.total - row.attributed);
-      }
-      return [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+      const sql = coverageDailySql(windowStartSql(endDateSql, days), `'${endDateSql}'`);
+      return pivotCoverageDaily((await worker.db.query(sql)) as Record<string, unknown>[], todayStr);
     },
     [worker]
+  );
+
+  // queryDirectionCoverage over a ranking's span (utils/barOrder) — every day
+  // up to the window's end, which live would walk most of the file. Settled
+  // days come from the app copy's gsua_coverage_daily, and gsua_direction_daily
+  // for just `directions` (raw names; [] reads none, for the overview's total
+  // and attributed alone): ~8 pages a direction. The recent days, which a
+  // scrape can still change, stay live, as in queryDaily.
+  const queryDirectionCoverageSpan = useCallback(
+    async (days: number, endDate: string | undefined, directions: string[]): Promise<GsuaDirectionCoverageRow[]> => {
+      if (!worker) return [];
+      if (!(await hasTable("gsua_direction_daily"))) return queryDirectionCoverage(days, endDate);
+      const todayStr = getKyivDateString();
+      const end = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : todayStr;
+      const start = windowStartDate(end, days);
+      const floor = recentFloor(todayStr);
+      const span = `date >= '${start}' AND date < '${floor}' AND date <= '${end}'`;
+      const totals = (await worker.db.query(
+        `SELECT date, total, attributed FROM gsua_coverage_daily WHERE ${span}`,
+      )) as Record<string, unknown>[];
+      const quoted = directions.map((d) => `'${d.replace(/'/g, "''")}'`).join(", ");
+      const dirs = directions.length
+        ? (await worker.db.query(
+            `SELECT direction, date, attacks FROM gsua_direction_daily WHERE direction IN (${quoted}) AND ${span}`,
+          )) as Record<string, unknown>[]
+        : [];
+      const liveFrom = start > floor ? start : floor;
+      const recent = end >= liveFrom ? await queryDirectionCoverage(daysBetweenInclusive(liveFrom, end) ?? 1, end) : [];
+      return [...coverageFromTables(totals, dirs), ...recent];
+    },
+    [worker, hasTable, queryDirectionCoverage]
   );
 
   // Monthly-aggregated variant of queryDirectionCoverage. Same canonical-post
@@ -515,7 +450,7 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
     loadState, error,
     queryDaily, queryGlobalStats, queryMonthly, queryEodProjection, queryDataWindow,
     queryDirectionList,
-    queryDirectionCoverage, queryDirectionCoverageMonthly, querySources,
+    queryDirectionCoverage, queryDirectionCoverageSpan, queryDirectionCoverageMonthly, querySources,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs,
   };

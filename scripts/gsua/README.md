@@ -107,8 +107,14 @@ whole history over HTTP range requests, on every page view:
 - `gsua_monthly`, `gsua_direction_monthly` — the monthly page's sums and
   direction coverage. The frontend reads completed months from them and the
   current and previous month live (a scrape can still change those).
+- `gsua_coverage_daily`, `gsua_direction_daily` — each day's total and
+  attributed combat engagements, and each direction's share keyed by
+  direction, for the daily page's rankings (highest / lowest first), which
+  read every day there is. A ranked direction reads only its own rows (~8
+  pages); live, it walked the `directions` table, most of the file. Same
+  floor as above.
 
-The monthly twins must give exactly the rows of their live SQL in
+The twins must give exactly the rows of their live SQL in
 `src/utils/gsuaSql.ts`, which `src/utils/gsuaSql.test.ts` checks on a
 synthetic DB — change one, change both. A copy built without the script still
 works, through the live queries. Rebuild the local app copy after a local
