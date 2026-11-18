@@ -28,6 +28,7 @@ import {
 import { BarOrderSelect } from "@/components/BarOrderSelect";
 import { useBarOrder } from "@/hooks/useBarOrder";
 import { rankingOf, rankQueryDays, windowDayCount } from "@/utils/barOrder";
+import { afterPaint } from "@/utils/afterPaint";
 
 
 function parseWeekdays(raw: string | null): number[] {
@@ -67,7 +68,15 @@ interface Props {
 
 export function UaLossesRuModDailyPage({ refreshKey }: Props) {
   const { loadState, error, queryDaily, queryGlobalStats, queryDataWindow } = useUaLossesRuModDatabaseContext();
-  const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
+  // Every query here reads the ingest's `daily` view, ~0.5 s each in sql.js on
+  // the main thread: run after a paint (utils/afterPaint), so the page's
+  // loading message is drawn first, rather than the freeze holding the
+  // previous screen.
+  const [dataWindow, setDataWindow] = useState<{ minDate: string | null; maxDate: string | null }>({ minDate: null, maxDate: null });
+  useEffect(() => {
+    if (loadState !== "ready") return;
+    return afterPaint(() => setDataWindow(queryDataWindow()));
+  }, [loadState, queryDataWindow, refreshKey]);
 
   const initial = useMemo(() => getUrlParams(), []);
   const [days, setDays] = useState<DayOption>(initial.days);
@@ -100,7 +109,8 @@ export function UaLossesRuModDailyPage({ refreshKey }: Props) {
   };
 
   useEffect(() => {
-    if (loadState === "ready") setGlobalStats(queryGlobalStats());
+    if (loadState !== "ready") return;
+    return afterPaint(() => setGlobalStats(queryGlobalStats()));
   }, [loadState, queryGlobalStats, refreshKey]);
 
   // Ranked, every day from the first up to the window's end (utils/barOrder).
@@ -108,10 +118,11 @@ export function UaLossesRuModDailyPage({ refreshKey }: Props) {
   const queryDays = rankQueryDays(order, days, resolvedEndDate(selectedDate), dataWindow.minDate);
 
   useEffect(() => {
-    if (loadState === "ready") {
+    if (loadState !== "ready") return;
+    return afterPaint(() => {
       setRows(queryDaily(queryDays, selectedDate || undefined));
       setHasData(true);
-    }
+    });
   }, [loadState, queryDays, selectedDate, queryDaily, refreshKey]);
 
   // The MoD's day is Moscow's.

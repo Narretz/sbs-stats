@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useUaLossesRuModDatabaseContext } from "@/sites/uaLossesRuMod/context";
 import { useMonthlyMetricGrid } from "@/hooks/useMonthlyMetricGrid";
 import { MonthlyBarChart } from "@/components/MonthlyBarChart";
@@ -10,6 +10,7 @@ import { PageScaffold } from "@/components/PageScaffold";
 import { noDaysMonth, padTrailingMonthly } from "@/utils/padTrailing";
 import { maxMedian } from "@/utils/windowStats";
 import { armourBreakdown } from "@/utils/armourBreakdown";
+import { afterPaint } from "@/utils/afterPaint";
 import {
   UA_LOSSES_RU_MOD_METRIC_KEYS,
   UA_LOSSES_RU_MOD_TARGET_KEYS,
@@ -35,7 +36,12 @@ const sumTargets = (r: Partial<Record<UaLossesRuModMetricKey, number | null>>): 
 
 export function UaLossesRuModMonthlyPage({ refreshKey }: Props) {
   const { loadState, error, queryMonthly, queryDataWindow } = useUaLossesRuModDatabaseContext();
-  const dataWindow = useMemo(() => queryDataWindow(), [queryDataWindow]);
+  // Run after a paint, as the daily page's queries are: see there.
+  const [dataWindow, setDataWindow] = useState<{ minDate: string | null; maxDate: string | null }>({ minDate: null, maxDate: null });
+  useEffect(() => {
+    if (loadState !== "ready") return;
+    return afterPaint(() => setDataWindow(queryDataWindow()));
+  }, [loadState, queryDataWindow, refreshKey]);
   const [order, setOrder] = useBarOrder();
   const { allRows, rows, hasData, yr, allStats, ranking } = useMonthlyMetricGrid({
     loadState, queryMonthly, refreshKey, keys: UA_LOSSES_RU_MOD_METRIC_KEYS, order,

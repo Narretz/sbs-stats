@@ -32,7 +32,9 @@ interface PageScaffoldProps {
   loadState: LoadState;
   error: string | null;
   hasData: boolean;
-  loadingMessage?: string;        // omitted → LoadingScreen's default copy
+  // While the DB loads; omitted → LoadingScreen's default copy. Once it has
+  // loaded, the wait is the page's own queries: "Preparing data …".
+  loadingMessage?: string;
 
   // Ready content. When it's a plain chart list, pass `gridChildren` to have the
   // scaffold wrap it in a <ChartGrid>; pass `children` for full control (e.g.
@@ -44,6 +46,8 @@ interface PageScaffoldProps {
   // omitted in date order.
   ranking?: Ranking | null;
 }
+
+const PREPARING = "Preparing data …";
 
 const HEADER_STACK: React.CSSProperties = { display: "flex", gap: 8, flexDirection: "column", marginBottom: 16 };
 const HEADER_BLOCK: React.CSSProperties = { marginBottom: 16 };
@@ -95,7 +99,10 @@ export function PageScaffold({
         </div>
       )}
 
-      {loading && <LoadingScreen message={loadingMessage} />}
+      {/* A site's DB loads once for all its pages, often before the page's own
+          code has, so a "ready" DB with no rows yet is the page querying it —
+          seconds for a slow source (UA losses, RU MoD's diffed view). */}
+      {loading && <LoadingScreen message={loadState === "ready" ? PREPARING : loadingMessage} />}
       {loadState === "error" && <ErrorScreen message={error ?? "Unknown error"} />}
       <RankingContext.Provider value={ranking}>
         {ready && gridChildren !== undefined && <ChartGrid>{gridChildren}</ChartGrid>}

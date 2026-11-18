@@ -3,6 +3,7 @@ import type { LoadState, Stat } from "@/types";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
 import { maxMedian } from "@/utils/windowStats";
 import { rankingOf, type BarOrder, type Ranking } from "@/utils/barOrder";
+import { afterPaint } from "@/utils/afterPaint";
 
 // Shared monthly-page data plumbing. Nearly every monthly dataset page repeats
 // the same steps: load all rows once the DB is ready, expose a `hasData` flag,
@@ -38,11 +39,14 @@ export function useMonthlyMetricGrid<Row extends { date: string }, K extends str
   const [allRows, setAllRows] = useState<Row[]>([]);
   const [hasData, setHasData] = useState(false);
 
+  // After a paint (utils/afterPaint): a slow source's query would otherwise
+  // freeze the page before its loading message is drawn.
   useEffect(() => {
-    if (loadState === "ready") {
+    if (loadState !== "ready") return;
+    return afterPaint(() => {
       setAllRows(queryMonthly());
       setHasData(true);
-    }
+    });
   }, [loadState, queryMonthly, refreshKey]);
 
   const yr = useMonthlyMonthRange({ count: allRows.length, first: allRows[0]?.date ?? "" }, undefined, tz);
