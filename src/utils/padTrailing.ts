@@ -24,19 +24,34 @@ export function fillDailyRange(
   const { keepDate } = opts;
   const byDate = new Map(data.map((p) => [p.date, p]));
   const out: DailyDataPoint[] = [];
-  let cursor = Temporal.PlainDate.from(startDate);
-  const stop = Temporal.PlainDate.from(endDate);
-  while (Temporal.PlainDate.compare(cursor, stop) <= 0) {
-    const iso = cursor.toString();
+  for (const iso of daysBetween(startDate, endDate)) {
     const existing = byDate.get(iso);
     if (existing) {
       out.push(existing);
     } else if (!keepDate || keepDate(iso)) {
       out.push({ date: iso, value: null, is_today: false });
     }
-    cursor = cursor.add({ days: 1 });
   }
   return out;
+}
+
+// Every date in [startDate, endDate]. A ranking (utils/barOrder) fills every
+// day there is, ~1,700, for each of a page's charts on every render; stepping
+// them with the polyfill's PlainDate arithmetic was most of the page's render
+// time. So: UTC milliseconds, which have no DST (a day is always 86,400,000),
+// and the last span's list kept, since a page's charts all ask for the same.
+const DAY_MS = 86_400_000;
+let lastSpan: { key: string; days: string[] } | null = null;
+export function daysBetween(startDate: string, endDate: string): string[] {
+  const key = `${startDate}/${endDate}`;
+  if (lastSpan?.key === key) return lastSpan.days;
+  const days: string[] = [];
+  const stop = Date.parse(`${endDate}T00:00:00Z`);
+  for (let t = Date.parse(`${startDate}T00:00:00Z`); t <= stop; t += DAY_MS) {
+    days.push(new Date(t).toISOString().slice(0, 10));
+  }
+  lastSpan = { key, days };
+  return days;
 }
 
 // MonthlyDataPoint.date is YYYY-MM (per MonthlyRow / per-source contract). The

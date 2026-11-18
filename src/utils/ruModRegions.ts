@@ -111,17 +111,22 @@ export interface RegionList {
   items: { name: string; value: string | null; days?: string }[];
 }
 
+// Built once: localeCompare and toLocaleString each build theirs on every
+// call, and a ranking (utils/barOrder) lists every day there is.
+const BY_NAME = new Intl.Collator();
+const COUNT = new Intl.NumberFormat();
+
 /** A day's (or window's) regions for the tooltip; null when none were named. */
 export function regionList(mentions: readonly RegionMention[]): RegionList | null {
   const merged = mergeMentions(mentions).map((m) => ({ ...m, name: regionName(m.region) }));
   if (!merged.length) return null;
   merged.sort((a, b) =>
-    (b.drones ?? -1) - (a.drones ?? -1) || a.name.localeCompare(b.name));
+    (b.drones ?? -1) - (a.drones ?? -1) || BY_NAME.compare(a.name, b.name));
   return {
     heading: `${merged.length} Regions`,
     items: merged.map((m) => ({
       name: m.name,
-      value: m.drones == null ? null : `${m.lowerBound ? "≥ " : ""}${m.drones.toLocaleString()}`,
+      value: m.drones == null ? null : `${m.lowerBound ? "≥ " : ""}${COUNT.format(m.drones)}`,
     })),
   };
 }

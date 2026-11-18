@@ -10,8 +10,21 @@ import { interimReportTime } from "@/utils/gsuaInterim";
 export function formatPostedAt(iso: string, timeZone: string, zoneLabel: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  const s = d.toLocaleString("sv-SE", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-  return `${s} ${zoneLabel}`;
+  return `${postedAtFormat(timeZone).format(d)} ${zoneLabel}`;
+}
+
+// One formatter per zone: toLocaleString builds a new one on every call, and a
+// ranking (utils/barOrder) labels every post there is — that was most of the
+// RU MoD daily page's render.
+const postedAtFormats = new Map<string, Intl.DateTimeFormat>();
+const EN_COUNT = new Intl.NumberFormat("en-US");
+function postedAtFormat(timeZone: string): Intl.DateTimeFormat {
+  let f = postedAtFormats.get(timeZone);
+  if (!f) {
+    f = new Intl.DateTimeFormat("sv-SE", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    postedAtFormats.set(timeZone, f);
+  }
+  return f;
 }
 
 // "2026-10-09 20:00 – 10-11 20:00 Moscow": the span a report covers, both ends
@@ -156,7 +169,7 @@ export function ruModSourcesByDate(reports: readonly RuModReportSource[]): Map<s
     const label = [
       r.window_kind === "night" ? "overnight" : "daytime",
       window,
-      r.drones != null ? `${r.drones.toLocaleString("en-US")} ${r.unit === "air_target" ? "air targets" : "UAVs"}` : "",
+      r.drones != null ? `${EN_COUNT.format(r.drones)} ${r.unit === "air_target" ? "air targets" : "UAVs"}` : "",
     ].filter(Boolean).join(", ");
     const linkText = r.posted_at ? formatPostedAt(r.posted_at, "Europe/Moscow", "Moscow") : undefined;
     out.set(r.report_date, [...(out.get(r.report_date) ?? []), { href: `${RU_MOD_CHANNEL}/${r.post_id}`, linkText, label }]);
@@ -249,7 +262,7 @@ export function airAttackSourcesByDate(
   }
   const out = new Map<string, SheetSource[]>();
   for (const g of [...groups.values()].sort((a, b) => a.start.localeCompare(b.start) || a.source.localeCompare(b.source))) {
-    const figures = `${g.launched.toLocaleString("en-US")} launched, ${g.destroyed.toLocaleString("en-US")} intercepted`;
+    const figures = `${EN_COUNT.format(g.launched)} launched, ${EN_COUNT.format(g.destroyed)} intercepted`;
     const label = [airSpan(g.start, g.end), g.launched || !g.withheld ? figures : "", g.withheld ? "some figures withheld" : ""]
       .filter(Boolean).join(", ");
     out.set(g.date, [...(out.get(g.date) ?? []), { href: airSourceUrl(g.source), linkText: airAccount(g.source), label }]);

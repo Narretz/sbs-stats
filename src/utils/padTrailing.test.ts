@@ -31,6 +31,14 @@ describe("fillDailyRange", () => {
     expect(dates(out)).toEqual(["2026-09-01", "2026-09-04"]);
   });
 
+  it("crosses a clock change without skipping or repeating a day", () => {
+    // Kyiv's spring-forward and fall-back nights, and the machine's own.
+    expect(dates(fillDailyRange([], "2026-03-28", "2026-03-31")))
+      .toEqual(["2026-03-28", "2026-03-29", "2026-03-30", "2026-03-31"]);
+    expect(dates(fillDailyRange([], "2026-10-24", "2026-10-27")))
+      .toEqual(["2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27"]);
+  });
+
   it("crosses a month and a year boundary", () => {
     expect(dates(fillDailyRange([], "2026-12-30", "2027-01-02")))
       .toEqual(["2026-12-30", "2026-12-31", "2027-01-01", "2027-01-02"]);
