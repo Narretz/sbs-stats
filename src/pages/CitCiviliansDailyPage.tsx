@@ -155,8 +155,8 @@ export function CitCiviliansDailyPage({ refreshKey }: Props) {
         <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate}
                  onChange={updateDate} onShift={shiftSelectedDate}
                  canGoNext={canGoNext} canGoPrev={canGoPrev} />
-        <BarOrderSelect value={order} onChange={setOrder} />
         <MoreControls>
+          <BarOrderSelect value={order} onChange={setOrder} />
           <StatScopeToggle />
           <WeatherToggle checked={showWeather} onChange={setShowWeather} />
         </MoreControls>

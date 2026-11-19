@@ -295,7 +295,6 @@ export function GsuaDailyPage({ refreshKey }: Props) {
       controls={<>
         <DayRangeSelect options={DAY_OPTIONS} value={days} onChange={updateDays} endDate={endDate} />
         <DateNav label="End" value={selectedDate} min={WINDOW_FLOOR} max={maxSelectableDate} onChange={updateDate} onShift={shiftSelectedDate} canGoNext={canGoNext} canGoPrev={canGoPrev} />
-        <BarOrderSelect value={order} onChange={setOrder} />
         <CheckboxMultiSelect
           label="Direction"
           testId="direction-picker"
@@ -305,6 +304,7 @@ export function GsuaDailyPage({ refreshKey }: Props) {
           onChange={updateDirections}
         />
         <MoreControls>
+          <BarOrderSelect value={order} onChange={setOrder} />
           <WindowStartNav value={days} onChange={updateDays} endDate={endDate} minDate={dataWindow.minDate ?? undefined} />
           <WeekdayMultiSelect selected={selectedWeekdays} onChange={updateWeekdays} todayDow={todayDow} />
           <StatScopeToggle />

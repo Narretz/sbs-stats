@@ -41,9 +41,11 @@ test("monthly: ranked by min, past months lowest first and the month in progress
   expect(ticks).toEqual([monthISO(-1), monthISO(-2)].map((m) => m.replace("-", "/")));
 });
 
-test("the order control writes order= and switches the charts", async ({ page }) => {
+test("the order control, behind Show more, writes order= and switches the charts", async ({ page }) => {
   await page.goto("/?site=sbs&page=daily&days=7");
   await page.locator(".chart-card").first().locator(".recharts-line").first().waitFor();
+  await expect(page.getByTestId("bar-order-select")).toHaveCount(0);
+  await page.getByTestId("more-controls").click();
   await page.getByTestId("bar-order-select").selectOption("max");
   await expect(page).toHaveURL(/[?&]order=max\b/);
   expect((await firstChartTicks(page))[0]).toBe("2020-01-01");
@@ -67,7 +69,7 @@ test("GSUA ranked: combat engagements gets an unattributed chart, and a picked d
   // With its "with direction" half, over the same span.
   await expect(page.locator("#combat-engagements .recharts-bar-rectangle")).toHaveCount(14);
 
-  await page.goto("/?site=ru-attacks-gsua&page=daily&days=7&order=max&direction=Pokrovsk");
+  await page.goto("/?site=ru-attacks-gsua&page=daily&days=7&order=max&direction=Pokrovsk&more=1");
   await expect(page.getByTestId("bar-order-select")).toBeVisible();
   const card = page.locator("#attacks-pokrovsk");
   await expect(card.locator(".recharts-bar-rectangle")).toHaveCount(7);
@@ -93,7 +95,7 @@ test("exchanges ranked: the biggest exchange of the whole record leads", async (
   const total = (e: (typeof records)[number]) => (e.ua_received ?? 0) + (e.ru_received ?? 0);
   const biggest = [...records].sort((a, b) => total(b) - total(a) || a.date.localeCompare(b.date))[0];
 
-  await page.goto("/?site=pow-exchanges&order=max");
+  await page.goto("/?site=pow-exchanges&order=max&more=1");
   await expect(page.getByTestId("bar-order-select")).toHaveValue("max");
   expect((await firstChartTicks(page))[0]).toBe(biggest.date.replace(/-/g, "/"));
 });

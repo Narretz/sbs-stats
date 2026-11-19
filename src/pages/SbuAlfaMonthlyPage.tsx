@@ -218,8 +218,8 @@ export function SbuAlfaMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allPeriods[0] ?? ""} />
-          <BarOrderSelect value={order} onChange={setOrder} />
           <MoreControls>
+            <BarOrderSelect value={order} onChange={setOrder} />
             <StatScopeToggle />
           </MoreControls>
         </>

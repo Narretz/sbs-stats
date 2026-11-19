@@ -3,6 +3,7 @@ import { PageScaffold } from "@/components/PageScaffold";
 import { ExchangeChart } from "@/components/ExchangeChart";
 import { MonthWindowControls } from "@/components/MonthWindowControls";
 import { BarOrderSelect } from "@/components/BarOrderSelect";
+import { MoreControls } from "@/components/MoreControls";
 import { useBarOrder } from "@/hooks/useBarOrder";
 import { rankingOf } from "@/utils/barOrder";
 import { useMonthlyMonthRange } from "@/hooks/useMonthlyMonthRange";
@@ -47,7 +48,9 @@ export function BodyExchangesPage() {
       </>}
       controls={<>
         {!yr.hidden && <MonthWindowControls yr={yr} min={first} />}
-        <BarOrderSelect value={order} onChange={setOrder} />
+        <MoreControls>
+          <BarOrderSelect value={order} onChange={setOrder} />
+        </MoreControls>
       </>}
       ranking={ranking}
       loadState="ready"

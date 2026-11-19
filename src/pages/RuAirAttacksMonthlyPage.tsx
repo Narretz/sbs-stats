@@ -221,8 +221,8 @@ export function RuAirAttacksMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allRows[0]?.date ?? ""} />
-          <BarOrderSelect value={order} onChange={setOrder} />
           <MoreControls>
+            <BarOrderSelect value={order} onChange={setOrder} />
             <StatScopeToggle />
           </MoreControls>
         </>

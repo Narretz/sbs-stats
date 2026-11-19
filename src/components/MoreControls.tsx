@@ -17,11 +17,11 @@ function writeOpen(open: boolean) {
 }
 
 // "Show more / Show less" for a page's secondary chart controls — the window's
-// start date, the weekday filter, the MAX/MED scope, the tooltip sort. Renders
-// a fragment (button, then the children when open) so the children stay items
-// of the page's controls row and wrap with it like any other control. Open or
-// closed is in the URL, so a link to a page with a filter applied can carry
-// the controls that show it.
+// start date, the weekday filter, the bar order, the MAX/MED scope, the tooltip
+// sort. Renders a fragment (button, then the children when open) so the
+// children stay items of the page's controls row and wrap with it like any
+// other control. Open or closed is in the URL, so a link to a page with a
+// filter applied can carry the controls that show it.
 export function MoreControls({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(readOpen);
   const toggle = () => {

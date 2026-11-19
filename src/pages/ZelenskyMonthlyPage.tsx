@@ -84,8 +84,8 @@ export function ZelenskyMonthlyPage({ refreshKey }: Props) {
       controls={yr.hidden ? undefined : (
         <>
           <MonthWindowControls yr={yr} min={allMonths[0] ?? ""} />
-          <BarOrderSelect value={order} onChange={setOrder} />
           <MoreControls>
+            <BarOrderSelect value={order} onChange={setOrder} />
             <StatScopeToggle />
           </MoreControls>
         </>
