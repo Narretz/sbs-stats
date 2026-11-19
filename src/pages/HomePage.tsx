@@ -36,7 +36,7 @@ import {
 } from "@/home/charts";
 import { qualitativeColor } from "@/chartColors";
 import { findMetric, setSbsUnitNames, type CombinedMetric, type MetricSource } from "@/utils/combinedMetrics";
-import { fetchCombinedDaily, fetchCombinedMonthly, fetchCombinedWeekly, fetchCombinedGlobalStats, statsForMetric, type GlobalStatsBundle } from "@/utils/combinedQuery";
+import { coverageStats, fetchCombinedDaily, fetchCombinedMonthly, fetchCombinedWeekly, fetchCombinedGlobalStats, isGsuaCoverageKey, statsForMetric, type GlobalStatsBundle } from "@/utils/combinedQuery";
 import type { DailyDataPoint, SbsUnit, Site } from "@/types";
 import { sbsUnitLabel } from "@/types";
 import { FONTS } from "@/theme";
@@ -189,6 +189,14 @@ export function HomePage({ onGoToSite }: Props) {
     setSbsUnitNames(list.map((u) => ({ slug: u.slug, name: sbsUnitLabel(u) })));
   }, [unitsLoadState, queryUnits]);
   const gsua = useDatabaseGsua({ enabled: needed.has("gsua") });
+  // The GSUA coverage metrics' days (attributed / unattributed engagements):
+  // settled ones from the app copy's daily tables, so a long window costs
+  // about what a short one does.
+  const { queryDirectionCoverageSpan, queryDirectionCoverageHistory } = gsua;
+  const gsuaCoverageDaily = useCallback(
+    (days: number, endDate?: string) => queryDirectionCoverageSpan(days, endDate, []),
+    [queryDirectionCoverageSpan],
+  );
   const ruLosses = useDatabaseRuLosses({ enabled: needed.has("ru-losses") });
   const uaLosses = useDatabaseUaLosses({ enabled: needed.has("ua-losses") });
   // Gated: an idle stub in builds without the dataset (src/sites/uaLossesRuMod).
@@ -284,6 +292,7 @@ export function HomePage({ onGoToSite }: Props) {
             sbs: needed.has("sbs") ? sbs.queryMonthly : undefined,
             sbsUnits: needed.has("sbs-unit") ? sbsUnits.queryMonthly : undefined,
             gsua: needed.has("gsua") ? gsua.queryMonthly : undefined,
+            gsuaCoverage: needed.has("gsua") ? gsua.queryDirectionCoverageMonthly : undefined,
             ruLosses: needed.has("ru-losses") ? ruLosses.queryMonthly : undefined,
             uaLosses: needed.has("ua-losses") ? uaLosses.queryMonthly : undefined,
             uaLossesRuMod: needed.has("ua-losses-ru-mod") ? uaLossesRuMod.queryMonthly : undefined,
@@ -303,6 +312,7 @@ export function HomePage({ onGoToSite }: Props) {
         ? fetchCombinedWeekly(metrics, c.window as WeekOption, selectedDate || undefined, {
             sbs: needed.has("sbs") ? sbs.queryDaily : undefined,
             gsua: needed.has("gsua") ? gsua.queryDaily : undefined,
+            gsuaCoverage: needed.has("gsua") ? gsuaCoverageDaily : undefined,
             ruLosses: needed.has("ru-losses") ? ruLosses.queryDaily : undefined,
             uaLosses: needed.has("ua-losses") ? uaLosses.queryDaily : undefined,
             uaLossesRuMod: needed.has("ua-losses-ru-mod") ? uaLossesRuMod.queryDaily : undefined,
@@ -316,6 +326,7 @@ export function HomePage({ onGoToSite }: Props) {
         : fetchCombinedDaily(metrics, clampDays(c.window as DayOption, resolvedEndDate(selectedDate)), selectedDate || undefined, {
             sbs: needed.has("sbs") ? sbs.queryDaily : undefined,
             gsua: needed.has("gsua") ? gsua.queryDaily : undefined,
+            gsuaCoverage: needed.has("gsua") ? gsuaCoverageDaily : undefined,
             ruLosses: needed.has("ru-losses") ? ruLosses.queryDaily : undefined,
             uaLosses: needed.has("ua-losses") ? uaLosses.queryDaily : undefined,
             uaLossesRuMod: needed.has("ua-losses-ru-mod") ? uaLossesRuMod.queryDaily : undefined,
@@ -345,7 +356,7 @@ export function HomePage({ onGoToSite }: Props) {
   }, [charts, chartFetchKeys, selectedDate, needed, mediazonaNeeded,
       sbs.loadState, sbs.queryDaily, sbs.queryMonthly,
       sbsUnits.loadState, sbsUnits.queryMonthly,
-      gsua.loadState, gsua.queryDaily, gsua.queryMonthly,
+      gsua.loadState, gsua.queryDaily, gsua.queryMonthly, gsua.queryDirectionCoverageMonthly, gsuaCoverageDaily,
       ruLosses.loadState, ruLosses.queryDaily, ruLosses.queryMonthly,
       uaLosses.loadState, uaLosses.queryDaily, uaLosses.queryMonthly,
       uaLossesRuMod.loadState, uaLossesRuMod.queryDaily, uaLossesRuMod.queryMonthly,
@@ -373,6 +384,13 @@ export function HomePage({ onGoToSite }: Props) {
     }
     return s;
   }, [charts, scope]);
+  // …and of those, whether one is a GSUA coverage metric, whose stats are a
+  // read of their own.
+  const coverageStatsWanted = useMemo(() => scope === "all" && charts.some((c) =>
+    c.granularity === "daily" && c.metricIds.some((id) => {
+      const m = findMetric(id);
+      return m?.source === "gsua" && isGsuaCoverageKey(m.key);
+    })), [charts, scope]);
 
   // Refetch whole-dataset stats whenever the set of sources they're read for
   // grows. The bundle is keyed by source so adding a metric from an
@@ -404,6 +422,9 @@ export function HomePage({ onGoToSite }: Props) {
     fetchCombinedGlobalStats(readySet, {
       sbs: sourcesReady.sbs ? sbs.queryGlobalStats : undefined,
       gsua: sourcesReady.gsua ? gsua.queryGlobalStats : undefined,
+      gsuaCoverage: sourcesReady.gsua && coverageStatsWanted
+        ? async () => coverageStats(await queryDirectionCoverageHistory())
+        : undefined,
       ruLosses: sourcesReady["ru-losses"] ? ruLosses.queryGlobalStats : undefined,
       uaLosses: sourcesReady["ua-losses"] ? uaLosses.queryGlobalStats : undefined,
       uaLossesRuMod: sourcesReady["ua-losses-ru-mod"] ? uaLossesRuMod.queryGlobalStats : undefined,
@@ -413,7 +434,7 @@ export function HomePage({ onGoToSite }: Props) {
       if (!cancelled) setGlobalStats((prev) => ({ ...prev, ...bundle }));
     });
     return () => { cancelled = true; };
-  }, [statsSources, sbs.loadState, sbs.queryGlobalStats, gsua.loadState, gsua.queryGlobalStats, ruLosses.loadState, ruLosses.queryGlobalStats, uaLosses.loadState, uaLosses.queryGlobalStats, uaLossesRuMod.loadState, uaLossesRuMod.queryGlobalStats, ruMod.loadState, ruMod.queryGlobalStats, ruAir.loadState, ruAir.queryGlobalStats]);
+  }, [statsSources, coverageStatsWanted, queryDirectionCoverageHistory, sbs.loadState, sbs.queryGlobalStats, gsua.loadState, gsua.queryGlobalStats, ruLosses.loadState, ruLosses.queryGlobalStats, uaLosses.loadState, uaLosses.queryGlobalStats, uaLossesRuMod.loadState, uaLossesRuMod.queryGlobalStats, ruMod.loadState, ruMod.queryGlobalStats, ruAir.loadState, ruAir.queryGlobalStats]);
 
   // Single chart-config mutator. Persists to URL, omitting the `charts=` param
   // when the chart list matches the curated JSON defaults so "/" stays clean.

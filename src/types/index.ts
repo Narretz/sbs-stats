@@ -317,6 +317,21 @@ export const GSUA_METRIC_LABELS: Record<GsuaMetricKey, string> = {
   targets_destroyed: "UA Targets Hit",
 };
 
+// Combat engagements split by whether the report named a direction for them
+// (GsuaDirectionCoverageRow): `attributed` is the sum of the per-direction
+// lines, `unattributed` the rest of the day's total. Combined-chart metrics,
+// read from the coverage queries rather than the rows the others come from.
+export const GSUA_COVERAGE_KEYS = [
+  "combat_engagements_attributed",
+  "combat_engagements_unattributed",
+] as const;
+export type GsuaCoverageKey = (typeof GSUA_COVERAGE_KEYS)[number];
+
+export const GSUA_COVERAGE_LABELS: Record<GsuaCoverageKey, string> = {
+  combat_engagements_attributed: "Combat Engagements — Attributed",
+  combat_engagements_unattributed: "Combat Engagements — Unattributed",
+};
+
 export type GsuaDailyRow = {
   date: string;          // YYYY-MM-DD
   snapshot_at: string;   // ISO local Kyiv
@@ -397,6 +412,7 @@ export interface GsuaCoverageProjection {
 }
 
 export type GsuaGlobalStats = Record<GsuaMetricKey, Stat>;
+export type GsuaCoverageGlobalStats = Record<GsuaCoverageKey, Stat>;
 
 export type GsuaMonthlyRow = {
   date: string; // "YYYY-MM"

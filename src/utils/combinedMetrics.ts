@@ -10,6 +10,8 @@ import {
   AIR_IMPACT_LABELS,
   ATTACK_CATEGORY_KEYS,
   ATTACK_CATEGORY_LABELS,
+  GSUA_COVERAGE_KEYS,
+  GSUA_COVERAGE_LABELS,
   GSUA_METRIC_KEYS,
   GSUA_METRIC_LABELS,
   MEDIAZONA_ROLE_GROUP_KEYS,
@@ -188,9 +190,10 @@ const SBS_METRICS: CombinedMetric[] = [
   ]),
 ];
 
-const GSUA_METRICS: CombinedMetric[] = GSUA_METRIC_KEYS.map((k) =>
-  make("gsua", k, GSUA_METRIC_LABELS[k], ALL_GRAINS),
-);
+const GSUA_METRICS: CombinedMetric[] = [
+  ...GSUA_METRIC_KEYS.map((k) => make("gsua", k, GSUA_METRIC_LABELS[k], ALL_GRAINS)),
+  ...GSUA_COVERAGE_KEYS.map((k) => make("gsua", k, GSUA_COVERAGE_LABELS[k], ALL_GRAINS)),
+];
 
 const RU_LOSSES_METRICS: CombinedMetric[] = RU_LOSSES_METRIC_KEYS.map((k) =>
   make("ru-losses", k, RU_LOSSES_METRIC_LABELS[k], ALL_GRAINS),

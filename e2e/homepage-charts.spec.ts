@@ -65,3 +65,24 @@ test.describe("Homepage custom charts", () => {
     await expect(page.locator('[data-testid="day-range-custom"]').first()).toHaveValue("20");
   });
 });
+
+test("GSUA's attributed and unattributed combat engagements chart from the direction coverage", async ({ page }) => {
+  // The fixture's canonical posts credit 60% of each day's engagements to a
+  // direction; the split itself is unit-tested in combinedQuery.
+  const charts = "A:d7:gsua.combat_engagements_attributed,gsua.combat_engagements_unattributed";
+  await page.goto(`/?charts=${encodeURIComponent(charts)}`);
+  // Σ of one series, once the chart has its rows (it reads 0 until then).
+  const sum = async (label: string) => {
+    const stat = page.getByText(new RegExp(`${label} · MAX`)).first();
+    const total = async () => Number((await stat.innerText()).match(/Σ ([\d,]+)/)![1].replace(/,/g, ""));
+    await expect.poll(total).toBeGreaterThan(0);
+    return total();
+  };
+  const attributed = await sum("Attributed");
+  const unattributed = await sum("Unattributed");
+  expect(attributed / (attributed + unattributed)).toBeCloseTo(0.6, 1);
+
+  // All data: whole-history stats, a read of their own, over more days.
+  await page.getByTestId("stat-scope-select").selectOption("all");
+  await expect.poll(() => sum("Unattributed")).toBeGreaterThan(unattributed);
+});

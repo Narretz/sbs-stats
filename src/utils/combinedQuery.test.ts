@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { GsuaMonthlyRow, RuAirAttacksDailyRow, ZelenskyWeekRow } from "@/types";
+import type { GsuaDirectionCoverageRow, GsuaMonthlyRow, RuAirAttacksDailyRow, ZelenskyWeekRow } from "@/types";
 import { findMetric, type CombinedMetric } from "@/utils/combinedMetrics";
-import { fetchCombinedMonthly, fetchCombinedWeekly } from "@/utils/combinedQuery";
+import { coverageStats, fetchCombinedDaily, fetchCombinedMonthly, fetchCombinedWeekly, statsForMetric } from "@/utils/combinedQuery";
 
 const metric = (id: string) => findMetric(id) as CombinedMetric;
 
@@ -97,5 +97,41 @@ describe("fetchCombinedMonthly — the President's weekly tally", () => {
       zelensky: () => [week("2026-02-02", 70)],
     });
     expect(late["zelensky.drones"].map((p) => p.date)).toEqual(["2026-02", "2026-03"]);
+  });
+});
+
+describe("GSUA combat engagements, attributed and unattributed", () => {
+  const cov = (date: string, total: number | null, attributed: number, is_today = false): GsuaDirectionCoverageRow =>
+    ({ date, total, attributed, unattributed: total == null ? 0 : Math.max(0, total - attributed), byDirection: {}, is_today });
+  const ATTR = "gsua.combat_engagements_attributed";
+  const UNATTR = "gsua.combat_engagements_unattributed";
+
+  it("reads the coverage rows, not the GSUA day rows, and a day with no total has nothing unattributed", async () => {
+    const out = await fetchCombinedDaily([metric(ATTR), metric(UNATTR)], 3, "2026-09-03", {
+      gsua: async () => { throw new Error("not asked for"); },
+      gsuaCoverage: async (days, endDate) => {
+        expect([days, endDate]).toEqual([3, "2026-09-03"]);
+        return [cov("2026-09-01", 150, 120), cov("2026-09-02", null, 0), cov("2026-09-03", 90, 95, true)];
+      },
+    });
+    expect(out[ATTR].map((p) => p.value)).toEqual([120, 0, 95]);
+    // Over-attributed (a pair of directions reported jointly): clamped to 0.
+    expect(out[UNATTR].map((p) => p.value)).toEqual([30, null, 0]);
+    expect(out[UNATTR][2].is_today).toBe(true);
+  });
+
+  it("windows the coverage months", async () => {
+    const out = await fetchCombinedMonthly([metric(UNATTR)], 2, "2026-03-10", {
+      gsuaCoverage: async () => [cov("2026-01", 3000, 2500), cov("2026-02", 2800, 2600), cov("2026-03", 900, 850)],
+    });
+    expect(out[UNATTR].map((p) => [p.date, p.value])).toEqual([["2026-02", 200], ["2026-03", 50]]);
+  });
+
+  it("takes its All-data stats from the coverage bundle", () => {
+    const stats = coverageStats([cov("2026-09-01", 150, 120), cov("2026-09-02", null, 0), cov("2026-09-03", 100, 60)]);
+    expect(stats.combat_engagements_unattributed).toEqual({ max: 40, median: 40, total: 70 });
+    expect(stats.combat_engagements_attributed).toEqual({ max: 120, median: 60, total: 180 });
+    expect(statsForMetric(metric(UNATTR), { gsuaCoverage: stats })).toEqual(stats.combat_engagements_unattributed);
+    expect(statsForMetric(metric(UNATTR), { gsua: {} as never })).toBeNull();
   });
 });

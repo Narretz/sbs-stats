@@ -370,6 +370,21 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
     [worker, hasTable, queryDirectionCoverage]
   );
 
+  // Every day's coverage, from the first report to today: what the home page's
+  // coverage metrics take their "All data" stats from. From the daily tables
+  // where the app copy has them (a few dozen pages), live otherwise.
+  const queryDirectionCoverageHistory = useCallback(
+    async (): Promise<GsuaDirectionCoverageRow[]> => {
+      if (!worker) return [];
+      const rows = (await worker.db.query(`SELECT MIN(date) AS minDate FROM posts`)) as { minDate: string | null }[];
+      const first = rows[0]?.minDate;
+      if (!first) return [];
+      const today = getKyivDateString();
+      return queryDirectionCoverageSpan(daysBetweenInclusive(first, today) ?? 1, today, []);
+    },
+    [worker, queryDirectionCoverageSpan]
+  );
+
   // Monthly-aggregated variant of queryDirectionCoverage. Same canonical-post
   // selection logic (prefer telegram, latest snapshot per date), then rolls
   // both `combat_engagements` and per-direction `attacks` up to the month.
@@ -450,7 +465,8 @@ export function useDatabaseGsua({ enabled = true }: { enabled?: boolean } = {}) 
     loadState, error,
     queryDaily, queryGlobalStats, queryMonthly, queryEodProjection, queryDataWindow,
     queryDirectionList,
-    queryDirectionCoverage, queryDirectionCoverageSpan, queryDirectionCoverageMonthly, querySources,
+    queryDirectionCoverage, queryDirectionCoverageSpan, queryDirectionCoverageHistory, queryDirectionCoverageMonthly,
+    querySources,
     refresh, lastRefreshed, refreshCount,
     refreshIntervalMs,
   };

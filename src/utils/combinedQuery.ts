@@ -11,7 +11,10 @@ import type {
   DailyDataPoint,
   DailyRow,
   GlobalStats,
+  GsuaCoverageGlobalStats,
+  GsuaCoverageKey,
   GsuaDailyRow,
+  GsuaDirectionCoverageRow,
   GsuaGlobalStats,
   GsuaMonthlyRow,
   MediazonaEstimateRow,
@@ -39,6 +42,7 @@ import type {
   UaLossesRuModMonthlyRow,
   ZelenskyWeekRow,
 } from "@/types";
+import { GSUA_COVERAGE_KEYS } from "@/types";
 import type { CombinedMetric, MetricSource } from "@/utils/combinedMetrics";
 import { windowStartDate } from "@/utils/dayRange";
 import { type MonthOption, monthOf, windowStartMonth } from "@/utils/monthRange";
@@ -50,6 +54,9 @@ import { monthsBetween, toMonthlyDataset } from "@/utils/zelenskyWeekly";
 export interface CombinedQueries {
   sbs?: (days: number, endDate?: string) => DailyRow[];
   gsua?: (days: number, endDate?: string) => Promise<GsuaDailyRow[]>;
+  // The GSUA coverage metrics (GSUA_COVERAGE_KEYS): the same days, split by
+  // direction. Called only for a chart that shows one.
+  gsuaCoverage?: (days: number, endDate?: string) => Promise<GsuaDirectionCoverageRow[]>;
   ruLosses?: (days: number, endDate?: string) => RuLossesDailyRow[];
   uaLosses?: (days: number, endDate?: string) => UaLossesDailyRow[];
   uaLossesRuMod?: (days: number, endDate?: string) => UaLossesRuModDailyRow[];
@@ -60,6 +67,7 @@ export interface CombinedQueries {
 export interface CombinedGlobalQueries {
   sbs?: () => GlobalStats;
   gsua?: () => Promise<GsuaGlobalStats>;
+  gsuaCoverage?: () => Promise<GsuaCoverageGlobalStats>;
   ruLosses?: () => RuLossesGlobalStats;
   uaLosses?: () => UaLossesGlobalStats;
   uaLossesRuMod?: () => UaLossesRuModGlobalStats;
@@ -70,6 +78,7 @@ export interface CombinedGlobalQueries {
 export interface GlobalStatsBundle {
   sbs?: GlobalStats;
   gsua?: GsuaGlobalStats;
+  gsuaCoverage?: GsuaCoverageGlobalStats;
   ruLosses?: RuLossesGlobalStats;
   uaLosses?: UaLossesGlobalStats;
   uaLossesRuMod?: UaLossesRuModGlobalStats;
@@ -91,6 +100,35 @@ function project(
   });
 }
 
+export const isGsuaCoverageKey = (key: string): key is GsuaCoverageKey =>
+  (GSUA_COVERAGE_KEYS as readonly string[]).includes(key);
+
+// A coverage row's figure for one of GSUA_COVERAGE_KEYS. A day with no total
+// has nothing to leave unattributed — a gap, as on the GSUA page.
+function coverageValue(r: GsuaDirectionCoverageRow, key: GsuaCoverageKey): number | null {
+  if (key === "combat_engagements_attributed") return r.attributed;
+  return r.total == null ? null : r.unattributed;
+}
+
+function projectCoverage(rows: GsuaDirectionCoverageRow[], key: GsuaCoverageKey): DailyDataPoint[] {
+  return rows.map((r) => ({ date: r.date, value: coverageValue(r, key), is_today: r.is_today }));
+}
+
+// Whole-history stats of the coverage metrics, over every reported day — the
+// same max / median / total queryGlobalStats gives the other GSUA metrics.
+export function coverageStats(rows: GsuaDirectionCoverageRow[]): GsuaCoverageGlobalStats {
+  const result = {} as GsuaCoverageGlobalStats;
+  for (const key of GSUA_COVERAGE_KEYS) {
+    const vals = rows.map((r) => coverageValue(r, key)).filter((v): v is number => v != null).sort((a, b) => a - b);
+    result[key] = {
+      max: vals.length ? vals[vals.length - 1] : 0,
+      median: vals.length ? vals[Math.floor(vals.length / 2)] : 0,
+      total: vals.reduce((s, n) => s + n, 0),
+    };
+  }
+  return result;
+}
+
 export interface CombinedMonthlyQueries {
   sbs?: () => MonthlyRow[];
   // Parameterised, unlike every other entry here: one query per sub-unit, not
@@ -98,6 +136,8 @@ export interface CombinedMonthlyQueries {
   // selected metrics name.
   sbsUnits?: (unitSlug: string) => MonthlyRow[];
   gsua?: () => Promise<GsuaMonthlyRow[]>;
+  // Months keyed YYYY-MM, as queryDirectionCoverageMonthly returns them.
+  gsuaCoverage?: () => Promise<GsuaDirectionCoverageRow[]>;
   ruLosses?: () => RuLossesMonthlyRow[];
   uaLosses?: () => UaLossesMonthlyRow[];
   uaLossesRuMod?: () => UaLossesRuModMonthlyRow[];
@@ -259,10 +299,16 @@ export async function fetchCombinedMonthly(
 
   const zelenskyRows = sources.has("zelensky") && queries.zelensky ? queries.zelensky() : null;
 
-  const gsuaRows = sources.has("gsua") && queries.gsua ? await queries.gsua() : null;
+  const gsuaRows = metrics.some((m) => m.source === "gsua" && !isGsuaCoverageKey(m.key)) && queries.gsua ? await queries.gsua() : null;
+  const coverageRows = metrics.some((m) => m.source === "gsua" && isGsuaCoverageKey(m.key)) && queries.gsuaCoverage
+    ? (await queries.gsuaCoverage()).map((r) => ({ ...r, is_today: r.date === monthOf("") }))
+    : null;
 
   for (const m of metrics) {
-    if (m.source === "sbs" && sbsRows) result[m.id] = projectMonthly(sbsRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
+    if (m.source === "gsua" && isGsuaCoverageKey(m.key)) result[m.id] = coverageRows
+      ? projectCoverage(coverageRows.filter((r) => r.date >= startMonth && r.date <= endMonth), m.key)
+      : [];
+    else if (m.source === "sbs" && sbsRows) result[m.id] = projectMonthly(sbsRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "sbs-unit" && m.unit && unitRows.has(m.unit)) result[m.id] = projectMonthly(unitRows.get(m.unit) as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "gsua" && gsuaRows) result[m.id] = projectMonthly(gsuaRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
     else if (m.source === "ru-losses" && ruLossesRows) result[m.id] = projectMonthly(ruLossesRows as unknown as Array<{ date: string; is_current_month?: boolean } & Record<string, unknown>>, m.key, startMonth, endMonth);
@@ -304,12 +350,16 @@ export async function fetchCombinedDaily(
   const uaLossesRuModRows = sources.has("ua-losses-ru-mod") && queries.uaLossesRuMod ? queries.uaLossesRuMod(days, endDate) : null;
   const ruModRows = sources.has("ru-airdef-mod") && queries.ruMod ? queries.ruMod(days, endDate) : null;
   const ruAirRows = sources.has("ru-air-attacks") && queries.ruAir ? queries.ruAir(days, endDate) : null;
-  const gsuaRows = sources.has("gsua") && queries.gsua ? await queries.gsua(days, endDate) : null;
+  const gsuaRows = metrics.some((m) => m.source === "gsua" && !isGsuaCoverageKey(m.key)) && queries.gsua
+    ? await queries.gsua(days, endDate) : null;
+  const coverageRows = metrics.some((m) => m.source === "gsua" && isGsuaCoverageKey(m.key)) && queries.gsuaCoverage
+    ? await queries.gsuaCoverage(days, endDate) : null;
 
   const endDateResolved = resolvedEndDate(endDate);
   const startDateResolved = windowStartDate(endDateResolved, days);
   for (const m of metrics) {
-    if (m.source === "sbs" && sbsRows) result[m.id] = project(sbsRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
+    if (m.source === "gsua" && isGsuaCoverageKey(m.key)) result[m.id] = coverageRows ? projectCoverage(coverageRows, m.key) : [];
+    else if (m.source === "sbs" && sbsRows) result[m.id] = project(sbsRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
     else if (m.source === "gsua" && gsuaRows) result[m.id] = project(gsuaRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
     else if (m.source === "ru-losses" && ruLossesRows) result[m.id] = project(ruLossesRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
     else if (m.source === "ua-losses" && uaLossesRows) result[m.id] = project(uaLossesRows as unknown as Array<{ date: string; is_today?: boolean } & Record<string, unknown>>, m.key);
@@ -384,6 +434,7 @@ export async function fetchCombinedGlobalStats(
   if (needed.has("ru-airdef-mod") && queries.ruMod) bundle.ruMod = queries.ruMod();
   if (needed.has("ru-air-attacks") && queries.ruAir) bundle.ruAir = queries.ruAir();
   if (needed.has("gsua") && queries.gsua) bundle.gsua = await queries.gsua();
+  if (needed.has("gsua") && queries.gsuaCoverage) bundle.gsuaCoverage = await queries.gsuaCoverage();
   return bundle;
 }
 
@@ -398,6 +449,7 @@ export function statsForMetric(
     case "sbs":
       return bundle.sbs?.[m.key as keyof GlobalStats] ?? null;
     case "gsua":
+      if (isGsuaCoverageKey(m.key)) return bundle.gsuaCoverage?.[m.key] ?? null;
       return bundle.gsua?.[m.key as keyof GsuaGlobalStats] ?? null;
     case "ru-losses":
       return bundle.ruLosses?.[m.key as keyof RuLossesGlobalStats] ?? null;
