@@ -1454,6 +1454,35 @@ class TestMetrics:
         )
         assert s.shellings is None
 
+    def test_shellings_verbal_form(self):
+        # msg 42958 (22:00, 2026-11-20) — "N рази обстріляв" instead of
+        # "здійснив N обстрілів"; the regular aggregate wording of mid-2024.
+        for body, expected in [
+            ("Також застосував 4582 дрони-камікадзе та 1562 рази обстріляв "
+             "населені пункти й позиції наших військ.", 1562),
+            ("Ворог майже 2700 разів обстріляв позиції наших військ і "
+             "населені пункти.", 2700),
+        ]:
+            assert self._parse(body).shellings == expected, body
+
+    def test_shellings_verbal_form_beats_the_mlrs_subcount(self):
+        # msg 14750 — the MLRS subset sits on the next line, so the plain
+        # branch read 118 as the day's total.
+        s = self._parse(
+            "Загарбники 4056 разів обстріляли позиції наших військ та мирні "
+            "населені пункти із різних видів озброєння, із \n"
+            "них 118 обстрілів відбулося з реактивних систем залпового вогню."
+        )
+        assert s.shellings == 4056
+
+    def test_shellings_verbal_form_rejects_a_regional_tally(self):
+        # msg 14761 — a border-region count with no object after the verb.
+        s = self._parse(
+            "На Чернігівщині та Сумщині станом на зараз загарбники 13 разів "
+            "обстріляли з артилерії райони різних населених пунктів."
+        )
+        assert s.shellings is None
+
     def test_shellings_rejects_per_direction_kab_line(self):
         # msg 38560 — per-direction sentence with KAB before "31 обстріл"
         # must not be picked up as the global shellings count.
