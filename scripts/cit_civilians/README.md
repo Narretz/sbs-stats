@@ -128,16 +128,16 @@ the strict test per post; `check_db.py` reports all of it. Where a post does not
 reconcile the headline is still correct — only the breakdown for that day is in
 doubt.
 
-Weekend posts reconcile worse than weekday ones, and not because of the
-stitching: both in the sample were single complete posts whose every paragraph
-parsed, with crisp modern-format lines (`ещё 31 пострадал`), and the breakdown
-still came to 159 injured against a stated 171. A 48-hour post compresses two
-days into the same terse region list, and more people end up in the headline
-than in the prose.
+A weekend post once looked like it reconciled worse than a weekday one — post
+12829 came to 159 injured against a stated 171 — but that gap was the parser:
+"13 человек, среди которых ещё один подросток, пострадали" read the "ещё" as a
+new tally of one. A sub-count phrase followed by "ещё" (`в том числе ещё шесть
+детей`) is still a sub-count, and with that read both 12829 and post 14035
+(120 vs 193) reconcile exactly.
 
 That gap is not all parser error. Some posts genuinely disagree with
 themselves: for post 10889 every region line was verified clause by clause and
-sums to 229 injured against a stated 230. Three such posts are pinned in
+sums to 229 injured against a stated 230. Two such posts are pinned in
 `test_parse.py::NON_RECONCILING` so nobody later "fixes" the parser to
 reproduce a source typo.
 
