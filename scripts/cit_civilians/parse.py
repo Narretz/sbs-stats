@@ -243,6 +243,12 @@ _VERB_RE = re.compile(
 _SUBCOUNT_RE = re.compile(
     r"(?:,\s*)?(?:включая|в том числе|в их числе|в числе которых|среди них|"
     r"среди которых|среди пострадавших|среди погибших|из них|из которых|в частности)\b"
+    # "в том числе ещё шесть детей" is still a sub-count — "ещё" there means
+    # "another child among them", not another tally. Without consuming it here
+    # the span ends at zero width on that very "ещё" (the first boundary
+    # below), and "ещё шесть детей" binds to the verb before it: post 14035
+    # read "69 пострадали, в том числе ещё шесть детей" as 6 injured.
+    r"(?:\s+(?:ещё|еще)\b)?"
     r".*?(?=(?:,?\s*(?:а\s+)?(?:ещё|еще)\b)"
     r"|(?:\s*[;.]\s*)"
     # A comma followed by a fresh count ends the span too. Stopping only at the

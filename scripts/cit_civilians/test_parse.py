@@ -86,8 +86,6 @@ NON_RECONCILING = {
     # Every region line verified: 3+20+5+9+21+29+41+10+37+3+7+2+6+31 = 224
     # daily + 5 amendments = 229 injured. The post says 230.
     "2026-05-05-post10889.txt": "CIT's own total is one higher than its breakdown",
-    # Weekend post; breakdown totals 159 injured against a stated 171.
-    "2026-09-06-post12829-weekend.txt": "48-hour post, breakdown short of the stated total",
     # Breakdown totals 83 injured against a stated 84.
     "2024-08-26-post4584.txt": "CIT's own total is one higher than its breakdown",
 }
@@ -384,3 +382,22 @@ def test_a_subcount_span_stops_at_the_next_count_not_at_the_next_verb() -> None:
     # …while a sub-count that really does run to the verb still gets eaten.
     assert _counts("четыре человека, включая ребёнка, погибли, и ещё 57 пострадали, "
                    "в том числе двое детей") == (4, 57, False)
+
+
+def test_a_subcount_introduced_with_eshche_is_still_a_subcount() -> None:
+    """"…и 69 пострадали, в том числе ещё шесть детей" read 6 injured (post 14035).
+
+    The sub-count span stopped at the "ещё" right after "в том числе", leaving
+    "ещё шесть детей" behind, which then bound to the verb before it. That post
+    came out 73 injured short of its own total (120 vs 193): Dnipropetrovsk 69
+    read as 6, occupied Luhansk 11 read as 1.
+    """
+    from parse import _counts  # noqa: PLC0415
+    assert _counts("вследствие атак БПЛА и баллистическими ракетами три человека, "
+                   "включая ребёнка, погибли, и 69 пострадали, в том числе ещё "
+                   "шесть детей.") == (3, 69, False)
+    assert _counts("от ударов БПЛА восемь человек, включая ребёнка, погибли, и 11 "
+                   "пострадали, в том числе ещё один несовершеннолетний.") == (8, 11, False)
+    # A real "ещё" tally after a sub-count still splits off as its own count.
+    assert _counts("погибли 23 человека, включая четырёх детей, ещё 63 мирных "
+                   "жителя получили ранения") == (23, 63, False)
