@@ -81,7 +81,10 @@ two yearly and both intraday slots for it, and **every one answers HTTP 404**
 (not the 200 `not_collected` stub). The first 404 aborted the whole run. A
 listed period that 404s is now a `notice` and skipped, so it costs only that
 unit's data and is picked up unattended once it serves; any other HTTP error
-still fails the run.
+still fails the run. "Unattended" covers the older months too: a scheduled run
+re-reads every listed month with no stored row, not just the current one and
+the revision tail, so the eleven back months are retried each run until they
+serve instead of rolling out of the window while waiting for an `--all`.
 
 ### The units do not sum to the grouping
 

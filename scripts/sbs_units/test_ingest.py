@@ -196,6 +196,21 @@ class TestMonthsToFetch:
         u = self._unit(["2026-08", "2026-09"])
         assert ing.months_to_fetch(u, date(2026, 9, 5), 1, False) == ["2026-09"]
 
+    def test_uncaptured_listed_months_are_retried_unattended(self):
+        # 1 ОЦ БПС, 2026-11: twelve monthly slots listed at once, every one
+        # 404. A scheduled run must keep retrying all of them — not just the
+        # current month — or the older ones roll out of the window before the
+        # source serves them, with no human `--all` in between.
+        u = self._unit(["2026-07", "2026-08", "2026-09"])
+        got = ing.months_to_fetch(u, date(2026, 9, 20), None, False, stored={"2026-08"})
+        assert got == ["2026-09", "2026-07"]
+
+    def test_captured_closed_months_are_not_re_read(self):
+        u = self._unit(["2026-07", "2026-08", "2026-09"])
+        got = ing.months_to_fetch(u, date(2026, 9, 20), None, False,
+                                  stored={"2026-07", "2026-08", "2026-09"})
+        assert got == ["2026-09"]
+
 
 # ─── Payload validation, via read_period ─────────────────────────────────────
 
