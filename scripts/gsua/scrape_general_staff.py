@@ -447,6 +447,17 @@ _SHELL_NOUN = (
 )
 # Plain count: "2723 обстріли".
 _SHELL_PLAIN = rf"{_AGG_LEAD}(\d[\d\s]*\d|\d)\s+{_SHELL_NOUN}"
+# Verbal count: "1562 рази обстріляв населені пункти" (msg 42958), the form
+# the aggregate took through mid-2024 ("4056 разів обстріляли позиції наших
+# військ"). Perfective "обстріляв/обстріляли" only: the imperfective
+# "5 разів обстрілювали Харків" is a city-level tally, not the day's total.
+# And the object must follow the verb directly: the total shells "позиції …
+# та населені пункти", while "13 разів обстріляли з артилерії райони" (msg
+# 14761) is the Chernihiv/Sumy border tally.
+_SHELL_VERB = (
+    rf"{_AGG_LEAD}(\d[\d\s]*\d|\d)\s+раз(?:и|ів)?\s+обстріля(?:в|ли)"
+    r"\s+(?:позиці|населен)"
+)
 
 
 def _parse_shellings(text: str) -> int | None:
@@ -465,13 +476,14 @@ def _parse_shellings(text: str) -> int | None:
     for pos, value in _scaled_counts(text, _SHELL_NOUN, lead=_AGG_LEAD):
         best = (pos, value)
         break
-    for m in re.finditer(_SHELL_PLAIN, text, re.IGNORECASE):
-        tok = _digits(m.group(1))
-        if not tok.isdigit():
-            continue
-        if best is None or m.start(1) < best[0]:
-            best = (m.start(1), int(tok))
-        break
+    for pattern in (_SHELL_PLAIN, _SHELL_VERB):
+        for m in re.finditer(pattern, text, re.IGNORECASE):
+            tok = _digits(m.group(1))
+            if not tok.isdigit():
+                continue
+            if best is None or m.start(1) < best[0]:
+                best = (m.start(1), int(tok))
+            break
     return best[1] if best else None
 
 
