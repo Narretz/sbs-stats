@@ -62,10 +62,24 @@ from the day before. We store two dates:
   ignore — so the next new category can't slip in silently and quietly change the
   meaning of an existing column. This is how the GS would re-introduce, say, a
   separate naval-drone line.
+- **Mislabelled records** (`drop_mismatched`): Petro's `day` counter puts
+  record N on report day 2022-02-23 + N. A record whose `date` disagrees is
+  not ingested, from either file, until upstream fixes it. On 2026-11-23 the
+  Nov 22 report was labelled Nov 23, which stored its increment twice and
+  kept the supplement from fetching the real Nov 23 report. Which field is
+  wrong can't be told, so nothing is guessed:
+  - If the record is the newest, the mod.gov.ua supplement covers its day.
+  - If a later record arrives first, the increment taken across the dropped
+    one is unknown (`NULL`), so whatever is stored for that day stays.
+  - A real gap, with date and counter skipping together, is diffed as usual.
+  - A date repeated with the same counter is the separate repeated-date
+    guard, which keeps the first record.
 - **Build guards** abort without writing (so the R2 upload is skipped and R2 is
   left untouched) if the fetch looks broken:
   1. fewer than 365 days parsed (absolute floor — the war started 2022-02-24);
   2. fewer distinct dates than already stored (refuse a shrinking dataset).
+     A loss day missing only because its record was dropped as mislabelled
+     doesn't count.
 
 ## DB output
 

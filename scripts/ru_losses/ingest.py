@@ -131,6 +131,11 @@ KNOWN_SOURCE_KEYS = set(EQUIP_MAP.values()) | set(PERSONNEL_MAP.values()) | IGNO
 # vs loss-day). Verified: petro[date] == old-source[date-1] on 1517/1552 days.
 REPORT_TO_LOSS_DAY = -1
 
+# Petro's `day` counter: record N is report day WAR_DAY_ZERO + N. A record
+# whose `date` disagrees with it is mislabelled, and not ingested — see
+# drop_mismatched.
+WAR_DAY_ZERO = date_cls(2022, 2, 23)
+
 # Absolute floor: the war started 2022-02-24, so the source should always return
 # well over a year of days. Below this means a broken/partial fetch — refuse it.
 MIN_ROWS_FLOOR = 365
@@ -224,12 +229,73 @@ def check_drift(equip: list[dict], personnel: list[dict]) -> list[str]:
     return unknown
 
 
+def _day_date(rec: dict) -> str | None:
+    """The report day Petro's `day` counter puts this record on, or None."""
+    try:
+        return (WAR_DAY_ZERO + timedelta(days=int(rec["day"]))).isoformat()
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def drop_mismatched(
+    equip: list[dict], personnel: list[dict],
+) -> tuple[list[dict], list[dict], set[str]]:
+    """Leave out every record whose `date` disagrees with its `day` counter.
+
+    Petro published the 2026-11-22 report (day 1733) labelled 2026-11-23.
+    Taken at its label, its increment was stored a second time as loss-day
+    2026-11-22, and the mod.gov.ua supplement, which starts after Petro's
+    latest date, never fetched the real 2026-11-23 report. Which field is wrong
+    can't be told from the record, so it isn't ingested until upstream fixes
+    it, usually within a day. Meanwhile the supplement covers the day if it is
+    the newest one.
+
+    The date goes from both files when either file's record for it is
+    mislabelled: a date covered by one file only would read as covered, and
+    the supplement would skip it. A record with no usable `day` is kept.
+
+    Returns the filtered lists and the report days involved (each dropped
+    record's label and the day its counter names), which parse_rows and build
+    need: an increment taken across one is unknown, and its loss day is not
+    "missing" for the shrinking-dataset guard.
+    """
+    mismatched: dict[str, list[str]] = {}  # label date -> descriptions
+    involved: set[str] = set()
+    for name, records in (("equipment", equip), ("personnel", personnel)):
+        for rec in records:
+            by_day = _day_date(rec)
+            if by_day is not None and by_day != rec["date"]:
+                mismatched.setdefault(rec["date"], []).append(
+                    f"{name} says day {rec['day']} ({by_day})")
+                involved |= {rec["date"], by_day}
+
+    def keep(rec: dict) -> bool:
+        by_day = _day_date(rec)
+        if by_day is not None and by_day != rec["date"]:
+            return False
+        # A good record whose date a mislabelled one also carries, in either
+        # file, goes too: the date is out until upstream fixes it.
+        return rec["date"] not in mismatched
+
+    for label, why in sorted(mismatched.items()):
+        log.warning(
+            f"Petro record dated {label} disagrees with its day counter "
+            f"({'; '.join(why)}); not ingesting {label} from either file until "
+            f"upstream fixes it — check upstream.",
+            extra=ann(title="ru-losses: date disagrees with day counter"),
+        )
+    return ([r for r in equip if keep(r)], [r for r in personnel if keep(r)],
+            involved)
+
+
 def shift_iso(iso: str, days: int) -> str:
     y, m, d = map(int, iso.split("-"))
     return (date_cls(y, m, d) + timedelta(days=days)).isoformat()
 
 
-def parse_rows(equip: list[dict], personnel: list[dict]) -> dict[str, dict]:
+def parse_rows(
+    equip: list[dict], personnel: list[dict], dropped: frozenset[str] | set[str] = frozenset(),
+) -> dict[str, dict]:
     """Return {loss_date: {"reported_at": report_day, <metric>: value|None}}.
 
     Merges both files into a per-report-day cumulative record, diffs consecutive
@@ -239,6 +305,13 @@ def parse_rows(equip: list[dict], personnel: list[dict]) -> dict[str, dict]:
     a catastrophic cumulative drop (see SUSPECT_DROP_RATIO) is treated as
     missing for the affected metric and `prev` is held at the last good value
     so the next day's delta is taken against pre-typo reality.
+
+    `dropped` holds the report days of records drop_mismatched left out. An
+    increment taken across one of them spans more than one day, so it is
+    unknown (None) rather than put on a single loss day; build then keeps
+    whatever is stored for that day (a mod.gov.ua row, say). A real gap, with
+    nothing dropped in it, is diffed as usual: the GS's own figure for the
+    report after it covers the same span.
     """
     cum: dict[str, dict[str, int | None]] = {}
     for name, records, mapping in (
@@ -271,13 +344,29 @@ def parse_rows(equip: list[dict], personnel: list[dict]) -> dict[str, dict]:
     prev: dict[str, int | None] = {m: None for m in METRICS}
 
     out: dict[str, dict] = {}
+    prev_rd: str | None = None
     for rd in report_days:
         loss_date = shift_iso(rd, REPORT_TO_LOSS_DAY)
         rec = {"reported_at": rd}
+        across_drop = (
+            prev_rd is not None and shift_iso(prev_rd, 1) != rd
+            and any(prev_rd < d <= rd for d in dropped)
+        )
+        if across_drop:
+            log.warning(
+                f"Petro report-day {rd} follows {prev_rd} across a dropped record; "
+                f"its increment spans more than one day, so loss-day {loss_date} "
+                f"is left unknown (a stored value is kept).",
+                extra=ann(title="ru-losses: increment across a dropped record"),
+            )
+        prev_rd = rd
         for m in METRICS:
             cur = cum[rd].get(m)
             if cur is None:
                 rec[m] = None
+            elif across_drop and prev[m] is not None:
+                rec[m] = None
+                prev[m] = cur  # the next day diffs against this record
             elif prev[m] is None:
                 rec[m] = cur if rd == first else None  # baseline vs mid-war backfill
                 prev[m] = cur
@@ -344,6 +433,7 @@ def build(
     equip: list[dict],
     personnel: list[dict],
     supplement: dict[str, dict] | None = None,
+    dropped: frozenset[str] | set[str] = frozenset(),
 ) -> tuple[int, int, str]:
     """Append changed/new day-versions into db_path. Never mutates/deletes rows.
 
@@ -355,7 +445,7 @@ def build(
     Returns (inserted_rows, distinct_dates, latest_date). Aborts (raises) without
     writing if the payload looks broken, so the caller can skip the R2 upload.
     """
-    fetched = parse_rows(equip, personnel)
+    fetched = parse_rows(equip, personnel, dropped)
     if supplement:
         for loss_day, rec in supplement.items():
             if loss_day in fetched:
@@ -396,7 +486,11 @@ def build(
         stored = {r[0]: tuple(r[1:]) for r in latest_rows}
 
         # Guard 2: we should never see fewer distinct dates than already stored.
-        if len(fetched) < len(stored):
+        # A loss day missing because drop_mismatched left its record out is
+        # not a sign of a broken fetch; it keeps its stored rows.
+        excused = {d for d in set(stored) - set(fetched)
+                   if shift_iso(d, -REPORT_TO_LOSS_DAY) in dropped}
+        if len(fetched) + len(excused) < len(stored):
             raise RuntimeError(
                 f"parsed {len(fetched)} days but DB already has {len(stored)} dates — "
                 f"refusing to write a shrinking dataset into {db_path}."
@@ -447,6 +541,8 @@ def main() -> int:
     # the old "==> Fetching <url>" banner is redundant — drop it.
     equip, personnel = fetch()
     check_drift(equip, personnel)
+    # Before anything reads a date: the supplement's start below is one.
+    equip, personnel, dropped = drop_mismatched(equip, personnel)
 
     # MoD supplement: Petro publishes once per day (a day after the loss
     # day), so on a fresh cron run the latest loss-day in Petro's data is
@@ -466,7 +562,8 @@ def main() -> int:
         )
 
     out = Path(args.out)
-    inserted, distinct, latest = build(out, equip, personnel, supplement=supplement)
+    inserted, distinct, latest = build(out, equip, personnel, supplement=supplement,
+                                       dropped=dropped)
     print(
         f"==> Inserted {inserted} new/changed day-versions; "
         f"{distinct} distinct dates (latest {latest}) → {out} ({out.stat().st_size} bytes)"
