@@ -115,6 +115,51 @@ class TestDuplicateDate:
         assert "2026-11-12" not in out
 
 
+class TestRedateByDay:
+    @staticmethod
+    def _with_day(rec: dict, day: int) -> dict:
+        return {**rec, "day": day}
+
+    def test_mislabelled_record_is_dated_by_its_day(self):
+        # Mirrors 2026-11-23: Petro published the 2026-11-22 report (day 1733)
+        # labelled 2026-11-23. Taken at its label, its increment landed on
+        # loss-day 2026-11-22 a second time.
+        equip = [self._with_day(_equip_row("2026-11-21", 177819), 1732),
+                 self._with_day(_equip_row("2026-11-23", 178062), 1733)]
+        personnel = [self._with_day(_personnel_row("2026-11-21", 1_634_860), 1732),
+                     self._with_day(_personnel_row("2026-11-23", 1_637_170), 1733)]
+        equip = ig.redate_by_day(equip, "equipment")
+        personnel = ig.redate_by_day(personnel, "personnel")
+        assert [r["date"] for r in equip] == ["2026-11-21", "2026-11-22"]
+        out = ig.parse_rows(equip, personnel)
+        assert out["2026-11-21"]["personnel"] == 2310
+        assert out["2026-11-21"]["vehicles"] == 243
+        # Loss-day 2026-11-22 is left for the mod.gov.ua supplement.
+        assert "2026-11-22" not in out
+
+    def test_consistent_records_are_untouched(self):
+        recs = [self._with_day(_personnel_row("2026-11-20", 1), 1731),
+                self._with_day(_personnel_row("2026-11-21", 2), 1732)]
+        assert ig.redate_by_day(recs, "personnel") == recs
+
+    def test_record_without_a_day_is_kept_as_is(self):
+        recs = [_personnel_row("2026-11-21", 1),
+                {**_personnel_row("2026-11-22", 2), "day": "n/a"}]
+        assert ig.redate_by_day(recs, "personnel") == recs
+
+    def test_redated_onto_an_existing_date_is_a_duplicate(self):
+        # A record re-dated onto a date already present is dropped by the
+        # repeated-date guard, which keeps the first.
+        personnel = [self._with_day(_personnel_row("2026-11-21", 1_634_860), 1732),
+                     self._with_day(_personnel_row("2026-11-22", 1_637_170), 1733),
+                     self._with_day(_personnel_row("2026-11-24", 1_639_000), 1733)]
+        equip = [self._with_day(_equip_row(r["date"], 0), r["day"]) for r in personnel]
+        out = ig.parse_rows(ig.redate_by_day(equip, "equipment"),
+                            ig.redate_by_day(personnel, "personnel"))
+        assert out["2026-11-21"]["personnel"] == 2310
+        assert "2026-11-22" not in out
+
+
 class TestNoRegression:
     def test_none_fetched_keeps_stored_real_value(self):
         # The suspect-drop guard turns the typo'd day's metric into None.

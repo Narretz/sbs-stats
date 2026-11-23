@@ -131,6 +131,11 @@ KNOWN_SOURCE_KEYS = set(EQUIP_MAP.values()) | set(PERSONNEL_MAP.values()) | IGNO
 # vs loss-day). Verified: petro[date] == old-source[date-1] on 1517/1552 days.
 REPORT_TO_LOSS_DAY = -1
 
+# Petro's `day` counter: record N is report day WAR_DAY_ZERO + N. It holds on
+# every record but the mislabelled ones, so it's the check on `date` — see
+# redate_by_day.
+WAR_DAY_ZERO = date_cls(2022, 2, 23)
+
 # Absolute floor: the war started 2022-02-24, so the source should always return
 # well over a year of days. Below this means a broken/partial fetch — refuse it.
 MIN_ROWS_FLOOR = 365
@@ -222,6 +227,39 @@ def check_drift(equip: list[dict], personnel: list[dict]) -> list[str]:
         )
         log.warning(msg, extra=ann(title="ru-losses: source drift"))
     return unknown
+
+
+def redate_by_day(records: list[dict], name: str) -> list[dict]:
+    """Date each record by its `day` counter where the two disagree.
+
+    Petro published the 2026-11-22 report (day 1733) labelled 2026-11-23. Taken
+    at its label, that report's increment was diffed against 2026-11-21 and
+    stored a second time as loss-day 2026-11-22, and the mod.gov.ua supplement,
+    starting after Petro's latest date, never fetched the real 2026-11-23
+    report. The counter has matched the date on every other record, so where
+    they disagree it is the date that is wrong.
+
+    Returns new dicts; records without a usable `day` are kept as they are. A
+    re-dated record that lands on a date already present is a duplicate, which
+    parse_rows' repeated-date guard drops.
+    """
+    out = []
+    for rec in records:
+        try:
+            by_day = (WAR_DAY_ZERO + timedelta(days=int(rec["day"]))).isoformat()
+        except (KeyError, TypeError, ValueError):
+            out.append(rec)
+            continue
+        if by_day != rec["date"]:
+            log.warning(
+                f"Petro {name} record dated {rec['date']} is day {rec['day']}, "
+                f"which is {by_day}; dating it {by_day}. Likely a mislabelled "
+                f"record — check upstream.",
+                extra=ann(title="ru-losses: date disagrees with day counter"),
+            )
+            rec = {**rec, "date": by_day}
+        out.append(rec)
+    return out
 
 
 def shift_iso(iso: str, days: int) -> str:
@@ -447,6 +485,9 @@ def main() -> int:
     # the old "==> Fetching <url>" banner is redundant — drop it.
     equip, personnel = fetch()
     check_drift(equip, personnel)
+    # Before anything reads a date: the supplement's start below is one.
+    equip = redate_by_day(equip, "equipment")
+    personnel = redate_by_day(personnel, "personnel")
 
     # MoD supplement: Petro publishes once per day (a day after the loss
     # day), so on a fresh cron run the latest loss-day in Petro's data is
