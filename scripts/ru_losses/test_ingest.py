@@ -115,49 +115,144 @@ class TestDuplicateDate:
         assert "2026-11-12" not in out
 
 
-class TestRedateByDay:
-    @staticmethod
-    def _with_day(rec: dict, day: int) -> dict:
-        return {**rec, "day": day}
+def _dated(rec: dict, day: int) -> dict:
+    return {**rec, "day": day}
 
-    def test_mislabelled_record_is_dated_by_its_day(self):
+
+def _pair(date: str, day: int, personnel: int, vehicles: int) -> tuple[dict, dict]:
+    """One report day's equipment + personnel records, with Petro's counter."""
+    return (_dated(_equip_row(date, vehicles), day),
+            _dated(_personnel_row(date, personnel), day))
+
+
+def _files(*pairs: tuple[dict, dict]) -> tuple[list[dict], list[dict]]:
+    return [e for e, _ in pairs], [p for _, p in pairs]
+
+
+class TestDropMismatched:
+    def test_mislabelled_newest_record_is_not_ingested(self):
         # Mirrors 2026-11-23: Petro published the 2026-11-22 report (day 1733)
         # labelled 2026-11-23. Taken at its label, its increment landed on
-        # loss-day 2026-11-22 a second time.
-        equip = [self._with_day(_equip_row("2026-11-21", 177819), 1732),
-                 self._with_day(_equip_row("2026-11-23", 178062), 1733)]
-        personnel = [self._with_day(_personnel_row("2026-11-21", 1_634_860), 1732),
-                     self._with_day(_personnel_row("2026-11-23", 1_637_170), 1733)]
-        equip = ig.redate_by_day(equip, "equipment")
-        personnel = ig.redate_by_day(personnel, "personnel")
-        assert [r["date"] for r in equip] == ["2026-11-21", "2026-11-22"]
-        out = ig.parse_rows(equip, personnel)
-        assert out["2026-11-21"]["personnel"] == 2310
-        assert out["2026-11-21"]["vehicles"] == 243
-        # Loss-day 2026-11-22 is left for the mod.gov.ua supplement.
-        assert "2026-11-22" not in out
+        # loss-day 2026-11-22 a second time, and the supplement — starting
+        # after Petro's latest date — never fetched the real 2026-11-23 report.
+        equip, personnel = _files(_pair("2026-11-20", 1731, 1_633_130, 177_536),
+                                  _pair("2026-11-21", 1732, 1_634_860, 177_819),
+                                  _pair("2026-11-23", 1733, 1_637_170, 178_062))
+        equip, personnel, dropped = ig.drop_mismatched(equip, personnel)
+        assert [r["date"] for r in equip] == ["2026-11-20", "2026-11-21"]
+        assert [r["date"] for r in personnel] == ["2026-11-20", "2026-11-21"]
+        assert dropped == {"2026-11-22", "2026-11-23"}
+        # Petro's latest is now 2026-11-21 (loss-day 2026-11-20), which is
+        # where main() starts the supplement: it fetches 2026-11-21 onwards.
+        assert max(r["date"] for r in equip) == "2026-11-21"
+        out = ig.parse_rows(equip, personnel, dropped)
+        assert out["2026-11-20"]["personnel"] == 1730
+        assert "2026-11-21" not in out and "2026-11-22" not in out
 
-    def test_consistent_records_are_untouched(self):
-        recs = [self._with_day(_personnel_row("2026-11-20", 1), 1731),
-                self._with_day(_personnel_row("2026-11-21", 2), 1732)]
-        assert ig.redate_by_day(recs, "personnel") == recs
+    def test_one_file_mismatched_drops_the_date_from_both(self):
+        # Kept in the other file, the date would read as covered and the
+        # supplement would skip it.
+        equip, personnel = _files(_pair("2026-11-21", 1732, 1_634_860, 177_819),
+                                  _pair("2026-11-22", 1733, 1_637_170, 178_062))
+        personnel[1] = _dated(personnel[1], 1734)
+        equip, personnel, _ = ig.drop_mismatched(equip, personnel)
+        assert [r["date"] for r in equip] == ["2026-11-21"]
+        assert [r["date"] for r in personnel] == ["2026-11-21"]
 
-    def test_record_without_a_day_is_kept_as_is(self):
-        recs = [_personnel_row("2026-11-21", 1),
-                {**_personnel_row("2026-11-22", 2), "day": "n/a"}]
-        assert ig.redate_by_day(recs, "personnel") == recs
+    def test_consistent_and_counterless_records_are_kept(self):
+        equip, personnel = _files(_pair("2026-11-21", 1732, 1, 1),
+                                  _pair("2026-11-22", 1733, 2, 2))
+        personnel.append(_personnel_row("2026-11-23", 3))  # no `day` at all
+        e2, p2, dropped = ig.drop_mismatched(equip, personnel)
+        assert (e2, p2, dropped) == (equip, personnel, set())
 
-    def test_redated_onto_an_existing_date_is_a_duplicate(self):
-        # A record re-dated onto a date already present is dropped by the
-        # repeated-date guard, which keeps the first.
-        personnel = [self._with_day(_personnel_row("2026-11-21", 1_634_860), 1732),
-                     self._with_day(_personnel_row("2026-11-22", 1_637_170), 1733),
-                     self._with_day(_personnel_row("2026-11-24", 1_639_000), 1733)]
-        equip = [self._with_day(_equip_row(r["date"], 0), r["day"]) for r in personnel]
-        out = ig.parse_rows(ig.redate_by_day(equip, "equipment"),
-                            ig.redate_by_day(personnel, "personnel"))
-        assert out["2026-11-21"]["personnel"] == 2310
-        assert "2026-11-22" not in out
+    def test_increment_across_a_dropped_record_is_unknown(self):
+        # The mislabelled 2026-11-22 record is still there when the correct
+        # 2026-11-23 one arrives: 23 − 21 spans two days, so loss-day
+        # 2026-11-22 is unknown rather than doubled. The day after diffs
+        # against 2026-11-23 as usual.
+        equip, personnel = _files(_pair("2026-11-20", 1731, 1_000, 100),
+                                  _pair("2026-11-21", 1732, 2_000, 200),
+                                  _pair("2026-11-22", 1735, 3_000, 300),  # wrong counter
+                                  _pair("2026-11-23", 1734, 4_000, 400),
+                                  _pair("2026-11-24", 1735, 5_000, 500),
+                                  _pair("2026-11-25", 1736, 6_000, 600))
+        out = ig.parse_rows(*ig.drop_mismatched(equip, personnel))
+        assert out["2026-11-20"]["personnel"] == 1000
+        assert out["2026-11-22"]["personnel"] is None
+        assert out["2026-11-22"]["vehicles"] is None
+        assert out["2026-11-23"]["personnel"] == 1000
+        # 2026-11-25 is the day the dropped record's counter named, but nothing
+        # was dropped between 24 and 25: a normal diff.
+        assert out["2026-11-24"]["personnel"] == 1000
+
+    def test_real_gap_is_diffed_as_usual(self):
+        # No report for 2026-11-22, date and counter both skip it (a ceasefire,
+        # say): the next report's increment is the GS's own figure since the
+        # one before, so it stands.
+        equip, personnel = _files(_pair("2026-11-21", 1732, 2_000, 200),
+                                  _pair("2026-11-23", 1734, 4_000, 400))
+        e2, p2, dropped = ig.drop_mismatched(equip, personnel)
+        assert dropped == set()
+        out = ig.parse_rows(e2, p2, dropped)
+        assert out["2026-11-22"]["personnel"] == 2000
+
+
+class TestBuildWithDroppedRecord:
+    @staticmethod
+    def _series(n: int = 400) -> list[tuple[dict, dict]]:
+        """n consistent report days ending 2026-11-21, +1000 personnel a day."""
+        from datetime import date, timedelta
+        end = date(2026, 11, 21)
+        pairs = []
+        for i in range(n):
+            d = end - timedelta(days=n - 1 - i)
+            day = (d - ig.WAR_DAY_ZERO).days
+            pairs.append(_pair(d.isoformat(), day, 1_000 * i, 100 * i))
+        return pairs
+
+    @staticmethod
+    def _latest(db: Path, loss_day: str) -> int:
+        conn = sqlite3.connect(db)
+        try:
+            return conn.execute(
+                "SELECT personnel FROM daily_losses WHERE date = ? "
+                "ORDER BY scraped_at DESC LIMIT 1", (loss_day,)).fetchone()[0]
+        finally:
+            conn.close()
+
+    def test_dropped_day_keeps_its_stored_row_and_does_not_abort(
+        self, tmp_path: Path, monkeypatch,
+    ):
+        db = tmp_path / "ru-losses.db"
+        supplement = {
+            "2026-11-21": {"reported_at": "2026-11-22", "personnel": 2310},
+            "2026-11-22": {"reported_at": "2026-11-23", "personnel": 2471},
+        }
+        # Run 1: Petro through report-day 2026-11-21; mod.gov.ua fills the
+        # loss days after it.
+        ig.build(db, *_files(*self._series()), supplement=supplement)
+        assert self._latest(db, "2026-11-22") == 2471
+
+        # Run 2: Petro adds the 2026-11-22 report mislabelled 2026-11-23, and
+        # mod.gov.ua is unreachable. Two stored loss days are then missing
+        # from the fetch; that is the dropped record, not a broken fetch, so
+        # the shrinking-dataset guard must not abort, and nothing changes.
+        monkeypatch.setattr(ig, "datetime", _LaterDatetime)
+        pairs = self._series() + [_pair("2026-11-23", 1733, 999_999, 99_999)]
+        equip, personnel, dropped = ig.drop_mismatched(*_files(*pairs))
+        inserted, _, _ = ig.build(db, equip, personnel, supplement=None,
+                                  dropped=dropped)
+        assert inserted == 0
+        assert self._latest(db, "2026-11-21") == 2310
+        assert self._latest(db, "2026-11-22") == 2471
+
+
+class _LaterDatetime(ig.datetime):
+    """A second run's clock, so its scraped_at can't collide with the first."""
+    @classmethod
+    def now(cls, tz=None):
+        return ig.datetime(2030, 1, 1, tzinfo=tz)
 
 
 class TestNoRegression:
