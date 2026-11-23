@@ -50,19 +50,14 @@ jobs:
           python-version: "3.12"
 
       # The authoritative DB: settled hours are never re-fetched, and the
-      # forecast snapshots exist nowhere else. `continue-on-error` covers the
-      # first run before the object exists (dispatch it with backfill_from).
+      # forecast snapshots exist nowhere else. r2_get_db.py retries and
+      # otherwise fails the job: a fresh DB uploaded over them can't be
+      # rebuilt, not even with backfill_from.
       - name: Download current DB from R2
-        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          mkdir -p data
-          npx --yes wrangler@4 r2 object get \
-            "$R2_BUCKET/$WEATHER_DB_NAME" \
-            --file "data/$WEATHER_DB_NAME" \
-            --remote
+        run: python3 scripts/r2_get_db.py "$R2_BUCKET/$WEATHER_DB_NAME" "data/$WEATHER_DB_NAME"
 
       # Stdlib only, no secrets: Open-Meteo's free non-commercial API.
       # Writes `changed=true|false` to $GITHUB_OUTPUT for the upload gate.

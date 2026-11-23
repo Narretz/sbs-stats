@@ -100,6 +100,18 @@ nobody captured before it rolls out is gone for good —
 Every DB lives in R2 (bucket `russia-ukraine-war`); a run downloads it, adds to
 it, and uploads it back — never rebuilt from what the source still shows.
 
+- **A failed download fails the job.** The update workflows download through
+  `scripts/r2_get_db.py`, which retries a failed download and otherwise
+  fails, and also fails on a missing object. Its header explains how. The
+  failure it prevents is quiet and permanent:
+  wrangler creates the `--file` before it fetches, so a job that carries on
+  past an error runs the ingest against an empty DB and uploads one run's
+  rows over the history. So never put `continue-on-error: true`, or a
+  `|| echo`, on a download, not even to cover "the first run".
+  A brand-new dataset's first run passes `--allow-missing`, and drops it
+  once the object exists. An established dataset whose object has gone
+  needs restoring from a copy, not a fresh start.
+
 - **Only when changed**, where the ingest can tell: the ones marked
   `changed=true` above write it to `$GITHUB_OUTPUT` and the upload is gated on
   it — most of their runs find nothing, and an upload overwrites a live object

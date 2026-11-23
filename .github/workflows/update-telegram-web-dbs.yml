@@ -200,19 +200,14 @@ jobs:
         with:
           python-version: "3.12"
 
-      # continue-on-error so the very first run (object not yet in R2) still
-      # works — append-only ingest then creates the DB and walks back ~max-pages.
+      # Like GSUA's: the history lives only in R2. r2_get_db.py retries and
+      # otherwise fails the job — into an empty DB the ingest walks back only
+      # ~max-pages, and the upload would replace the history with that.
       - name: Download current RU MoD DB from R2
-        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          mkdir -p scripts/ru_mod/output
-          npx --yes wrangler@4 r2 object get \
-            "$R2_BUCKET/$RU_MOD_DB_NAME" \
-            --file "scripts/ru_mod/output/$RU_MOD_DB_NAME" \
-            --remote
+        run: python3 scripts/r2_get_db.py "$R2_BUCKET/$RU_MOD_DB_NAME" "scripts/ru_mod/output/$RU_MOD_DB_NAME"
 
       # Cutoff = newest stored report date minus lookback (so recent posts get
       # re-checked for edits); a far-back fallback on first run = full backfill.

@@ -65,21 +65,15 @@ jobs:
           python-version: "3.12"
 
       # Pull the current DB: the walk stops at the newest post already in it,
-      # and new rows land alongside the existing history. `continue-on-error`
-      # covers the first run when the object may not yet exist — the walk then
-      # just goes the full `pages`.
+      # and new rows land alongside the existing history. r2_get_db.py retries
+      # and otherwise fails the job: into an empty DB the walk would go only
+      # its `pages`, and the upload would replace the history with that.
       - name: Download current SBU Alfa DB from R2
         id: download
-        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          mkdir -p data
-          npx --yes wrangler@4 r2 object get \
-            "$R2_BUCKET/$SBU_ALFA_DB_NAME" \
-            --file "data/$SBU_ALFA_DB_NAME" \
-            --remote
+        run: python3 scripts/r2_get_db.py "$R2_BUCKET/$SBU_ALFA_DB_NAME" "data/$SBU_ALFA_DB_NAME"
 
       # telegram.py: walk t.me/s/SBUkr newest-first to the newest stored post
       # and store each post that passes parse.is_monthly_recap (a month AND a

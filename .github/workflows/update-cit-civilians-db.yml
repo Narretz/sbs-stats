@@ -40,23 +40,18 @@ jobs:
 
       # Pull the current DB so the incremental scrape knows the newest post it
       # already stored, and so new rows land alongside the existing history.
-      # `continue-on-error` covers the first run before the object exists.
       #
-      # NOTE: an empty DB means `since_id = 0`, so an incremental run scans only
-      # its `pages` window — it will NOT rebuild the history. The full series
-      # (from 2023-10-16) is seeded by a local `--backfill` run + one manual
-      # upload; see scripts/cit_civilians/README.md.
+      # It must not fail quietly: an empty DB means `since_id = 0`, so an
+      # incremental run scans only its `pages` window — it will NOT rebuild the
+      # history — and the upload then replaces it. r2_get_db.py retries, and
+      # otherwise fails the job. The full series (from 2023-10-16) is seeded by
+      # a local `--backfill` run + one manual upload; see
+      # scripts/cit_civilians/README.md.
       - name: Download current CIT DB from R2
-        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          mkdir -p data
-          npx --yes wrangler@4 r2 object get \
-            "$R2_BUCKET/$CIT_DB_NAME" \
-            --file "data/$CIT_DB_NAME" \
-            --remote
+        run: python3 scripts/r2_get_db.py "$R2_BUCKET/$CIT_DB_NAME" "data/$CIT_DB_NAME"
 
       # ingest.py reads the public t.me/s web preview — no Telegram API
       # account, no secrets, stdlib only. The channel's ~20 other posts a day

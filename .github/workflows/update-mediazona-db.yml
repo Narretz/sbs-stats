@@ -37,21 +37,15 @@ jobs:
           python-version: "3.12"
 
       # Pull the current DB so the build appends into it (append-only / edit-
-      # versioned — a stored row is never mutated). `continue-on-error` covers
-      # the first run, when the object may not yet exist in R2; ingest then
-      # creates the DB fresh.
+      # versioned — a stored row is never mutated). r2_get_db.py retries and
+      # otherwise fails the job: a run against an empty DB would upload one
+      # release over every earlier one's version history.
       - name: Download current Mediazona DB from R2
         id: download
-        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          mkdir -p scripts/mediazona/output
-          npx --yes wrangler@4 r2 object get \
-            "$R2_BUCKET/$MEDIAZONA_DB_NAME" \
-            --file "scripts/mediazona/output/$MEDIAZONA_DB_NAME" \
-            --remote
+        run: python3 scripts/r2_get_db.py "$R2_BUCKET/$MEDIAZONA_DB_NAME" "scripts/mediazona/output/$MEDIAZONA_DB_NAME"
 
       # Past releases, from the bundles still on S3 (see backfill.py). Only
       # those older than the oldest stored release are added, each compared
