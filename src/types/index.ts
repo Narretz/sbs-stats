@@ -1,3 +1,5 @@
+import mediazonaRoles from "@/data/mediazonaRoles.json";
+
 // ─── Target classification IDs ────────────────────────────────────────────────
 // Around 2026-03-20 SBS migrated drone-launch tracking from targetClassId 23
 // ("Точки вильоту дронів") to targetClassId 37 ("ПУ БпЛА") on the live daily
@@ -1212,41 +1214,45 @@ export interface RubikonEpisodeRow {
 // Two independent weekly series; see scripts/mediazona/README.md.
 //  • weekly_roles    — confirmed, individually-NAMED deaths by branch/role,
 //    bucketed by date of death (so recent weeks are right-censored: not yet
-//    identified). The 21 source role columns are mutually exclusive and sum to
+//    identified). The source role columns are mutually exclusive and sum to
 //    `total`; we group them into the buckets below for a 100%-normalised
 //    composition chart. Grouping lives here so it can change without a re-ingest.
 //  • weekly_estimate — documented (named) vs the probate-registry modelled total.
 //    Two independent measures, NOT nested (estimate < documented in mid-2022).
+//
+// The roles themselves, and which group each is summed into, are defined once,
+// in src/data/mediazonaRoles.json, shared with the ingest. Here: the groups.
 export const MEDIAZONA_ROLE_GROUP_KEYS = [
-  "infantry", "regular", "volunteers", "mobilized", "convicts", "pmc", "undetermined",
+  "infantry", "regular", "volunteers", "mobilized", "conscripts", "convicts", "pmc", "undetermined",
 ] as const;
 export type MediazonaRoleGroupKey = (typeof MEDIAZONA_ROLE_GROUP_KEYS)[number];
 
-// label + stack colour + the raw weekly_roles columns summed into the group.
-// A fixed qualitative set, like the direction and missile-family palettes: the
-// groups are named categories rather than a main/second series pair, so they
-// don't follow the theme's blue/red series tokens.
-// Order of MEDIAZONA_ROLE_GROUP_KEYS is the stack/legend order (bottom → top).
-export const MEDIAZONA_ROLE_GROUPS: Record<
-  MediazonaRoleGroupKey,
-  { label: string; color: string; cols: string[] }
-> = {
-  infantry:     { label: "Riflemen / infantry",     color: "#4878d0", cols: ["rifle"] },
-  regular:      { label: "Other regular forces",    color: "#55a868", cols: ["air", "marine", "special", "pilot", "tank", "art", "eng", "signal", "airdef", "chem", "seaman", "nguard", "groundavia", "fsb"] },
-  volunteers:   { label: "Volunteers",              color: "#c8a14b", cols: ["vol"] },
-  mobilized:    { label: "Mobilized",               color: "#dd8452", cols: ["mob"] },
-  convicts:     { label: "Convicts",                color: "#c44e52", cols: ["inmates"] },
-  pmc:          { label: "PMC (Wagner et al.)",     color: "#8172b3", cols: ["pmc"] },
-  undetermined: { label: "Undetermined / other",    color: "#8c8c8c", cols: ["nd", "other"] },
-};
+// The raw weekly_roles columns, minus `total`, in the bundle's index order.
+// Used to read + sum into groups.
+export const MEDIAZONA_ROLE_COLS: readonly string[] = mediazonaRoles.roles.map((r) => r.col);
 
-// All raw role columns the ingest stores (mirrors ROLE_COLS in scripts/mediazona),
-// minus `total`. Used to read + sum into groups.
-export const MEDIAZONA_ROLE_COLS = [
-  "nguard", "rifle", "air", "pilot", "seaman", "marine", "tank", "art", "eng",
-  "other", "nd", "special", "vol", "mob", "signal", "airdef", "chem", "pmc",
-  "fsb", "groundavia", "inmates",
-] as const;
+// label + stack colour, and the raw weekly_roles columns summed into the group
+// (from mediazonaRoles.json). A fixed qualitative set, like the direction and
+// missile-family palettes: the groups are named categories rather than a
+// main/second series pair, so they don't follow the theme's blue/red series
+// tokens. Order of MEDIAZONA_ROLE_GROUP_KEYS is the stack/legend order
+// (bottom → top).
+const MEDIAZONA_GROUP_STYLE: Record<MediazonaRoleGroupKey, { label: string; color: string }> = {
+  infantry:     { label: "Riflemen / infantry",  color: "#4878d0" },
+  regular:      { label: "Other regular forces", color: "#55a868" },
+  volunteers:   { label: "Volunteers",           color: "#c8a14b" },
+  mobilized:    { label: "Mobilized",            color: "#dd8452" },
+  conscripts:   { label: "Conscripts",           color: "#64b5cd" },
+  convicts:     { label: "Convicts",             color: "#c44e52" },
+  pmc:          { label: "PMC (Wagner et al.)",  color: "#8172b3" },
+  undetermined: { label: "Undetermined / other", color: "#8c8c8c" },
+};
+export const MEDIAZONA_ROLE_GROUPS = Object.fromEntries(
+  MEDIAZONA_ROLE_GROUP_KEYS.map((k) => [k, {
+    ...MEDIAZONA_GROUP_STYLE[k],
+    cols: mediazonaRoles.roles.filter((r) => r.group === k).map((r) => r.col),
+  }]),
+) as Record<MediazonaRoleGroupKey, { label: string; color: string; cols: string[] }>;
 
 export type MediazonaRolesRow = { week: string; total: number } & Record<MediazonaRoleGroupKey, number>;
 

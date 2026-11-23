@@ -92,13 +92,38 @@ revision produces.
    (It used to match each index to *any* summary total within 10 %, which
    every release before 2026 failed: their dated share was too low.)
 
-### The 20-role layout (Mar 2023 – 06/12/2024)
+### The role table, and layouts by role count
 
-Releases before 20/12/2024 carry 20 roles, not 21: "наземные авиаслужбы"
-(`groundavia`) wasn't split out yet and its people sat in `other` — the
-summary blob already listed it, as a "(другие войска)" subcategory. The other
-roles are in the same order (`BLOB5_COLUMN_MAP_20`), picked by the blob's role
-count; `groundavia` is 0 in those releases.
+Every role is defined once, in
+[`src/data/mediazonaRoles.json`](../../src/data/mediazonaRoles.json), shared
+with the app: its column (also the CSV header), its category name in the
+summary blob, its display group, and `since`, the size of the first layout
+that has it. Listed in the bundle's index order. `ingest.py` derives
+`ROLE_COLS`, `BLOB5_LAYOUTS` / `BLOB5_COLUMN_MAP` and `SUMMARY_NAMES` from it;
+`src/types/index.ts` derives the group columns and `MEDIAZONA_ROLE_COLS`.
+
+Mediazona has so far added a role without moving the others, at the end or in
+place. A release's layout is picked by its role count: the roles whose `since`
+is at most that count, in order. Roles a layout lacks are 0 in that release.
+
+- **20 roles (Mar 2023 – 06/12/2024):** "наземные авиаслужбы" (`groundavia`)
+  wasn't split out yet. Its people sat in `other`, and the summary blob already
+  listed it as a "(другие войска)" subcategory.
+- **21 roles (to 2026-10-23).**
+- **22 roles (from 2026-11-06):** "срочники" (`conscripts`), index 21. Its 350
+  deaths are spread over 2022–2026, so they are names Mediazona reclassified,
+  not new deaths. No single role lost them: rifle and airborne grew less than
+  usual that release. The app shows each week's latest version, so the
+  reclassification applies to every past week at once, with no jump at the
+  release.
+
+**A new role** fails `column_map` with a role count it doesn't know. Add the
+role to `mediazonaRoles.json`, with `since` = the new count and a display
+group, and check its index against the summary blob by running the drift
+guard. That is all: `build` adds the column to an existing DB (0 in every
+stored row), and the app reads a column the DB doesn't have yet as 0. The CSV
+export's header for `conscripts` hasn't been seen yet; a different one would
+read as 0 there.
 
 ## Two independent series (two tables)
 
@@ -116,9 +141,10 @@ zero in the most recent weeks. That tail is *not* a real decline in deaths — t
 frontend shades it and the chart shows **shares** (100 %-normalised), so the
 composition story survives even where the absolute count is thin.
 
-We store every role column verbatim; **grouping into the ~7 display buckets lives
-in the frontend** (`MEDIAZONA_ROLE_GROUPS`, `src/types/index.ts`), so the
-bucketing can change without a re-ingest.
+We store every role column verbatim; **grouping into the display buckets is
+applied in the frontend** (each role's `group` in `src/data/mediazonaRoles.json`,
+the groups' labels and colours in `MEDIAZONA_ROLE_GROUPS`, `src/types/index.ts`),
+so the bucketing can change without a re-ingest.
 
 ### `weekly_estimate` ← `source/probate_registry_estimate.csv`
 The probate/inheritance-registry statistical estimate (Mediazona + Meduza). CSV

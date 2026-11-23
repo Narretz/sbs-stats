@@ -5,7 +5,8 @@ import type {
   MediazonaEstimateRow,
   MediazonaRoleGroupKey,
 } from "@/types";
-import { MEDIAZONA_ROLE_GROUPS, MEDIAZONA_ROLE_GROUP_KEYS, MEDIAZONA_ROLE_COLS } from "@/types";
+import { MEDIAZONA_ROLE_GROUP_KEYS } from "@/types";
+import { latestPerWeek, queryRolesWeekly } from "@/utils/mediazonaRoles";
 import { makeResourceCache, useRefreshableResource } from "@/hooks/useRefreshableResource";
 import { loadWholeDb, queryRows } from "@/hooks/sqlLoader";
 
@@ -19,24 +20,7 @@ const loadDatabase = () => loadWholeDb(DB_URL, "Mediazona");
 
 const dbCache = makeResourceCache<Database>();
 
-// Map each raw role column to its display group, so we can sum into groups in JS.
-const COL_TO_GROUP = new Map<string, MediazonaRoleGroupKey>();
-for (const key of MEDIAZONA_ROLE_GROUP_KEYS)
-  for (const col of MEDIAZONA_ROLE_GROUPS[key].cols) COL_TO_GROUP.set(col, key);
-
-// Both tables are append-only / edit-versioned: a week can have multiple rows
-// (one per Mediazona release that changed it). Every read resolves to the
-// latest version per week — by release (`published_at`), then by ingest
-// (`scraped_at`), because releases aren't ingested in order: the backfill adds
-// old ones after newer ones. Same ordering as `latest_per_week` in the ingest.
-const latestPerWeek = (table: string) => `(
-  SELECT * FROM (
-    SELECT d.*, ROW_NUMBER() OVER (
-      PARTITION BY week ORDER BY published_at DESC, scraped_at DESC) AS rn
-    FROM ${table} d
-  ) WHERE rn = 1
-) latest`;
-const LATEST_ROLES = latestPerWeek("weekly_roles");
+// The latest version of each week: see latestPerWeek.
 const LATEST_ESTIMATE = latestPerWeek("weekly_estimate");
 
 // Weekly data updates at most daily; an hourly poll is plenty (plus on-focus +
@@ -53,25 +37,10 @@ export function useDatabaseMediazona({ enabled = true }: { enabled?: boolean } =
     });
 
   // ── Roles: one row per week, raw role columns summed into display groups ──────
-  const queryRoles = useCallback((): MediazonaRolesRow[] => {
-    if (!db) return [];
-    const cols = ["total", ...MEDIAZONA_ROLE_COLS].join(", ");
-    const rows = queryRows<Record<string, number>>(
-      db,
-      `SELECT week, ${cols} FROM ${LATEST_ROLES} ORDER BY week ASC`
-    );
-    return rows.map((r) => {
-      const grouped = MEDIAZONA_ROLE_GROUP_KEYS.reduce((acc, k) => {
-        acc[k] = 0;
-        return acc;
-      }, {} as Record<MediazonaRoleGroupKey, number>);
-      for (const col of MEDIAZONA_ROLE_COLS) {
-        const g = COL_TO_GROUP.get(col);
-        if (g) grouped[g] += typeof r[col] === "number" ? r[col] : 0;
-      }
-      return { week: String(r.week), total: typeof r.total === "number" ? r.total : 0, ...grouped };
-    });
-  }, [db]);
+  const queryRoles = useCallback(
+    (): MediazonaRolesRow[] => (db ? queryRolesWeekly(db) : []),
+    [db],
+  );
 
   // ── Estimate: documented (named) vs probate-registry modelled total per week ──
   const queryEstimate = useCallback((): MediazonaEstimateRow[] => {

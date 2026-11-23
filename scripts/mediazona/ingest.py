@@ -59,14 +59,16 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_SOURCE = SCRIPT_DIR / "source"
 DEFAULT_DB_NAME = os.environ.get("MEDIAZONA_DB_NAME", "mediazona.db")
 
-# weekly_roles columns ← raw CSV headers. We store every role column verbatim
-# (plus `total`) and leave grouping to the frontend (MEDIAZONA_ROLE_GROUPS in
-# src/types/index.ts), so the bucketing can change without a re-ingest.
-ROLE_COLS = [
-    "total", "nguard", "rifle", "air", "pilot", "seaman", "marine", "tank",
-    "art", "eng", "other", "nd", "special", "vol", "mob", "signal", "airdef",
-    "chem", "pmc", "fsb", "groundavia", "inmates",
-]
+# The role categories live in src/data/mediazonaRoles.json, shared with the
+# app, which groups the columns for display (src/types/index.ts) — so the
+# bucketing can change without a re-ingest, and a new role is one entry there.
+# Listed in the bundle's index order; see the file's `_about`.
+ROLES_PATH = Path(__file__).resolve().parents[2] / "src" / "data" / "mediazonaRoles.json"
+_ROLES = json.loads(ROLES_PATH.read_text(encoding="utf-8"))["roles"]
+
+# weekly_roles columns: `total` plus every role, stored verbatim. They are also
+# the CSV export's headers.
+ROLE_COLS = ["total", *(r["col"] for r in _ROLES)]
 
 # A healthy export has a row for (nearly) every week of the war up to its
 # release; one with fewer than half of them is truncated. Scaled to the release
@@ -242,51 +244,38 @@ DEFAULT_ARTICLE_URL = "https://en.zona.media/article/2026/08/14/casualties_eng-t
 WAR_START = date_cls(2022, 2, 24)
 
 # Blob 5 inside the bundle keys per-day deaths by role index '0'..'N-1' (see
-# _find_roles_blob for the two encodings it has shipped in). Indices 0..15
-# follow the chart's display order; 16..20 are a slightly different ordering of
-# the last 5 cells than our CSV layout. Verified by matching blob 5's per-index
-# sums against blob 3's per-Russian-name totals (see _check_blob5_drift below);
-# re-verified against blob 3 and against the stored weeks after the Aug-2026
-# re-encoding, which left the index order intact. If upstream re-shuffles, the
-# drift check fires and the build aborts.
-BLOB5_COLUMN_MAP = [
-    "nguard", "rifle", "air", "pilot", "seaman", "marine",
-    "tank", "art", "eng", "other", "nd", "special",
-    "vol", "mob", "signal", "airdef",
-    "groundavia", "pmc", "fsb", "chem", "inmates",
-]
-
-# Releases from Mar 2023 to 06/12/2024 carry 20 roles: "ground aviation
-# services" didn't exist yet (its people sat under `other`), the rest in the
-# same order. Selected by the blob's role count; `groundavia` is 0 there.
-BLOB5_COLUMN_MAP_20 = [c for c in BLOB5_COLUMN_MAP if c != "groundavia"]
+# _find_roles_blob for the two encodings it has shipped in), in the order of
+# mediazonaRoles.json. Verified by matching blob 5's per-index sums against
+# blob 3's per-Russian-name totals (see _check_blob5_drift below); re-verified
+# against blob 3 and against the stored weeks after the Aug-2026 re-encoding,
+# which left the index order intact. If upstream re-shuffles, the drift check
+# fires and the build aborts.
+#
+# A new role has so far always been added without moving the others, so a
+# release's layout is picked by its role count: the roles whose `since` is at
+# most that count, in order. 20 roles from Mar 2023 to 06/12/2024 (no
+# `groundavia`: its people sat under `other`), 21 until 2026-11-06 (no
+# `conscripts`), 22 since. A role a layout lacks is 0 in that release.
+BLOB5_LAYOUTS = {
+    n: [r["col"] for r in _ROLES if r["since"] <= n]
+    for n in sorted({r["since"] for r in _ROLES})
+}
+BLOB5_COLUMN_MAP = BLOB5_LAYOUTS[max(BLOB5_LAYOUTS)]
 
 # Each role's category in the summary blob, which `_check_blob5_drift` holds
-# the roles blob to. `other` is "другие войска" plus every "(другие войска)"
-# subcategory not listed here. The names have been identical in every release
-# since Mar 2023.
-SUMMARY_NAMES = {
-    "nguard": "нацгвардия", "rifle": "мотострелковые войска", "air": "ВДВ",
-    "pilot": "военные пилоты", "seaman": "моряки", "marine": "морпехи",
-    "tank": "танковые войска", "art": "артиллерия", "eng": "инженерные войска",
-    "nd": "нет данных", "special": "спецназ", "vol": "добровольцы",
-    "mob": "мобилизованные", "signal": "войска связи (другие войска)",
-    "airdef": "войсковая ПВО (другие войска)",
-    "groundavia": "наземные авиаслужбы (другие войска)", "pmc": "ЧВК",
-    "fsb": "ФСБ (другие войска)", "chem": "РХБЗ (другие войска)",
-    "inmates": "заключенные",
-}
+# the roles blob to. `other` has none: it is "другие войска" plus every
+# "(другие войска)" subcategory not listed here.
+SUMMARY_NAMES = {r["col"]: r["summary"] for r in _ROLES if r["summary"]}
 
 
 def column_map(daily: dict[str, list[int]]) -> list[str]:
     """The role-column order for a roles blob, by its number of roles."""
-    for cmap in (BLOB5_COLUMN_MAP, BLOB5_COLUMN_MAP_20):
-        if len(daily) == len(cmap):
-            return cmap
+    if len(daily) in BLOB5_LAYOUTS:
+        return BLOB5_LAYOUTS[len(daily)]
     raise RuntimeError(
         f"roles blob has {len(daily)} roles; known layouts have "
-        f"{len(BLOB5_COLUMN_MAP)} or {len(BLOB5_COLUMN_MAP_20)} — re-validate "
-        f"the column mapping.")
+        f"{' or '.join(map(str, BLOB5_LAYOUTS))} — a new role? Add it to "
+        f"src/data/mediazonaRoles.json and re-validate the column mapping.")
 
 
 def iso(ddmmyyyy: str) -> str:
@@ -544,7 +533,8 @@ def _check_blob5_drift(daily: dict[str, list[int]], summary: list[dict]) -> None
 def _aggregate_roles_blob_to_rows(daily: dict[str, list[int]]) -> list[tuple]:
     """Daily per-role → tuples in the shape `parse_roles()` would produce —
     `(week_iso, *ROLE_COLS values)`, Thursday-anchored from 2022-02-24. A role
-    the release's layout lacks (`groundavia` before 12/2024) is 0."""
+    the release's layout lacks (`groundavia` before 12/2024, `conscripts`
+    before 2026-11-06) is 0."""
     cmap = column_map(daily)
     keys = sorted(daily.keys(), key=int)
     n_days = len(next(iter(daily.values())))
@@ -741,6 +731,13 @@ def build(
             );
             """
         )
+        # A role added since the table was made (mediazonaRoles.json): its
+        # column is 0 in every stored row, which is what those releases said.
+        have = {r[1] for r in conn.execute("PRAGMA table_info(weekly_roles)")}
+        for c in ROLE_COLS:
+            if c not in have:
+                conn.execute(
+                    f"ALTER TABLE weekly_roles ADD COLUMN {c} INTEGER NOT NULL DEFAULT 0")
 
         ensure_releases(conn)
 
