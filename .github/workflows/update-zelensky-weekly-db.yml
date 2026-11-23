@@ -44,20 +44,15 @@ jobs:
           python-version: "3.12"
 
       # Pull the current DB so the incremental walk knows where to stop.
-      # `continue-on-error` covers the first run before the object exists — an
-      # empty DB scans only `pages`; the history is seeded by a local
-      # `--backfill` + one manual upload (scripts/zelensky_weekly/README.md).
+      # r2_get_db.py retries and otherwise fails the job — an empty DB scans
+      # only `pages`, and the upload would replace the history with that; the
+      # history is seeded by a local `--backfill` + one manual upload
+      # (scripts/zelensky_weekly/README.md).
       - name: Download current DB from R2
-        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          mkdir -p data
-          npx --yes wrangler@4 r2 object get \
-            "$R2_BUCKET/$ZELENSKY_WEEKLY_DB_NAME" \
-            --file "data/$ZELENSKY_WEEKLY_DB_NAME" \
-            --remote
+        run: python3 scripts/r2_get_db.py "$R2_BUCKET/$ZELENSKY_WEEKLY_DB_NAME" "data/$ZELENSKY_WEEKLY_DB_NAME"
 
       # Public t.me/s preview — no Telegram account, no secrets, stdlib only.
       # Writes `changed=true|false` to $GITHUB_OUTPUT for the upload gate.

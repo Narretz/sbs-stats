@@ -177,6 +177,10 @@ that bite when changing code:
   (`cloudflare/worker.ts` `dispatchesFor()`), not a workflow `schedule:` —
   GitHub's scheduler runs late and drops runs. Rule and details in
   [CI.md](CI.md#the-cron-worker).
+- **A workflow's DB download goes through `scripts/r2_get_db.py`**, never
+  `continue-on-error` or `|| echo`: a job that carries on past a failed
+  download uploads an empty DB's worth of rows over the history. Details in
+  [CI.md](CI.md#uploads).
 - **Uploads are gated on `changed=`** where the ingest can tell — a new ingest
   should write it to `$GITHUB_OUTPUT` too, rather than overwrite a live R2
   object on every run.

@@ -34,21 +34,14 @@ jobs:
 
       # Pull the current DB so the build appends into it (append-only, never
       # delete) rather than starting from empty — this preserves any dates the
-      # source might later drop. `continue-on-error` so the first run (object not
-      # yet in R2 — true now, since the DB filename changed) still works: ingest
-      # then creates the DB fresh.
+      # source might later drop. r2_get_db.py retries and otherwise fails the
+      # job, so a failed download can't upload a fresh DB without them.
       - name: Download current RU losses DB from R2
         id: download
-        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          mkdir -p scripts/ru_losses/output
-          npx --yes wrangler@4 r2 object get \
-            "$R2_BUCKET/$RU_LOSSES_DB_NAME" \
-            --file "scripts/ru_losses/output/$RU_LOSSES_DB_NAME" \
-            --remote
+        run: python3 scripts/r2_get_db.py "$R2_BUCKET/$RU_LOSSES_DB_NAME" "scripts/ru_losses/output/$RU_LOSSES_DB_NAME"
 
       # ingest.py merges the fetched days into the (downloaded) DB and aborts
       # without writing if the fetch looks partial/broken — so a bad upstream

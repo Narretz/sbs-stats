@@ -34,19 +34,13 @@ jobs:
           python-version: "3.12"
 
       # Append into the current DB: the store is per-cell versioned, and a
-      # fresh DB would lose every earlier version of an edited cell. The first
-      # run has nothing to download, hence continue-on-error.
+      # fresh DB would lose every earlier version of an edited cell — so
+      # r2_get_db.py retries and otherwise fails the job.
       - name: Download current DB from R2
-        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          mkdir -p scripts/ua_losses_ru_mod/output
-          npx --yes wrangler@4 r2 object get \
-            "$R2_BUCKET/$DB_NAME" \
-            --file "scripts/ua_losses_ru_mod/output/$DB_NAME" \
-            --remote
+        run: python3 scripts/r2_get_db.py "$R2_BUCKET/$DB_NAME" "scripts/ua_losses_ru_mod/output/$DB_NAME"
 
       # stdlib only. Aborts without writing on a partial or shrinking sheet,
       # or one whose blocks were restructured (a missing anchor column), which

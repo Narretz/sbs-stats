@@ -65,17 +65,14 @@ jobs:
         run: pip install requests
 
       # R2 is the source of truth — pull the current DB down so the ingest runs
-      # incrementally against the live state. The `||` covers the very first
-      # run, before the object exists.
+      # incrementally against the live state. r2_get_db.py retries and
+      # otherwise fails the job: the API keeps only twelve monthly slots per
+      # unit, so months a fresh DB uploaded over are gone for good.
       - name: Download current DB from R2
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          npx --yes wrangler@4 r2 object get \
-            "$R2_BUCKET/$DB_NAME" \
-            --file "$SBS_UNITS_DB_PATH" \
-            --remote || echo "no $DB_NAME on R2 yet — starting fresh"
+        run: python3 scripts/r2_get_db.py "$R2_BUCKET/$DB_NAME" "$SBS_UNITS_DB_PATH"
 
       # A human asking for a run gets one: the script's interval backstop
       # exists for duplicate scheduler fires, not to argue with a dispatch.
