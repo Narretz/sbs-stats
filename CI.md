@@ -100,9 +100,12 @@ nobody captured before it rolls out is gone for good —
 Every DB lives in R2 (bucket `russia-ukraine-war`); a run downloads it, adds to
 it, and uploads it back — never rebuilt from what the source still shows.
 
-- **A failed download fails the job.** The update workflows download through
-  `scripts/r2_get_db.py`, which retries a failed download and otherwise
-  fails, and also fails on a missing object. Its header explains how. The
+- **A failed download fails the job.** Every workflow downloads its DB
+  through `scripts/r2_get_db.py`, which retries a failed download and
+  otherwise fails, and also fails on a missing object. Its header explains
+  how. The one exception is GSUA's fetch of its current app copy, which is
+  only compared with the fresh build: if that fetch fails, the job just
+  uploads the fresh app copy. The
   failure it prevents is quiet and permanent:
   wrangler creates the `--file` before it fetches, so a job that carries on
   past an error runs the ingest against an empty DB and uploads one run's

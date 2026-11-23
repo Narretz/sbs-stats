@@ -58,20 +58,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      # NOTE: no continue-on-error, unlike the scheduled workflow — the history
-      # lives only in R2 and a reparse has nothing to do without it. A failed
-      # download must abort here rather than fall through to a run that finds no
-      # DB (or, worse, builds an empty one) and uploads it over the good object.
+      # The history lives only in R2 and a reparse has nothing to do without
+      # it. r2_get_db.py retries and otherwise fails the job, rather than fall
+      # through to a run that finds no DB (or, worse, builds an empty one) and
+      # uploads it over the good object.
       - name: Download current DB from R2
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          mkdir -p data
-          npx --yes wrangler@4 r2 object get \
-            "$R2_BUCKET/$ZELENSKY_WEEKLY_DB_NAME" \
-            --file "data/$ZELENSKY_WEEKLY_DB_NAME" \
-            --remote
+        run: python3 scripts/r2_get_db.py "$R2_BUCKET/$ZELENSKY_WEEKLY_DB_NAME" "data/$ZELENSKY_WEEKLY_DB_NAME"
 
       # Storage is append-on-change: a post whose counters moved is written as
       # a new (post_id, scraped_at) version, never overwritten, so an applied

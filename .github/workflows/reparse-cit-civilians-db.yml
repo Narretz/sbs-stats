@@ -46,19 +46,14 @@ jobs:
         with:
           python-version: "3.12"
 
-      # NOTE: no continue-on-error — the history (seeded by a local backfill)
-      # lives only in R2. A failed download must abort, never fall through to
-      # an upload that would overwrite the good object with an empty DB.
+      # The history (seeded by a local backfill) lives only in R2. r2_get_db.py
+      # retries and otherwise fails the job, never falling through to an
+      # upload that would overwrite the good object with an empty DB.
       - name: Download current CIT DB from R2
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          mkdir -p data
-          npx --yes wrangler@4 r2 object get \
-            "$R2_BUCKET/$CIT_DB_NAME" \
-            --file "data/$CIT_DB_NAME" \
-            --remote
+        run: python3 scripts/r2_get_db.py "$R2_BUCKET/$CIT_DB_NAME" "data/$CIT_DB_NAME"
 
       # `--reparse` is a dry run unless `--apply` is passed. With `--apply` it
       # writes `changed=true|false` to $GITHUB_OUTPUT, which gates the upload;
