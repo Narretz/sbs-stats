@@ -163,13 +163,23 @@ def capture_bucket(grain: str, now: datetime) -> str:
 
 # ─── Which buckets to read ───────────────────────────────────────────────────
 
-def months_to_fetch(unit: Unit, today: date, months: int | None, all_months: bool) -> list[str]:
+def months_to_fetch(
+    unit: Unit, today: date, months: int | None, all_months: bool,
+    stored: set[str] | None = None,
+) -> list[str]:
     """The months worth re-reading this run, newest first.
 
     Everything the unit exposes when backfilling; otherwise the current month
-    plus any that ended inside the revision tail. A month the API no longer
-    lists has rolled out of its twelve-slot window and is unreachable — see
-    README.md, it is why the backfill is a one-shot opportunity.
+    plus any that ended inside the revision tail, plus every listed month with
+    no stored row (`stored`, "YYYY-MM"; None adds none). A month the API no
+    longer lists has rolled out of its twelve-slot window and is unreachable —
+    see README.md, it is why the backfill is a one-shot opportunity.
+
+    The uncaptured months are what make a listed-but-404 period "picked up on
+    its own once the source serves it" true for more than the current month:
+    1 ОЦ БПС had all twelve slots issued at once (2026-11), each 404ing, and
+    without this a scheduled run would only ever retry the newest of them while
+    the rest rolled out of the window waiting for a human's `--all`.
     """
     if all_months:
         return list(reversed(unit.months))
@@ -181,6 +191,8 @@ def months_to_fetch(unit: Unit, today: date, months: int | None, all_months: boo
             out.append(m)
         if months is not None and len(out) >= months:
             break
+    if stored is not None:
+        out += [m for m in reversed(unit.months) if m not in stored and m not in out]
     return out
 
 
@@ -412,7 +424,9 @@ def run(conn: sqlite3.Connection, disc: Discovery, args) -> list[str]:
 
         # ── Monthly ──────────────────────────────────────────────────────────
         bucket = capture_bucket("monthly", now)
-        for month in months_to_fetch(unit, today, args.months, args.all):
+        stored = {r[0][:7] for r in conn.execute(
+            f"SELECT DISTINCT date FROM {MONTHLY_TABLE} WHERE unit_slug = ?", (unit.slug,))}
+        for month in months_to_fetch(unit, today, args.months, args.all, stored):
             pid = disc.monthly.get((unit.subdivision_id, month))
             if not pid:
                 continue
