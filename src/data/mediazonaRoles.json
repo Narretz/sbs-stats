@@ -1,0 +1,27 @@
+{
+  "_about": "Mediazona's role categories, the one place they are defined. Shared by scripts/mediazona/ingest.py (which bundle index is which column, and each role's category name in the bundle's summary blob, which the drift guard checks it against) and src/types/index.ts (which display group each column is summed into; the groups' labels, colours and order are there). Listed in the bundle's index order: entry i is the roles blob's index i. `since` is the size of the first layout that has the role. A release with N roles carries every role with since <= N, in this order, and the others are 0 in it. `summary` is null for `other`, which is 'другие войска' plus every '(другие войска)' subcategory not named here. `col` is also the header in Mediazona's CSV exports.",
+  "roles": [
+    { "col": "nguard",     "summary": "нацгвардия",                          "group": "regular",      "since": 20 },
+    { "col": "rifle",      "summary": "мотострелковые войска",               "group": "infantry",     "since": 20 },
+    { "col": "air",        "summary": "ВДВ",                                 "group": "regular",      "since": 20 },
+    { "col": "pilot",      "summary": "военные пилоты",                      "group": "regular",      "since": 20 },
+    { "col": "seaman",     "summary": "моряки",                              "group": "regular",      "since": 20 },
+    { "col": "marine",     "summary": "морпехи",                             "group": "regular",      "since": 20 },
+    { "col": "tank",       "summary": "танковые войска",                     "group": "regular",      "since": 20 },
+    { "col": "art",        "summary": "артиллерия",                          "group": "regular",      "since": 20 },
+    { "col": "eng",        "summary": "инженерные войска",                   "group": "regular",      "since": 20 },
+    { "col": "other",      "summary": null,                                  "group": "undetermined", "since": 20 },
+    { "col": "nd",         "summary": "нет данных",                          "group": "undetermined", "since": 20 },
+    { "col": "special",    "summary": "спецназ",                             "group": "regular",      "since": 20 },
+    { "col": "vol",        "summary": "добровольцы",                         "group": "volunteers",   "since": 20 },
+    { "col": "mob",        "summary": "мобилизованные",                      "group": "mobilized",    "since": 20 },
+    { "col": "signal",     "summary": "войска связи (другие войска)",        "group": "regular",      "since": 20 },
+    { "col": "airdef",     "summary": "войсковая ПВО (другие войска)",       "group": "regular",      "since": 20 },
+    { "col": "groundavia", "summary": "наземные авиаслужбы (другие войска)", "group": "regular",      "since": 21 },
+    { "col": "pmc",        "summary": "ЧВК",                                 "group": "pmc",          "since": 20 },
+    { "col": "fsb",        "summary": "ФСБ (другие войска)",                 "group": "regular",      "since": 20 },
+    { "col": "chem",       "summary": "РХБЗ (другие войска)",                "group": "regular",      "since": 20 },
+    { "col": "inmates",    "summary": "заключенные",                         "group": "convicts",     "since": 20 },
+    { "col": "conscripts", "summary": "срочники",                            "group": "conscripts",   "since": 22 }
+  ]
+}

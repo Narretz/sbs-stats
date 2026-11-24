@@ -157,28 +157,86 @@ class TestDriftGuard:
         # Before 12/2024 there was no groundavia role; the summary already
         # listed it, under "(другие войска)", and the roles blob counted it in
         # `other`.
-        cmap = ig.BLOB5_COLUMN_MAP_20
+        cmap = ig.BLOB5_LAYOUTS[20]
         totals = {c: self.TOTALS[c] for c in cmap}
         summary = _named_summary(totals) + [
             {"k": "наземные авиаслужбы (другие войска)", "o": 1, "v": 300}]
         daily = self._daily(0.9, cmap=cmap, totals=dict(totals, other=totals["other"] + 300))
         ig._check_blob5_drift(daily, summary)
 
+    def test_21_role_layout_passes_without_a_conscripts_category(self):
+        # Releases before 2026-11-06 have no "срочники" in the summary at all.
+        cmap = ig.BLOB5_LAYOUTS[21]
+        totals = {c: self.TOTALS[c] for c in cmap}
+        ig._check_blob5_drift(self._daily(0.9, cmap=cmap, totals=totals),
+                              _named_summary(totals))
 
-class TestTwentyRoleLayout:
-    def test_column_map_by_role_count(self):
-        assert ig.column_map({str(i): [0] for i in range(21)}) == ig.BLOB5_COLUMN_MAP
-        assert ig.column_map({str(i): [0] for i in range(20)}) == ig.BLOB5_COLUMN_MAP_20
+    def test_22_role_layout_needs_the_conscripts_category(self):
+        summary = [r for r in _named_summary(self.TOTALS) if r["k"] != "срочники"]
+        with pytest.raises(RuntimeError, match="lacks the categories"):
+            ig._check_blob5_drift(self._daily(0.9), summary)
+
+
+class TestLayouts:
+    def test_layouts_by_role_count(self):
+        full = ig.BLOB5_COLUMN_MAP
+        assert len(full) == 22 and full[-1] == "conscripts"
+        assert ig.column_map({str(i): [0] for i in range(22)}) == full
+        # Each older layout is the newer one minus its added role, otherwise
+        # in the same order.
+        assert ig.column_map({str(i): [0] for i in range(21)}) == [
+            c for c in full if c != "conscripts"]
+        assert ig.column_map({str(i): [0] for i in range(20)}) == [
+            c for c in full if c not in ("conscripts", "groundavia")]
         with pytest.raises(RuntimeError, match="re-validate"):
             ig.column_map({str(i): [0] for i in range(19)})
+
+    def test_role_cols_are_total_plus_every_role(self):
+        assert ig.ROLE_COLS == ["total", *ig.BLOB5_COLUMN_MAP]
+        assert set(ig.SUMMARY_NAMES) == set(ig.BLOB5_COLUMN_MAP) - {"other"}
+
+    def test_conscripts_are_index_21(self):
+        # The 2026-11-06 release: index 21 sums to 350, "срочники" in the
+        # summary is 350.
+        daily = {str(i): [i + 1] * 7 for i in range(22)}
+        [row] = ig._aggregate_roles_blob_to_rows(daily)
+        cols = dict(zip(["week", *ig.ROLE_COLS], row))
+        assert cols["conscripts"] == 7 * 22
+        assert cols["inmates"] == 7 * 21
 
     def test_groundavia_is_zero_and_later_roles_shift(self):
         daily = {str(i): [i + 1] * 7 for i in range(20)}
         [row] = ig._aggregate_roles_blob_to_rows(daily)
         cols = dict(zip(["week", *ig.ROLE_COLS], row))
         assert cols["groundavia"] == 0
-        assert cols["pmc"] == 7 * (ig.BLOB5_COLUMN_MAP_20.index("pmc") + 1)
+        assert cols["conscripts"] == 0
+        assert cols["pmc"] == 7 * (ig.BLOB5_LAYOUTS[20].index("pmc") + 1)
         assert cols["inmates"] == 7 * 20
+
+
+class TestNewRoleColumn:
+    def test_a_db_without_the_column_gains_it_at_zero(self, tmp_path):
+        # The production DB predates `conscripts`. Its stored rows are what
+        # those releases said: none.
+        import sqlite3
+        db = tmp_path / "m.db"
+        ig.build(db, _roles(240, 5), _estimate(240, 5), "2026-10-25T00:00:00+00:00", "2026-10-23")
+        conn = sqlite3.connect(db)
+        conn.execute("ALTER TABLE weekly_roles DROP COLUMN conscripts")
+        conn.commit()
+        conn.close()
+
+        rows = [(w, *vals[:-1], 7) for w, *vals in _roles(240, 5)]
+        r, _ = ig.build(db, rows, _estimate(240, 5), "2026-11-08T00:00:00+00:00", "2026-11-06")
+        assert r["revised"] == 240
+        conn = sqlite3.connect(db)
+        try:
+            assert conn.execute(
+                "SELECT DISTINCT conscripts FROM weekly_roles WHERE published_at = '2026-10-23'"
+            ).fetchall() == [(0,)]
+        finally:
+            conn.close()
+        assert set(_latest(db, "weekly_roles", "conscripts").values()) == {7}
 
 
 class TestPublishedAt:
