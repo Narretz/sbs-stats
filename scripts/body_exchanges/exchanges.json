@@ -2305,6 +2305,37 @@
           "quote": "Обмен телами погибших между Россией и Украиной состоялся сегодня, 22 октября, в формате «252 на 25», сообщил РБК … Шамсаил Саралиев."
         }
       ]
+    },
+    {
+      "date": "2026-11-26",
+      "ua_received": 250,
+      "ru_received": 22,
+      "ua_reported_by": "UA coordination HQ",
+      "ru_reported_by": "Saraliev (Duma)",
+      "chart_creamy_caprice": null,
+      "chart_creamy_caprice_discrepancy": "After the chart's range (it ends Oct 2026).",
+      "status": "confirmed",
+      "sources": [
+        {
+          "via": "Koord_shtab (Telegram)",
+          "url": "https://t.me/Koord_shtab/24109",
+          "published_at": "2026-11-26T12:05:53+00:00",
+          "covers": [
+            "ua_received"
+          ],
+          "quote": "На щиті: за результатами репатріаційних заходів в Україну повернули тіла 250 загиблих, які, за твердженням російської сторони, належать українським військовослужбовцям."
+        },
+        {
+          "via": "RBC",
+          "url": "https://www.rbc.ru/politics/26/11/2026/6b07fb3ec3a8644b89bd82df",
+          "published_at": "2026-11-26T12:27:24+03:00",
+          "covers": [
+            "ua_received",
+            "ru_received"
+          ],
+          "quote": "Россия и Украина проводят обмен телами погибших. Об этом РБК сообщил … Шамсаил Саралиев. По его словам, обмен проходит по формуле «250 на 22»."
+        }
+      ]
     }
   ]
 }
