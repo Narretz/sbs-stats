@@ -4,7 +4,7 @@ import type { BodyExchange } from "@/types";
 
 const ex = (ua: number | null, ru: number | null, extra: Partial<BodyExchange> = {}): BodyExchange => ({
   date: "2025-01-01", ua_received: ua, ru_received: ru, ua_reported_by: null, ru_reported_by: null,
-  chart_creamy_caprice: null, chart_creamy_caprice_discrepancy: null, status: "confirmed", sources: [], ...extra,
+  status: "confirmed", sources: [], ...extra,
 });
 
 describe("bodyExchangeSources", () => {

@@ -1346,10 +1346,6 @@ export interface BodyExchangeSource extends ExchangeSource {
 export interface BodyExchange extends ExchangeRecord {
   ua_reported_by: string | null;
   ru_reported_by: string | null;
-  // creamy_caprice's chart the dataset was seeded from; null when the exchange
-  // is not on it. Kept for audit only — never charted.
-  chart_creamy_caprice: { date: string; ua_received: number | null; ru_received: number | null } | null;
-  chart_creamy_caprice_discrepancy: string | null;
   sources: BodyExchangeSource[];
 }
 

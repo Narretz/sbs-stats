@@ -1,16 +1,14 @@
 {
   "_doc": {
     "what": "Hand-curated repatriations of fallen soldiers' bodies between Russia and Ukraine. Irregular, announced by each side separately — NOT a scrape: this file is edited by hand.",
-    "backfill": "Seeded from a chart by the OSINT account creamy_caprice (sources/body-exchanges.png, May 2023 – Oct 2026, no sources given), then checked against RBC article by article. Every figure here is read from a source (an RBC article or a Coordination HQ post, quoted under sources); the chart's own values are kept under `chart_creamy_caprice` for audit. Ukraine's figures were then checked against the Coordination HQ's own posts (t.me/Koord_shtab, read via the public t.me/s preview — no login). Exchanges before the Coordination HQ channel starts, and those it didn't repost, come from news articles quoting the Ministry of Reintegration and its missing-persons commissioner (ArmyInform, Ukrainska Pravda, Espreso, Ukrinform, Novaya Gazeta Europe).",
+    "backfill": "Checked against RBC article by article. Every figure here is read from a source (an RBC article or a Coordination HQ post, quoted under sources). Ukraine's figures were then checked against the Coordination HQ's own posts (t.me/Koord_shtab, read via the public t.me/s preview — no login). Exchanges before the Coordination HQ channel starts, and those it didn't repost, come from news articles quoting the Ministry of Reintegration and its missing-persons commissioner (ArmyInform, Ukrainska Pravda, Espreso, Ukrinform, Novaya Gazeta Europe).",
     "fields": {
       "date": "Day of the exchange (YYYY-MM-DD), as reported.",
       "ua_received": "Bodies returned to Ukraine, as Ukraine's Coordination HQ for the Treatment of POWs posts it (t.me/Koord_shtab). Its posts note the bodies are Ukrainian 'according to the Russian side' until identified.",
       "ru_received": "Bodies of Russian servicemen returned to Russia, as the Russian side reports it (Saraliev, Medinsky). null when no figure is known — not the same as 0.",
       "ua_reported_by / ru_reported_by": "Who the figure comes from. In 2022 Russia's count is sometimes only Ukraine's formula ('160 for 160'); the reporter says so.",
       "status": "confirmed | partial (one side's figure missing) | discrepancy (sources disagree with each other on a stored figure; see notes). A later article misremembering an exchange is noted but does not count.",
-      "sources[]": "{ via, url, published_at, covers, quote } — quote is verbatim (ellipses mark cuts) so the figure can be checked without the page. covers lists what the source supports.",
-      "chart_creamy_caprice": "The values on creamy_caprice's chart (an OSINT account; sources/body-exchanges.png, May 2023 – Oct 2026, no sources given): { date, ua_received, ru_received }, or null when the exchange is not on the chart. null inside means the label is cut off.",
-      "chart_creamy_caprice_discrepancy": "How the chart differs from the sourced figures, in words; null when it agrees. Does not affect status."
+      "sources[]": "{ via, url, published_at, covers, quote } — quote is verbatim (ellipses mark cuts) so the figure can be checked without the page. covers lists what the source supports."
     },
     "todo": [
       "Russian figures missing for most exchanges before May 2023, and for 2023-06-23, 2023-08-29, 2023-12-22.",
@@ -25,8 +23,6 @@
       "ru_received": 160,
       "ua_reported_by": "UA Ministry of Reintegration",
       "ru_reported_by": "UA Ministry of Reintegration ('160 for 160')",
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "confirmed",
       "sources": [
         {
@@ -59,8 +55,6 @@
       "ru_received": 50,
       "ua_reported_by": "UA Ministry of Reintegration",
       "ru_reported_by": "UA Ministry of Reintegration ('50 for 50')",
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "confirmed",
       "sources": [
         {
@@ -91,8 +85,6 @@
       "ru_received": null,
       "ua_reported_by": "UA Ministry of Reintegration",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -122,8 +114,6 @@
       "ru_received": 50,
       "ua_reported_by": "UA Ministry of Reintegration",
       "ru_reported_by": "UA Ministry of Reintegration ('35 for 50')",
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "confirmed",
       "sources": [
         {
@@ -154,8 +144,6 @@
       "ru_received": null,
       "ua_reported_by": "UA Ministry of Reintegration",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -185,8 +173,6 @@
       "ru_received": null,
       "ua_reported_by": "Kotenko (UA missing-persons commissioner)",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -207,8 +193,6 @@
       "ru_received": null,
       "ua_reported_by": "Kotenko (UA missing-persons commissioner)",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -229,8 +213,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -251,8 +233,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -273,8 +253,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -295,8 +273,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -317,8 +293,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -339,8 +313,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -361,8 +333,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -383,8 +353,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -405,8 +373,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -427,8 +393,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -449,8 +413,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -471,8 +433,6 @@
       "ru_received": null,
       "ua_reported_by": "UA Ministry of Reintegration",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -493,8 +453,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -524,8 +482,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -555,12 +511,6 @@
       "ru_received": 80,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2023-05-16",
-        "ua_received": 80,
-        "ru_received": null
-      },
-      "chart_creamy_caprice_discrepancy": "Dated 2023-05-16 on the chart; no exchange is reported that day. Russia's label is cut off at '8' (bar ~80).",
       "status": "discrepancy",
       "sources": [
         {
@@ -600,12 +550,6 @@
       "ru_received": 80,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2023-05-30",
-        "ua_received": 79,
-        "ru_received": null
-      },
-      "chart_creamy_caprice_discrepancy": "Russia's label is cut off at '8' (bar ~80).",
       "status": "confirmed",
       "sources": [
         {
@@ -635,8 +579,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -666,12 +608,6 @@
       "ru_received": 160,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2023-07-14",
-        "ua_received": 62,
-        "ru_received": 160
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -701,12 +637,6 @@
       "ru_received": 160,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2023-08-04",
-        "ua_received": 44,
-        "ru_received": 160
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -736,8 +666,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -767,12 +695,6 @@
       "ru_received": 60,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2023-10-06",
-        "ua_received": 64,
-        "ru_received": null
-      },
-      "chart_creamy_caprice_discrepancy": "Russia's label is cut off at '6' (bar ~55–60).",
       "status": "confirmed",
       "sources": [
         {
@@ -810,12 +732,6 @@
       "ru_received": 80,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2023-11-20",
-        "ua_received": 94,
-        "ru_received": null
-      },
-      "chart_creamy_caprice_discrepancy": "Russia's label is cut off at '8' (bar ~80).",
       "status": "confirmed",
       "sources": [
         {
@@ -845,8 +761,6 @@
       "ru_received": null,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": null,
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "partial",
       "sources": [
         {
@@ -867,12 +781,6 @@
       "ru_received": 55,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2024-01-26",
-        "ua_received": 77,
-        "ru_received": 55
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -904,12 +812,6 @@
       "ru_received": 61,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2024-02-16",
-        "ua_received": 58,
-        "ru_received": null
-      },
-      "chart_creamy_caprice_discrepancy": "Russia's label is cut off at '6'.",
       "status": "confirmed",
       "sources": [
         {
@@ -939,12 +841,6 @@
       "ru_received": 69,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2024-03-15",
-        "ua_received": 100,
-        "ru_received": 69
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -982,12 +878,6 @@
       "ru_received": 29,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2024-03-29",
-        "ua_received": 121,
-        "ru_received": 29
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1017,12 +907,6 @@
       "ru_received": 23,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2024-04-12",
-        "ua_received": 99,
-        "ru_received": 23
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1060,12 +944,6 @@
       "ru_received": 36,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2024-04-26",
-        "ua_received": 140,
-        "ru_received": 36
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1103,12 +981,6 @@
       "ru_received": 45,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2024-05-31",
-        "ua_received": 212,
-        "ru_received": 45
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1138,8 +1010,6 @@
       "ru_received": 32,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "Not on the chart.",
       "status": "confirmed",
       "sources": [
         {
@@ -1180,12 +1050,6 @@
       "ru_received": 38,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2024-08-02",
-        "ua_received": 250,
-        "ru_received": 38
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1224,12 +1088,6 @@
       "ru_received": 89,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2024-10-18",
-        "ua_received": 501,
-        "ru_received": 89
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1269,12 +1127,6 @@
       "ru_received": 37,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2024-11-08",
-        "ua_received": 563,
-        "ru_received": 37
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1304,12 +1156,6 @@
       "ru_received": 52,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2024-11-29",
-        "ua_received": 502,
-        "ru_received": 52
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "discrepancy",
       "sources": [
         {
@@ -1350,12 +1196,6 @@
       "ru_received": 42,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2024-12-20",
-        "ua_received": 503,
-        "ru_received": 42
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1394,12 +1234,6 @@
       "ru_received": 49,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2025-01-24",
-        "ua_received": 757,
-        "ru_received": 49
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1437,12 +1271,6 @@
       "ru_received": 45,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2025-02-14",
-        "ua_received": 757,
-        "ru_received": 45
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1472,12 +1300,6 @@
       "ru_received": 43,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2025-03-28",
-        "ua_received": 909,
-        "ru_received": 43
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1515,12 +1337,6 @@
       "ru_received": 41,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2025-04-18",
-        "ua_received": 909,
-        "ru_received": 41
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1550,12 +1366,6 @@
       "ru_received": 34,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2025-05-16",
-        "ua_received": 909,
-        "ru_received": 34
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1585,12 +1395,6 @@
       "ru_received": 27,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Medinsky",
-      "chart_creamy_caprice": {
-        "date": "2025-06-11",
-        "ua_received": 1212,
-        "ru_received": 27
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1630,12 +1434,6 @@
       "ru_received": 0,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "RBC source in the negotiating group",
-      "chart_creamy_caprice": {
-        "date": "2025-06-13",
-        "ua_received": 1200,
-        "ru_received": 0
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1666,12 +1464,6 @@
       "ru_received": 0,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "RBC source in the negotiating group",
-      "chart_creamy_caprice": {
-        "date": "2025-06-14",
-        "ua_received": 1200,
-        "ru_received": 0
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1702,12 +1494,6 @@
       "ru_received": 0,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "RBC source in the negotiating group",
-      "chart_creamy_caprice": {
-        "date": "2025-06-15",
-        "ua_received": 1200,
-        "ru_received": 0
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1738,12 +1524,6 @@
       "ru_received": 51,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "derived from Medinsky's totals",
-      "chart_creamy_caprice": {
-        "date": "2025-06-16",
-        "ua_received": 1248,
-        "ru_received": 51
-      },
-      "chart_creamy_caprice_discrepancy": "Ukraine: 1248 on the chart.",
       "status": "discrepancy",
       "sources": [
         {
@@ -1774,12 +1554,6 @@
       "ru_received": 19,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Medinsky",
-      "chart_creamy_caprice": {
-        "date": "2025-07-17",
-        "ua_received": 1000,
-        "ru_received": 19
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1809,12 +1583,6 @@
       "ru_received": 19,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Medinsky",
-      "chart_creamy_caprice": {
-        "date": "2025-08-19",
-        "ua_received": 1000,
-        "ru_received": 19
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1853,12 +1621,6 @@
       "ru_received": 24,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2025-09-18",
-        "ua_received": 1000,
-        "ru_received": 24
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1888,12 +1650,6 @@
       "ru_received": 31,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2025-10-23",
-        "ua_received": 1000,
-        "ru_received": 31
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1923,12 +1679,6 @@
       "ru_received": 30,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2025-11-20",
-        "ua_received": 1000,
-        "ru_received": 30
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -1958,12 +1708,6 @@
       "ru_received": 26,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Medinsky",
-      "chart_creamy_caprice": {
-        "date": "2025-12-19",
-        "ua_received": 1003,
-        "ru_received": 26
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "discrepancy",
       "sources": [
         {
@@ -1994,12 +1738,6 @@
       "ru_received": 38,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Medinsky",
-      "chart_creamy_caprice": {
-        "date": "2026-01-29",
-        "ua_received": 1000,
-        "ru_received": 38
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -2029,12 +1767,6 @@
       "ru_received": 35,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Medinsky",
-      "chart_creamy_caprice": {
-        "date": "2026-02-26",
-        "ua_received": 1000,
-        "ru_received": 35
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -2064,12 +1796,6 @@
       "ru_received": 41,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2026-04-09",
-        "ua_received": 1000,
-        "ru_received": 41
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -2100,12 +1826,6 @@
       "ru_received": 41,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2026-05-15",
-        "ua_received": 528,
-        "ru_received": 41
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -2136,12 +1856,6 @@
       "ru_received": 33,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2026-06-18",
-        "ua_received": 522,
-        "ru_received": 33
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -2171,12 +1885,6 @@
       "ru_received": 31,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2026-07-16",
-        "ua_received": 501,
-        "ru_received": 31
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -2206,12 +1914,6 @@
       "ru_received": 24,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2026-08-13",
-        "ua_received": 261,
-        "ru_received": 24
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -2241,12 +1943,6 @@
       "ru_received": 23,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2026-09-17",
-        "ua_received": 252,
-        "ru_received": 23
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -2277,12 +1973,6 @@
       "ru_received": 25,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": {
-        "date": "2026-10-22",
-        "ua_received": 252,
-        "ru_received": 25
-      },
-      "chart_creamy_caprice_discrepancy": null,
       "status": "confirmed",
       "sources": [
         {
@@ -2312,8 +2002,6 @@
       "ru_received": 22,
       "ua_reported_by": "UA coordination HQ",
       "ru_reported_by": "Saraliev (Duma)",
-      "chart_creamy_caprice": null,
-      "chart_creamy_caprice_discrepancy": "After the chart's range (it ends Oct 2026).",
       "status": "confirmed",
       "sources": [
         {

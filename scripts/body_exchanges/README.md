@@ -36,14 +36,10 @@ checks the order and that every stated figure has a source covering it.
 
 ## Backfill
 
-Seeded from a chart by the OSINT account creamy_caprice
-(`sources/body-exchanges.png`, May 2023 – Oct 2026, no sources given), then
-checked exchange by exchange against RBC and the Coordination HQ's posts. The
-chart's values stay in `chart_creamy_caprice` for audit, and how it differs in
-`chart_creamy_caprice_discrepancy` — it dates one exchange wrongly, misses six
-in its own range, and cuts off five labels.
+From May 2023 on, each exchange was checked against RBC and the Coordination
+HQ's posts.
 
-The exchanges before the chart come from paging the Coordination HQ channel
+The exchanges before that come from paging the Coordination HQ channel
 back to its first post (2022-07-21), and, for June–July 2022 and the returns
 the channel didn't repost, from news articles quoting the Ministry of
 Reintegration and its missing-persons commissioner (ArmyInform, Ukrainska
